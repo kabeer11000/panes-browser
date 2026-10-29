@@ -10,7 +10,7 @@ import { TabStack } from './components/TabStack'
 import { TaskView } from './components/TaskView'
 import { AddressBar } from './components/AddressBar'
 import { FindBar } from './components/FindBar'
-import { GridIcon, SidebarIcon, SplitIcon } from './components/icons'
+import { GridIcon, MoreIcon, SidebarIcon, SplitIcon } from './components/icons'
 import { NavButtons } from './components/NavButtons'
 import { HorizontalTabs } from './components/HorizontalTabs'
 import { SpaceSwitcher } from './components/SpaceSwitcher'
@@ -20,10 +20,11 @@ import { holdOverlay, releaseOverlay } from './overlay'
 import { useScheme } from './useScheme'
 import { useSwipe } from './hooks/useSwipe'
 import { useTabDrag } from './hooks/useTabDrag'
+import { useTabSlide } from './hooks/useTabSlide'
 import { useTabs } from './hooks/useTabs'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../shared/settings'
 import type { LoginEdits, PasswordPrompt, Settings } from '../../shared/types'
-import { maxSafeTint } from '../../shared/color'
+import { chromeVars } from '../../shared/color'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 
 type Mode = 'grid' | 'stack' | 'search' | null
@@ -263,16 +264,19 @@ function App(): React.JSX.Element {
   const theme = activeSpace ?? { color: accent, color2: null, tint: 0, grain: 0 }
   useEffect(() => {
     const root = document.documentElement.style
-    root.setProperty('--accent', accent)
     root.setProperty('--s', String(uiScale))
     root.setProperty('--d', String(density))
     root.setProperty('--addr', String(addressSize))
     root.setProperty('--edge', `${pageMargin}px`)
     root.setProperty('--sidebar-full', `${sidebarWidth}px`)
-    root.setProperty('--space', theme.color)
-    root.setProperty('--space2', theme.color2 ?? theme.color)
-    const safe = maxSafeTint(theme.color, theme.color2, scheme === 'dark')
-    root.setProperty('--tint', `${Math.round(Math.min(theme.tint, safe) * 100)}%`)
+    // colours, readable tint and the highlight, worked out once for the window and its popover views alike
+    const vars = chromeVars(
+      { color: theme.color, color2: theme.color2, tint: theme.tint },
+      scheme === 'dark',
+      accent,
+      DEFAULT_SETTINGS.accent
+    )
+    for (const [k, v] of Object.entries(vars)) root.setProperty(k, v)
     root.setProperty('--grain', String(theme.grain))
     document.documentElement.dataset.scheme = scheme
   }, [
@@ -326,6 +330,12 @@ function App(): React.JSX.Element {
       leaves(latest.current.layout).includes(latest.current.activeId)
   }))
 
+  useTabSlide(
+    drag,
+    tabs.map((t) => t.id),
+    layout ? leaves(layout) : []
+  )
+
   // While dragging over a pane, show the arrangement the drop would produce.
   const tiledLayout = layout && leaves(layout).includes(activeId ?? -1) ? layout : null
   const preview =
@@ -360,7 +370,8 @@ function App(): React.JSX.Element {
           urlDisplay={effective.urlDisplay}
           dragId={drag?.id ?? null}
           dropIndex={
-            drag?.source === 'tab' && drag.target?.kind === 'list' ? drag.target.index : null
+            // a dragged tab is shown by the others sliding aside; a pane dragged in gets the line
+            drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
           }
           dropGroupId={drag?.target?.kind === 'group' ? drag.target.groupId : null}
           dir={spaceDir}
@@ -393,7 +404,7 @@ function App(): React.JSX.Element {
             dropGroupId={drag?.target?.kind === 'group' ? drag.target.groupId : null}
             dragId={drag?.id ?? null}
             dropIndex={
-              drag?.source === 'tab' && drag.target?.kind === 'list' ? drag.target.index : null
+              drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
             }
             onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
           />
@@ -454,6 +465,18 @@ function App(): React.JSX.Element {
               title="All tabs (Ctrl+Shift+A)"
             >
               <GridIcon />
+            </button>
+            <button
+              className="icon-btn no-drag"
+              title="Menu: bookmarks, history, downloads, settings"
+              aria-label="Menu"
+              aria-haspopup="menu"
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect()
+                window.api.appMenu(r.left, r.bottom + 4)
+              }}
+            >
+              <MoreIcon />
             </button>
           </div>
         </div>

@@ -21,6 +21,7 @@ import {
 } from '../shared/permissions'
 import type { PermissionAnswer, PermissionPromptState, Rect } from '../shared/types'
 import { JsonStore } from './store'
+import { paintView } from './chromeTheme'
 
 const CARD_WIDTH = 340
 const PAD = 36 // room around the card for its shadow (blur 24 + offset 8 + slack), so the view never clips it
@@ -230,6 +231,7 @@ export class PermissionManager {
     view.setBounds({ x, y, width, height })
     // Re-adding moves it to the top, above any tab views created since it was last shown.
     this.win.contentView.addChildView(view)
+    paintView(view.webContents)
     view.setVisible(true)
     if (!view.webContents.isLoading()) view.webContents.send('perm:state', this.current.state)
   }

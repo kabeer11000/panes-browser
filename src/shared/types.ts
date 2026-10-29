@@ -148,6 +148,8 @@ export interface PanesApi {
   siteInfo(): Promise<SiteInfo | null>
   siteUpdate(patch: SitePatch): Promise<SiteInfo | null>
   groupMenu(id: number): void
+  /** The browser menu (pages, sessions, settings) at a point, for when there is no sidebar to hold those buttons. */
+  appMenu(x: number, y: number): void
   updateGroup(id: number, patch: Partial<Pick<TabGroup, 'name' | 'color' | 'collapsed'>>): void
   onRenameGroup(cb: (id: number) => void): () => void
   toggleMute(id: number): void

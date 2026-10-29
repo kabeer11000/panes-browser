@@ -44,6 +44,7 @@ const api: PanesApi = {
   siteInfo: () => ipcRenderer.invoke('site:info'),
   siteUpdate: (patch) => ipcRenderer.invoke('site:update', patch),
   groupMenu: (id) => ipcRenderer.send('tabs:group-menu', id),
+  appMenu: (x, y) => ipcRenderer.send('tabs:app-menu', x, y),
   updateGroup: (id, patch) => ipcRenderer.send('tabs:group-update', id, patch),
   onRenameGroup: (cb) => subscribe<[number]>('ui:rename-group', cb),
   toggleMute: (id) => ipcRenderer.send('tabs:toggle-mute', id),

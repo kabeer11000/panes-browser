@@ -1517,6 +1517,33 @@ export class TabManager {
     Menu.buildFromTemplate(items).popup({ window: this.win })
   }
 
+  /** The browser's own pages and actions, for layouts with no sidebar footer to hold them. */
+  appMenu(x: number, y: number): void {
+    const page = (label: string, to: InternalPage): MenuItemConstructorOptions => ({
+      label,
+      click: () => this.openInternal(to)
+    })
+    Menu.buildFromTemplate([
+      { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => this.create() },
+      {
+        label: 'Reopen closed tab',
+        accelerator: 'CmdOrCtrl+Shift+T',
+        click: () => this.reopenClosed()
+      },
+      { type: 'separator' },
+      page('Bookmarks', 'bookmarks'),
+      page('History', 'history'),
+      page('Downloads', 'downloads'),
+      page('Passwords', 'passwords'),
+      { type: 'separator' },
+      { label: 'Find in page', accelerator: 'CmdOrCtrl+F', click: () => this.command('find') },
+      { label: 'Save all tabs as a session', click: () => this.dumpTabs() },
+      { type: 'separator' },
+      { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => this.openInternal('settings') },
+      page('About and updates', 'software')
+    ]).popup({ window: this.win, x, y })
+  }
+
   groupMenu(id: number): void {
     const group = this.groups.get(id)
     if (!group) return

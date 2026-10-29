@@ -2,6 +2,7 @@ import { is } from '@electron-toolkit/utils'
 import { type BrowserWindow, WebContentsView, type WebContents } from 'electron'
 import { join } from 'path'
 import type { PasswordPrompt, PopoverState, PromptAnchor } from '../shared/types'
+import { paintView } from './chromeTheme'
 
 const CARD_WIDTH = 296
 const PAD = 14 // room around the card for its shadow, so the view never clips it
@@ -78,6 +79,7 @@ export class PromptPopover {
     view.setBounds({ x, y, width, height })
     // Re-adding moves it to the top, above any tab views created since it was last shown.
     this.win.contentView.addChildView(view)
+    paintView(view.webContents)
     view.setVisible(true)
     if (!view.webContents.isLoading()) view.webContents.send('popover:state', this.state())
   }

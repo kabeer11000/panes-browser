@@ -108,3 +108,29 @@ describe('contrast guard', () => {
     expect(maxSafeTint('#f2d94e', null, true)).toBeLessThan(maxSafeTint('#1d2a6b', null, true))
   })
 })
+
+import { accentFor, chromeVars } from './color'
+
+describe('accentFor', () => {
+  const DEF = '#8b8bff'
+  test('a colour chosen in settings always wins', () => {
+    expect(accentFor('#ff0000', DEF, '#2bb3a3', 0.5, true)).toBe('#ff0000')
+  })
+  test('a neutral space keeps the default', () => {
+    expect(accentFor(DEF, DEF, '#8b8b95', 0, true)).toBe(DEF)
+  })
+  test('a coloured space lends its colour, made visible against the window', () => {
+    const dark = accentFor(DEF, DEF, '#1d2a6b', 0.5, true)
+    expect(contrastRatio(dark, '#15151b')).toBeGreaterThanOrEqual(3)
+    const light = accentFor(DEF, DEF, '#f2d94e', 0.5, false)
+    expect(contrastRatio(light, '#eeeef4')).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('chromeVars', () => {
+  test('tint is held to the readable limit', () => {
+    const v = chromeVars({ color: '#f2d94e', color2: null, tint: 0.7 }, true, '#8b8bff', '#8b8bff')
+    expect(Number.parseInt(v['--tint'])).toBeLessThan(40)
+    expect(v['--space2']).toBe('#f2d94e')
+  })
+})

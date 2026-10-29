@@ -9,6 +9,7 @@ import {
 import { join } from 'path'
 import type { Rect } from '../shared/types'
 import type { SiteSettings } from './sites'
+import { paintView } from './chromeTheme'
 
 const WIDTH = 352
 const PAD = 36 // room around the card for its shadow, so the view never clips it
@@ -73,6 +74,7 @@ export class SitePanel {
     const view = this.ensureView()
     this.place() // after the view exists: it has no size until placed
     this.d.win.contentView.addChildView(view) // on top of the page views
+    paintView(view.webContents)
     view.setVisible(true)
     view.webContents.focus()
     if (!view.webContents.isLoading()) view.webContents.send('panel:show')

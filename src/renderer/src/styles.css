@@ -10,11 +10,12 @@
   --accent: #8b8bff;
   /* the page area leans toward the space's colour; keep the 0.28 in step with STAGE_SHARE in shared/color.ts */
   --stage-bg: color-mix(in srgb, var(--space, #121216) calc(var(--tint, 0%) * 0.28), #121216);
-  --overlay: rgb(12 12 16 / 0.97);
-  --overlay-solid: rgb(10 10 14);
-  --card-bg: #16161c;
+  /* surfaces lean toward the space's colour like the sidebar does, so a popover is not a different grey */
+  --overlay: color-mix(in srgb, var(--space) calc(var(--tint) * 0.22), rgb(12 12 16 / 0.97));
+  --overlay-solid: color-mix(in srgb, var(--space) calc(var(--tint) * 0.22), rgb(10 10 14));
+  --card-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.24), #16161c);
   --thumb-bg: #0d0d11;
-  --popover-bg: rgb(24 24 30 / 0.97);
+  --popover-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.26), rgb(24 24 30 / 0.97));
   --ghost-bg: rgb(40 40 52 / 0.92);
   --radius-s: 8px;
   --radius-m: 12px;
@@ -313,7 +314,8 @@ button {
   overflow: hidden;
   transition:
     background 0.12s,
-    color 0.12s;
+    color 0.12s,
+    translate 0.2s var(--ease);
 }
 .tab-row:hover {
   background: var(--surface);
@@ -1941,11 +1943,11 @@ button {
   --fg: #101015;
   --fg-dim: rgb(16 16 21 / 0.72);
   --stage-bg: color-mix(in srgb, var(--space, #ffffff) calc(var(--tint, 0%) * 0.28), #ffffff);
-  --overlay: rgb(244 244 248 / 0.97);
-  --overlay-solid: rgb(244 244 248);
-  --card-bg: #ffffff;
+  --overlay: color-mix(in srgb, var(--space) calc(var(--tint) * 0.16), rgb(244 244 248 / 0.97));
+  --overlay-solid: color-mix(in srgb, var(--space) calc(var(--tint) * 0.16), rgb(244 244 248));
+  --card-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.12), #ffffff);
   --thumb-bg: #ececf2;
-  --popover-bg: rgb(255 255 255 / 0.97);
+  --popover-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.14), rgb(255 255 255 / 0.97));
   --ghost-bg: rgb(255 255 255 / 0.96);
   color: var(--fg);
 }
@@ -2657,7 +2659,8 @@ kbd {
   overflow: hidden;
   transition:
     background 0.12s,
-    color 0.12s;
+    color 0.12s,
+    translate 0.2s var(--ease);
 }
 .htab:hover {
   background: var(--surface);
@@ -3216,4 +3219,10 @@ kbd {
     width: 100%;
     opacity: 0.7;
   }
+}
+
+/* group headers slide too while a tab is dragged past them */
+.group-head,
+.hgroup {
+  transition: translate 0.2s var(--ease);
 }

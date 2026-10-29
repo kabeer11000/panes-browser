@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, screen, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, session, shell } from 'electron'
 import { createServer } from 'http'
 import { existsSync, statSync } from 'fs'
 import { pathToFileURL } from 'url'
@@ -6,7 +6,7 @@ import type { AddressInfo } from 'net'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import type { InternalPage } from '../shared/settings'
+import { DEFAULT_SETTINGS, type InternalPage } from '../shared/settings'
 import { linksFromArgv } from '../shared/launch'
 import type { Edge } from '../shared/layout'
 import type { ClearKind, Rect, SpacePatch } from '../shared/types'
@@ -16,6 +16,8 @@ import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
 import { BookmarkStore, HistoryStore } from './history'
 import { DumpStore } from './dumps'
+import { chromeVars } from '../shared/color'
+import { setChromeThemeSource } from './chromeTheme'
 import { PasswordStore, registerPasswordIpc } from './passwords'
 import { registerInternalIpc, registerInternalScheme, serveInternalPages } from './internal'
 import icon from '../../resources/icon.png?asset'
@@ -128,6 +130,17 @@ function createWindow(): void {
   const dumps = new DumpStore()
   const tabs = new TabManager(win, tabSession, { settings, history, bookmarks, spaces, dumps })
   const permissions = new PermissionStore()
+  // Popover views (site panel, permission and password cards) wear the window's colours too.
+  setChromeThemeSource(() => {
+    const space = spaces.get(spaces.activeId())
+    const dark = nativeTheme.shouldUseDarkColors
+    const accent = settings.get().accent
+    const theme = space ?? { color: accent, color2: null, tint: 0 }
+    return {
+      scheme: dark ? 'dark' : 'light',
+      vars: chromeVars(theme, dark, accent, DEFAULT_SETTINGS.accent)
+    }
+  })
   const sites = new SiteSettings({
     settings,
     session: tabSession,
@@ -349,6 +362,9 @@ function createWindow(): void {
   ipcMain.on('tabs:add-to-group', (_e, id: number, groupId: number) => tabs.addToGroup(id, groupId))
   ipcMain.on('tabs:tab-menu', (_e, id: number) => tabs.tabMenu(id))
   ipcMain.on('tabs:group-menu', (_e, id: number) => tabs.groupMenu(id))
+  ipcMain.on('tabs:app-menu', (_e, x: unknown, y: unknown) => {
+    if (typeof x === 'number' && typeof y === 'number') tabs.appMenu(Math.round(x), Math.round(y))
+  })
   ipcMain.on('tabs:group-update', (_e, id: number, patch: unknown) => tabs.updateGroup(id, patch))
   ipcMain.on('tabs:toggle-mute', (_e, id: number) => tabs.toggleMute(id))
   ipcMain.on('tabs:ratios', (_e, path: number[], ratios: number[]) =>

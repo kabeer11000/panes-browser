@@ -32,7 +32,7 @@ interface Props {
 
 const REMOTE_DEBOUNCE_MS = 110
 const POPOVER_MIN_WIDTH = 560
-const POPOVER_MAX_WIDTH = 760
+const POPOVER_MAX_WIDTH = 1200 // a full-width top bar is matched edge to edge, up to this
 const EDGE = 8
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
