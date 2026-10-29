@@ -26,6 +26,7 @@ import {
 import type { InitialData, Rect, SpacePatch, TabInfo, TabsState, UiCommand } from '../shared/types'
 import { resolveInput } from '../shared/url'
 import { showContextMenu } from './contextMenu'
+import { PipController } from './pip'
 import type { BookmarkStore, HistoryStore } from './history'
 import type { SettingsStore } from './settings'
 import type { SpaceStore } from './spaces'
@@ -38,6 +39,7 @@ const VIEW_RADIUS = 12
 const ZOOM_STEP = 0.5
 const ZOOM_MIN = -3
 const ZOOM_MAX = 5
+const PARKED_X = -20000 // where views wait, out of sight, while an overlay is open
 const OPEN_EXTERNALLY = new Set(['mailto:', 'tel:'])
 
 interface Tab {
@@ -48,6 +50,8 @@ interface Tab {
   /** Created with a URL, so it is loading rather than blank even while getURL() is still empty. */
   hasUrl: boolean
   spaceId: number
+  /** Restored but not loaded yet: loads the first time the tab is shown. */
+  pending: { url: string; title: string } | null
 }
 
 /** The tab's live WebContents, or null while it is being torn down (reading it then would throw). */
@@ -61,6 +65,7 @@ export class TabManager {
   private activeId: number | null = null
   private nextId = 1
   private layout: LayoutNode | null = null
+  private pip: PipController
   /** Spaces: the active one owns `activeId` and `layout`; the others keep theirs here while hidden. */
   private activeSpaceId = 0
   private layouts = new Map<number, LayoutNode | null>()
@@ -72,7 +77,7 @@ export class TabManager {
   private fullscreenId: number | null = null
   private lastFind = ''
   private sessionStore = new JsonStore<{
-    tabs: Array<{ url: string; spaceId: number }>
+    tabs: Array<{ url: string; spaceId: number; title?: string; favicon?: string | null }>
     active: number
   }>('session-v2', { tabs: [], active: 0 })
   private sessionTimer: NodeJS.Timeout | null = null
@@ -88,6 +93,12 @@ export class TabManager {
     }
   ) {
     this.activeSpaceId = deps.spaces.activeId()
+    this.pip = new PipController({
+      mainWin: win,
+      viewRadius: VIEW_RADIUS,
+      onChange: () => this.refresh(),
+      onReturn: (id) => this.activate(id)
+    })
     win.on('resize', () => this.applyVisibility())
     setInterval(() => {
       if (this.win.isFocused()) for (const id of this.visibleIds()) void this.snapshot(id)
@@ -110,11 +121,12 @@ export class TabManager {
       if (!wc) continue
       tabs.push({
         id,
-        url: wc.getURL(),
-        title: wc.getTitle(),
+        url: wc.getURL() || t.pending?.url || '',
+        title: wc.getTitle() || t.pending?.title || '',
         favicon: t.favicon,
         loading: wc.isLoading(),
-        bookmarked: this.deps.bookmarks.has(wc.getURL()),
+        pip: this.pip.tabId === id,
+        bookmarked: this.deps.bookmarks.has(wc.getURL() || t.pending?.url || ''),
         canGoBack: wc.navigationHistory.canGoBack(),
         canGoForward: wc.navigationHistory.canGoForward()
       })
@@ -151,11 +163,18 @@ export class TabManager {
 
   // ---- tab lifecycle ----
 
-  create(input = '', activate = true, spaceId = this.activeSpaceId): number {
+  create(
+    input = '',
+    activate = true,
+    spaceId = this.activeSpaceId,
+    lazy?: { title: string; favicon: string | null }
+  ): number {
     const view = new WebContentsView({
       webPreferences: {
         session: this.session,
         sandbox: true,
+        // like Chrome: a page may not start playing sound until you have interacted with it
+        autoplayPolicy: 'document-user-activation-required',
         preload: join(__dirname, '../preload/internal.js')
       }
     })
@@ -171,7 +190,8 @@ export class TabManager {
       thumb: null,
       thumbTimer: null,
       hasUrl: false,
-      spaceId
+      spaceId,
+      pending: null
     }
     this.tabs.set(id, tab)
     this.wire(id, tab)
@@ -179,7 +199,12 @@ export class TabManager {
     const url = resolveInput(input, this.deps.settings.searchUrl())
     if (url) {
       tab.hasUrl = true
-      view.webContents.loadURL(url).catch(() => {}) // ERR_ABORTED on redirects is normal
+      if (lazy) {
+        tab.pending = { url, title: lazy.title }
+        tab.favicon = lazy.favicon
+      } else {
+        view.webContents.loadURL(url).catch(() => {}) // ERR_ABORTED on redirects is normal
+      }
     }
     if (activate) this.activate(id)
     else this.refresh()
@@ -203,6 +228,7 @@ export class TabManager {
   close(id: number): void {
     const tab = this.tabs.get(id)
     if (!tab) return
+    if (this.pip.tabId === id) this.pip.stop() // the page must be back in this window before it is closed
     const url = liveContents(tab)?.getURL()
     if (url) this.closedUrls.push(url)
 
@@ -239,13 +265,27 @@ export class TabManager {
     if (id !== undefined) this.activate(id)
   }
 
-  /** Open saved tabs when the user chose to restore, otherwise a fresh blank tab. */
+  /** Start loading a restored tab. Called whenever a tab is about to be shown. */
+  private ensureLoaded(tab: Tab): void {
+    if (!tab.pending) return
+    const { url } = tab.pending
+    tab.pending = null
+    tab.view.webContents.loadURL(url).catch(() => {})
+  }
+
+  /**
+   * Open saved tabs when the user chose to restore, otherwise a fresh blank tab. Only the active tab
+   * loads; the rest wait until they are shown, so a pile of tabs never all start playing at once.
+   */
   restoreOrNew(): void {
     const saved = this.sessionStore.value
     const known = new Set(this.deps.spaces.list().map((sp) => sp.id))
     if (this.deps.settings.get().startup === 'restore' && saved.tabs.length > 0) {
       const ids = saved.tabs.map((t) =>
-        this.create(t.url, false, known.has(t.spaceId) ? t.spaceId : this.activeSpaceId)
+        this.create(t.url, false, known.has(t.spaceId) ? t.spaceId : this.activeSpaceId, {
+          title: t.title ?? '',
+          favicon: t.favicon ?? null
+        })
       )
       const own = ids.filter((id) => this.tabs.get(id)?.spaceId === this.activeSpaceId)
       const pick = ids[Math.min(saved.active, ids.length - 1)]
@@ -255,21 +295,40 @@ export class TabManager {
     }
   }
 
+  /** Write the open tabs to the session store (debounced; shutdown() writes it immediately). */
   private persistSession(): void {
     if (this.sessionTimer) return
     this.sessionTimer = setTimeout(() => {
       this.sessionTimer = null
-      const tabs: Array<{ url: string; spaceId: number }> = []
-      let active = 0
-      for (const [id, t] of this.tabs) {
-        const url = liveContents(t)?.getURL() ?? ''
-        if (!/^(https?|file):/i.test(url)) continue
-        if (id === this.activeId) active = tabs.length
-        tabs.push({ url, spaceId: t.spaceId })
-      }
-      this.sessionStore.value = { tabs, active }
-      this.sessionStore.save()
+      this.writeSession()
     }, 1500)
+  }
+
+  private writeSession(): void {
+    const tabs: Array<{ url: string; spaceId: number; title: string; favicon: string | null }> = []
+    let active = 0
+    for (const [id, t] of this.tabs) {
+      const wc = liveContents(t)
+      const url = t.pending?.url ?? wc?.getURL() ?? ''
+      if (!/^(https?|file):/i.test(url)) continue
+      if (id === this.activeId) active = tabs.length
+      tabs.push({
+        url,
+        spaceId: t.spaceId,
+        title: t.pending?.title ?? wc?.getTitle() ?? '',
+        favicon: t.favicon
+      })
+    }
+    this.sessionStore.value = { tabs, active }
+    this.sessionStore.save()
+  }
+
+  /** The window is closing: bring a floating video back (so its window does not keep the app alive) and save the session now. */
+  shutdown(): void {
+    this.pip.stop()
+    if (this.sessionTimer) clearTimeout(this.sessionTimer)
+    this.sessionTimer = null
+    this.writeSession()
   }
 
   // ---- spaces ----
@@ -363,6 +422,32 @@ export class TabManager {
     if (img) writeFileSync(file, img.toPNG())
     const ui = await this.win.webContents.capturePage()
     writeFileSync(file.replace('.png', '-ui.png'), ui.toPNG())
+  }
+
+  /** Float the current tab's video in a small always-on-top window, or bring it back. */
+  togglePip(): void {
+    if (this.pip.tabId !== null) return this.pip.stop()
+    const tab = this.current()
+    if (tab && this.activeId !== null) void this.pip.start({ id: this.activeId, view: tab.view })
+  }
+
+  exitPip(): void {
+    this.pip.stop()
+  }
+
+  /** Dev aid: the state of picture in picture. */
+  debugPip(): Promise<unknown> {
+    return this.pip.debugInfo()
+  }
+
+  /** Dev aid: which tabs have actually started loading. */
+  debugTabs(): Array<{ id: number; shownUrl: string; loaded: string; pending: boolean }> {
+    return [...this.tabs].map(([id, t]) => ({
+      id,
+      shownUrl: this.state().tabs.find((x) => x.id === id)?.url ?? '(other space)',
+      loaded: liveContents(t)?.getURL() ?? '',
+      pending: !!t.pending
+    }))
   }
 
   /** Dev aid: drag the theme picker's wheel with real mouse events and report whether the space changed. */
@@ -641,19 +726,25 @@ export class TabManager {
     else if (cur && !this.isBlank(cur)) cur.view.webContents.focus()
   }
 
-  /** Show the visible tabs' views (none while a UI overlay is open); blank tabs show renderer UI instead. */
+  /**
+   * Position the visible tabs' views. While a UI overlay is open they are parked off-screen at full
+   * size instead of hidden: a hidden view drops its picture and flashes black when it returns, a
+   * parked one keeps it. Blank tabs show renderer UI instead of a view.
+   */
   private applyVisibility(): void {
-    const shown = this.overlay ? [] : this.visibleIds()
+    const shown = this.visibleIds()
     const [w, h] = this.win.getContentSize()
     for (const [id, tab] of this.tabs) {
+      if (id === this.pip.tabId) continue // its page is in the floating window
       const normal = shown.includes(id) ? (this.rects[id] ?? null) : null
       // HTML5 fullscreen (video etc.) takes the whole window for that tab only.
-      const rect =
+      const placed =
         this.fullscreenId !== null
           ? id === this.fullscreenId
             ? { x: 0, y: 0, width: w, height: h }
             : null
           : normal
+      const rect = placed && this.overlay ? { ...placed, x: PARKED_X } : placed
       const show = rect !== null && !this.isBlank(tab)
       if (show) tab.view.setBounds(rect)
       tab.view.setVisible(show)
@@ -706,11 +797,18 @@ export class TabManager {
             this.splitWith(nid)
           }
         },
+        pip: () => this.togglePip(),
         searchUrl: (t) => this.deps.settings.searchUrl() + encodeURIComponent(t)
       })
     )
-    wc.on('enter-html-full-screen', () => this.setFullscreen(id))
-    wc.on('leave-html-full-screen', () => this.setFullscreen(null))
+    // A video in picture in picture is fullscreen inside its own small window, not the browser window.
+    wc.on('enter-html-full-screen', () => {
+      if (this.pip.tabId !== id) this.setFullscreen(id)
+    })
+    wc.on('leave-html-full-screen', () => {
+      if (this.pip.tabId === id) this.pip.refullscreen()
+      else this.setFullscreen(null)
+    })
     wc.on('did-stop-loading', () => {
       this.refresh()
       this.scheduleSnapshot(id)
@@ -826,6 +924,7 @@ export class TabManager {
     } else if (input.alt && !mod && !input.shift) {
       if (k === 'arrowleft') this.back()
       else if (k === 'arrowright') this.forward()
+      else if (k === 'p') this.togglePip()
       else handled = false
     } else if (k === 'f5' && !mod) {
       this.reload()
@@ -865,6 +964,10 @@ export class TabManager {
   // ---- renderer sync ----
 
   private refresh(): void {
+    for (const id of this.visibleIds()) {
+      const t = this.tabs.get(id)
+      if (t) this.ensureLoaded(t)
+    }
     this.applyVisibility()
     this.persistSession()
     if (!this.win.isDestroyed()) this.win.webContents.send('tabs:state', this.state())

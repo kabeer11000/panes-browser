@@ -70,19 +70,25 @@ function App(): React.JSX.Element {
       if (opening.current) return
       opening.current = true
       if (m === 'search') {
-        const bar = [...document.querySelectorAll<HTMLElement>('.address')]
-          .map((el) => el.getBoundingClientRect())
-          .find((r) => r.width > 0 && r.height > 0)
+        const barEl = [...document.querySelectorAll<HTMLElement>('.address')]
+          .filter((el) => !el.closest('[inert]'))
+          .find((el) => {
+            const r = el.getBoundingClientRect()
+            return r.width > 0 && r.height > 0
+          })
+        const bar = barEl?.getBoundingClientRect()
+        const radius = barEl ? parseFloat(getComputedStyle(barEl).borderTopLeftRadius) || 8 : 8
         const stage = document.querySelector('.stage')?.getBoundingClientRect()
         setAnchor(
           bar
-            ? { left: bar.left, top: bar.top, width: bar.width, height: bar.height }
+            ? { left: bar.left, top: bar.top, width: bar.width, height: bar.height, radius }
             : stage
               ? {
                   left: stage.left + Math.max(0, (stage.width - 600) / 2),
                   top: stage.top + 6,
                   width: Math.min(600, stage.width),
-                  height: 40
+                  height: 40,
+                  radius
                 }
               : null
         )
@@ -349,6 +355,7 @@ function App(): React.JSX.Element {
                     if (id === 'new-space') window.api.createSpace()
                     else if (id === 'split') window.api.toggleSplit()
                     else if (id === 'sidebar') setSidebarOpen((o) => !o)
+                    else if (id === 'pip') window.api.togglePip()
                     else if (id === 'grid') void openOverlay('grid')
                     else if (
                       id === 'settings' ||

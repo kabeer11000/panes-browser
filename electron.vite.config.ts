@@ -9,7 +9,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
-          internal: resolve('src/preload/internal.ts')
+          internal: resolve('src/preload/internal.ts'),
+          pip: resolve('src/preload/pip.ts')
         }
       }
     }
@@ -25,7 +26,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
-          internal: resolve('src/renderer/internal.html')
+          internal: resolve('src/renderer/internal.html'),
+          pip: resolve('src/renderer/pip.html')
         }
       }
     }

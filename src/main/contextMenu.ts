@@ -10,6 +10,7 @@ import {
 interface Actions {
   openTab: (url: string) => void
   openSplit: (url: string) => void
+  pip: () => void
   searchUrl: (text: string) => string
 }
 
@@ -37,6 +38,9 @@ export function showContextMenu(
       { label: 'Save image as...', click: () => wc.downloadURL(p.srcURL) },
       sep
     )
+  }
+  if (p.mediaType === 'video') {
+    items.push({ label: 'Picture in Picture', click: a.pip }, sep)
   }
   if (p.isEditable) {
     items.push(

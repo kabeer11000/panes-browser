@@ -148,6 +148,12 @@ button {
 .strip .address {
   height: calc(26px * var(--d) * var(--addr));
   margin: 0 6px;
+  border-radius: 7px; /* a rounded rectangle; 10px on a bar this short reads as a pill */
+  /* a comfortable fixed width, centred between the controls, not stretched across the window */
+  flex: 1 1 0;
+  min-width: 160px;
+  max-width: 560px;
+  margin: 0 auto;
 }
 [data-platform='darwin'] .strip {
   padding-left: 80px;
@@ -1921,4 +1927,70 @@ kbd {
   text-align: center;
   color: var(--fg-dim);
   font-size: 13px;
+}
+
+/* behind the command bar the page is a stored snapshot; soften it instead of showing it stretched */
+.pane-frozen {
+  transition:
+    filter 0.18s,
+    transform 0.18s;
+}
+.panes.blurred .pane-frozen {
+  filter: blur(7px) brightness(0.92);
+  transform: scale(1.04);
+}
+
+/* the tab whose page is floating in picture in picture */
+.pip-note {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--stage-bg);
+  text-align: center;
+}
+.pip-note-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--surface-hover);
+  color: var(--fg-dim);
+  transform: scale(1.5);
+  margin-bottom: 14px;
+}
+.pip-note-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.pip-note-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--surface-active);
+  color: var(--fg);
+  font-size: 13px;
+  transition: background 0.12s;
+}
+.pip-note-btn:hover {
+  background: color-mix(in srgb, var(--accent) 30%, var(--surface-active));
+}
+
+/* the popover is the address bar grown larger: same corners and inner spacing, ring in the accent */
+.pal.popover {
+  border-radius: var(--pal-r, 8px) var(--pal-r, 8px) 12px 12px;
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 18px 48px rgb(0 0 0 / 0.38);
+}
+.pal.popover .pal-input {
+  padding: 0 12px;
+  gap: 8px;
+}
+.pal.popover .pal-input input {
+  font-size: calc(13px * var(--addr));
 }

@@ -181,6 +181,8 @@ function createWindow(): void {
   ipcMain.on('spaces:move-tab', (_e, tabId: number, spaceId: number) =>
     tabs.moveTabToSpace(tabId, spaceId)
   )
+  ipcMain.on('pip:toggle', () => tabs.togglePip())
+  ipcMain.on('pip:exit', () => tabs.exitPip())
   ipcMain.on('tabs:close-pane', (_e, id: number) => tabs.closePane(id))
   ipcMain.on('tabs:ratios', (_e, path: number[], ratios: number[]) =>
     tabs.updateRatios(path, ratios)
@@ -193,6 +195,7 @@ function createWindow(): void {
   ipcMain.handle('search:remote', (_e, q: string) => suggester.remote(String(q)))
   ipcMain.on('tabs:open-in-split', (_e, input: string) => tabs.openInSplit(String(input)))
 
+  win.on('close', () => tabs.shutdown())
   win.on('ready-to-show', () => win.show())
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -211,7 +214,42 @@ function createWindow(): void {
     )
   }
   if (debugPage) {
-    if (debugPage === 'popover') {
+    if (debugPage === 'pip') {
+      const url = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm'
+      setTimeout(() => tabs.create(url), 2500)
+      setTimeout(async () => {
+        console.log('[pip] before', JSON.stringify(tabs.debugTabs()))
+        tabs.togglePip()
+        await new Promise((r) => setTimeout(r, 2500))
+        console.log('[pip] started', JSON.stringify(await tabs.debugPip()))
+        tabs.togglePip()
+        await new Promise((r) => setTimeout(r, 1200))
+        console.log(
+          '[pip] stopped',
+          JSON.stringify(await tabs.debugPip()),
+          'views in main window:',
+          win.contentView.children.length
+        )
+      }, 9000)
+    } else if (debugPage === 'close') {
+      setTimeout(() => tabs.create('https://example.com/'), 2500)
+      setTimeout(() => tabs.create('https://example.org/'), 3000)
+      setTimeout(() => {
+        console.log('[close] closing window')
+        app.once('quit', () => console.log('[close] app quit'))
+        win.close()
+      }, 7000)
+    } else if (debugPage === 'restore') {
+      setTimeout(
+        () => console.log('[restore] after startup', JSON.stringify(tabs.debugTabs())),
+        7000
+      )
+      setTimeout(() => tabs.activate(2), 8000)
+      setTimeout(
+        () => console.log('[restore] after opening tab 2', JSON.stringify(tabs.debugTabs())),
+        9500
+      )
+    } else if (debugPage === 'popover') {
       setTimeout(() => tabs.openInternal('history'), 2500)
       setTimeout(() => win.webContents.send('ui:command', 'focus-address'), 9000)
       setTimeout(async () => {
@@ -328,14 +366,24 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('pk.procheck.panes')
-  app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
-  createWindow()
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) app.quit()
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+  if (!win) return
+  if (win.isMinimized()) win.restore()
+  win.focus()
 })
+
+if (gotLock)
+  app.whenReady().then(() => {
+    electronApp.setAppUserModelId('pk.procheck.panes')
+    app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
+    createWindow()
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+  })
 
 app.on('before-quit', flushAllStores)
 

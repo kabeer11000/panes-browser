@@ -7,6 +7,8 @@ export interface TabInfo {
   title: string
   favicon: string | null
   loading: boolean
+  /** This tab's page is out in a floating picture-in-picture window. */
+  pip: boolean
   bookmarked: boolean
   canGoBack: boolean
   canGoForward: boolean
@@ -94,6 +96,9 @@ export interface PanesApi {
   /** Drop a tab on an edge (or the centre) of the pane showing targetId. */
   dropTab(id: number, targetId: number, edge: Edge | 'center'): void
   closePane(id: number): void
+  /** Float the current tab's video in a small window (or bring it back). */
+  togglePip(): void
+  exitPip(): void
   /** Ask main to watch the cursor and report when it touches the top edge (auto-hidden top bar). */
   watchTopBar(enabled: boolean, barPx: number): void
   onPeekBar(cb: (show: boolean) => void): () => void
@@ -208,4 +213,25 @@ export interface InternalApi {
   spaceCreate(): Promise<Space>
   spaceUpdate(id: number, patch: SpacePatch): Promise<void>
   spaceDelete(id: number): Promise<void>
+}
+
+export interface PipState {
+  playing: boolean
+  current: number
+  duration: number
+  muted: boolean
+  w: number
+  h: number
+}
+
+/** What the picture-in-picture controls overlay can do. */
+export interface PipApi {
+  onState(cb: (state: PipState) => void): () => void
+  playPause(): void
+  seek(to: number): void
+  skip(delta: number): void
+  toggleMute(): void
+  close(): void
+  back(): void
+  drag(phase: 'start' | 'move' | 'end'): void
 }

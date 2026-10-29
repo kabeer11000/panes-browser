@@ -11,7 +11,7 @@ import {
 } from '../../../shared/layout'
 import type { Rect, TabInfo } from '../../../shared/types'
 import { tabTitle } from '../tabTitle'
-import { CloseIcon, GripIcon } from './icons'
+import { CloseIcon, GripIcon, PipIcon } from './icons'
 import { NewTab } from './NewTab'
 import { TabFavicon } from './TabFavicon'
 
@@ -25,6 +25,8 @@ interface Props {
   dragId: number | null
   onHeaderPointerDown: (e: PointerEvent, id: number) => void
   onOpenSearch: () => void
+  /** The saved page image behind the command bar is soft-focused rather than shown stretched and pixelated. */
+  blurred?: boolean
 }
 
 const GAP = 5 // the gap between tiled panes; the divider's grab area extends past it (see .divider::before)
@@ -58,7 +60,8 @@ export function Panes({
   thumbs,
   dragId,
   onHeaderPointerDown,
-  onOpenSearch
+  onOpenSearch,
+  blurred = false
 }: Props): React.JSX.Element {
   const byId = new Map(tabs.map((t) => [t.id, t]))
   const singleRoot: LayoutNode | null =
@@ -177,7 +180,12 @@ export function Panes({
   }
 
   return (
-    <div className={'panes' + (resizing || windowResizing ? ' resizing' : '')} ref={containerRef}>
+    <div
+      className={
+        'panes' + (resizing || windowResizing ? ' resizing' : '') + (blurred ? ' blurred' : '')
+      }
+      ref={containerRef}
+    >
       <AnimatePresence>
         {frames &&
           [...frames.leaves].map(([id, frame]) => {
@@ -284,6 +292,17 @@ function Pane({
       )}
       <div className="pane-body" data-tab-id={tab.id}>
         {!tab.url && <NewTab onOpenSearch={onOpenSearch} />}
+        {tab.pip && (
+          <div className="pip-note">
+            <span className="pip-note-icon">
+              <PipIcon />
+            </span>
+            <div className="pip-note-title">This tab is playing in Picture in Picture</div>
+            <button type="button" className="pip-note-btn" onClick={window.api.exitPip}>
+              Return to tab
+            </button>
+          </div>
+        )}
         {thumb && tab.url && <img className="pane-frozen" src={thumb} alt="" draggable={false} />}
       </div>
     </motion.div>

@@ -1,0 +1,206 @@
+/* Picture in picture controls: invisible until the pointer is over the window, like Safari's. */
+:root {
+  --glass: rgb(30 30 34 / 0.55);
+  --glass-hover: rgb(70 70 78 / 0.7);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+}
+body {
+  font:
+    12px/1 'Segoe UI Variable Text',
+    'SF Pro Text',
+    system-ui,
+    sans-serif;
+  color: #fff;
+  user-select: none;
+  overflow: hidden;
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: default;
+}
+
+.pip {
+  position: relative;
+  height: 100%;
+  cursor: default;
+}
+
+/* everything but the picture fades in on hover */
+.shade,
+.corner,
+.transport,
+.bar {
+  opacity: 0;
+  transition: opacity 0.2s var(--ease);
+}
+.pip:hover .shade,
+.pip:hover .corner,
+.pip:hover .transport,
+.pip:hover .bar {
+  opacity: 1;
+}
+
+.shade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+.shade.top {
+  top: 0;
+  height: 64px;
+  background: linear-gradient(rgb(0 0 0 / 0.5), transparent);
+}
+.shade.bottom {
+  bottom: 0;
+  height: 84px;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.62));
+}
+
+.round {
+  position: absolute;
+  top: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  transition:
+    opacity 0.2s var(--ease),
+    background 0.12s;
+}
+.round:hover {
+  background: var(--glass-hover);
+}
+.corner.left {
+  left: 10px;
+}
+.corner.right {
+  right: 10px;
+}
+
+.transport {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  pointer-events: none;
+}
+.transport .plain {
+  pointer-events: auto;
+  filter: drop-shadow(0 2px 8px rgb(0 0 0 / 0.45));
+}
+.plain {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  opacity: 0.92;
+  transition:
+    opacity 0.12s,
+    transform 0.12s var(--ease);
+}
+.plain:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+.plain:active {
+  transform: scale(0.94);
+}
+.plain.big {
+  width: 56px;
+  height: 56px;
+}
+
+.bar {
+  position: absolute;
+  left: 12px;
+  right: 8px;
+  bottom: 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.time {
+  min-width: 34px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 0.55);
+}
+.time:last-of-type {
+  text-align: right;
+}
+.plain.small {
+  width: 26px;
+  height: 26px;
+}
+
+.scrub {
+  --progress: 0%;
+  flex: 1;
+  min-width: 0;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+.scrub::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    #fff var(--progress),
+    rgb(255 255 255 / 0.32) var(--progress)
+  );
+}
+.scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -3.5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.scrub:hover::-webkit-slider-thumb,
+.scrub:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+.scrub:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 0.85);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shade,
+  .corner,
+  .transport,
+  .bar {
+    transition: none;
+  }
+}

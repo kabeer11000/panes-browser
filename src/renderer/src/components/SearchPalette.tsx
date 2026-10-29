@@ -22,6 +22,8 @@ export interface Anchor {
   top: number
   width: number
   height: number
+  /** The address bar's corner radius, so the popover grows out of it with the same corners. */
+  radius: number
 }
 
 interface Props {
@@ -38,6 +40,7 @@ interface Props {
 
 const REMOTE_DEBOUNCE_MS = 110
 const POPOVER_MIN_WIDTH = 560
+const POPOVER_MAX_WIDTH = 760
 const EDGE = 8
 
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -206,15 +209,16 @@ export function SearchPalette({
   const popover = variant === 'dropdown' && anchor
   const panelStyle = popover
     ? (() => {
-        const width = Math.min(
-          Math.max(anchor.width, POPOVER_MIN_WIDTH),
-          window.innerWidth - EDGE * 2
-        )
+        const room = window.innerWidth - EDGE * 2
+        const width = Math.min(Math.max(anchor.width, POPOVER_MIN_WIDTH), POPOVER_MAX_WIDTH, room)
+        // a bar wider than the popover is centred under, a narrow one (the sidebar's) is grown out of
+        const left = anchor.width > width ? anchor.left + (anchor.width - width) / 2 : anchor.left
         return {
-          left: Math.max(EDGE, Math.min(anchor.left, window.innerWidth - width - EDGE)),
+          left: Math.max(EDGE, Math.min(left, window.innerWidth - width - EDGE)),
           top: anchor.top,
-          width
-        }
+          width,
+          '--pal-r': `${anchor.radius}px`
+        } as React.CSSProperties
       })()
     : undefined
 

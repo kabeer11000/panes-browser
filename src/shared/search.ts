@@ -35,6 +35,7 @@ export const ACTIONS: SearchAction[] = [
   { id: 'bookmarks', title: 'Open bookmarks', keywords: 'bookmarks saved favourites favorites' },
   { id: 'downloads', title: 'Open downloads', keywords: 'downloads files' },
   { id: 'grid', title: 'Show all tabs', keywords: 'tabs overview grid switcher' },
+  { id: 'pip', title: 'Picture in picture', keywords: 'picture pip video float window' },
   { id: 'split', title: 'Toggle split view', keywords: 'split view panes tile' },
   { id: 'new-space', title: 'New space', keywords: 'space workspace group profile' },
   { id: 'sidebar', title: 'Toggle sidebar', keywords: 'sidebar hide show collapse' }

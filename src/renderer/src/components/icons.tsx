@@ -140,3 +140,9 @@ export const GripIcon = (): React.JSX.Element => (
     <circle cx="7" cy="11" r="1.1" />
   </svg>
 )
+export const PipIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="2" y="3.5" width="12" height="9" rx="2" />
+    <rect x="8" y="7.6" width="4.6" height="3.2" rx="0.9" fill="currentColor" stroke="none" />
+  </Svg>
+)
