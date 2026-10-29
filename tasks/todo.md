@@ -68,3 +68,29 @@ Open questions for the owner (defaults in brackets):
 - [ ] Snowflake client for censored users as a Tor pluggable transport (bridge line in torrc).
 - [ ] Optional Snowflake proxy (helping others): off by default; onboarding card and a Settings section; start and stop; show clients served and bytes relayed if the proxy exposes them (it logs a summary every interval; parse it).
 - [ ] Never run on battery or metered connections unless chosen.
+
+# Digital wellbeing (planned, waiting on answers)
+
+Principles: everything stays on this computer; only host names and time are stored (never full URLs or page
+content); every nudge can be snoozed, and the user is never locked out unless they chose that.
+
+## 1. Usage tracking
+- [ ] `src/shared/wellbeing.ts` (pure, tested): fold focus ticks into per-day totals per host, per space, per category; idle and unfocused time never counts; sessions (gap > 5 min starts a new one); tab-switch rate.
+- [ ] `src/main/wellbeing.ts`: a 5 s tick while the window is focused and the user was active (input in the last 60 s); stores `wellbeing.json` daily buckets, keeps 90 days.
+- [ ] Categories: a small built-in host list (social, video, news, shopping, games, work, other) the user can override per site.
+
+## 2. Insights page (panes://wellbeing)
+- [ ] Today and week: total time, top sites, by category, by space, longest session, late-night minutes, tab switches per hour; a calm chart, no streak guilt.
+
+## 3. Limits and friction
+- [ ] Daily limit per site or category. At 80%: a quiet note in the address bar. At 100%: a full-page pause (breathing space, "I still want to" after 10 s, 5 more minutes, or stop). Optional hard block.
+- [ ] Focus mode per space: a list of sites blocked while it is on, a timer or schedule, a calm banner instead of the page.
+
+## 4. Habits
+- [ ] Break reminder after a long continuous session (default 50 min), 20-20-20 eye rest option.
+- [ ] Doomscroll nudge: long unbroken scrolling on a feed site, once, gently.
+- [ ] Tab hoarding nudge: many open tabs, offers to save them as a session.
+
+## 5. Sleep
+- [ ] Bedtime and wake time. From 30 min before bed: pages warm and dim (a boost-style filter on every page, off by a click), a one-line wind-down note. During bedtime: late-night minutes counted and shown, optional lock on chosen sites, snooze 15 min.
+- [ ] Morning summary: when the first browser use after wake time was.
