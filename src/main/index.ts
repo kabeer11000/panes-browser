@@ -1,23 +1,31 @@
 import { app, BrowserWindow, ipcMain, screen, session } from 'electron'
-import { writeFileSync } from 'fs'
+import { createServer } from 'http'
+import type { AddressInfo } from 'net'
+import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import type { InternalPage } from '../shared/settings'
 import type { Edge } from '../shared/layout'
 import type { ClearKind, Rect, SpacePatch } from '../shared/types'
 import { Adblock } from './adblock'
+import { applyPerformance } from './performance'
 import { DownloadManager } from './downloads'
 import { BookmarkStore, HistoryStore } from './history'
+import { PasswordStore, registerPasswordIpc } from './passwords'
 import { registerInternalIpc, registerInternalScheme, serveInternalPages } from './internal'
 import icon from '../../resources/icon.png?asset'
+import { PermissionManager, PermissionStore } from './permissions'
+import { SiteSettings } from './sites'
 import { SettingsStore } from './settings'
 import { SpaceStore } from './spaces'
+import { UpdateManager } from './updater'
 import { Suggester } from './suggest'
 import { flushAllStores } from './store'
 import { TabManager } from './tabs'
 
 if (process.env['PANES_USERDATA']) app.setPath('userData', process.env['PANES_USERDATA'])
 
+applyPerformance() // Chromium's switches only count before the app is ready
 registerInternalScheme()
 
 /** The browser identity pages see, without the Electron and app-name tokens that make Google refuse sign-in. */
@@ -28,15 +36,6 @@ function chromeUserAgent(): string {
 }
 
 // Camera/mic are allowed so video calls work; location, notifications etc. are denied until there is a prompt UI.
-const ALLOWED_PERMISSIONS = new Set([
-  'fullscreen',
-  'clipboard-sanitized-write',
-  'pointerLock',
-  'keyboardLock',
-  'media',
-  'mediaKeySystem'
-])
-
 function createWindow(): void {
   const isMac = process.platform === 'darwin'
   const win = new BrowserWindow({
@@ -60,31 +59,59 @@ function createWindow(): void {
 
   const tabSession = session.fromPartition('persist:panes')
   tabSession.setUserAgent(chromeUserAgent())
-  tabSession.setPermissionRequestHandler((_wc, permission, cb) =>
-    cb(ALLOWED_PERMISSIONS.has(permission))
-  )
   serveInternalPages(tabSession)
 
   const settings = new SettingsStore()
   const history = new HistoryStore()
   const bookmarks = new BookmarkStore()
   const downloads = new DownloadManager(tabSession)
+  const passwords = new PasswordStore()
+  registerPasswordIpc(win, passwords)
   const adblock = new Adblock(tabSession)
   void adblock.set(settings.get().adblock)
+  adblock.setOffSites(settings.get().adblockOffSites)
   settings.onChange((s) => {
     void adblock.set(s.adblock)
+    adblock.setOffSites(s.adblockOffSites)
+    tabs.applyDarkening()
+    tabs.sweepMemory() // a stricter memory setting applies at once, not at the next sweep
     if (!win.isDestroyed()) win.webContents.send('settings:changed', s)
   })
 
   const spaces = new SpaceStore()
   const suggester = new Suggester({ history, bookmarks, settings })
   const tabs = new TabManager(win, tabSession, { settings, history, bookmarks, spaces })
+  const permissions = new PermissionStore()
+  const sites = new SiteSettings({
+    settings,
+    spaces,
+    permissions,
+    active: () => tabs.activeSite(),
+    changed: () => tabs.applyBoosts()
+  })
+  new PermissionManager(
+    win,
+    permissions,
+    () => tabs.activeRect(),
+    (wc) => tabs.markKeyboardLock(wc)
+  ).install(tabSession)
+
+  const updater = new UpdateManager()
+  updater.onChange((s) => {
+    if (!win.isDestroyed()) win.webContents.send('ui:update', s)
+  })
+  updater.start()
+  ipcMain.handle('update:state', () => updater.get())
+  ipcMain.on('update:install', () => updater.install())
 
   registerInternalIpc({
+    updater,
     settings,
+    permissions,
     history,
     bookmarks,
     downloads,
+    passwords,
     spaces: {
       list: () => spaces.list(),
       activeId: () => spaces.activeId(),
@@ -92,6 +119,7 @@ function createWindow(): void {
       update: (id, patch) => tabs.updateSpace(id, patch),
       remove: (id) => tabs.deleteSpace(id)
     },
+    memory: { stats: () => tabs.memoryStats(), free: () => tabs.sweepMemory(true) },
     clearBrowsingData: async (kinds: ClearKind[], sinceMs: number | null) => {
       if (kinds.includes('history')) history.clear(sinceMs)
       if (kinds.includes('downloads')) downloads.clear()
@@ -149,6 +177,69 @@ function createWindow(): void {
     if (watchTimer) clearInterval(watchTimer)
   })
 
+  // Left-edge sidebar: like the top bar, the page cannot see the pointer over a native page view, so
+  // main watches the real cursor. It asks the window to open the sidebar when the pointer rests at the
+  // left edge, and to close it again (only if the pointer opened it) once the pointer has left it.
+  const SIDE_EDGE_PX = 4
+  const SIDE_DWELL_MS = 140
+  const SIDE_LEAVE_MS = 450
+  const SIDE_REACH_PX = 28
+  let sideTimer: NodeJS.Timeout | null = null
+  const side = { open: true, byHover: false, widthPx: 252 }
+  ipcMain.on(
+    'ui:side-watch',
+    (_e, enabled: boolean, open: boolean, openedByHover: boolean, widthPx: number) => {
+      side.open = !!open
+      side.byHover = !!openedByHover
+      side.widthPx = Number(widthPx) || 252
+      if (!enabled) {
+        if (sideTimer) clearInterval(sideTimer)
+        sideTimer = null
+        return
+      }
+      if (sideTimer) return
+      let dwellSince = 0
+      let outSince = 0
+      sideTimer = setInterval(() => {
+        if (win.isDestroyed() || !win.isFocused() || win.isFullScreen()) {
+          dwellSince = 0
+          outSince = 0
+          return
+        }
+        const p = screen.getCursorScreenPoint()
+        const b = win.getContentBounds()
+        const x = p.x - b.x
+        const y = p.y - b.y
+        const inside = x >= 0 && x <= b.width && y >= 0 && y <= b.height
+        if (!side.open) {
+          outSince = 0
+          if (inside && x <= SIDE_EDGE_PX) {
+            dwellSince ||= Date.now()
+            if (Date.now() - dwellSince >= SIDE_DWELL_MS) {
+              dwellSince = 0
+              win.webContents.send('ui:side-hover', 'open')
+            }
+          } else dwellSince = 0
+        } else if (side.byHover) {
+          dwellSince = 0
+          if (!inside || x > side.widthPx + SIDE_REACH_PX) {
+            outSince ||= Date.now()
+            if (Date.now() - outSince >= SIDE_LEAVE_MS) {
+              outSince = 0
+              win.webContents.send('ui:side-hover', 'close')
+            }
+          } else outSince = 0
+        } else {
+          dwellSince = 0
+          outSince = 0
+        }
+      }, 50)
+    }
+  )
+  win.on('closed', () => {
+    if (sideTimer) clearInterval(sideTimer)
+  })
+
   ipcMain.handle('tabs:get', () => tabs.initialData())
   ipcMain.on('tabs:create', (_e, input?: string) => tabs.create(input))
   ipcMain.on('tabs:close', (_e, id: number) => tabs.close(id))
@@ -184,6 +275,13 @@ function createWindow(): void {
   ipcMain.on('pip:toggle', () => tabs.togglePip())
   ipcMain.on('pip:exit', () => tabs.exitPip())
   ipcMain.on('tabs:close-pane', (_e, id: number) => tabs.closePane(id))
+  ipcMain.handle('site:info', () => sites.info())
+  ipcMain.handle('site:update', (_e, patch: unknown) => sites.update(patch))
+  ipcMain.on('tabs:add-to-group', (_e, id: number, groupId: number) => tabs.addToGroup(id, groupId))
+  ipcMain.on('tabs:tab-menu', (_e, id: number) => tabs.tabMenu(id))
+  ipcMain.on('tabs:group-menu', (_e, id: number) => tabs.groupMenu(id))
+  ipcMain.on('tabs:group-update', (_e, id: number, patch: unknown) => tabs.updateGroup(id, patch))
+  ipcMain.on('tabs:toggle-mute', (_e, id: number) => tabs.toggleMute(id))
   ipcMain.on('tabs:ratios', (_e, path: number[], ratios: number[]) =>
     tabs.updateRatios(path, ratios)
   )
@@ -214,7 +312,78 @@ function createWindow(): void {
     )
   }
   if (debugPage) {
-    if (debugPage === 'pip') {
+    if (debugPage === 'passwords') {
+      const page =
+        '<form id=f onsubmit="return false"><input id=u type=text name=user>' +
+        '<input id=p type=password name=pass><button type=submit>Sign in</button></form>'
+      const server = createServer((_req, res) => res.end(`<!doctype html>${page}`))
+      server.listen(0, '127.0.0.1', async () => {
+        const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+        const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+        const ui = (code: string): Promise<unknown> => win.webContents.executeJavaScript(code)
+        const tab = (code: string): Promise<unknown> | undefined =>
+          tabs.debugContents()?.executeJavaScript(code, true)
+        const say = (tag: string, v: unknown): void => console.log(`[pw] ${tag}`, JSON.stringify(v))
+        await sleep(2500)
+        tabs.create(origin + '/')
+        await sleep(2500)
+        await ui('window.__p = []; window.api.onPasswordPrompt((p) => window.__p.push(p)); 0')
+        const submit = (user: string, pass: string): Promise<unknown> | undefined =>
+          tab(
+            `u.value = ${JSON.stringify(user)}; p.value = ${JSON.stringify(pass)}; f.requestSubmit()`
+          )
+        await submit('ana', 'hunter22')
+        await sleep(500)
+        say('prompt after first submit', await ui('window.__p'))
+        await ui("window.api.answerPassword('save')")
+        await sleep(300)
+        say(
+          'saved',
+          passwords.list().map((l) => [l.origin, l.username])
+        )
+        flushAllStores()
+        const raw = readFileSync(join(app.getPath('userData'), 'passwords.json'), 'utf8')
+        say('plaintext on disk', raw.includes('hunter22'))
+        await submit('ana', 'hunter22')
+        await sleep(400)
+        say('prompts after identical resubmit', await ui('window.__p.length'))
+        await submit('ana', 'newpass99')
+        await sleep(400)
+        say('prompt for changed password', await ui('window.__p.at(-1)'))
+        await ui("window.api.answerPassword('dismiss')")
+        tabs.debugContents()?.reload()
+        await sleep(2000)
+        await tab('p.focus()')
+        await sleep(600)
+        const box = await tab(
+          "(() => { const h = document.documentElement.lastElementChild; const r = h.getBoundingClientRect(); return h.style.position === 'fixed' ? { x: r.x, y: r.y } : null })()"
+        )
+        say('dropdown', box)
+        if (box) {
+          const { x, y } = box as { x: number; y: number }
+          const wc = tabs.debugContents()
+          wc?.sendInputEvent({ type: 'mouseMove', x: x + 20, y: y + 16 })
+          wc?.sendInputEvent({
+            type: 'mouseDown',
+            x: x + 20,
+            y: y + 16,
+            button: 'left',
+            clickCount: 1
+          })
+          wc?.sendInputEvent({
+            type: 'mouseUp',
+            x: x + 20,
+            y: y + 16,
+            button: 'left',
+            clickCount: 1
+          })
+          await sleep(600)
+          say('filled', await tab('[u.value, p.value]'))
+        }
+        say('cross-site credentials', passwords.credentials('http://evil.test', 1))
+        app.quit()
+      })
+    } else if (debugPage === 'pip') {
       const url = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm'
       setTimeout(() => tabs.create(url), 2500)
       setTimeout(async () => {

@@ -1,0 +1,100 @@
+import { originOf, type PermDecision, type PermKind, type SiteGrant } from '../shared/permissions'
+import { normalizeSites, siteListed } from '../shared/memory'
+import { sanitizeSiteTheme, siteKey } from '../shared/sitetheme'
+import type { SiteInfo, SitePatch } from '../shared/types'
+import type { PermissionStore } from './permissions'
+import type { SettingsStore } from './settings'
+import type { SpaceStore } from './spaces'
+
+/** The kinds a site can be given a decision for in the panel. */
+const KINDS: readonly PermKind[] = [
+  'camera',
+  'microphone',
+  'location',
+  'notifications',
+  'clipboard'
+]
+const isKind = (v: unknown): v is PermKind => KINDS.includes(v as PermKind)
+
+interface Deps {
+  settings: SettingsStore
+  spaces: SpaceStore
+  permissions: PermissionStore
+  /** The page the panel is about: the active tab's address and its space. */
+  active: () => { url: string; spaceId: number } | null
+  /** Re-apply boosts and the ad blocker's exceptions after a change. */
+  changed: () => void
+}
+
+/**
+ * Everything you can set for one site from the address bar: its ad blocker exception, its boost in
+ * this space, whether its tab may be unloaded, and what it may access. A thin layer over the stores
+ * that already hold each of those.
+ */
+export class SiteSettings {
+  constructor(private d: Deps) {}
+
+  info(): SiteInfo | null {
+    const page = this.d.active()
+    const key = page && siteKey(page.url)
+    const origin = page && originOf(page.url)
+    if (!page || !key || !origin) return null
+    const settings = this.d.settings.get()
+    const space = this.d.spaces.get(page.spaceId)
+    const perms: SiteInfo['perms'] = {}
+    for (const g of this.d.permissions.list() as SiteGrant[]) {
+      if (g.origin === origin && isKind(g.kind)) perms[g.kind] = g.decision
+    }
+    return {
+      key,
+      origin,
+      secure: origin.startsWith('https:'),
+      spaceName: space?.name ?? '',
+      adblock: { global: settings.adblock, off: siteListed(key, settings.adblockOffSites) },
+      boost: space?.sites[key] ?? null,
+      keepLoaded: siteListed(key, settings.neverUnloadSites),
+      perms
+    }
+  }
+
+  update(raw: unknown): SiteInfo | null {
+    const page = this.d.active()
+    const key = page && siteKey(page.url)
+    const origin = page && originOf(page.url)
+    if (!page || !key || !origin || !raw || typeof raw !== 'object') return this.info()
+    const patch = raw as SitePatch
+    const settings = this.d.settings.get()
+
+    if (patch.reset === true) {
+      this.d.settings.update({
+        adblockOffSites: settings.adblockOffSites.filter((s) => s !== key),
+        neverUnloadSites: settings.neverUnloadSites.filter((s) => s !== key)
+      })
+      this.d.spaces.setSite(page.spaceId, key, null)
+      for (const kind of KINDS) this.d.permissions.remove(origin, kind)
+    }
+    if (typeof patch.adblockOff === 'boolean') {
+      const rest = settings.adblockOffSites.filter((s) => s !== key)
+      this.d.settings.update({ adblockOffSites: patch.adblockOff ? [...rest, key] : rest })
+    }
+    if (typeof patch.keepLoaded === 'boolean') {
+      const rest = settings.neverUnloadSites.filter((s) => s !== key)
+      this.d.settings.update({
+        neverUnloadSites: normalizeSites(patch.keepLoaded ? [...rest, key] : rest)
+      })
+    }
+    if (patch.boost !== undefined) {
+      this.d.spaces.setSite(page.spaceId, key, sanitizeSiteTheme(patch.boost))
+    }
+    if (patch.perm && isKind(patch.perm.kind)) {
+      const { kind, decision } = patch.perm
+      if (decision === 'allow' || decision === 'block') {
+        this.d.permissions.set(origin, [kind], decision as PermDecision)
+      } else {
+        this.d.permissions.remove(origin, kind)
+      }
+    }
+    this.d.changed()
+    return this.info()
+  }
+}

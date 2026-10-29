@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { UpdateState } from '../shared/update'
 import type {
   FindResult,
   InitialData,
@@ -6,6 +7,7 @@ import type {
   Rect,
   Settings,
   TabsState,
+  PasswordPrompt,
   UiCommand
 } from '../shared/types'
 
@@ -36,10 +38,21 @@ const api: PanesApi = {
   toggleSplit: () => ipcRenderer.send('tabs:toggle-split'),
   dropTab: (id, targetId, edge) => ipcRenderer.send('tabs:drop', id, targetId, edge),
   closePane: (id) => ipcRenderer.send('tabs:close-pane', id),
+  tabMenu: (id) => ipcRenderer.send('tabs:tab-menu', id),
+  addToGroup: (id, groupId) => ipcRenderer.send('tabs:add-to-group', id, groupId),
+  siteInfo: () => ipcRenderer.invoke('site:info'),
+  siteUpdate: (patch) => ipcRenderer.invoke('site:update', patch),
+  groupMenu: (id) => ipcRenderer.send('tabs:group-menu', id),
+  updateGroup: (id, patch) => ipcRenderer.send('tabs:group-update', id, patch),
+  onRenameGroup: (cb) => subscribe<[number]>('ui:rename-group', cb),
+  toggleMute: (id) => ipcRenderer.send('tabs:toggle-mute', id),
   togglePip: () => ipcRenderer.send('pip:toggle'),
   exitPip: () => ipcRenderer.send('pip:exit'),
   watchTopBar: (enabled, barPx) => ipcRenderer.send('ui:bar-watch', enabled, barPx),
   onPeekBar: (cb) => subscribe<[boolean]>('ui:peek-bar', cb),
+  watchSidebar: (enabled, open, openedByHover, widthPx) =>
+    ipcRenderer.send('ui:side-watch', enabled, open, openedByHover, widthPx),
+  onSideHover: (cb) => subscribe<['open' | 'close']>('ui:side-hover', cb),
   suggestLocal: (q) => ipcRenderer.invoke('search:local', q),
   suggestRemote: (q) => ipcRenderer.invoke('search:remote', q),
   openInSplit: (input) => ipcRenderer.send('tabs:open-in-split', input),
@@ -62,6 +75,13 @@ const api: PanesApi = {
   minimizeWindow: () => ipcRenderer.send('win:minimize'),
   toggleMaximizeWindow: () => ipcRenderer.send('win:maximize'),
   closeWindow: () => ipcRenderer.send('win:close'),
+  onPasswordPrompt: (cb) => subscribe<[PasswordPrompt | null]>('pw:prompt', cb),
+  answerPassword: (answer) => ipcRenderer.send('pw:answer', answer),
+  onUpdateState: (cb) => subscribe<[UpdateState]>('ui:update', cb),
+  getUpdateState: () => ipcRenderer.invoke('update:state') as Promise<UpdateState>,
+  installUpdate: () => ipcRenderer.send('update:install'),
+  revealPendingPassword: () => ipcRenderer.invoke('pw:reveal-pending') as Promise<string | null>,
+  setPromptAnchor: (anchor) => ipcRenderer.send('pw:anchor', anchor),
   platform: process.platform
 }
 

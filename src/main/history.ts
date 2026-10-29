@@ -52,6 +52,13 @@ export class HistoryStore {
     this.store.save()
   }
 
+  removeMany(ids: number[]): void {
+    const drop = new Set(ids)
+    const d = this.store.value
+    d.entries = d.entries.filter((e) => !drop.has(e.id))
+    this.store.save()
+  }
+
   /** Clear everything, or only visits newer than `sinceMs` milliseconds ago. */
   clear(sinceMs: number | null): void {
     const d = this.store.value

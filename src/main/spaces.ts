@@ -1,5 +1,8 @@
+import { nativeTheme } from 'electron'
 import { APPEARANCE_LIMITS, SPACE_COLORS, type AppearanceKey } from '../shared/settings'
-import type { Space, SpacePatch, SpaceUi } from '../shared/types'
+import { defaultSpaceIcon, isSpaceIcon, type SpaceIcon } from '../shared/spaceicons'
+import { MAX_SITES_PER_SPACE } from '../shared/sitetheme'
+import type { SiteTheme, Space, SpacePatch, SpaceUi } from '../shared/types'
 import { JsonStore } from './store'
 
 const MAX_NAME = 24
@@ -28,17 +31,21 @@ interface SpaceData {
   nextId: number
   activeId: number
   spaces: Space[]
+  /** Spaces used to default to dark; set once they have been moved to follow the system. */
+  followsSystem?: boolean
 }
 
-const newSpace = (id: number, name: string, color: string): Space => ({
+const newSpace = (id: number, name: string, color: string, icon: SpaceIcon): Space => ({
   id,
   name,
   color,
+  icon,
   color2: null,
   tint: DEFAULT_TINT,
   grain: DEFAULT_GRAIN,
-  mode: 'dark',
-  ui: {}
+  mode: 'system',
+  ui: {},
+  sites: {}
 })
 
 /** Spaces: named, themed groups of tabs that can carry their own interface settings. */
@@ -46,17 +53,34 @@ export class SpaceStore {
   private store = new JsonStore<SpaceData>('spaces', {
     nextId: 2,
     activeId: 1,
-    spaces: [newSpace(1, 'Home', SPACE_COLORS[0])]
+    spaces: [newSpace(1, 'Home', SPACE_COLORS[0], 'home')]
   })
 
   constructor() {
-    for (const sp of this.store.value.spaces) {
+    const d = this.store.value
+    d.spaces.forEach((sp, i) => {
+      if (!isSpaceIcon(sp.icon)) sp.icon = i === 0 ? 'home' : defaultSpaceIcon(i)
       sp.color2 ??= null
       sp.tint ??= DEFAULT_TINT
       sp.grain ??= DEFAULT_GRAIN
-      sp.mode ??= 'dark'
+      sp.mode ??= 'system'
       sp.ui ??= {}
+      sp.sites ??= {}
+      if (!d.followsSystem) sp.mode = 'system'
+    })
+    if (!d.followsSystem) {
+      d.followsSystem = true
+      this.store.save()
     }
+    this.applyTheme()
+  }
+
+  /**
+   * Make Electron's theme match the active space, so everything it draws (the Mica backdrop, menus,
+   * and prefers-color-scheme in the UI and in pages) agrees with the interface. 'system' follows the OS live.
+   */
+  private applyTheme(): void {
+    nativeTheme.themeSource = this.get(this.activeId())?.mode ?? 'system'
   }
 
   list(): Space[] {
@@ -77,6 +101,7 @@ export class SpaceStore {
     if (!this.get(id)) return
     this.store.value.activeId = id
     this.store.save()
+    this.applyTheme()
   }
 
   add(): Space {
@@ -84,7 +109,8 @@ export class SpaceStore {
     const space = newSpace(
       d.nextId++,
       `Space ${d.spaces.length + 1}`,
-      SPACE_COLORS[d.spaces.length % SPACE_COLORS.length]
+      SPACE_COLORS[d.spaces.length % SPACE_COLORS.length],
+      defaultSpaceIcon(d.spaces.length)
     )
     d.spaces.push(space)
     this.store.save()
@@ -102,8 +128,23 @@ export class SpaceStore {
     else if (typeof patch.color2 === 'string' && HEX.test(patch.color2)) space.color2 = patch.color2
     if (patch.tint !== undefined) space.tint = clamp01(patch.tint, space.tint)
     if (patch.grain !== undefined) space.grain = clamp01(patch.grain, space.grain)
-    if (patch.mode === 'dark' || patch.mode === 'light') space.mode = patch.mode
+    if (isSpaceIcon(patch.icon)) space.icon = patch.icon
+    if (patch.mode === 'system' || patch.mode === 'dark' || patch.mode === 'light') {
+      space.mode = patch.mode
+    }
     if (patch.ui !== undefined) space.ui = sanitizeUi(patch.ui)
+    this.store.save()
+    this.applyTheme()
+  }
+
+  /** Set or clear one site's boost in a space. */
+  setSite(id: number, key: string, theme: SiteTheme | null): void {
+    const space = this.get(id)
+    if (!space) return
+    if (theme === null) delete space.sites[key]
+    else if (key in space.sites || Object.keys(space.sites).length < MAX_SITES_PER_SPACE) {
+      space.sites[key] = theme
+    }
     this.store.save()
   }
 

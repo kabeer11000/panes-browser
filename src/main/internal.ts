@@ -1,12 +1,24 @@
-import { ipcMain, net, protocol, type IpcMainInvokeEvent, type Session } from 'electron'
+import { app, ipcMain, net, protocol, type IpcMainInvokeEvent, type Session } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join, normalize } from 'path'
 import { pathToFileURL } from 'url'
 import { INTERNAL_PAGES } from '../shared/settings'
-import type { ClearKind, DownloadAction, Space, SpacePatch } from '../shared/types'
+import { normalizeOrigin } from '../shared/passwords'
+import type {
+  ClearKind,
+  DownloadAction,
+  LoginInput,
+  MemoryStats,
+  Space,
+  SpacePatch
+} from '../shared/types'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
+import { newPassword, type PasswordStore } from './passwords'
+import type { PermKind } from '../shared/permissions'
+import type { PermissionStore } from './permissions'
 import type { SettingsStore } from './settings'
+import type { UpdateManager } from './updater'
 
 /** Must run before app is ready. */
 export function registerInternalScheme(): void {
@@ -20,10 +32,13 @@ export function serveInternalPages(session: Session): void {
   const root = join(__dirname, '../renderer')
   session.protocol.handle('panes', (req) => {
     const url = new URL(req.url)
-    if (!(INTERNAL_PAGES as readonly string[]).includes(url.hostname)) {
+    // panes://error is the page a failed load turns into; it has its own entry, not the settings shell
+    const isError = url.hostname === 'error'
+    if (!isError && !(INTERNAL_PAGES as readonly string[]).includes(url.hostname)) {
       return new Response('Not found', { status: 404 })
     }
-    const rel = url.pathname === '/' || url.pathname === '' ? '/internal.html' : url.pathname
+    const entry = isError ? '/error.html' : '/internal.html'
+    const rel = url.pathname === '/' || url.pathname === '' ? entry : url.pathname
     const dev = process.env['ELECTRON_RENDERER_URL']
     if (is.dev && dev) return net.fetch(dev + rel + url.search) // keep ?import and friends, or Vite serves raw files instead of modules
     const file = normalize(join(root, rel))
@@ -33,10 +48,13 @@ export function serveInternalPages(session: Session): void {
 }
 
 interface Deps {
+  updater: UpdateManager
   settings: SettingsStore
+  permissions: PermissionStore
   history: HistoryStore
   bookmarks: BookmarkStore
   downloads: DownloadManager
+  passwords: PasswordStore
   spaces: {
     list: () => Space[]
     activeId: () => number
@@ -44,6 +62,7 @@ interface Deps {
     update: (id: number, patch: SpacePatch) => void
     remove: (id: number) => void
   }
+  memory: { stats: () => MemoryStats; free: () => number }
   clearBrowsingData: (kinds: ClearKind[], sinceMs: number | null) => Promise<void>
 }
 
@@ -59,24 +78,69 @@ export function registerInternalIpc(d: Deps): void {
     })
   }
 
+  handle('int:update-state', () => d.updater.get())
+  handle('int:update-check', () => d.updater.check())
+  handle('int:update-install', () => d.updater.install())
+  handle('int:about', () => ({
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    platform: process.platform,
+    arch: process.arch
+  }))
   handle('int:history-list', (q: string, limit: number, offset: number) =>
     d.history.list(String(q), Math.min(500, Number(limit) || 100), Math.max(0, Number(offset) || 0))
   )
   handle('int:history-remove', (id: number) => d.history.remove(id))
+  handle('int:history-remove-many', (ids: number[]) =>
+    d.history.removeMany(Array.isArray(ids) ? ids.filter((i) => Number.isInteger(i)) : [])
+  )
   handle('int:bookmarks-list', () => d.bookmarks.list())
   handle('int:bookmark-remove', (id: number) => d.bookmarks.remove(id))
   handle('int:downloads-list', () => d.downloads.list())
   handle('int:download-action', (id: number, action: DownloadAction) => d.downloads.act(id, action))
-  // panes:// pages follow the active space's light or dark mode
-  handle('int:settings-get', () => ({
-    ...d.settings.get(),
-    scheme: d.spaces.list().find((sp) => sp.id === d.spaces.activeId())?.mode ?? 'dark'
-  }))
+  // panes:// pages follow the active space: its light or dark mode, and its colour for highlights
+  handle('int:settings-get', () => {
+    const space = d.spaces.list().find((sp) => sp.id === d.spaces.activeId())
+    return {
+      ...d.settings.get(),
+      scheme: space?.mode ?? 'system',
+      spaceColor: space?.color ?? null,
+      spaceTint: space?.tint ?? 0
+    }
+  })
+  handle('int:perms-list', () => d.permissions.list())
+  handle('int:perm-remove', (origin: string, kind: PermKind) =>
+    d.permissions.remove(String(origin), kind)
+  )
+  handle('int:perms-reset', () => d.permissions.reset())
+  handle('int:memory-stats', () => d.memory.stats())
+  handle('int:memory-free', () => d.memory.free())
+  handle('int:restart', () => {
+    app.relaunch()
+    app.exit(0)
+  })
   handle('int:settings-set', (patch: object) => d.settings.update(patch))
   handle('int:spaces-list', () => d.spaces.list())
   handle('int:space-create', () => d.spaces.create())
   handle('int:space-update', (id: number, patch: SpacePatch) => d.spaces.update(id, patch))
   handle('int:space-delete', (id: number) => d.spaces.remove(id))
+  handle('int:passwords-list', () => d.passwords.list())
+  handle('int:password-reveal', (id: number) => d.passwords.password(id))
+  handle('int:password-save', (login: LoginInput) => {
+    const origin = normalizeOrigin(String(login.origin))
+    return origin
+      ? d.passwords.upsert(origin, String(login.username), String(login.password)) !== null
+      : false
+  })
+  handle('int:password-edit', (id: number, username: string, password: string) =>
+    d.passwords.edit(id, String(username), String(password))
+  )
+  handle('int:password-remove', (id: number) => d.passwords.remove(id))
+  handle('int:passwords-import', (csv: string) => d.passwords.importCsv(String(csv)))
+  handle('int:passwords-export', () => d.passwords.exportCsv())
+  handle('int:password-generate', () => newPassword())
   handle('int:clear-data', (kinds: ClearKind[], sinceMs: number | null) =>
     d.clearBrowsingData(kinds, sinceMs)
   )

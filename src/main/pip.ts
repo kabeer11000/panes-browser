@@ -64,7 +64,11 @@ export class PipController {
   private host: Host | null = null
   private frame: WebFrameMain | null = null
   private timer: NodeJS.Timeout | null = null
-  private drag: { cursor: { x: number; y: number }; origin: { x: number; y: number } } | null = null
+  private drag: {
+    cursor: { x: number; y: number }
+    origin: { x: number; y: number }
+    size: { width: number; height: number }
+  } | null = null
 
   constructor(private opts: Options) {
     const fromControls = (e: IpcMainEvent): boolean =>
@@ -92,13 +96,16 @@ export class PipController {
       if (!this.win) return
       const cursor = screen.getCursorScreenPoint()
       if (phase === 'start') {
-        const [x, y] = this.win.getPosition()
-        this.drag = { cursor, origin: { x, y } }
+        const { x, y, width, height } = this.win.getBounds()
+        this.drag = { cursor, origin: { x, y }, size: { width, height } }
       } else if (phase === 'move' && this.drag) {
-        this.win.setPosition(
-          Math.round(this.drag.origin.x + cursor.x - this.drag.cursor.x),
-          Math.round(this.drag.origin.y + cursor.y - this.drag.cursor.y)
-        )
+        // setPosition alone grows the window a little on every call on Windows with fractional display
+        // scaling, so a drag snowballs. Setting the size again each time pins it to what it started as.
+        this.win.setBounds({
+          x: Math.round(this.drag.origin.x + cursor.x - this.drag.cursor.x),
+          y: Math.round(this.drag.origin.y + cursor.y - this.drag.cursor.y),
+          ...this.drag.size
+        })
       } else {
         this.drag = null
       }
@@ -247,17 +254,22 @@ export class PipController {
     this.controls = null
     if (this.timer) clearInterval(this.timer)
     this.timer = null
-    this.run(RELEASE)
+    const frame = this.frame
     this.frame = null
 
+    // Back first, fullscreen second. The page goes home at its final size while the video still fills
+    // it, and only then leaves fullscreen, so the page lays out once instead of twice (small, then
+    // large) and the player does not visibly jump.
     if (win && !win.isDestroyed()) win.contentView.removeChildView(host.view)
     host.view.setBorderRadius(this.opts.viewRadius)
     if (!this.opts.mainWin.isDestroyed()) this.opts.mainWin.contentView.addChildView(host.view)
+    this.opts.onChange() // places and shows the view at the size it has in the window
+    frame?.executeJavaScript(RELEASE, true).catch(() => {})
+
     if (win && !win.isDestroyed() && controls) {
       win.contentView.removeChildView(controls)
       controls.webContents.close()
     }
     if (closeWindow && win && !win.isDestroyed()) win.close()
-    this.opts.onChange()
   }
 }
