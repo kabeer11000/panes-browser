@@ -14,7 +14,7 @@ declare global {
 // its right edge); the bin sits MARGIN_R from that edge and MARGIN_B from the bottom; tucked away only the top SLIVER
 // of the view shows.
 const HEIGHT = 96
-const SLIVER = 34
+const SLIVER = 12
 const BIN = 68
 const MARGIN_R = 24
 const MARGIN_B = 16

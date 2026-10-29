@@ -35,8 +35,10 @@ import {
   NO_CAPTURE,
   NO_HOLD,
   parseCapture,
+  stopCaptureScript,
   sameCapture,
   type CaptureHold,
+  type CaptureKind,
   type CaptureState
 } from '../shared/capture'
 import {
@@ -1326,6 +1328,14 @@ export class TabManager {
       if (wc && (playing.length > 0 || wc.audioMuted)) wc.audioMuted = playing.length > 0
     }
     this.refresh()
+  }
+
+  /** End what a page captures (the Stop sharing button): its tracks are stopped, which the page sees as the user ending it. */
+  stopCapture(id: number, kinds: CaptureKind[]): void {
+    const tab = this.tabs.get(id)
+    const wc = tab && liveContents(tab)
+    if (!wc) return
+    for (const f of wc.mainFrame.framesInSubtree) void f.executeJavaScript(stopCaptureScript(kinds)).catch(() => {})
   }
 
   toggleMute(id: number): void {

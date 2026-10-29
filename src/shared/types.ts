@@ -4,7 +4,7 @@ import type { Edge, LayoutNode } from './layout'
 import type { PerformanceMode, RunningMode } from './performance'
 import type { PermDecision, PermKind, PermSetting, SiteGrant } from './permissions'
 import type { TabKind } from './tabkind'
-import type { CaptureState } from './capture'
+import type { CaptureKind, CaptureState } from './capture'
 import type { SpaceAttention, TabAttention } from './attention'
 import type { TabDump } from './dumps'
 import type { TorStatus } from './tor'
@@ -185,6 +185,8 @@ export interface PanesApi {
   appMenu(x: number, y: number): void
   updateGroup(id: number, patch: Partial<Pick<TabGroup, 'name' | 'color' | 'collapsed'>>): void
   onRenameGroup(cb: (id: number) => void): () => void
+  /** End what a tab is capturing (camera, microphone or screen). */
+  stopCapture(id: number, kinds: CaptureKind[]): void
   toggleMute(id: number): void
   /** Float the current tab's video in a small window (or bring it back). */
   togglePip(): void

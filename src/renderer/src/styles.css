@@ -4003,3 +4003,72 @@ kbd {
     animation: none;
   }
 }
+
+.sharing-bar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  padding: 0 3px 0 4px;
+  border-radius: 13px;
+  background: color-mix(in srgb, #ff3b30 18%, transparent);
+  color: #ff6a62;
+  font-size: 12px;
+  -webkit-app-region: no-drag;
+}
+.sharing-who,
+.sharing-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.sharing-who svg {
+  width: 13px;
+  height: 13px;
+}
+.sharing-stop {
+  background: #ff3b30;
+  color: #fff;
+  font-weight: 600;
+}
+.sharing-stop:hover {
+  background: #ff5247;
+}
+.sharing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff3b30;
+  animation: capture-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sharing-dot {
+    animation: none;
+  }
+}
+.sidebar-inner .sharing-bar {
+  display: flex;
+  margin: 0 0 6px;
+}
+.sidebar-inner .sharing-who {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-inner .sharing-who span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sharing-who svg,
+.sharing-dot {
+  flex: none;
+}

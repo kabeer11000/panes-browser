@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, session, shell } from 'electron'
+import type { CaptureKind } from '../shared/capture'
 import { createServer } from 'http'
 import { existsSync, statSync } from 'fs'
 import { pathToFileURL } from 'url'
@@ -477,6 +478,7 @@ function createWindow(): void {
     if (typeof x === 'number' && typeof y === 'number') tabs.appMenu(Math.round(x), Math.round(y))
   })
   ipcMain.on('tabs:group-update', (_e, id: number, patch: unknown) => tabs.updateGroup(id, patch))
+  ipcMain.on('tabs:stop-capture', (_e, id: number, kinds: CaptureKind[]) => tabs.stopCapture(id, kinds))
   ipcMain.on('tabs:toggle-mute', (_e, id: number) => tabs.toggleMute(id))
   ipcMain.on('tabs:ratios', (_e, path: number[], ratios: number[]) =>
     tabs.updateRatios(path, ratios)

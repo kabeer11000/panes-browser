@@ -54,6 +54,7 @@ const api: PanesApi = {
   appMenu: (x, y) => ipcRenderer.send('tabs:app-menu', x, y),
   updateGroup: (id, patch) => ipcRenderer.send('tabs:group-update', id, patch),
   onRenameGroup: (cb) => subscribe<[number]>('ui:rename-group', cb),
+  stopCapture: (id, kinds) => ipcRenderer.send('tabs:stop-capture', id, kinds),
   toggleMute: (id) => ipcRenderer.send('tabs:toggle-mute', id),
   togglePip: () => ipcRenderer.send('pip:toggle'),
   exitPip: () => ipcRenderer.send('pip:exit'),

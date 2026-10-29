@@ -7,6 +7,7 @@ import { tabTitle } from '../tabTitle'
 import { AddressBar } from './AddressBar'
 import { FindBar } from './FindBar'
 import { SavePrompt } from './SavePrompt'
+import { SharingBar } from './SharingBar'
 import {
   BookmarkIcon,
   CloseIcon,
@@ -174,6 +175,7 @@ export function Sidebar({
         paneFocus={group.includes(activeId ?? -1)}
         onWheel={onWheel}
       />
+      <SharingBar tabs={tabs} activeId={activeId} />
       {passwordPrompt && (
         <SavePrompt
           key={`${passwordPrompt.origin}|${passwordPrompt.username}|${passwordPrompt.kind}`}

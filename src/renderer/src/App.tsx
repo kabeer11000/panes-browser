@@ -11,6 +11,7 @@ import { Sidebar } from './components/Sidebar'
 import { TabStack } from './components/TabStack'
 import { TaskView } from './components/TaskView'
 import { AddressBar } from './components/AddressBar'
+import { SharingBar } from './components/SharingBar'
 import { FindBar } from './components/FindBar'
 import { FeedbackIcon, GridIcon, MoreIcon, SidebarIcon, SplitIcon } from './components/icons'
 import { NavButtons } from './components/NavButtons'
@@ -654,6 +655,7 @@ function App(): React.JSX.Element {
             onWheel={swipe}
           />
           <div className="strip-side end">
+            {!showSidebar && <SharingBar tabs={tabs} activeId={activeId} />}
             {!showSidebar && findKey !== null && (
               <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
             )}

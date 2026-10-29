@@ -10,8 +10,8 @@ import type { DownloadManager } from './downloads'
 const WIDTH = 100
 const HEIGHT = 96
 const INSET = 8 // the window's right edge left free
-const SLIVER = 34 // how much of it shows, at the window's bottom edge, while the bin is tucked away
-const CORNER_PX = 56 // the pointer this near the corner brings the bin out
+const SLIVER = 12 // how much of it shows, at the window's bottom edge, while the bin is tucked away: also the strip of page it covers
+const CORNER_PX = 48 // the pointer this near the corner brings the bin out
 const REACH_PX = 150 // and keeps it out until the pointer is this far away
 const DWELL_MS = 110
 const LEAVE_MS = 450
