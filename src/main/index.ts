@@ -300,7 +300,7 @@ function createWindow(): void {
   // main watches the real cursor. It asks the window to open the sidebar when the pointer rests at the
   // left edge, and to close it again (only if the pointer opened it) once the pointer has left it.
   const SIDE_EDGE_PX = 4
-  const SIDE_DWELL_MS = 140
+  const SIDE_DWELL_MS = 70
   const SIDE_LEAVE_MS = 450
   const SIDE_REACH_PX = 28
   let sideTimer: NodeJS.Timeout | null = null
@@ -352,7 +352,7 @@ function createWindow(): void {
           dwellSince = 0
           outSince = 0
         }
-      }, 50)
+      }, 30)
     }
   )
   win.on('closed', () => {

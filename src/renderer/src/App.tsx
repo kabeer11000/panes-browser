@@ -373,6 +373,7 @@ function App(): React.JSX.Element {
       className={
         'app themed' +
         (showSidebar ? '' : ' sidebar-closed') +
+        (openedByHover ? ' hover-open' : '') +
         (horizontal ? ' horizontal' : '') +
         (mode ? ' overlay-open' : '')
       }

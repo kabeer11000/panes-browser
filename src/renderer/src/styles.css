@@ -3466,3 +3466,12 @@ kbd {
 .stage-wrap.hlayout {
   background: var(--tab-surface);
 }
+
+/* a sidebar the pointer asked for opens quickly: it was wanted now */
+.hover-open .sidebar,
+.hover-open .stage-wrap {
+  transition-duration: 0.18s;
+}
+.hover-open .sidebar-inner {
+  transition-duration: 0.14s, 0.18s;
+}
