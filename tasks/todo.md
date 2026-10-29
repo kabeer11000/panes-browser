@@ -42,3 +42,29 @@ Files: Shell.tsx, internal.css, pages/{History,Bookmarks,Downloads,Settings,Spac
 - [ ] Verify: typecheck, lint, run dev build, screenshot all 4 pages in dark + light and at narrow width
 
 Skipped: sub-page drill-in routing, new theming tokens beyond what internal.css needs.
+
+# Private windows, Tor and Snowflake (planned, not started)
+
+Decisions taken: Snowflake sharing is OPT-IN (offered in onboarding and Settings, off until chosen), because
+relaying strangers' traffic uses the user's bandwidth and IP.
+
+Open questions for the owner (defaults in brackets):
+- Ship the tor and snowflake binaries inside the installer, or download on first use? [download on first use, verified by hash: keeps the installer small and avoids bundling per-platform binaries]
+- Private = separate in-memory session; Tor = a separate choice that routes that session through Tor. [yes]
+
+## Part 1: Private browsing
+- [ ] Session: `session.fromPartition('private-<n>')` (no `persist:` prefix = in memory), one per private window or tab group; destroyed on close.
+- [ ] TabManager: tabs carry `private: boolean`; no history, bookmarks suggestions, session restore, password save or autofill, downloads list entry, thumbnails on disk.
+- [ ] UI: private tabs marked (icon plus tinted sidebar), "New private tab" in the app menu and Ctrl+Shift+N.
+- [ ] Tests: pure rules for what is recorded (shared/privacy.ts).
+
+## Part 2: Tor
+- [ ] `src/main/tor.ts`: start and stop the tor daemon (SocksPort on a random localhost port, own DataDirectory in userData), bootstrap progress parsing from stdout.
+- [ ] Private-with-Tor session: `session.setProxy({ proxyRules: 'socks5://127.0.0.1:<port>' })`, DNS through the proxy, WebRTC IP handling policy, no ad blocker cosmetic calls leaking, user agent normalised.
+- [ ] UI: bootstrap progress while connecting, circuit info optional, "New identity" button.
+- [ ] Binary fetch with sha256 pin, stored under userData/tor.
+
+## Part 3: Snowflake (opt-in)
+- [ ] Snowflake client for censored users as a Tor pluggable transport (bridge line in torrc).
+- [ ] Optional Snowflake proxy (helping others): off by default; onboarding card and a Settings section; start and stop; show clients served and bytes relayed if the proxy exposes them (it logs a summary every interval; parse it).
+- [ ] Never run on battery or metered connections unless chosen.
