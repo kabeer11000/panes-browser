@@ -27,6 +27,7 @@ import { siteKey, siteThemeCss } from '../shared/sitetheme'
 import { errorPageUrl } from '../shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
 import { totalmem } from 'os'
+import { applyChromeIdentity } from './identity'
 import { PdfViewerHelper } from './pdf'
 import { runningMode } from './performance'
 import { pickUnloads, type MemoryPolicy, type TabFacts } from '../shared/memory'
@@ -230,6 +231,13 @@ export class TabManager {
   /** Ids of the active space's tabs, in display order. */
   private own(): number[] {
     return [...this.tabs].filter(([, t]) => t.spaceId === this.activeSpaceId).map(([id]) => id)
+  }
+
+  /** Close the tab showing one of Panes' own pages (the welcome page, once it is done with). */
+  closeInternal(page: string): void {
+    for (const [id, t] of [...this.tabs]) {
+      if (liveContents(t)?.getURL().startsWith(`panes://${page}`)) this.close(id)
+    }
   }
 
   /** The active tab's address and space: what the site settings panel is about. */
@@ -1062,6 +1070,10 @@ export class TabManager {
       wc.on('preload-error', (_e, path, err) => console.log('[tab preload-error]', path, err))
     }
     this.pdf.attach(wc)
+    applyChromeIdentity(wc, this.session.getUserAgent())
+    wc.on('did-create-window', (child) =>
+      applyChromeIdentity(child.webContents, this.session.getUserAgent())
+    )
     wc.on('did-start-loading', refresh)
     wc.on('dom-ready', () => {
       this.applyDarkening() // covers tabs created or restored after the theme last changed
@@ -1321,7 +1333,7 @@ export class TabManager {
           await dbg.sendCommand('Emulation.setAutoDarkModeOverride', { enabled: true })
         } else if (dbg.isAttached()) {
           await dbg.sendCommand('Emulation.setAutoDarkModeOverride', {})
-          dbg.detach()
+          // stays attached: the Chrome identity override lives on the same debugger
         }
       } catch {
         tab.darkened = !on // the page went away mid-call; the next sweep retries

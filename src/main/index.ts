@@ -1,14 +1,18 @@
-import { app, BrowserWindow, ipcMain, screen, session } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, session, shell } from 'electron'
 import { createServer } from 'http'
+import { existsSync, statSync } from 'fs'
+import { pathToFileURL } from 'url'
 import type { AddressInfo } from 'net'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import type { InternalPage } from '../shared/settings'
+import { linksFromArgv } from '../shared/launch'
 import type { Edge } from '../shared/layout'
 import type { ClearKind, Rect, SpacePatch } from '../shared/types'
 import { Adblock } from './adblock'
 import { applyPerformance } from './performance'
+import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
 import { BookmarkStore, HistoryStore } from './history'
 import { PasswordStore, registerPasswordIpc } from './passwords'
@@ -26,6 +30,41 @@ import { TabManager } from './tabs'
 if (process.env['PANES_USERDATA']) app.setPath('userData', process.env['PANES_USERDATA'])
 
 applyPerformance() // Chromium's switches only count before the app is ready
+
+/** Where links and files handed to Panes go once its window exists; until then they wait in `pending`. */
+let openLinks: ((urls: string[]) => void) | null = null
+const pending: string[] = []
+const fromCommandLine = (argv: readonly string[]): string[] =>
+  linksFromArgv(
+    argv,
+    (p) => pathToFileURL(p).toString(),
+    (p) => {
+      try {
+        return existsSync(p) && statSync(p).isFile()
+      } catch {
+        return false
+      }
+    }
+  )
+const deliver = (urls: string[]): void => {
+  if (urls.length === 0) return
+  if (openLinks) openLinks(urls)
+  else pending.push(...urls)
+}
+
+/** Whether Panes is what the system opens web links with. */
+const isDefaultBrowser = (): boolean =>
+  app.isDefaultProtocolClient('http') && app.isDefaultProtocolClient('https')
+
+/** Ask the system to make Panes the default; Windows will not let an app decide this alone, so show its page. */
+function requestDefaultBrowser(): void {
+  if (!app.isPackaged) return // a development build would register the wrong program
+  app.setAsDefaultProtocolClient('http')
+  app.setAsDefaultProtocolClient('https')
+  if (process.platform === 'win32') {
+    void shell.openExternal('ms-settings:defaultapps?registeredAppUser=Panes')
+  }
+}
 registerInternalScheme()
 
 /** The browser identity pages see, without the Electron and app-name tokens that make Google refuse sign-in. */
@@ -59,6 +98,7 @@ function createWindow(): void {
 
   const tabSession = session.fromPartition('persist:panes')
   tabSession.setUserAgent(chromeUserAgent())
+  rewriteClientHints(tabSession, chromeUserAgent())
   serveInternalPages(tabSession)
 
   const settings = new SettingsStore()
@@ -120,6 +160,11 @@ function createWindow(): void {
       remove: (id) => tabs.deleteSpace(id)
     },
     memory: { stats: () => tabs.memoryStats(), free: () => tabs.sweepMemory(true) },
+    defaultBrowser: { status: isDefaultBrowser, request: requestDefaultBrowser },
+    onboardingDone: () => {
+      settings.update({ onboarded: true })
+      tabs.closeInternal('welcome')
+    },
     clearBrowsingData: async (kinds: ClearKind[], sinceMs: number | null) => {
       if (kinds.includes('history')) history.clear(sinceMs)
       if (kinds.includes('downloads')) downloads.clear()
@@ -302,6 +347,21 @@ function createWindow(): void {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
   tabs.restoreOrNew()
+  // First run: open the welcome page before anything else is shown.
+  if (!settings.get().onboarded && !process.env['PANES_DEBUG']) tabs.create('panes://welcome')
+  openLinks = (urls) => {
+    for (const url of urls) tabs.create(url)
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  }
+  deliver(fromCommandLine(process.argv.slice(1)).filter((u) => !pending.includes(u)))
+  if (pending.length > 0) openLinks(pending.splice(0))
+  win.on('closed', () => {
+    openLinks = null
+  })
+  ipcMain.handle('default:status', () => isDefaultBrowser())
+  ipcMain.handle('default:request', () => requestDefaultBrowser())
+  ipcMain.on('default:dismiss', () => settings.update({ askDefaultBrowser: false }))
   const debugPage = process.env['PANES_DEBUG']
   if (debugPage) {
     win.webContents.on('console-message', (e) =>
@@ -537,11 +597,21 @@ function createWindow(): void {
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) app.quit()
-app.on('second-instance', () => {
+app.on('second-instance', (_e, argv) => {
   const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
   if (!win) return
   if (win.isMinimized()) win.restore()
   win.focus()
+  deliver(fromCommandLine(argv.slice(1)))
+})
+// macOS hands links and files over as events, possibly before the window exists
+app.on('open-url', (e, url) => {
+  e.preventDefault()
+  deliver(fromCommandLine([url]))
+})
+app.on('open-file', (e, path) => {
+  e.preventDefault()
+  deliver(fromCommandLine([path]))
 })
 
 if (gotLock)

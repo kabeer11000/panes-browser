@@ -17,6 +17,7 @@ import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
 import type { PermKind } from '../shared/permissions'
 import type { PermissionStore } from './permissions'
+import { flushAllStores } from './store'
 import type { SettingsStore } from './settings'
 import type { UpdateManager } from './updater'
 
@@ -27,17 +28,19 @@ export function registerInternalScheme(): void {
   ])
 }
 
+const STANDALONE: Record<string, string> = { error: '/error.html', welcome: '/welcome.html' }
+
 /** panes://<page> serves the internal renderer entry; other paths are its assets. */
 export function serveInternalPages(session: Session): void {
   const root = join(__dirname, '../renderer')
   session.protocol.handle('panes', (req) => {
     const url = new URL(req.url)
-    // panes://error is the page a failed load turns into; it has its own entry, not the settings shell
-    const isError = url.hostname === 'error'
-    if (!isError && !(INTERNAL_PAGES as readonly string[]).includes(url.hostname)) {
+    // panes://error (a failed load) and panes://welcome (first run) have entries of their own, not the settings shell
+    const own = STANDALONE[url.hostname]
+    if (!own && !(INTERNAL_PAGES as readonly string[]).includes(url.hostname)) {
       return new Response('Not found', { status: 404 })
     }
-    const entry = isError ? '/error.html' : '/internal.html'
+    const entry = own ?? '/internal.html'
     const rel = url.pathname === '/' || url.pathname === '' ? entry : url.pathname
     const dev = process.env['ELECTRON_RENDERER_URL']
     if (is.dev && dev) return net.fetch(dev + rel + url.search) // keep ?import and friends, or Vite serves raw files instead of modules
@@ -63,6 +66,8 @@ interface Deps {
     remove: (id: number) => void
   }
   memory: { stats: () => MemoryStats; free: () => number }
+  onboardingDone: () => void
+  defaultBrowser: { status: () => boolean; request: () => void }
   clearBrowsingData: (kinds: ClearKind[], sinceMs: number | null) => Promise<void>
 }
 
@@ -117,7 +122,11 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:perms-reset', () => d.permissions.reset())
   handle('int:memory-stats', () => d.memory.stats())
   handle('int:memory-free', () => d.memory.free())
+  handle('int:default-status', () => d.defaultBrowser.status())
+  handle('int:default-request', () => d.defaultBrowser.request())
+  handle('int:onboarding-done', () => d.onboardingDone())
   handle('int:restart', () => {
+    flushAllStores() // exit() skips before-quit, and writes are delayed: save what was just chosen
     app.relaunch()
     app.exit(0)
   })

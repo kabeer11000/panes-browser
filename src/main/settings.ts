@@ -17,6 +17,8 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (patch.searchEngine && patch.searchEngine in SEARCH_ENGINES)
     out.searchEngine = patch.searchEngine
   if (typeof patch.adblock === 'boolean') out.adblock = patch.adblock
+  if (typeof patch.onboarded === 'boolean') out.onboarded = patch.onboarded
+  if (typeof patch.askDefaultBrowser === 'boolean') out.askDefaultBrowser = patch.askDefaultBrowser
   if (isPerformanceMode(patch.performanceMode)) out.performanceMode = patch.performanceMode
   if (patch.adblockOffSites !== undefined)
     out.adblockOffSites = normalizeSites(patch.adblockOffSites)

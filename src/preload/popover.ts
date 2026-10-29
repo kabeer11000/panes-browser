@@ -9,7 +9,7 @@ const api: PopoverApi = {
     return () => ipcRenderer.removeListener('popover:state', listener)
   },
   resize: (height) => ipcRenderer.send('popover:resize', height),
-  answer: (answer) => ipcRenderer.send('pw:answer', answer),
+  answer: (answer, edits) => ipcRenderer.send('pw:answer', answer, edits),
   reveal: () => ipcRenderer.invoke('pw:reveal-pending') as Promise<string | null>
 }
 

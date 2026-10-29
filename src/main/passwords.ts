@@ -203,10 +203,25 @@ export function registerPasswordIpc(win: BrowserWindow, store: PasswordStore): v
     if (e.sender === popover.contents && typeof height === 'number') popover.setHeight(height)
   })
 
-  ipcMain.on('pw:submit', (e, username: unknown, password: unknown) => {
+  // Many sites ask for the account first and the password on the next step (or screen). The first step's
+  // value is remembered here, per site, for a few minutes, and used when the password step names no user.
+  const identifiers = new Map<string, { value: string; at: number }>()
+  const IDENTIFIER_TTL_MS = 5 * 60_000
+  ipcMain.on('pw:identifier', (e, value: unknown) => {
     const origin = siteOf(e)
-    if (!origin || typeof username !== 'string' || typeof password !== 'string') return
+    if (!origin || typeof value !== 'string') return
+    const v = value.trim().slice(0, 256)
+    if (v) identifiers.set(origin, { value: v, at: Date.now() })
+    else identifiers.delete(origin)
+  })
+
+  ipcMain.on('pw:submit', (e, typed: unknown, password: unknown) => {
+    const origin = siteOf(e)
+    if (!origin || typeof typed !== 'string' || typeof password !== 'string') return
     if (!password || !store.available || store.isNever(origin)) return
+    const earlier = identifiers.get(origin)
+    const username =
+      typed || (earlier && Date.now() - earlier.at < IDENTIFIER_TTL_MS ? earlier.value : '')
     const decision = store.decide(origin, username, password)
     if (decision === 'same') return
     pending = { origin, username, password, kind: decision }
@@ -225,12 +240,22 @@ export function registerPasswordIpc(win: BrowserWindow, store: PasswordStore): v
   // Only on request: the save prompt can show what is about to be saved, but the password never rides along with it.
   ipcMain.handle('pw:reveal-pending', (e) => (fromUi(e) ? (pending?.password ?? null) : null))
 
-  ipcMain.on('pw:answer', (e, answer: 'save' | 'never' | 'dismiss') => {
+  ipcMain.on('pw:answer', (e, answer: 'save' | 'never' | 'dismiss', edits?: unknown) => {
     if (!fromUi(e) || !pending) return
     const { origin, username, password } = pending
     pending = null
-    if (answer === 'save') store.upsert(origin, username, password)
-    else if (answer === 'never') store.addNever(origin)
+    // The prompt lets the user correct what the page filled in; only well-formed edits count.
+    const edited = edits as { username?: unknown; password?: unknown } | null | undefined
+    const finalUser =
+      typeof edited?.username === 'string' ? edited.username.trim().slice(0, 256) : username
+    const finalPassword =
+      typeof edited?.password === 'string' && edited.password !== ''
+        ? edited.password.slice(0, 1024)
+        : password
+    if (answer === 'save') {
+      store.upsert(origin, finalUser, finalPassword)
+      identifiers.delete(origin)
+    } else if (answer === 'never') store.addNever(origin)
     tell(null)
   })
 }

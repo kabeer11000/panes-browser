@@ -42,13 +42,38 @@ function loginFields(
   return password ? { user: target, password } : null
 }
 
+const IDENTIFIER_NAME = /user|e-?mail|login|identifier|phone|account/i
+
+/** A field that holds who is signing in: an email box, or one named or marked like a username. */
+const looksLikeIdentifier = (el: HTMLInputElement): boolean =>
+  TEXTUAL.has(el.type) &&
+  (el.type === 'email' ||
+    /username|email/.test(el.autocomplete) ||
+    IDENTIFIER_NAME.test(`${el.name} ${el.id}`))
+
+let lastIdentifier = ''
+/**
+ * Sign-in is often two steps: the account first, the password on the next screen (which may be a new
+ * page, or the same page with the first field gone). Tell the browser who was named, so the password
+ * step can be saved with it.
+ */
+function noteIdentifier(scope: ParentNode): void {
+  const field = [...scope.querySelectorAll('input')].find(
+    (i) => i.value.trim() !== '' && visible(i) && looksLikeIdentifier(i)
+  )
+  const value = field?.value.trim() ?? ''
+  if (!value || value === lastIdentifier) return
+  lastIdentifier = value
+  ipcRenderer.send('pw:identifier', value)
+}
+
 // What the user submitted: the last filled password field (a new-password form repeats it) and its username.
 function capture(scope: ParentNode): void {
   const filled = [...scope.querySelectorAll('input[type=password]')].filter(
     (i): i is HTMLInputElement => i instanceof HTMLInputElement && i.value !== ''
   )
   const password = filled[filled.length - 1]
-  if (!password) return
+  if (!password) return noteIdentifier(scope) // the first step: remember who, for the step that has the password
   ipcRenderer.send('pw:submit', usernameFor(password)?.value ?? '', password.value)
 }
 
@@ -153,6 +178,15 @@ export function installAutofill(): void {
     if (accounts.length > 0 && document.activeElement === target) open(target)
   }
 
+  // Remember the account as it is entered, in case the next screen replaces the field before any submit.
+  document.addEventListener(
+    'change',
+    (e) => {
+      if (e.target instanceof HTMLInputElement && looksLikeIdentifier(e.target))
+        noteIdentifier(document)
+    },
+    true
+  )
   document.addEventListener('focusin', (e) => void offer(e.target), true)
   document.addEventListener('click', (e) => void offer(e.target), true)
   document.addEventListener('focusout', close, true)
