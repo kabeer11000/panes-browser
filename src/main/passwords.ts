@@ -3,11 +3,20 @@ import {
   safeStorage,
   type BrowserWindow,
   type IpcMainEvent,
-  type IpcMainInvokeEvent
+  type IpcMainInvokeEvent,
+  type WebContents
 } from 'electron'
 import { randomInt } from 'crypto'
 import { loginsFromCsv, loginsToCsv, type LoginRow } from '../shared/csv'
-import { classify, generatePassword, normalizeOrigin, type SaveDecision } from '../shared/passwords'
+import {
+  classify,
+  generatePassword,
+  LOGIN_PROBE,
+  loginOutcome,
+  normalizeOrigin,
+  type LoginProbe,
+  type SaveDecision
+} from '../shared/passwords'
 import type { LoginInput, LoginSummary, PasswordPrompt } from '../shared/types'
 import { parseAnchor } from '../shared/anchor'
 import { PromptPopover } from './popover'
@@ -173,6 +182,26 @@ export class PasswordStore {
   }
 }
 
+const LOOKS_MS = [1500, 3000, 6000]
+
+/** Watch the page after a login was submitted and say whether it took (see loginOutcome). */
+async function loginAccepted(wc: WebContents, current: () => boolean): Promise<boolean> {
+  let waited = 0
+  for (const [i, at] of LOOKS_MS.entries()) {
+    await new Promise((r) => setTimeout(r, at - waited))
+    waited = at
+    if (wc.isDestroyed() || !current()) return false
+    try {
+      const probe = (await wc.executeJavaScript(LOGIN_PROBE)) as LoginProbe
+      const outcome = loginOutcome(probe, i === LOOKS_MS.length - 1)
+      if (outcome !== 'pending') return outcome === 'success'
+    } catch {
+      // the page was swapped out mid-look; look again
+    }
+  }
+  return false
+}
+
 /** The site a message came from, or null for anything that is not the top frame of a web page. */
 function siteOf(e: IpcMainEvent | IpcMainInvokeEvent): string | null {
   const frame = e.senderFrame
@@ -205,6 +234,7 @@ export function registerPasswordIpc(win: BrowserWindow, store: PasswordStore): v
 
   // Many sites ask for the account first and the password on the next step (or screen). The first step's
   // value is remembered here, per site, for a few minutes, and used when the password step names no user.
+  let submission = 0 // a newer submit replaces one still being judged
   const identifiers = new Map<string, { value: string; at: number }>()
   const IDENTIFIER_TTL_MS = 5 * 60_000
   ipcMain.on('pw:identifier', (e, value: unknown) => {
@@ -224,8 +254,13 @@ export function registerPasswordIpc(win: BrowserWindow, store: PasswordStore): v
       typed || (earlier && Date.now() - earlier.at < IDENTIFIER_TTL_MS ? earlier.value : '')
     const decision = store.decide(origin, username, password)
     if (decision === 'same') return
-    pending = { origin, username, password, kind: decision }
-    tell({ origin, username, kind: decision })
+    // Offer to save only once the site has accepted the login, never for a wrong password.
+    const token = ++submission
+    void loginAccepted(e.sender, () => token === submission).then((ok) => {
+      if (!ok || token !== submission) return
+      pending = { origin, username, password, kind: decision }
+      tell({ origin, username, kind: decision })
+    })
   })
 
   ipcMain.handle('pw:accounts', (e) => {

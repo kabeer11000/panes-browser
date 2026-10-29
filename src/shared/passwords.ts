@@ -61,3 +61,29 @@ export function usernameFieldIndex(fields: FieldInfo[], passwordAt: number): num
   }
   return -1
 }
+
+/** Page-side probe, run a moment after a login is submitted: is a password box still showing, and does the page complain? */
+export const LOGIN_PROBE = `(() => {
+  const shown = (el) => el.offsetWidth > 0 && el.offsetHeight > 0
+  const password = [...document.querySelectorAll('input[type=password]')].some(shown)
+  const complaint = /incorrect|invalid|wrong|try again|not match|failed|doesn.t exist|couldn.t find|unable to|too many/i
+  const error = [...document.querySelectorAll('[role=alert], [aria-live=assertive], [aria-invalid=true]')].some(
+    (el) => shown(el) && (el.getAttribute('aria-invalid') === 'true' || complaint.test(el.textContent || ''))
+  )
+  return { password, error }
+})()`
+
+export interface LoginProbe {
+  password: boolean
+  error: boolean
+}
+
+/**
+ * Did a submitted login work? A page that is done with the password box (it moved on, or the box is gone)
+ * took the login; one that still shows it, or says something is wrong, did not. `last` is the final look.
+ */
+export function loginOutcome(probe: LoginProbe, last: boolean): 'success' | 'failed' | 'pending' {
+  if (probe.error) return 'failed'
+  if (!probe.password) return 'success'
+  return last ? 'failed' : 'pending'
+}

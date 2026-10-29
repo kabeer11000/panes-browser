@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { loginsFromCsv, loginsToCsv, parseCsv, toCsv } from './csv'
-import { classify, generatePassword, normalizeOrigin, usernameFieldIndex } from './passwords'
+import {
+  classify,
+  generatePassword,
+  loginOutcome,
+  normalizeOrigin,
+  usernameFieldIndex
+} from './passwords'
 
 describe('classify', () => {
   const saved = [{ username: 'ana', password: 'pw1' }]
@@ -127,4 +133,18 @@ describe('usernameFieldIndex', () => {
     expect(usernameFieldIndex([f('text', 'username'), f('text', 'off'), f('password')], 2)).toBe(0))
   test('a lone password field has no username', () =>
     expect(usernameFieldIndex([f('password')], 0)).toBe(-1))
+})
+
+describe('loginOutcome', () => {
+  test('a password box that is gone means the login took', () => {
+    expect(loginOutcome({ password: false, error: false }, false)).toBe('success')
+  })
+  test('a complaint on the page fails at once, even with the box gone', () => {
+    expect(loginOutcome({ password: true, error: true }, false)).toBe('failed')
+    expect(loginOutcome({ password: false, error: true }, false)).toBe('failed')
+  })
+  test('a box still showing is given time, then counts as a failure', () => {
+    expect(loginOutcome({ password: true, error: false }, false)).toBe('pending')
+    expect(loginOutcome({ password: true, error: false }, true)).toBe('failed')
+  })
 })
