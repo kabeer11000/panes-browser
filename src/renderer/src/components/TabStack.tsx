@@ -164,6 +164,9 @@ export function TabStack({
         <span>
           <b>Esc</b> to stay
         </span>
+        <span>
+          <b>Del</b> to close
+        </span>
       </div>
     </motion.div>
   )

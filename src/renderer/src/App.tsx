@@ -197,8 +197,11 @@ function App(): React.JSX.Element {
     })
     const offWheel = window.api.onStackWheel(onStackWheel)
     const offRelease = window.api.onStackRelease(() => {
-      if (modeRef.current === 'stack') commitStack()
-      else if (opening.current) releasedEarly.current = true
+      // Letting go of Ctrl lands on the card, unless the pointer is on a close button: then the stack
+      // stays open (click a card or press Esc to leave), so a card can be closed with the mouse.
+      if (modeRef.current === 'stack') {
+        if (!document.querySelector('.stack-close:hover')) commitStack()
+      } else if (opening.current) releasedEarly.current = true
     })
     // Ctrl+wheel over the UI itself (not a page view).
     const onDomWheel = (e: WheelEvent): void => {
