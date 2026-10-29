@@ -3517,7 +3517,11 @@ kbd {
   display: none;
 }
 
-/* the sidebar the pointer opened floats over the page (which keeps its size) instead of pushing it */
+/* the sidebar the pointer opened slides in from the left while the page area, at its own size, slides over
+   with it (the page views follow from the main process): the one thing that changes is a translation */
+.app {
+  overflow: hidden;
+}
 .hover-open .sidebar {
   position: absolute;
   z-index: 40;
@@ -3525,23 +3529,18 @@ kbd {
   bottom: 0;
   left: 0;
   width: var(--sidebar-full);
-  border-radius: 0 14px 14px 0;
   background: var(--card-bg);
-  box-shadow:
-    0 0 0 1px var(--border),
-    8px 0 28px rgb(0 0 0 / 0.28);
-  animation: side-float 0.16s var(--ease) both;
+  transform: translateX(calc(var(--slide, 0px) - var(--sidebar-full)));
+  will-change: transform;
+  transition: none;
 }
-@keyframes side-float {
-  from {
-    transform: translateX(-16px);
-    opacity: 0;
-  }
+.hover-open .main {
+  transform: translateX(var(--slide, 0px));
+  will-change: transform;
 }
-@media (prefers-reduced-motion: reduce) {
-  .hover-open .sidebar {
-    animation: none;
-  }
+.hover-open .sidebar-inner,
+.hover-open .stage-wrap {
+  transition: none;
 }
 
 /* side tabs: the page sits on a plane of its own, and the active tab flows into it with tapered corners */

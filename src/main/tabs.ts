@@ -1193,6 +1193,16 @@ export class TabManager {
   }
 
   /** `sharp`: the pictures stand in for the pages on screen, so they must match them pixel for pixel. */
+  /** The page views are shifted right by this much, at their own size (the window clips what runs off). */
+  private slideX = 0
+
+  setSlide(px: number): void {
+    const next = Math.max(0, Math.min(600, Math.round(px)))
+    if (next === this.slideX) return
+    this.slideX = next
+    this.applyVisibility()
+  }
+
   async setOverlay(open: boolean, snapshot = true, sharp = false): Promise<void> {
     if (open && snapshot) {
       // Only views whose picture is old are worth waiting for; with a recent one the overlay opens at once.
@@ -1238,7 +1248,12 @@ export class TabManager {
             ? { x: 0, y: 0, width: w, height: h }
             : null
           : normal
-      const rect = placed && this.overlay ? { ...placed, x: PARKED_X } : placed
+      const rect =
+        placed && this.overlay
+          ? { ...placed, x: PARKED_X }
+          : placed && this.fullscreenId === null
+            ? { ...placed, x: placed.x + this.slideX }
+            : placed
       const show = rect !== null && !this.isBlank(tab) && !tab.awaiting
       // A full-screen page has no window edge to be rounded against.
       const flat = this.fullscreenId === id

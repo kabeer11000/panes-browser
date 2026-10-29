@@ -16,6 +16,7 @@ import { CloseIcon, GripIcon, PipIcon } from './icons'
 import { NewTab } from './NewTab'
 import { TabFavicon } from './TabFavicon'
 import { holdOverlay, releaseOverlay } from '../overlay'
+import { getSlide } from '../slide'
 
 interface Props {
   tabs: TabInfo[]
@@ -44,7 +45,8 @@ interface LiveRatios {
 
 const toRect = (el: HTMLElement): Rect => {
   const r = el.getBoundingClientRect()
-  return { x: r.x, y: r.y, width: r.width, height: r.height }
+  // the page area may be mid-slide (the hover sidebar): its own place is where it would be without that
+  return { x: r.x - getSlide(), y: r.y, width: r.width, height: r.height }
 }
 
 /**

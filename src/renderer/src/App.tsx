@@ -17,6 +17,7 @@ import { SpaceSwitcher } from './components/SpaceSwitcher'
 import { WindowControls } from './components/WindowControls'
 import { useSpaceDir } from './hooks/useSpaceDir'
 import { holdOverlay, releaseOverlay } from './overlay'
+import { getSlide, setSlide } from './slide'
 import { useScheme } from './useScheme'
 import { useSwipe } from './hooks/useSwipe'
 import { useTabDrag } from './hooks/useTabDrag'
@@ -257,12 +258,26 @@ function App(): React.JSX.Element {
   // nothing in it is laid out or repainted for what is a glance at the tab list.
   const pushed = showSidebar && !openedByHover
   const spaceDir = useSpaceDir(spaces, activeSpaceId)
-  // The pages are parked (shown as pictures) while the floating sidebar is over them, as for any overlay.
+  // The hover sidebar slides in from the left while the page area, at its own size, slides over by the same
+  // amount; the page views are moved by the main process in step (no layout, no snapshots, nothing resized).
+  const [hoverShown, setHoverShown] = useState(false)
   useEffect(() => {
-    if (!openedByHover) return
-    void holdOverlay('hover-sidebar', true, true)
-    return () => void releaseOverlay('hover-sidebar')
-  }, [openedByHover])
+    const target = openedByHover && showSidebar ? effective.sidebarWidth : 0
+    const from = getSlide()
+    if (from === target) return
+    const start = performance.now()
+    const duration = target > 0 ? 190 : 160
+    let raf = 0
+    const step = (now: number): void => {
+      const t = Math.min(1, (now - start) / duration)
+      if (target > 0) setHoverShown(true)
+      setSlide(from + (target - from) * (1 - Math.pow(1 - t, 3)))
+      if (t < 1) raf = requestAnimationFrame(step)
+      else if (target === 0) setHoverShown(false)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [openedByHover, showSidebar, effective.sidebarWidth])
   const barAutoHidden = !pushed && !horizontal && settings.autoHideTopBar
   const stripHidden =
     pushed ||
@@ -392,7 +407,7 @@ function App(): React.JSX.Element {
       className={
         'app themed' +
         (showSidebar ? '' : ' sidebar-closed') +
-        (openedByHover ? ' hover-open' : '') +
+        (hoverShown ? ' hover-open' : '') +
         (horizontal ? ' horizontal' : '') +
         (mode ? ' overlay-open' : '')
       }

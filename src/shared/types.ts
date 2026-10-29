@@ -193,6 +193,8 @@ export interface PanesApi {
   moveTab(id: number, index: number): void
   /** Hide the native page view (so renderer overlays can show); snapshots the active tab first. */
   setOverlay(open: boolean, snapshot?: boolean, sharp?: boolean): Promise<void>
+  /** Shift the page views right by this many pixels, keeping their size (the hover sidebar sliding out). */
+  setSlide(px: number): void
   minimizeWindow(): void
   toggleMaximizeWindow(): void
   closeWindow(): void

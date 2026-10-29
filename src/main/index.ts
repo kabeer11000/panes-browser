@@ -424,6 +424,9 @@ function createWindow(): void {
     tabs.updateRatios(path, ratios)
   )
   ipcMain.on('tabs:move', (_e, id: number, index: number) => tabs.moveTab(id, index))
+  ipcMain.on('ui:slide', (_e, px: unknown) => {
+    if (typeof px === 'number' && Number.isFinite(px)) tabs.setSlide(px)
+  })
   ipcMain.handle('ui:overlay', (_e, open: boolean, snapshot?: boolean, sharp?: boolean) =>
     tabs.setOverlay(open, snapshot, sharp === true)
   )
