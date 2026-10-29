@@ -88,6 +88,16 @@ function Headline({ state }: { state: UpdateState }): React.JSX.Element {
           </div>
         </>
       )
+    case 'installing':
+      return (
+        <>
+          <div className="sw-headline">Installing Panes {state.version}</div>
+          <div className="sw-sub">
+            Panes is closing and will open again by itself in a few seconds. Your tabs come back as
+            they were.
+          </div>
+        </>
+      )
     case 'ready':
       return (
         <>
@@ -122,7 +132,10 @@ function Actions({
 }): React.JSX.Element {
   const ready = state.kind === 'ready'
   const busy =
-    state.kind === 'checking' || state.kind === 'available' || state.kind === 'downloading'
+    state.kind === 'checking' ||
+    state.kind === 'available' ||
+    state.kind === 'downloading' ||
+    state.kind === 'installing'
   return (
     <div className="sw-actions">
       <button

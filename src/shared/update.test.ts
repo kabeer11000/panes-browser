@@ -79,6 +79,20 @@ describe('nextUpdateState', () => {
     }
   })
 
+  test('choosing to restart moves only a ready update to installing, and nothing leaves it', () => {
+    const ready = nextUpdateState(found(idle), { type: 'downloaded' })
+    const installing = nextUpdateState(ready, { type: 'installing' })
+    expect(installing).toEqual({ kind: 'installing', version: '0.2.0' })
+    expect(nextUpdateState(idle, { type: 'installing' })).toBe(idle)
+    for (const e of [
+      { type: 'checking' },
+      { type: 'none', at: 5 },
+      { type: 'error', message: 'boom', at: 5 }
+    ] as const) {
+      expect(nextUpdateState(installing, e)).toBe(installing)
+    }
+  })
+
   test('a disabled build stays disabled', () => {
     const off: UpdateState = { kind: 'disabled', reason: 'dev' }
     expect(nextUpdateState(off, { type: 'checking' })).toBe(off)

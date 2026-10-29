@@ -67,8 +67,18 @@ function App(): React.JSX.Element {
   }
   // The version waiting to be installed, if any: the sidebar shows a pill for it.
   const [updateVersion, setUpdateVersion] = useState<string | null>(null)
+  // Set from the moment Restart is chosen until the window goes: a veil says what is happening.
+  const [installing, setInstalling] = useState<string | null>(null)
   useEffect(() => {
-    const apply = (s: UpdateState): void => setUpdateVersion(s.kind === 'ready' ? s.version : null)
+    if (!installing) return
+    void holdOverlay('installing')
+    return () => void releaseOverlay('installing')
+  }, [installing])
+  useEffect(() => {
+    const apply = (s: UpdateState): void => {
+      setUpdateVersion(s.kind === 'ready' ? s.version : null)
+      setInstalling(s.kind === 'installing' ? s.version : null)
+    }
     void window.api.getUpdateState().then(apply)
     return window.api.onUpdateState(apply)
   }, [])
@@ -617,6 +627,13 @@ function App(): React.JSX.Element {
         </div>
       </main>
       {drag && <DragLayer drag={drag} tab={tabs.find((t) => t.id === drag.id)} />}
+      {installing && (
+        <div className="installing-veil" role="status" aria-live="polite">
+          <span className="installing-spin" aria-hidden="true" />
+          <b>Installing Panes {installing}</b>
+          <span>Panes will close and open again by itself.</span>
+        </div>
+      )}
     </div>
   )
 }

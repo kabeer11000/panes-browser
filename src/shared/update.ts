@@ -12,6 +12,8 @@ export type UpdateState =
       bytesPerSecond: number
     }
   | { kind: 'ready'; version: string; notes: string }
+  /** Restart was chosen: Panes is closing and the installer is putting the new version in place. */
+  | { kind: 'installing'; version: string }
   | { kind: 'error'; message: string; checkedAt: number | null }
 
 export type UpdateEvent =
@@ -20,6 +22,7 @@ export type UpdateEvent =
   | { type: 'found'; version: string; notes: string }
   | { type: 'progress'; percent: number; bytesPerSecond: number }
   | { type: 'downloaded' }
+  | { type: 'installing' }
   | { type: 'error'; message: string; at: number }
 
 const MAX_MESSAGE = 200
@@ -32,7 +35,9 @@ const checkedAtOf = (s: UpdateState): number | null =>
  * undone by a later check or error: the only way out of "ready" is restarting into it.
  */
 export function nextUpdateState(s: UpdateState, e: UpdateEvent): UpdateState {
-  if (s.kind === 'disabled' || s.kind === 'ready') return s
+  if (e.type === 'installing')
+    return s.kind === 'ready' ? { kind: 'installing', version: s.version } : s
+  if (s.kind === 'disabled' || s.kind === 'ready' || s.kind === 'installing') return s
   switch (e.type) {
     case 'checking':
       // Already past checking: a second check must not drag a download back to the start.

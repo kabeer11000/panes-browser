@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { existsSync } from 'fs'
+import { showInstallProgress } from './installProgress'
 import { join } from 'path'
 import {
   friendlyUpdateError,
@@ -45,6 +46,10 @@ export class UpdateManager {
     // uploaded, the update ends in a protocol or checksum error instead of simply downloading again.
     autoUpdater.disableDifferentialDownload = true
     autoUpdater.autoInstallOnAppQuit = true
+    // Quitting with an update waiting installs it too, and that must not look like Panes just vanishing.
+    app.on('before-quit', () => {
+      if (this.state.kind === 'ready' && process.platform === 'win32') showInstallProgress()
+    })
     autoUpdater.on('checking-for-update', () => this.dispatch({ type: 'checking' }))
     autoUpdater.on('update-not-available', () => this.dispatch({ type: 'none', at: Date.now() }))
     autoUpdater.on('update-available', (info) =>
@@ -121,6 +126,13 @@ export class UpdateManager {
   /** Restart into the downloaded version. Does nothing unless one is ready. */
   install(): void {
     if (this.state.kind !== 'ready' || this.fake) return
+    this.dispatch({ type: 'installing' }) // the window says so at once
+    if (process.platform === 'win32') showInstallProgress()
+    // a moment for that to be drawn before the window goes
+    setTimeout(() => this.quitIntoInstaller(), 900)
+  }
+
+  private quitIntoInstaller(): void {
     // Silent: the new version is put in place without the installer wizard, and Panes starts again by itself.
     autoUpdater.quitAndInstall(true, true)
   }
