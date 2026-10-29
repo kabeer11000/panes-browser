@@ -3475,3 +3475,44 @@ kbd {
 .hover-open .sidebar-inner {
   transition-duration: 0.14s, 0.18s;
 }
+
+/* ---- top tabs, calmer: no outlines anywhere. A tab is a fill; the toolbar and the page are the only edges ---- */
+.htab.active,
+.htab.active.grouped,
+.htab.in-split.active,
+.htab.in-split + .htab.in-split.active {
+  box-shadow: none;
+}
+.htab.active.grouped,
+.htab.in-split.active.grouped {
+  box-shadow: inset 0 -2px 0 var(--gc);
+}
+/* a split reads as two tabs that belong together: the same soft tint, no line under them, a hairline between */
+.htab.in-split::after {
+  display: none;
+}
+.htab.in-split:not(.active) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.htab.in-split.active {
+  background: var(--tab-surface);
+}
+.htab.in-split + .htab.in-split:not(.active) {
+  box-shadow: inset 1px 0 0 var(--border);
+}
+.htab.in-split.split-first:not(.active),
+.htab.in-split.split-last:not(.active) {
+  border-radius: 9px 9px 0 0;
+}
+/* the address bar keeps still when a split pane is focused: no ring, no pulse */
+.hstrip .address.pane-focus,
+.hstrip .address.pane-focus:hover {
+  background: var(--surface);
+  box-shadow: none;
+}
+.hstrip .address.pane-focus.editing {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.hstrip .addr-pulse {
+  display: none;
+}
