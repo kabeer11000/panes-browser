@@ -203,6 +203,7 @@ export function HorizontalTabs({
               className={
                 'htab' +
                 (t.id === activeId ? ' active' : '') +
+                (t.pinned ? ' pinned' : '') +
                 (tg ? ' grouped' : '') +
                 (inSplit ? ' in-split' : '') +
                 (inSplit && pairHasActive ? ' pair-active' : '') +

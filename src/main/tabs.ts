@@ -27,7 +27,7 @@ import {
 import { stageBackground } from '../shared/color'
 import { siteListed, ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '../shared/memory'
 import { siteKey, siteThemeCss } from '../shared/sitetheme'
-import { CAPTURE_SCRIPT, NO_CAPTURE, parseCapture, type CaptureState } from '../shared/capture'
+import { NO_CAPTURE, parseCapture, type CaptureState } from '../shared/capture'
 import { dumpableTabs, type TabDump } from '../shared/dumps'
 import type { DumpStore } from './dumps'
 import type { TorManager } from './tor'
@@ -35,7 +35,7 @@ import { ZAP_PREFIX, ZAP_SCRIPT } from '../shared/zap'
 import { errorPageUrl } from '../shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
 import { totalmem } from 'os'
-import { applyChromeIdentity } from './identity'
+import { applyIdentity, followIdentity } from './identity'
 import { PdfViewerHelper } from './pdf'
 import { runningMode } from './performance'
 import { pickUnloads, type MemoryPolicy, type TabFacts } from '../shared/memory'
@@ -118,6 +118,10 @@ interface Tab {
   tor: boolean
   /** What the page reported it is capturing (see CAPTURE_SCRIPT). */
   capture: CaptureState
+  /** Pinned tabs sit together at the start of the list. */
+  pinned: boolean
+  /** The tab's Chrome identity is in place; nothing is loaded before it is. Set up when the tab first loads something. */
+  identity: Promise<void> | null
   boostKey: string | null
   /** A style-sheet swap is under way, and whether another edit arrived during it. */
   boosting: boolean
@@ -171,6 +175,7 @@ export class TabManager {
       title?: string
       favicon?: string | null
       groupId?: number | null
+      pinned?: boolean
     }>
     active: number
     groups?: Array<TabGroup & { spaceId: number }>
@@ -189,6 +194,8 @@ export class TabManager {
       spaces: SpaceStore
       dumps: DumpStore
       tor: TorManager
+      /** The Chrome user agent, for the few sites that insist on Chrome (the sessions carry the plain one). */
+      chromeUa: string
       /** In-memory session whose traffic goes through Tor's local proxy (and nowhere else). */
       torSession: Session
     }
@@ -240,6 +247,7 @@ export class TabManager {
         groupId: t.groupId,
         private: t.private,
         tor: t.tor,
+        pinned: t.pinned,
         capture: t.capture,
         pip: this.pip.tabId === id,
         unloaded: t.unloaded,
@@ -426,6 +434,8 @@ export class TabManager {
       private: isPrivate || isTor,
       tor: isTor,
       capture: NO_CAPTURE,
+      identity: null,
+      pinned: false,
       favicon: null,
       thumb: null,
       thumbAt: 0,
@@ -458,12 +468,28 @@ export class TabManager {
         tab.pending = { url, title: lazy.title }
         tab.favicon = lazy.favicon
       } else {
-        tab.view.webContents.loadURL(url).catch(() => {}) // ERR_ABORTED on redirects is normal
+        this.go(tab, url)
       }
     }
     if (activate) this.activate(id, true)
     else this.refresh()
     return id
+  }
+
+  /**
+   * Start loading an address, once the tab has taken on the identity that address wants. A first page that
+   * loads before that sees one browser in its user agent and another in its client hints.
+   */
+  private identities(tab: { private: boolean; tor: boolean }): { plain: string; chrome: string } {
+    return { plain: this.sessionFor(tab).getUserAgent(), chrome: this.deps.chromeUa }
+  }
+
+  private go(tab: Tab, url: string): void {
+    const ready = (tab.identity ??= applyIdentity(tab.view.webContents, this.identities(tab), url))
+    void ready.then(() => {
+      const wc = tab.view.webContents
+      if (!wc.isDestroyed()) wc.loadURL(url).catch(() => {}) // ERR_ABORTED on redirects is normal
+    })
   }
 
   /** `askForAddress`: a blank tab you just opened should take typing straight away; one you merely switched to should not pop the command bar open. */
@@ -593,7 +619,7 @@ export class TabManager {
     wc.on('dom-ready', onReady)
     wc.on('did-fail-load', release)
     wc.on('did-stop-loading', release)
-    wc.loadURL(url).catch(() => {}) // ERR_ABORTED on redirects is normal
+    this.go(tab, url)
   }
 
   /**
@@ -622,6 +648,7 @@ export class TabManager {
         const tab = this.tabs.get(id)
         const g = t.groupId == null ? undefined : this.groups.get(t.groupId)
         if (tab && g && g.spaceId === tab.spaceId) tab.groupId = g.id
+        if (tab && t.pinned === true) tab.pinned = true
         return id
       })
       const own = ids.filter((id) => this.tabs.get(id)?.spaceId === this.activeSpaceId)
@@ -648,6 +675,7 @@ export class TabManager {
       title: string
       favicon: string | null
       groupId: number | null
+      pinned: boolean
     }> = []
     let active = 0
     for (const [id, t] of this.tabs) {
@@ -661,7 +689,8 @@ export class TabManager {
         spaceId: t.spaceId,
         title: t.pending?.title ?? wc?.getTitle() ?? '',
         favicon: t.favicon,
-        groupId: t.groupId
+        groupId: t.groupId,
+        pinned: t.pinned
       })
     }
     const used = new Set(tabs.map((t) => t.groupId))
@@ -979,7 +1008,7 @@ export class TabManager {
       return
     }
     tab.hasUrl = true
-    tab.view.webContents.loadURL(url).catch(() => {})
+    this.go(tab, url)
     tab.view.webContents.focus()
     this.refresh()
   }
@@ -1199,7 +1228,11 @@ export class TabManager {
     const own = this.own()
     const rest = own.filter((i) => !group.includes(i))
     const removedBefore = group.filter((g) => own.indexOf(g) < index).length
-    const at = Math.max(0, Math.min(rest.length, index - removedBefore))
+    // Pinned tabs keep to the start of the list and the others to what follows it.
+    const pinnedRest = rest.filter((i) => this.tabs.get(i)?.pinned).length
+    const mine = !!this.tabs.get(id)?.pinned
+    const raw = Math.max(0, Math.min(rest.length, index - removedBefore))
+    const at = mine ? Math.min(raw, pinnedRest) : Math.max(raw, pinnedRest)
     rest.splice(at, 0, ...group)
     this.reorder(rest)
     // A tab dropped between two members of a sidebar group joins it; one dragged away leaves it.
@@ -1213,7 +1246,7 @@ export class TabManager {
           : groupId !== null && this.groups.get(groupId)?.spaceId === tab.spaceId
             ? groupId
             : null
-      tab.groupId = wanted
+      tab.groupId = tab.pinned ? null : wanted
     }
     this.setLayout(this.layout) // a loose tab dropped inside a split group gets pushed out of it
     this.refresh()
@@ -1348,15 +1381,15 @@ export class TabManager {
     const tabSession = this.sessionFor(tab)
     // Nothing about the real network address may leave through WebRTC in a Tor tab.
     if (tab.tor) wc.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
-    applyChromeIdentity(wc, tabSession.getUserAgent())
-    wc.on('did-create-window', (child) =>
-      applyChromeIdentity(child.webContents, tabSession.getUserAgent())
-    )
+    wc.on('did-create-window', (child) => {
+      void applyIdentity(
+        child.webContents,
+        { plain: tabSession.getUserAgent(), chrome: this.deps.chromeUa },
+        child.webContents.getURL()
+      )
+    })
     wc.on('did-start-loading', refresh)
     wc.on('dom-ready', () => {
-      // The start-of-document script can miss the very first page of a tab (it is registered as that page
-      // loads); running it again is harmless, it only installs once.
-      void wc.executeJavaScript(CAPTURE_SCRIPT).catch(() => undefined)
       this.applyDarkening() // covers tabs created or restored after the theme last changed
       this.applyZoom()
       tab.boostKey = null // a new document starts without the old sheet
@@ -1432,6 +1465,7 @@ export class TabManager {
     })
     wc.on('did-start-navigation', (details) => {
       if (!details.isMainFrame || details.isSameDocument) return
+      followIdentity(wc, this.identities(tab), details.url)
       tab.favicon = null
       tab.capture = NO_CAPTURE // a new page starts with nothing captured
       // a muted site stays muted wherever its tabs go
@@ -1704,6 +1738,20 @@ export class TabManager {
     this.reorder(placeInGroup(this.own(), this.groupOf, id, old))
   }
 
+  /** Pin a tab (it moves to the end of the pinned ones) or unpin it (to just after them). */
+  setPinned(id: number, pinned: boolean): void {
+    const tab = this.tabs.get(id)
+    if (!tab || tab.pinned === pinned) return
+    tab.pinned = pinned
+    if (pinned) tab.groupId = null // a pinned tab stands alone
+    const own = this.own().filter((i) => i !== id)
+    const pinnedCount = own.filter((i) => this.tabs.get(i)?.pinned).length
+    own.splice(pinnedCount, 0, id)
+    this.reorder(own)
+    this.refresh()
+    this.persistSession()
+  }
+
   /** Save what is open in this space as a session; `close` also closes those tabs (a quick clear-out). */
   dumpTabs(close = false): TabDump | null {
     const open = this.state().tabs.filter((t) => !t.private)
@@ -1726,7 +1774,7 @@ export class TabManager {
 
   createGroup(tabId: number, name = ''): void {
     const tab = this.tabs.get(tabId)
-    if (!tab) return
+    if (!tab || tab.pinned) return
     this.leaveGroup(tabId)
     const used = [...this.groups.values()]
       .filter((g) => g.spaceId === tab.spaceId)
@@ -1747,7 +1795,8 @@ export class TabManager {
   addToGroup(tabId: number, groupId: number): void {
     const tab = this.tabs.get(tabId)
     const group = this.groups.get(groupId)
-    if (!tab || !group || group.spaceId !== tab.spaceId || tab.groupId === groupId) return
+    if (!tab || tab.pinned || !group || group.spaceId !== tab.spaceId || tab.groupId === groupId)
+      return
     this.leaveGroup(tabId)
     tab.groupId = groupId
     this.reorder(placeInGroup(this.own(), this.groupOf, tabId, groupId))
@@ -1783,7 +1832,12 @@ export class TabManager {
       (g) => g.spaceId === tab.spaceId && g.id !== tab.groupId
     )
     const items: MenuItemConstructorOptions[] = [
-      { label: 'Add to new group', click: () => this.createGroup(id) }
+      {
+        label: tab.pinned ? 'Unpin tab' : 'Pin tab',
+        click: () => this.setPinned(id, !tab.pinned)
+      },
+      { type: 'separator' },
+      { label: 'Add to new group', click: () => this.createGroup(id), enabled: !tab.pinned }
     ]
     const saveItems: MenuItemConstructorOptions[] = [
       { label: 'Save all tabs as a session', click: () => this.dumpTabs() },

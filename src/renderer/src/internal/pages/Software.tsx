@@ -121,6 +121,7 @@ function Headline({ state }: { state: UpdateState }): React.JSX.Element {
 }
 
 /** The two things you can do, always in the same place: look for an update, and take one that is ready. */
+/** One button at a time, the one that fits where the update is. */
 function Actions({
   state,
   onCheck,
@@ -129,38 +130,56 @@ function Actions({
   state: UpdateState
   onCheck: () => void
   onInstall: () => void
-}): React.JSX.Element {
-  const ready = state.kind === 'ready'
-  const busy =
-    state.kind === 'checking' ||
-    state.kind === 'available' ||
-    state.kind === 'downloading' ||
-    state.kind === 'installing'
-  return (
-    <div className="sw-actions">
-      <button
-        className={'int-btn' + (ready ? '' : ' primary')}
-        disabled={busy || state.kind === 'disabled' || ready}
-        onClick={onCheck}
-      >
-        {state.kind === 'checking'
-          ? 'Checking...'
-          : state.kind === 'error'
-            ? 'Try again'
-            : 'Check for updates'}
-      </button>
-      <button
-        className={'int-btn' + (ready ? ' primary' : '')}
-        disabled={!ready}
-        onClick={onInstall}
-        title={ready ? undefined : 'Available once an update has downloaded'}
-      >
-        {state.kind === 'downloading' || state.kind === 'available'
-          ? 'Downloading...'
-          : 'Restart to update'}
-      </button>
-    </div>
-  )
+}): React.JSX.Element | null {
+  switch (state.kind) {
+    case 'disabled':
+      return null
+    case 'ready':
+      return (
+        <div className="sw-actions">
+          <button className="int-btn primary" onClick={onInstall} autoFocus>
+            Restart to update
+          </button>
+        </div>
+      )
+    case 'installing':
+      return (
+        <div className="sw-actions">
+          <button className="int-btn" disabled>
+            <span className="sw-spin" aria-hidden="true" />
+            Installing...
+          </button>
+        </div>
+      )
+    case 'available':
+    case 'downloading':
+      return null // the progress bar above is the whole story; nothing to press
+    case 'checking':
+      return (
+        <div className="sw-actions">
+          <button className="int-btn" disabled>
+            <span className="sw-spin" aria-hidden="true" />
+            Checking...
+          </button>
+        </div>
+      )
+    case 'error':
+      return (
+        <div className="sw-actions">
+          <button className="int-btn primary" onClick={onCheck}>
+            Try again
+          </button>
+        </div>
+      )
+    default:
+      return (
+        <div className="sw-actions">
+          <button className="int-btn primary" onClick={onCheck}>
+            Check for updates
+          </button>
+        </div>
+      )
+  }
 }
 
 export function Software(): React.JSX.Element {

@@ -41,3 +41,31 @@ describe('windowsPlatformVersion', () => {
     expect(windowsPlatformVersion('10.0.19045')).toBe('10.0.0')
   })
 })
+
+import { wantsChromeIdentity } from './identity'
+
+describe('wantsChromeIdentity', () => {
+  test('Google and YouTube sites, in any country, insist on Chrome', () => {
+    for (const u of [
+      'https://accounts.google.com/signin',
+      'https://www.google.co.uk/search?q=x',
+      'https://google.de/',
+      'https://www.youtube.com/watch?v=1',
+      'accounts.youtube.com',
+      'https://lh3.googleusercontent.com/a'
+    ]) {
+      expect(wantsChromeIdentity(u)).toBe(true)
+    }
+  })
+  test('other sites, lookalikes included, get Panes as it is', () => {
+    for (const u of [
+      'https://dash.cloudflare.com/login',
+      'https://example.com/',
+      'https://notgoogle.com/',
+      'https://google.com.evil.example/',
+      'https://mygoogle.co/'
+    ]) {
+      expect(wantsChromeIdentity(u)).toBe(false)
+    }
+  })
+})

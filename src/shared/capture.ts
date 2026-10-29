@@ -23,7 +23,8 @@ export function parseCapture(message: string): CaptureState | null {
 }
 
 /**
- * Runs at the start of every document. It wraps getUserMedia and getDisplayMedia, follows the tracks they
+ * Installed in a page only once it has been allowed to use the camera, microphone or screen, never before: a
+ * wrapped getUserMedia is something bot checks can see, and an ordinary page has no reason to carry one. It wraps getUserMedia and getDisplayMedia, follows the tracks they
  * hand out, and reports which kinds are live. A page that calls track.stop() fires no event, so live tracks
  * are looked at once a second. The page's own behaviour is untouched.
  */
@@ -54,5 +55,16 @@ export const CAPTURE_SCRIPT = `(() => {
     if (typeof original !== 'function') continue
     md[name] = function (...args) { return original.apply(this, args).then(take) }
   }
-  setInterval(() => { if (live.size > 0) report() }, 1000)
+  // The page's own first request was already under way when this was installed, so also look at what is playing
+  // in media elements (a track with a device id is ours, a remote one has none).
+  const scan = () => {
+    for (const el of document.querySelectorAll('video, audio')) {
+      const s = el.srcObject
+      if (!s || typeof s.getTracks !== 'function') continue
+      for (const t of s.getTracks()) if (t.readyState === 'live' && t.getSettings && t.getSettings().deviceId) live.add(t)
+    }
+  }
+  scan()
+  report()
+  setInterval(() => { scan(); if (live.size > 0) report() }, 1000)
 })()`

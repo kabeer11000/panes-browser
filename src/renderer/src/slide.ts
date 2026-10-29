@@ -7,10 +7,15 @@ let current = 0
 
 export const getSlide = (): number => current
 
-export function setSlide(px: number): void {
+export function setSlide(px: number, full = 1): void {
   const v = Math.max(0, Math.round(px))
   if (v === current) return
   current = v
   document.documentElement.style.setProperty('--slide', `${v}px`)
+  // how far out it is, 0 to 1: the surface and the bar's controls fade in step, so nothing pops at the ends
+  document.documentElement.style.setProperty(
+    '--slide-p',
+    String(Math.min(1, v / Math.max(1, full)))
+  )
   window.api.setSlide(v)
 }

@@ -73,10 +73,19 @@ function requestDefaultBrowser(): void {
 registerInternalScheme()
 
 /** The browser identity pages see, without the Electron and app-name tokens that make Google refuse sign-in. */
+/** What the session says by default: the browser as it is, minus the app's own name (Cloudflare and others read that as noise). */
+function plainUserAgent(): string {
+  return app.userAgentFallback.replace(new RegExp(`\\s${app.getName()}\\/\\S+`, 'i'), '')
+}
+
 function chromeUserAgent(): string {
-  return app.userAgentFallback
-    .replace(/\sElectron\/\S+/, '')
-    .replace(new RegExp(`\\s${app.getName()}\\/\\S+`, 'i'), '')
+  return (
+    app.userAgentFallback
+      .replace(/\sElectron\/\S+/, '')
+      .replace(new RegExp(`\\s${app.getName()}\\/\\S+`, 'i'), '')
+      // Chrome shows only its major version in the user agent ("Chrome/152.0.0.0"); the rest is in client hints
+      .replace(/Chrome\/(\d+)\.\d+\.\d+\.\d+/, 'Chrome/$1.0.0.0')
+  )
 }
 
 // Camera/mic are allowed so video calls work; location, notifications etc. are denied until there is a prompt UI.
@@ -102,7 +111,7 @@ function createWindow(): void {
   })
 
   const tabSession = session.fromPartition('persist:panes')
-  tabSession.setUserAgent(chromeUserAgent())
+  tabSession.setUserAgent(plainUserAgent(), 'en-US,en;q=0.9')
   rewriteClientHints(tabSession, chromeUserAgent())
   serveInternalPages(tabSession)
   // Spell check follows the system language; if that is not one it has a dictionary for, use English.
@@ -111,7 +120,7 @@ function createWindow(): void {
 
   // Private tabs: an in-memory session (no `persist:` prefix), set up like the main one but never saving anything.
   const privateSession = session.fromPartition('private')
-  privateSession.setUserAgent(chromeUserAgent())
+  privateSession.setUserAgent(plainUserAgent(), 'en-US,en;q=0.9')
   rewriteClientHints(privateSession, chromeUserAgent())
   serveInternalPages(privateSession)
 
@@ -119,7 +128,7 @@ function createWindow(): void {
   // stops) the proxy points nowhere, so a Tor tab can fail but can never go out directly.
   const tor = new TorManager()
   const torSession = session.fromPartition('tor')
-  torSession.setUserAgent(chromeUserAgent())
+  torSession.setUserAgent(plainUserAgent(), 'en-US,en;q=0.9')
   rewriteClientHints(torSession, chromeUserAgent())
   serveInternalPages(torSession)
   const DEAD_PROXY = 'socks5://127.0.0.1:1'
@@ -158,7 +167,8 @@ function createWindow(): void {
     spaces,
     dumps,
     tor,
-    torSession
+    torSession,
+    chromeUa: chromeUserAgent()
   })
   const permissions = new PermissionStore()
   // Popover views (site panel, permission and password cards) wear the window's colours too.

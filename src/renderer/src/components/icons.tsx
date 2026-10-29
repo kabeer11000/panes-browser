@@ -166,6 +166,11 @@ export const ShieldIcon = (): React.JSX.Element => (
     <path d="M5.8 8.2 7.3 9.7 10.3 6.6" />
   </Svg>
 )
+export const PinIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M9.8 2.5 13.5 6.2 11.6 7.1 9.9 9.5 10.2 11 8.7 9.8 5.3 13.2 4.8 12.7 8.2 9.3 7 7.8 8.5 8.1 10.9 6.4 11.8 4.5Z" />
+  </Svg>
+)
 export const MoreIcon = (): React.JSX.Element => (
   <Svg>
     <circle cx="3.5" cy="8" r="1" />

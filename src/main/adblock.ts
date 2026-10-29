@@ -5,6 +5,8 @@ import { ElectronBlocker } from '@ghostery/adblocker-electron'
 import { siteListed } from '../shared/memory'
 import { siteKey } from '../shared/sitetheme'
 
+const ENGINE_MAX_AGE_MS = 12 * 60 * 60 * 1000
+
 const COSMETIC_CHANNELS = [
   '@ghostery/adblocker/inject-cosmetic-filters',
   '@ghostery/adblocker/is-mutation-observer-enabled'
@@ -25,7 +27,13 @@ export class Adblock {
     this.sessions = [session]
     this.ready = ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, {
       path: join(app.getPath('userData'), 'adblock-engine.bin'),
-      read: fs.readFile,
+      // A saved engine is reused as it is, forever, unless it is refused: lists age in days (YouTube changes
+      // its ads weekly), so one older than half a day is refused and fetched again.
+      read: async (path) => {
+        const { mtimeMs } = await fs.stat(path)
+        if (Date.now() - mtimeMs > ENGINE_MAX_AGE_MS) throw new Error('adblock engine is stale')
+        return fs.readFile(path)
+      },
       write: fs.writeFile
     }).catch((err) => {
       console.error('[adblock] failed to load:', err)

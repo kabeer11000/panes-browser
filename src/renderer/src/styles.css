@@ -3721,14 +3721,22 @@ kbd {
   transition: background-color 0.16s;
 }
 
-/* while the hover sidebar is out, the top bar's controls are the sidebar's own, so they fade; the bar itself
-   becomes part of the page's plane, and the whole thing reads as one surface beside the sidebar */
-.hover-open .strip {
-  background: var(--tab-surface);
+/* while the hover sidebar is out, the top bar's controls are the sidebar's own, so they fade, and the bar and the
+   page margins take on the plane's surface: all of it follows how far out the sidebar is (--slide-p), so there is
+   no moment at the end where something snaps on or off */
+/* (not while the bar itself has been brought back by the pointer: then it is just the bar) */
+.hover-open .strip:not(.peeking) {
+  background: color-mix(in srgb, var(--tab-surface) calc(var(--slide-p, 0) * 100%), transparent);
 }
-.hover-open .strip > * {
-  opacity: 0;
+.hover-open .strip:not(.peeking) > * {
+  opacity: calc(1 - var(--slide-p, 0));
   pointer-events: none;
+  transition: none;
+}
+.stage-wrap.plane-hover {
+  background: color-mix(in srgb, var(--tab-surface) calc(var(--slide-p, 0) * 100%), transparent);
+  border-radius: 14px 0 0 14px;
+  transition: none;
 }
 .strip > * {
   transition: opacity 0.14s;
@@ -3797,4 +3805,91 @@ kbd {
 }
 .htab.floating {
   transition: none;
+}
+
+/* ---- group name fields: the same quiet, rounded field in the sidebar and the top strip ---- */
+.group-input,
+.hgroup-input {
+  border: 0;
+  outline: 0;
+  border-radius: 7px;
+  background: var(--surface-active);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  user-select: text;
+}
+.hgroup-input {
+  width: 104px;
+  height: 20px;
+  padding: 0 6px;
+}
+.group-input {
+  height: 24px;
+  padding: 0 8px;
+}
+.hgroup:has(.hgroup-input) {
+  padding: 0 4px;
+}
+
+/* ---- split tabs without straight lines: each tile is a tab of its own, side by side on one surface ---- */
+.htab.in-split,
+.htab.in-split.split-first,
+.htab.in-split.split-last,
+.htab.in-split.split-first.split-last {
+  border-radius: 9px 9px 0 0;
+}
+.htab.in-split:not(.split-first),
+.htab.in-split:not(.split-first).grouped,
+.htab-list .htab.in-split:not(.split-first).grouped {
+  box-shadow: none;
+}
+.htab-list .htab.in-split.grouped,
+.htab-list .htab.in-split:not(.split-first).grouped {
+  box-shadow: inset 0 -2px 0 var(--gc);
+}
+.tab-row.in-split:not(.group-first) {
+  margin-top: 0;
+}
+.tab-row.pair-active,
+.tab-row.pair-active.pair-first,
+.tab-row.pair-active.pair-last,
+.tab-row.pair-active.pair-first.pair-last {
+  border-radius: 8px 0 0 8px;
+}
+.tab-row.pair-active:not(.pair-first) {
+  box-shadow: none;
+}
+.tab-row.in-split:not(.pair-active) {
+  border-radius: 8px;
+}
+
+/* ---- pinned tabs: small, at the start of the list, no close button to hit by mistake ---- */
+.htab.pinned,
+.htab.pinned.active {
+  flex: 0 0 38px;
+  width: 38px;
+  min-width: 38px;
+  max-width: 38px;
+  padding: 0;
+  justify-content: center;
+}
+.htab.pinned .htab-title,
+.htab.pinned .htab-btn,
+.htab.pinned .capture-badge {
+  display: none;
+}
+.tab-pin {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--fg-dim);
+  opacity: 0.7;
+}
+.tab-pin svg {
+  width: 13px;
+  height: 13px;
 }

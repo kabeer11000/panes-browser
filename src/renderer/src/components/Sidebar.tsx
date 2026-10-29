@@ -13,6 +13,7 @@ import {
   DownloadIcon,
   GridIcon,
   MoreIcon,
+  PinIcon,
   ShieldIcon,
   HistoryIcon,
   PlusIcon,
@@ -57,7 +58,7 @@ interface Props {
   /** The pointer brought the sidebar out; the toggle then keeps it open. */
   peeking: boolean
   onToggle: () => void
-  onTaskView: () => void
+  onTaskView?: () => void
   onWheel: (e: WheelEvent) => void
 }
 
@@ -144,9 +145,11 @@ export function Sidebar({
         >
           <SplitIcon />
         </button>
-        <button className="icon-btn no-drag" onClick={onTaskView} title="All tabs (Ctrl+Shift+A)">
-          <GridIcon />
-        </button>
+        {onTaskView && (
+          <button className="icon-btn no-drag" onClick={onTaskView} title="All tabs (Ctrl+Shift+A)">
+            <GridIcon />
+          </button>
+        )}
         <button
           className="icon-btn no-drag"
           title="Menu: private tab, bookmarks, history, settings"
@@ -208,6 +211,7 @@ export function Sidebar({
                 className={
                   'tab-row' +
                   (t.id === activeId ? ' active' : '') +
+                  (t.pinned ? ' pinned' : '') +
                   (tg ? ' grouped' : '') +
                   (inSplit ? ' in-split' : '') +
                   (inSplit && pairHasActive ? ' pair-active' : '') +
@@ -268,14 +272,20 @@ export function Sidebar({
                     <SpeakerIcon muted={t.muted} />
                   </button>
                 )}
-                <button
-                  className="tab-close"
-                  title="Close tab"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => window.api.closeTab(t.id)}
-                >
-                  <CloseIcon />
-                </button>
+                {t.pinned ? (
+                  <span className="tab-pin" title="Pinned tab" aria-label="Pinned tab">
+                    <PinIcon />
+                  </span>
+                ) : (
+                  <button
+                    className="tab-close"
+                    title="Close tab"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => window.api.closeTab(t.id)}
+                  >
+                    <CloseIcon />
+                  </button>
+                )}
               </motion.div>
             )
             return header ? [header, row] : [row]

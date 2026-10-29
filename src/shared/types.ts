@@ -21,6 +21,8 @@ export interface TabInfo {
   private: boolean
   /** A private tab that goes out through Tor. */
   tor: boolean
+  /** Kept at the start of the list, small, and out of the way of accidental closing. */
+  pinned: boolean
   /** What the page is capturing right now: camera, microphone, screen. */
   capture: CaptureState
   /** The sidebar group this tab belongs to, if any. */

@@ -30,6 +30,9 @@ import { DragLayer, DropIndicator } from './components/DragLayer'
 
 type Mode = 'grid' | 'stack' | 'search' | null
 
+/** The all-tabs grid is switched off for now: no button, shortcut or palette entry opens it. */
+const GRID_VIEW = false
+
 const BASE_ROW_H = 38 // tab row height at density 1
 
 const WHEEL_PER_CARD = 160 // DOM wheel units that move the stack by one card
@@ -128,6 +131,7 @@ function App(): React.JSX.Element {
 
   const openOverlay = useCallback(
     async (m: 'grid' | 'stack' | 'search') => {
+      if (m === 'grid' && !GRID_VIEW) return
       if (modeRef.current) return setMode(m) // already hidden, just switch
       if (opening.current) return
       opening.current = true
@@ -271,7 +275,7 @@ function App(): React.JSX.Element {
     const step = (now: number): void => {
       const t = Math.min(1, (now - start) / duration)
       if (target > 0) setHoverShown(true)
-      setSlide(from + (target - from) * (1 - Math.pow(1 - t, 3)))
+      setSlide(from + (target - from) * (1 - Math.pow(1 - t, 3)), effective.sidebarWidth)
       if (t < 1) raf = requestAnimationFrame(step)
       else if (target === 0) setHoverShown(false)
     }
@@ -449,7 +453,7 @@ function App(): React.JSX.Element {
           defaultPrompt={settings.askDefaultBrowser && !isDefault}
           peeking={openedByHover}
           onToggle={toggleSidebar}
-          onTaskView={toggleGrid}
+          onTaskView={GRID_VIEW ? toggleGrid : undefined}
           onWheel={swipe}
         />
       </aside>
@@ -476,6 +480,7 @@ function App(): React.JSX.Element {
           className={
             'strip drag' +
             (stripHidden ? ' hidden' : '') +
+            (barAutoHidden && peekBar ? ' peeking' : '') +
             (horizontal ? ' hstrip' : '') +
             (horizontal && effective.fullWidthAddress ? ' full' : '')
           }
@@ -523,13 +528,15 @@ function App(): React.JSX.Element {
             >
               <SplitIcon />
             </button>
-            <button
-              className="icon-btn no-drag"
-              onClick={toggleGrid}
-              title="All tabs (Ctrl+Shift+A)"
-            >
-              <GridIcon />
-            </button>
+            {GRID_VIEW && (
+              <button
+                className="icon-btn no-drag"
+                onClick={toggleGrid}
+                title="All tabs (Ctrl+Shift+A)"
+              >
+                <GridIcon />
+              </button>
+            )}
             <button
               className="icon-btn no-drag"
               title="Menu: bookmarks, history, downloads, settings"
@@ -549,7 +556,8 @@ function App(): React.JSX.Element {
             'stage-wrap' +
             (pushed ? '' : ' with-strip') +
             (horizontal ? ' hlayout' : '') +
-            ((pushed || hoverShown) && !horizontal ? ' plane' : '') +
+            (pushed && !horizontal ? ' plane' : '') +
+            (!pushed && hoverShown && !horizontal ? ' plane-hover' : '') +
             (stripHidden && !pushed ? ' no-bar' : '')
           }
         >

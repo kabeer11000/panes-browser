@@ -21,6 +21,7 @@ import {
   type PermKind,
   type SiteGrant
 } from '../shared/permissions'
+import { CAPTURE_SCRIPT } from '../shared/capture'
 import type { PermissionAnswer, PermissionPromptState, Rect } from '../shared/types'
 import { JsonStore } from './store'
 import { paintView } from './chromeTheme'
@@ -43,6 +44,11 @@ function osBlocked(kinds: readonly PermKind[]): 'camera' | 'microphone' | null {
     }
   }
   return null
+}
+
+/** From now on, tell the tab when this page is capturing the camera, microphone or screen. */
+function watchCapture(wc: WebContents): void {
+  if (!wc.isDestroyed()) void wc.executeJavaScript(CAPTURE_SCRIPT).catch(() => undefined)
 }
 
 const CARD_WIDTH = 340
@@ -156,7 +162,9 @@ export class PermissionManager {
       // Sharing the screen is consented to in the picker, every time, so a stored Allow or no answer both go on
       // to it; only a stored Block stops the request here.
       if (kinds.length === 1 && kinds[0] === 'screen') {
-        return cb(grants.get(origin, 'screen') !== 'block')
+        const ok = grants.get(origin, 'screen') !== 'block'
+        if (ok) watchCapture(wc)
+        return cb(ok)
       }
       // Windows can keep apps away from the camera and microphone altogether: say so, rather than fail quietly.
       const blocked = osBlocked(kinds)
@@ -166,7 +174,10 @@ export class PermissionManager {
         })
         return cb(false)
       }
-      void this.decide(origin, kinds, grants).then((d) => cb(d === 'allow'))
+      void this.decide(origin, kinds, grants).then((d) => {
+        cb(d === 'allow')
+        if (d === 'allow') watchCapture(wc)
+      })
     })
 
     // Synchronous checks (Notification.permission, navigator.permissions.query, device labels): never asks.
