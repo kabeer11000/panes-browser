@@ -86,6 +86,22 @@ export const FeedbackIcon = (): React.JSX.Element => (
     <path d="m2.6 5 5.4 4 5.4-4" />
   </Svg>
 )
+/** The private-browsing mark: a hat and a pair of glasses. */
+export const IncognitoIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M4.2 7.2 5.6 3h4.8l1.4 4.2M2 7.4h12" />
+    <circle cx="5.2" cy="11" r="2" />
+    <circle cx="10.8" cy="11" r="2" />
+    <path d="M7.2 10.7h1.6" />
+  </Svg>
+)
+/** Tor's onion: layers within layers. */
+export const TorIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M8 2.2c0 1.2-.5 2-1.4 2.7M8 2.2c.4.9 1 1.4 1.8 1.8M8 4c-3 1.4-4.6 3.6-4.6 6 0 2.2 2 3.8 4.6 3.8s4.6-1.6 4.6-3.8c0-2.4-1.6-4.6-4.6-6Z" />
+    <path d="M8 6.2c-1.4 1.2-2 2.6-2 4 0 1.3.7 2.3 2 3.2 1.3-.9 2-1.9 2-3.2 0-1.4-.6-2.8-2-4Z" />
+  </Svg>
+)
 export const SiteIcon = (): React.JSX.Element => (
   <Svg>
     <path d="M2 5h6M12 5h2M2 11h2M8 11h6" />
@@ -106,6 +122,11 @@ export const SpeakerIcon = ({ muted = false }: { muted?: boolean }): React.JSX.E
     ) : (
       <path d="M10.6 6a3 3 0 0 1 0 4M12.2 4.3a5.4 5.4 0 0 1 0 7.4" />
     )}
+  </Svg>
+)
+export const PhoneIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M3.6 2.5h2.1l1.1 2.8-1.4 1a7 7 0 0 0 4.3 4.3l1-1.4 2.8 1.1v2.1a1 1 0 0 1-1.1 1A10.4 10.4 0 0 1 2.5 3.6a1 1 0 0 1 1.1-1.1z" />
   </Svg>
 )
 export const SwapIcon = (): React.JSX.Element => (

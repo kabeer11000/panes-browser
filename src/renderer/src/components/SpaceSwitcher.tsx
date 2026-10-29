@@ -1,7 +1,8 @@
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import { useEffect, useId, useState } from 'react'
 import type { Space } from '../../../shared/types'
-import { useSpaceAudio } from '../hooks/useSpaceAudio'
+import { attentionLabel, badgeText } from '../../../shared/attention'
+import { useSpaceMarks } from '../hooks/useSpaceAudio'
 import { PlusIcon, SpeakerIcon } from './icons'
 import { SpaceAvatar } from './SpaceAvatar'
 import { holdOverlay, releaseOverlay } from '../overlay'
@@ -36,7 +37,7 @@ export function SpaceSwitcher({
   const editing = spaces.find((s) => s.id === editingSpace)
   const groupId = useId() // scopes the layout animation to this row, never across switchers
   const owner = 'space-' + groupId
-  const audio = useSpaceAudio()
+  const { spaceAudio: audio, spaceAttention } = useSpaceMarks()
 
   // Page views are native and take every click over them, so while the editor is open the page is swapped
   // for its snapshot (as for the search popover). That also lets a click anywhere outside close the editor,
@@ -65,21 +66,26 @@ export function SpaceSwitcher({
             const on = s.id === activeSpaceId
             const sound = audio[s.id]
             const sounding = !!sound && (sound.playing || sound.muted)
+            // What waits in the other spaces; the one you are in shows it on its own tabs.
+            const waiting = on ? undefined : spaceAttention[s.id]
+            const said = waiting ? attentionLabel(waiting) : ''
             return (
               <motion.button
                 key={s.id}
                 type="button"
                 role="tab"
                 aria-selected={on}
-                aria-label={s.name}
+                aria-label={said ? `${s.name}: ${said}` : s.name}
                 className={'space-chip no-drag' + (on ? ' active' : '')}
                 layout
                 data-space={s.id}
-                title={`${s.name} (Ctrl+Alt+${i + 1}). ${on ? 'Click to edit' : 'Right-click to edit'}.`}
+                title={`${s.name} (Ctrl+Alt+${i + 1}). ${said ? said + '. ' : ''}${on ? 'Click to edit' : 'Right-click to edit'}.`}
                 onClick={() =>
                   on
                     ? setEditingSpace(editingSpace === s.id ? null : s.id)
-                    : window.api.switchSpace(s.id)
+                    : waiting?.callTabId != null
+                      ? window.api.activateTab(waiting.callTabId) // straight to the call, in its space
+                      : window.api.switchSpace(s.id)
                 }
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -87,6 +93,14 @@ export function SpaceSwitcher({
                 }}
               >
                 <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={size} />
+                {waiting?.call && (
+                  <span className={'space-ring ' + waiting.call} aria-hidden="true" />
+                )}
+                {waiting && !waiting.call && (
+                  <span className="space-attn" aria-hidden="true">
+                    {badgeText(waiting.count)}
+                  </span>
+                )}
                 {sounding && (
                   <span
                     role="button"

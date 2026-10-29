@@ -1,3 +1,9 @@
+/**
+ * Tab groups are switched off for now: no way to make one or join one, none shown, and a saved session's groups are
+ * dropped as it is restored. (Adding a tab of a tiled split to a group scrambled the order of both.)
+ */
+export const TAB_GROUPS = false
+
 /** A named, coloured run of tabs in the sidebar that can be folded away. Belongs to one space. */
 export interface TabGroup {
   id: number

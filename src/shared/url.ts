@@ -7,6 +7,8 @@ const DOMAIN = /^[^\s/?#:@]+\.[a-z]{2,}(:\d+)?([/?#]|$)/i
 export function resolveInput(raw: string, search = DEFAULT_SEARCH): string {
   const s = raw.trim()
   if (!s) return ''
+  // an empty page is an address, not a search: typing it, or a page opening one to write into, must not go to the engine
+  if (/^about:blank$/i.test(s)) return 'about:blank'
   const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(s)
   if (scheme) {
     return ALLOWED_SCHEMES.has(scheme[1].toLowerCase()) ? s : search + encodeURIComponent(s)

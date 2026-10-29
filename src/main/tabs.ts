@@ -5,6 +5,7 @@ import {
   Menu,
   nativeTheme,
   shell,
+  webFrameMain,
   WebContentsView,
   type Event,
   type Input,
@@ -22,12 +23,38 @@ import {
   nextGroupColor,
   placeInGroup,
   sanitizeGroupPatch,
+  TAB_GROUPS,
   type TabGroup
 } from '../shared/tabgroups'
 import { stageBackground } from '../shared/color'
 import { siteListed, ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '../shared/memory'
 import { siteKey, siteThemeCss } from '../shared/sitetheme'
-import { NO_CAPTURE, parseCapture, type CaptureState } from '../shared/capture'
+import {
+  holdCapture,
+  mergeCapture,
+  NO_CAPTURE,
+  NO_HOLD,
+  parseCapture,
+  sameCapture,
+  type CaptureHold,
+  type CaptureState
+} from '../shared/capture'
+import {
+  FRESH_MEMO,
+  NO_ATTENTION,
+  noteFavicon,
+  noteNotification,
+  noteSeen,
+  noteTitle,
+  RING_MS,
+  spaceAttention,
+  tabAttention,
+  windowAttention,
+  type AttentionMemo,
+  type TabAttention
+} from '../shared/attention'
+import { NOTIFY_SCRIPT, parseNotify } from '../shared/notify'
+import { TaskbarAttention } from './attention'
 import { dumpableTabs, type TabDump } from '../shared/dumps'
 import type { DumpStore } from './dumps'
 import type { TorManager } from './tor'
@@ -65,11 +92,14 @@ import type {
   UiCommand
 } from '../shared/types'
 import { displayHost, resolveInput } from '../shared/url'
+import { isWelcome, kindOf, type TabKind } from '../shared/tabkind'
 import { showContextMenu } from './contextMenu'
-import { sendFeedback } from './feedback'
+import { feedbackMailto } from './feedback'
+import { mailtoWebUrl } from '../shared/mailto'
 import { PipController } from './pip'
 import type { BookmarkStore, HistoryStore } from './history'
 import type { SettingsStore } from './settings'
+import type { ActiveSite } from './sites'
 import type { SpaceStore } from './spaces'
 import { JsonStore } from './store'
 
@@ -86,6 +116,7 @@ const ZOOM_MAX = ZOOM_LEVEL_MAX
 const PARKED_X = -20000 // where views wait, out of sight, while an overlay is open
 const MEMORY_SWEEP_MS = 30_000
 const ESC_HOLD_MS = 1000
+const SOUND_HOLD_MS = 20_000 // how long a quiet stretch of playing media keeps its speaker
 const STACK_STEP = 160 // one card of the tab stack, in the renderer's wheel units
 const OPEN_EXTERNALLY = new Set(['mailto:', 'tel:'])
 
@@ -113,14 +144,21 @@ interface Tab {
   lastShownAt: number
   /** Sidebar group (not the tiled split group). Members of a group are always neighbours. */
   groupId: number | null
+  /** A media element on the page is playing (it may be between sounds), and when sound last started or stopped. */
+  media: boolean
+  lastSoundAt: number
   /** Whether the page currently has Chromium's automatic dark mode forced on. */
   darkened: boolean
   /** Key of the style sheet a boost put into the page, so it can be taken out again. */
   /** A private tab: kept out of history, the saved session and saved sessions, in its own in-memory session. */
   private: boolean
   tor: boolean
-  /** What the page reported it is capturing (see CAPTURE_SCRIPT). */
+  /** What the tab shows the page capturing: what its frames report (see CAPTURE_SCRIPT), held through short gaps. */
   capture: CaptureState
+  /** The last report of each frame that has one, by frame tree node id. */
+  captureFrames: Map<number, CaptureState>
+  captureHold: CaptureHold
+  captureTimer: NodeJS.Timeout | null
   /** Pinned tabs sit together at the start of the list. */
   pinned: boolean
   /** The tab's Chrome identity is in place; nothing is loaded before it is. Set up when the tab first loads something. */
@@ -139,6 +177,13 @@ interface Tab {
   awaiting: boolean
   /** Where the first load went, so the tab has an address while the page has not committed yet. */
   firstUrl: string
+  /** What is new in the tab since the person last looked (see shared/attention). */
+  attention: AttentionMemo
+  /**
+   * The notification hook is in the current document (null: not, or not yet), with the ids of the notifications it
+   * reported. Only those can be clicked, so a page cannot pull itself to the front by printing a fake click.
+   */
+  notes: Set<number> | null
 }
 
 /** The tab's live WebContents, or null while it is being torn down (reading it then would throw). */
@@ -149,8 +194,32 @@ function liveContents(tab: Tab): WebContents | null {
 
 export class TabManager {
   private tabs = new Map<number, Tab>() // insertion order is display order
-  /** Called after every state change: the downloads bin lifts itself back above page views made since. */
+  /** The welcome tour is on screen: dark and alone in the window. */
+  activeIsWelcome(): boolean {
+    const wc = this.current() && liveContents(this.current()!)
+    return !!wc && isWelcome(wc.getURL())
+  }
+
+  /** The kind of the tab on screen: its privacy picks the window's look (dark for private, purple for Tor). */
+  activeKind(): TabKind {
+    return kindOf(this.current())
+  }
+
+  /** Called after every state change (the permission card and the site panel follow the tab on screen). */
   onRefresh: (() => void) | null = null
+  /** Called when a page view is added to the window: the downloads bin lifts itself back above it. */
+  onViewAdded: (() => void) | null = null
+  /** The dot and flash on the taskbar button while something waits and the person is away. */
+  private taskbar: TaskbarAttention
+  /**
+   * When a real Ctrl (or Cmd) key was last down, or 0. A touchpad pinch reaches the page as a wheel event that claims
+   * Ctrl is held, with no key behind it: only a wheel with the key really down opens the stack.
+   */
+  private ctrlAt = 0
+  private ctrlHeld(): boolean {
+    // the key repeats while held, so a keyUp that never arrived stops counting after a moment
+    return this.ctrlAt > 0 && Date.now() - this.ctrlAt < 1500
+  }
   /** The stack was opened with Shift+wheel (over a PDF), so letting go of Shift is what releases it. */
   private shiftStack = false
   private activeId: number | null = null
@@ -229,6 +298,9 @@ export class TabManager {
     for (const t of timers) t.unref()
     win.once('closed', () => timers.forEach(clearInterval))
     nativeTheme.on('updated', () => this.applyDarkening())
+    this.taskbar = new TaskbarAttention(win)
+    // Coming back to the window is looking at the tabs on screen: what waited in them is seen.
+    win.on('focus', () => this.refresh())
   }
 
   // ---- queries ----
@@ -240,6 +312,21 @@ export class TabManager {
   }
 
   private state(): TabsState {
+    // Every space's tabs, not only this one's: the space avatars carry what waits in the others.
+    const now = Date.now()
+    const waiting: Array<{ id: number; spaceId: number; attention: TabAttention }> = []
+    for (const [id, t] of this.tabs) {
+      const wc = liveContents(t)
+      if (!wc) continue
+      const facts = {
+        url: wc.getURL(),
+        title: wc.getTitle(),
+        capture: t.capture,
+        audible: this.sounding(t, wc)
+      }
+      waiting.push({ id, spaceId: t.spaceId, attention: tabAttention(t.attention, facts, now) })
+    }
+    const attention = new Map(waiting.map((w) => [w.id, w.attention]))
     const tabs: TabInfo[] = []
     for (const [id, t] of this.tabs) {
       if (t.spaceId !== this.activeSpaceId) continue
@@ -260,8 +347,9 @@ export class TabManager {
         capture: t.capture,
         pip: this.pip.tabId === id,
         unloaded: t.unloaded,
-        audible: wc.isCurrentlyAudible(),
+        audible: this.sounding(t, wc),
         muted: wc.audioMuted,
+        attention: attention.get(id) ?? NO_ATTENTION,
         bookmarked: this.deps.bookmarks.has(url),
         canGoBack: wc.navigationHistory.canGoBack(),
         canGoForward: wc.navigationHistory.canGoForward()
@@ -272,7 +360,7 @@ export class TabManager {
       const wc = liveContents(t)
       if (!wc) continue
       const cur = (spaceAudio[t.spaceId] ??= { playing: false, muted: false })
-      if (wc.isCurrentlyAudible() && !wc.audioMuted) cur.playing = true
+      if (this.sounding(t, wc) && !wc.audioMuted) cur.playing = true
       else if (wc.audioMuted) cur.muted = true
     }
     return {
@@ -281,6 +369,7 @@ export class TabManager {
       layout: this.layout,
       spaces: this.deps.spaces.list(),
       spaceAudio,
+      spaceAttention: spaceAttention(waiting),
       activeSpaceId: this.activeSpaceId,
       tabGroups: [...this.groups.values()]
         .filter((g) => g.spaceId === this.activeSpaceId)
@@ -318,16 +407,29 @@ export class TabManager {
     })
   }
 
-  /** The active tab's address and space: what the site settings panel is about. */
-  activeSite(): { url: string; spaceId: number; contentsId: number } | null {
+  /** The active tab's page, space and session: what the site settings panel is about. */
+  activeSite(): ActiveSite | null {
     const tab = this.current()
     const wc = tab && liveContents(tab)
     if (!tab || !wc) return null
     return {
       url: tab.failed ? tab.failed.url : wc.getURL(),
+      title: wc.getTitle(),
+      favicon: tab.favicon,
+      loading: wc.isLoading(),
       spaceId: tab.spaceId,
-      contentsId: wc.id
+      contentsId: wc.id,
+      session: this.sessionFor(tab),
+      kind: kindOf(tab),
+      capture: tab.capture
     }
+  }
+
+  /** A tab's page that is not on screen (a background tab). Anything that is not a tab's page is not hidden. */
+  isHidden(wc: WebContents): boolean {
+    const visible = new Set(this.visibleIds())
+    for (const [id, t] of this.tabs) if (liveContents(t) === wc) return !visible.has(id)
+    return false
   }
 
   /**
@@ -411,6 +513,7 @@ export class TabManager {
     view.setBackgroundColor('#ffffff')
     view.setVisible(false)
     this.win.contentView.addChildView(view)
+    this.onViewAdded?.()
     return view
   }
 
@@ -443,6 +546,11 @@ export class TabManager {
       private: isPrivate || isTor,
       tor: isTor,
       capture: NO_CAPTURE,
+      captureFrames: new Map(),
+      captureHold: NO_HOLD,
+      captureTimer: null,
+      attention: FRESH_MEMO,
+      notes: null,
       identity: null,
       pinned: false,
       favicon: null,
@@ -461,6 +569,8 @@ export class TabManager {
       darkened: false,
       boostKey: null,
       boosting: false,
+      media: false,
+      lastSoundAt: 0,
       boostAgain: false,
       failed: null,
       flat: false,
@@ -671,7 +781,7 @@ export class TabManager {
     const saved = this.sessionStore.value
     const known = new Set(this.deps.spaces.list().map((sp) => sp.id))
     if (this.deps.settings.get().startup === 'restore' && saved.tabs.length > 0) {
-      for (const g of saved.groups ?? []) {
+      for (const g of TAB_GROUPS ? (saved.groups ?? []) : []) {
         if (!known.has(g.spaceId)) continue
         this.groups.set(g.id, { ...g })
         this.nextGroupId = Math.max(this.nextGroupId, g.id + 1)
@@ -1180,12 +1290,36 @@ export class TabManager {
     this.refresh()
   }
 
+  /**
+   * Work out what the tab shows from what its frames report, held through short gaps (see holdCapture), and send
+   * state only when that changes: the badge neither blinks when a call swaps devices nor re-renders on every report.
+   */
+  private showCapture(tab: Tab, was = tab.capture): void {
+    if (tab.captureTimer) clearTimeout(tab.captureTimer)
+    tab.captureTimer = null
+    if (!liveContents(tab)) return
+    const reported = mergeCapture(tab.captureFrames.values())
+    const { hold, settleIn } = holdCapture(tab.captureHold, reported, Date.now())
+    tab.captureHold = hold
+    tab.capture = hold.shown
+    if (settleIn !== null) tab.captureTimer = setTimeout(() => this.showCapture(tab), settleIn)
+    if (!sameCapture(was, hold.shown)) this.refresh()
+  }
+
+  /**
+   * Whether a tab is making sound, for its speaker. Chromium reports the sound itself, which drops out in every quiet
+   * moment of a film or a call; a tab whose media is playing and was audible a moment ago stays marked through them.
+   */
+  private sounding(tab: Tab, wc: WebContents): boolean {
+    return wc.isCurrentlyAudible() || (tab.media && Date.now() - tab.lastSoundAt < SOUND_HOLD_MS)
+  }
+
   /** The speaker on a space: silence what is playing in it, or bring back what was silenced. */
   toggleSpaceMute(spaceId: number): void {
     const own = [...this.tabs.values()].filter((t) => t.spaceId === spaceId)
     const playing = own.filter((t) => {
       const wc = liveContents(t)
-      return !!wc && wc.isCurrentlyAudible() && !wc.audioMuted
+      return !!wc && this.sounding(t, wc) && !wc.audioMuted
     })
     for (const t of playing.length > 0 ? playing : own) {
       const wc = liveContents(t)
@@ -1222,7 +1356,7 @@ export class TabManager {
   /** Load an address or search in a new tab and tile it beside the current one. */
   openInSplit(input: string): void {
     const base = this.activeId
-    const id = this.create(input, false)
+    const id = this.createLike(base, input)
     if (base !== null) {
       this.activate(base)
       this.splitWith(id)
@@ -1232,10 +1366,27 @@ export class TabManager {
   toggleSplit(): void {
     if (this.activeId === null) return
     if (this.visibleIds().length > 1) return this.unsplit(this.activeId)
+    const active = this.activeId
+    // the partner is the next tab of the same kind: a private tab is never paired with an ordinary one, nor a Tor tab
+    // with a private one, since they would share a window but not their cookies or their route
     const ids = this.own()
+    const same = ids.filter((id) => id === active || this.sameKind(id, active))
     const partner =
-      ids.length > 1 ? ids[(ids.indexOf(this.activeId) + 1) % ids.length] : this.create('', false)
+      same.length > 1 ? same[(same.indexOf(active) + 1) % same.length] : this.createLike(active, '')
     this.splitWith(partner)
+  }
+
+  /** Whether two tabs are alike in how private they are: ordinary, private, or private through Tor. */
+  private sameKind(a: number, b: number): boolean {
+    const x = this.tabs.get(a)
+    const y = this.tabs.get(b)
+    return !!x && !!y && x.private === y.private && x.tor === y.tor
+  }
+
+  /** A new tab, not shown, of the same kind as another: a private tab opens a private one, a Tor tab a Tor one. */
+  private createLike(base: number | null, input: string): number {
+    const from = base === null ? undefined : this.tabs.get(base)
+    return this.create(input, false, this.activeSpaceId, undefined, !!from?.private, !!from?.tor)
   }
 
   /**
@@ -1329,7 +1480,7 @@ export class TabManager {
           : groupId !== null && this.groups.get(groupId)?.spaceId === tab.spaceId
             ? groupId
             : null
-      tab.groupId = tab.pinned ? null : wanted
+      tab.groupId = tab.pinned || !TAB_GROUPS ? null : wanted
     }
     this.setLayout(this.layout) // a loose tab dropped inside a split group gets pushed out of it
     this.refresh()
@@ -1342,6 +1493,68 @@ export class TabManager {
     let k = 0
     for (let i = 0; i < global.length; i++) if (own.has(global[i])) global[i] = order[k++]
     this.tabs = new Map(global.map((i) => [i, this.tabs.get(i)!]))
+  }
+
+  // ---- attention and notifications ----
+
+  /** The person has this tab in front of them: on screen, nothing over it, in the focused window. */
+  private looking(id: number): boolean {
+    return (
+      !this.win.isDestroyed() &&
+      this.win.isFocused() &&
+      !this.overlay &&
+      this.visibleIds().includes(id)
+    )
+  }
+
+  /**
+   * Put the notification hook into the tab's page if its site may notify (the script checks, and does nothing
+   * otherwise). Runs at dom-ready and again when the tab leaves the screen, which covers a site allowed after load.
+   */
+  private hookNotifications(tab: Tab): void {
+    const wc = liveContents(tab)
+    if (!wc || tab.unloaded || tab.notes || !/^https?:/i.test(wc.getURL())) return
+    const notes = new Set<number>()
+    tab.notes = notes // set before the answer, so a second call while this one runs does not hook twice
+    void wc
+      .executeJavaScript(NOTIFY_SCRIPT)
+      .then((installed: unknown) => {
+        if (installed !== true && tab.notes === notes) tab.notes = null
+      })
+      .catch(() => {
+        if (tab.notes === notes) tab.notes = null
+      })
+  }
+
+  private onNotifyReport(id: number, tab: Tab, message: string): void {
+    const report = parseNotify(message)
+    // Reports count only from a document the hook is in: anything else printing the prefix is ignored.
+    if (!report || !tab.notes) return
+    if (report.kind === 'click') {
+      if (tab.notes.delete(report.id)) this.showFromNotification(id)
+      return
+    }
+    tab.notes.add(report.id)
+    if (tab.notes.size > 100) tab.notes.delete(tab.notes.values().next().value as number) // the oldest
+    const before = tab.attention.ringUntil
+    tab.attention = noteNotification(
+      tab.attention,
+      report.title + ' ' + report.body,
+      this.looking(id),
+      Date.now()
+    )
+    // a ringing call stops ringing on its own after a while: look again then
+    if (tab.attention.ringUntil !== before) setTimeout(() => this.refresh(), RING_MS + 250)
+    this.refresh()
+  }
+
+  /** A toast from this tab was clicked: bring the window up and show the tab, in whatever space it is in. */
+  private showFromNotification(id: number): void {
+    if (this.win.isDestroyed() || !this.tabs.has(id)) return
+    if (this.win.isMinimized()) this.win.restore()
+    this.win.show()
+    this.win.focus()
+    this.activate(id)
   }
 
   /** A click inside a split pane moves focus (and the address bar) to that pane's tab. */
@@ -1482,10 +1695,25 @@ export class TabManager {
       this.applyZoom()
       tab.boostKey = null // a new document starts without the old sheet
       void this.applyBoost(tab)
+      this.hookNotifications(tab)
     })
     wc.on('audio-state-changed', () => {
       tab.dirty = true
+      tab.lastSoundAt = Date.now()
       refresh()
+      // the speaker stays while the media plays on through a quiet stretch; when that grace runs out it goes
+      setTimeout(refresh, SOUND_HOLD_MS + 250)
+    })
+    wc.on('media-started-playing', () => {
+      tab.media = true
+      refresh()
+    })
+    wc.on('media-paused', () => {
+      tab.media = false
+      refresh()
+    })
+    wc.on('did-start-navigation', (_e, _url, _inPlace, isMainFrame) => {
+      if (isMainFrame) tab.media = false
     })
     wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
       // -3 is a navigation cut short (a redirect, a download, you clicking elsewhere): not a failure
@@ -1497,6 +1725,9 @@ export class TabManager {
       void wc.loadURL(errorPageUrl(url, code, desc, back, theme)).catch(() => {})
     })
     wc.on('did-navigate', () => {
+      // A new document has no notification hook; it goes in at dom-ready. Not on starting to navigate: a navigation
+      // that turns into a download leaves the old document, hook and all, in place.
+      tab.notes = null
       if (!wc.getURL().startsWith('panes://error')) tab.failed = null
       tab.keyLock = false
       if (!tab.private) this.deps.history.add(wc.getURL(), wc.getTitle())
@@ -1510,6 +1741,7 @@ export class TabManager {
     wc.on('page-title-updated', (_e, title) => {
       tab.dirty = true
       if (!tab.private) this.deps.history.updateMeta(wc.getURL(), { title })
+      tab.attention = noteTitle(tab.attention, title, this.looking(id))
       refresh()
     })
     wc.on('found-in-page', (_e, r) => {
@@ -1555,7 +1787,6 @@ export class TabManager {
       if (!details.isMainFrame || details.isSameDocument) return
       followIdentity(wc, this.identities(tab), details.url)
       tab.favicon = null
-      tab.capture = NO_CAPTURE // a new page starts with nothing captured
       // a muted site stays muted wherever its tabs go
       const site = siteKey(details.url)
       if (site && siteListed(site, this.deps.settings.get().mutedSites)) wc.audioMuted = true
@@ -1570,14 +1801,38 @@ export class TabManager {
           : '#ffffff'
       )
     })
+    // Capture is reported per frame (a call widget can be an iframe). A page's capture ends with its document,
+    // so it is cleared when a new one commits (not when a navigation merely starts: a download or a 204 never
+    // replaces the page, which goes on capturing), and a frame's when that frame is replaced or removed.
     wc.on('console-message', (e) => {
       const state = parseCapture(e.message)
       if (!state) return
-      tab.capture = state
-      refresh()
+      const live = new Set(wc.mainFrame.framesInSubtree.map((f) => f.frameTreeNodeId))
+      for (const node of tab.captureFrames.keys()) {
+        if (!live.has(node)) tab.captureFrames.delete(node)
+      }
+      tab.captureFrames.set(e.frame.frameTreeNodeId, state)
+      this.showCapture(tab)
     })
+    wc.on('did-frame-navigate', (_e, _url, _code, _status, isMainFrame, processId, routingId) => {
+      const was = tab.capture
+      if (isMainFrame) {
+        tab.captureFrames.clear()
+        tab.captureHold = NO_HOLD // a new page has captured nothing: no hold carries over to it
+      } else {
+        const node = webFrameMain.fromId(processId, routingId)?.frameTreeNodeId
+        if (node === undefined || !tab.captureFrames.delete(node)) return
+      }
+      this.showCapture(tab, was)
+    })
+    wc.on('console-message', (e) => this.onNotifyReport(id, tab, e.message))
     wc.on('page-favicon-updated', (_e, favicons) => {
-      tab.favicon = favicons[0] ?? null
+      // A page swapping one icon for another (not its first icon after loading) is drawing a badge into it.
+      const next = favicons[0] ?? null
+      if (tab.favicon && next && next !== tab.favicon && !wc.isLoading()) {
+        tab.attention = noteFavicon(tab.attention, this.looking(id))
+      }
+      tab.favicon = next
       if (!tab.private) this.deps.history.updateMeta(wc.getURL(), { favicon: tab.favicon })
       this.refresh()
     })
@@ -1598,6 +1853,7 @@ export class TabManager {
       )
       const wanted = inExtension ? ['shift'] : ['control', 'ctrl']
       if (!ev.modifiers?.some((m) => wanted.includes(m))) return
+      if (!inExtension && !this.ctrlHeld()) return // a pinch, not Ctrl and scroll
       this.shiftStack = inExtension
       const { wheelTicksY = 0, deltaY = 0 } = ev as MouseWheelInputEvent
       // Chromium's wheel delta is positive for scroll-up; the renderer expects DOM units (down is positive).
@@ -1605,8 +1861,15 @@ export class TabManager {
     })
     wc.setWindowOpenHandler(({ url, features, disposition }) => {
       // Sign-in flows (Google, Figma, ...) open a popup and message the page that opened it, so a
-      // real popup window must stay linked to its opener. Ordinary links still become tabs.
-      if (disposition === 'new-window' || /\b(width|height|popup)\b/i.test(features)) {
+      // real popup window must stay linked to its opener. Ordinary links still become tabs. An empty page
+      // (about:blank) is one a script means to write into or navigate itself, so it too must keep its opener:
+      // as a separate tab it would be cut off from the page that wanted it (and was once searched for).
+      if (
+        disposition === 'new-window' ||
+        url === 'about:blank' ||
+        url === '' ||
+        /\b(width|height|popup)\b/i.test(features)
+      ) {
         return {
           action: 'allow',
           overrideBrowserWindowOptions: this.popupOptions(features, tabSession)
@@ -1633,7 +1896,10 @@ export class TabManager {
 
   /** mailto:/tel: go to the OS; everything else becomes a tab. */
   private openLink(url: string, from?: number): void {
-    if (this.externalScheme(url)) return void shell.openExternal(url)
+    if (this.externalScheme(url)) {
+      if (url.toLowerCase().startsWith('mailto:')) return this.openMailto(url)
+      return void shell.openExternal(url)
+    }
     const opener = from === undefined ? undefined : this.tabs.get(from)
     const id = opener?.tor
       ? this.create(url, true, this.activeSpaceId, undefined, true, true)
@@ -1647,6 +1913,10 @@ export class TabManager {
 
   /** Browser shortcuts. Registered on every tab and the UI window so they work wherever focus is. */
   handleKey(event: Event, input: Input): void {
+    // the real Ctrl key, as the keyboard says it (see ctrlHeld)
+    if (input.type === 'keyDown' && (input.control || input.meta)) this.ctrlAt = Date.now()
+    else if (input.type === 'keyUp' && (input.key === 'Control' || input.key === 'Meta'))
+      this.ctrlAt = 0
     if (this.trackEscHold(input)) return // the page still sees the key; only the exit is timed
     if (input.type === 'keyUp' && (input.key === 'Control' || input.key === 'Meta')) {
       this.send('ui:stack-release')
@@ -1868,7 +2138,7 @@ export class TabManager {
 
   createGroup(tabId: number, name = ''): void {
     const tab = this.tabs.get(tabId)
-    if (!tab || tab.pinned) return
+    if (!TAB_GROUPS || !tab || tab.pinned) return
     this.leaveGroup(tabId)
     const used = [...this.groups.values()]
       .filter((g) => g.spaceId === tab.spaceId)
@@ -1889,7 +2159,14 @@ export class TabManager {
   addToGroup(tabId: number, groupId: number): void {
     const tab = this.tabs.get(tabId)
     const group = this.groups.get(groupId)
-    if (!tab || tab.pinned || !group || group.spaceId !== tab.spaceId || tab.groupId === groupId)
+    if (
+      !TAB_GROUPS ||
+      !tab ||
+      tab.pinned ||
+      !group ||
+      group.spaceId !== tab.spaceId ||
+      tab.groupId === groupId
+    )
       return
     this.leaveGroup(tabId)
     tab.groupId = groupId
@@ -1926,6 +2203,10 @@ export class TabManager {
       // several tabs picked with Shift or Ctrl: the actions that make sense for all of them
       Menu.buildFromTemplate([
         { label: `Add ${picked.length} tabs to split view`, click: () => this.splitMany(picked) },
+        {
+          label: `Duplicate ${picked.length} tabs`,
+          click: () => picked.forEach((t) => this.duplicate(t))
+        },
         { type: 'separator' },
         { label: `Close ${picked.length} tabs`, click: () => picked.forEach((t) => this.close(t)) }
       ]).popup({ window: this.win })
@@ -1939,14 +2220,23 @@ export class TabManager {
         label: tab.pinned ? 'Unpin tab' : 'Pin tab',
         click: () => this.setPinned(id, !tab.pinned)
       },
-      { type: 'separator' },
-      { label: 'Add to new group', click: () => this.createGroup(id), enabled: !tab.pinned }
+      { label: 'Duplicate tab', click: () => this.duplicate(id) },
+      ...(TAB_GROUPS
+        ? [
+            { type: 'separator' } as MenuItemConstructorOptions,
+            {
+              label: 'Add to new group',
+              click: () => this.createGroup(id),
+              enabled: !tab.pinned
+            }
+          ]
+        : [])
     ]
     const saveItems: MenuItemConstructorOptions[] = [
       { label: 'Save all tabs as a session', click: () => this.dumpTabs() },
       { label: 'Save all tabs and close them', click: () => this.dumpTabs(true) }
     ]
-    if (others.length > 0) {
+    if (TAB_GROUPS && others.length > 0) {
       items.push({
         label: 'Add to group',
         submenu: others.map((g) => ({
@@ -1955,7 +2245,7 @@ export class TabManager {
         }))
       })
     }
-    if (tab.groupId !== null) {
+    if (TAB_GROUPS && tab.groupId !== null) {
       items.push({ label: 'Remove from group', click: () => this.removeFromGroup(id) })
     }
     const wcOf = liveContents(tab)
@@ -2023,6 +2313,7 @@ export class TabManager {
       { type: 'separator' },
       { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => this.openInternal('settings') },
       page('About and updates', 'software'),
+      { label: 'Welcome tour', click: () => this.create('panes://welcome') },
       { label: 'Send feedback', click: () => this.sendFeedback() }
     ]).popup({ window: this.win, x, y })
   }
@@ -2084,7 +2375,7 @@ export class TabManager {
         busy:
           !!wc &&
           !t.unloaded &&
-          (wc.isCurrentlyAudible() ||
+          (this.sounding(t, wc) ||
             wc.isLoading() ||
             wc.isDevToolsOpened() ||
             this.pip.tabId === id ||
@@ -2124,9 +2415,33 @@ export class TabManager {
     tab.darkened = false
   }
 
+  /** Open the same page again in a new tab beside this one, of the same kind (a private tab gives a private one). */
+  duplicate(id: number): void {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (!t || !wc) return
+    const url = t.failed ? t.failed.url : wc.getURL() || t.pending?.url || t.firstUrl
+    const copy = this.create(url, true, t.spaceId, undefined, t.private, t.tor)
+    this.moveTab(copy, this.own().indexOf(id) + 1)
+  }
+
   /** Feedback by email: the email app, or a Gmail page in a tab when there is no email app. */
   sendFeedback(): void {
-    sendFeedback((url) => void this.create(url))
+    this.openMailto(feedbackMailto())
+  }
+
+  /**
+   * A mailto: link: to the email app, or, if a web mail service is chosen in Settings (or the system has no email app
+   * to give it to), to that service's compose page in a tab.
+   */
+  private openMailto(link: string): void {
+    const handler = this.deps.settings.get().mailHandler
+    const web = (h: 'gmail' | 'outlook' | 'yahoo'): void => {
+      const url = mailtoWebUrl(link, h)
+      if (url) this.create(url)
+    }
+    if (handler !== 'system') return web(handler)
+    shell.openExternal(link).catch(() => web('gmail'))
   }
 
   /** What a tab's hover card shows. The process list is read here, once, when a card opens. */
@@ -2158,7 +2473,7 @@ export class TabManager {
       memoryMb,
       shared,
       unloaded: t.unloaded,
-      audible: wc.isCurrentlyAudible(),
+      audible: this.sounding(t, wc),
       muted: wc.audioMuted,
       private: t.private,
       tor: t.tor
@@ -2190,16 +2505,24 @@ export class TabManager {
     for (const id of new Set([...visible, ...this.shownBefore])) {
       const t = this.tabs.get(id)
       if (t) t.lastShownAt = now
+      // Just left the screen: from now on its notifications are what the person would miss.
+      if (t && !visible.includes(id)) this.hookNotifications(t)
     }
     this.shownBefore = new Set(visible)
     for (const id of visible) {
       const t = this.tabs.get(id)
       if (t) this.ensureLoaded(id, t)
+      if (t && this.looking(id)) t.attention = noteSeen(t.attention)
     }
     this.applyVisibility()
     this.persistSession()
-    if (!this.win.isDestroyed()) this.win.webContents.send('tabs:state', this.state())
+    const state = this.state()
+    if (!this.win.isDestroyed()) this.win.webContents.send('tabs:state', state)
+    this.taskbar.update(windowAttention(state.spaceAttention))
     this.onRefresh?.()
+    this.deps.spaces.setThemeOverride(
+      this.activeKind() !== 'normal' || this.activeIsWelcome() ? 'dark' : null
+    )
   }
 
   private command(cmd: UiCommand): void {

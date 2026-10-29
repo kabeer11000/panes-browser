@@ -14,6 +14,7 @@ import { paintView } from './chromeTheme'
 const WIDTH = 352
 const PAD = 36 // room around the card for its shadow, so the view never clips it
 const GAP = 4 // between the address bar's button and the card
+const PUSH_DELAY_MS = 80
 
 interface Deps {
   win: BrowserWindow
@@ -23,9 +24,9 @@ interface Deps {
 }
 
 /**
- * The site panel (boost, fonts, hidden elements, CSS, ad blocker, permissions) in a transparent view of its
- * own above the page. The page stays live behind it, so a boost can be watched as it is shaped. It closes
- * when anything else takes focus.
+ * The site panel (permissions, connection, ad blocker, data, zoom, sound, boost) in a transparent view of its
+ * own above the page. The page stays live behind it, so a boost can be watched as it is shaped, and the panel
+ * is kept up to date while it is open (see refresh). It closes when anything else takes focus.
  */
 export class SitePanel {
   private view: WebContentsView | null = null
@@ -33,6 +34,7 @@ export class SitePanel {
   private height = 420
   private picking = false
   private blurredAt = 0
+  private pushTimer: NodeJS.Timeout | null = null
 
   constructor(private d: Deps) {
     const fromPanel = (e: IpcMainEvent | IpcMainInvokeEvent): boolean =>
@@ -52,9 +54,9 @@ export class SitePanel {
       this.picking = true // the page takes focus to receive the click; that is not "clicked away"
       this.d.pickElement((selector) => {
         this.picking = false
-        if (selector) this.d.sites.update({ zapAdd: selector })
+        // The panel stays where it was (the boost editor); fresh state brings the new item into its list.
+        if (selector) void this.d.sites.update({ zapAdd: selector }).then(() => this.refresh())
         this.view?.webContents.focus()
-        this.view?.webContents.send('panel:show')
       })
     })
     d.win.on('resize', () => this.hide())
@@ -62,6 +64,22 @@ export class SitePanel {
 
   get visible(): boolean {
     return !!this.view?.getVisible()
+  }
+
+  /**
+   * Something the open panel shows may have changed (the tab navigated or loaded, an answer was given, a setting
+   * changed elsewhere): send it fresh state. Tabs report changes in bursts, so this waits a moment and sends once.
+   */
+  refresh(): void {
+    if (!this.visible || this.pushTimer) return
+    this.pushTimer = setTimeout(() => {
+      this.pushTimer = null
+      if (!this.visible) return
+      void this.d.sites.info().then((info) => {
+        const wc = this.view?.webContents
+        if (wc && !wc.isDestroyed() && this.visible) wc.send('panel:info', info)
+      })
+    }, PUSH_DELAY_MS)
   }
 
   /** Open under the given button, or close if it is already open. */

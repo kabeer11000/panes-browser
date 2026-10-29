@@ -23,6 +23,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@ghostery/adblocker": "^2.20.3",
     "@ghostery/adblocker-electron": "^2.20.3",
     "electron-updater": "^6.8.11",
     "motion": "^14.7.1"

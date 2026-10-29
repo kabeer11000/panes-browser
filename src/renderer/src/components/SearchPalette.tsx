@@ -35,16 +35,6 @@ const POPOVER_MIN_WIDTH = 560
 const POPOVER_MAX_WIDTH = 1200 // a full-width top bar is matched edge to edge, up to this
 const EDGE = 8
 
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-/** Emphasise the parts of a title the user typed. */
-function Highlight({ text, query }: { text: string; query: string }): React.JSX.Element {
-  const tokens = query.trim().split(/\s+/).filter(Boolean)
-  if (tokens.length === 0) return <>{text}</>
-  const parts = text.split(new RegExp(`(${tokens.map(escapeRe).join('|')})`, 'ig'))
-  return <>{parts.map((p, i) => (i % 2 === 1 ? <mark key={i}>{p}</mark> : p))}</>
-}
-
 function ResultIcon({ r }: { r: SearchResult }): React.JSX.Element {
   // A favicon that fails to load would show the browser's broken-image mark; remember it and fall back instead.
   const [failed, setFailed] = useState<string | null>(null)
@@ -287,10 +277,7 @@ export function SearchPalette({
                 <ResultIcon r={r} />
               </span>
               <span className="pal-title">
-                <Highlight
-                  text={r.title}
-                  query={['tab', 'bookmark', 'history'].includes(r.kind) ? effective : ''}
-                />
+                <span className="pal-name">{r.title}</span>
                 {r.subtitle && <span className="pal-sub">{r.subtitle}</span>}
               </span>
               {KIND_LABEL[r.kind] && <span className="pal-kind">{KIND_LABEL[r.kind]}</span>}

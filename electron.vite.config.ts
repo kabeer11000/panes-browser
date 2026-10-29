@@ -15,7 +15,8 @@ export default defineConfig({
           permission: resolve('src/preload/permission.ts'),
           panel: resolve('src/preload/panel.ts'),
           tabcard: resolve('src/preload/tabcard.ts'),
-          dock: resolve('src/preload/dock.ts')
+          dock: resolve('src/preload/dock.ts'),
+          youtube: resolve('src/preload/youtube.ts')
         }
       }
     }

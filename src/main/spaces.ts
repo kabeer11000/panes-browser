@@ -2,7 +2,7 @@ import { nativeTheme } from 'electron'
 import { APPEARANCE_LIMITS, SPACE_COLORS, type AppearanceKey } from '../shared/settings'
 import { defaultSpaceIcon, isSpaceIcon, type SpaceIcon } from '../shared/spaceicons'
 import { MAX_SITES_PER_SPACE, sanitizeSiteTheme } from '../shared/sitetheme'
-import type { SiteTheme, Space, SpacePatch, SpaceUi } from '../shared/types'
+import type { SiteTheme, Space, SpaceMode, SpacePatch, SpaceUi } from '../shared/types'
 import { JsonStore } from './store'
 
 const MAX_NAME = 24
@@ -50,6 +50,7 @@ const newSpace = (id: number, name: string, color: string, icon: SpaceIcon): Spa
 
 /** Spaces: named, themed groups of tabs that can carry their own interface settings. */
 export class SpaceStore {
+  private override: SpaceMode | null = null
   private store = new JsonStore<SpaceData>('spaces', {
     nextId: 2,
     activeId: 1,
@@ -86,7 +87,14 @@ export class SpaceStore {
    * and prefers-color-scheme in the UI and in pages) agrees with the interface. 'system' follows the OS live.
    */
   private applyTheme(): void {
-    nativeTheme.themeSource = this.get(this.activeId())?.mode ?? 'system'
+    nativeTheme.themeSource = this.override ?? this.get(this.activeId())?.mode ?? 'system'
+  }
+
+  /** A private or Tor tab on screen makes the whole window dark, whatever the space says; null gives it back. */
+  setThemeOverride(mode: SpaceMode | null): void {
+    if (mode === this.override) return
+    this.override = mode
+    this.applyTheme()
   }
 
   list(): Space[] {

@@ -8,6 +8,10 @@ describe('resolveInput', () => {
     expect(resolveInput('')).toBe('')
     expect(resolveInput('   ')).toBe('')
   })
+  test('about:blank is the empty page, not a search', () => {
+    expect(resolveInput('about:blank')).toBe('about:blank')
+    expect(resolveInput(' About:Blank ')).toBe('about:blank')
+  })
   test('domains get https', () => {
     expect(resolveInput('github.com')).toBe('https://github.com')
     expect(resolveInput('github.com/a/b?x=1')).toBe('https://github.com/a/b?x=1')

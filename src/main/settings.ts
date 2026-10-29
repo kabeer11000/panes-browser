@@ -1,3 +1,4 @@
+import { MAIL_HANDLERS } from '../shared/mailto'
 import {
   APPEARANCE_LIMITS,
   DEFAULT_SETTINGS,
@@ -12,6 +13,7 @@ import {
 } from '../shared/memory'
 import { isPerformanceMode } from '../shared/performance'
 import type { Settings } from '../shared/types'
+import { sanitizeYouTube } from '../shared/youtube'
 import { JsonStore } from './store'
 
 type Listener = (settings: Settings) => void
@@ -38,6 +40,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (patch.searchStyle === 'dropdown' || patch.searchStyle === 'center')
     out.searchStyle = patch.searchStyle
   if (patch.paneView === 'full' || patch.paneView === 'side') out.paneView = patch.paneView
+  if (MAIL_HANDLERS.some((h) => h.value === patch.mailHandler)) out.mailHandler = patch.mailHandler
   if (patch.paneViewRelease === 'select' || patch.paneViewRelease === 'stay') {
     out.paneViewRelease = patch.paneViewRelease
   }
@@ -61,6 +64,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (patch.neverUnloadSites !== undefined) {
     out.neverUnloadSites = normalizeSites(patch.neverUnloadSites)
   }
+  Object.assign(out, sanitizeYouTube(patch))
   for (const key of Object.keys(APPEARANCE_LIMITS) as AppearanceKey[]) {
     const v = patch[key]
     const { min, max } = APPEARANCE_LIMITS[key]

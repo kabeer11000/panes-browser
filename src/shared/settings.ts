@@ -1,4 +1,5 @@
 import type { SearchEngineId, Settings } from './types'
+import { YOUTUBE_DEFAULTS } from './youtube'
 
 export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; url: string }> = {
   duckduckgo: { name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=' },
@@ -35,12 +36,14 @@ export const DEFAULT_SETTINGS: Settings = {
   searchStyle: 'dropdown',
   paneView: 'full',
   paneViewRelease: 'stay',
+  mailHandler: 'system',
   darkenSites: true,
   memorySaver: true,
   unloadIdleMin: 30,
   maxLoadedTabs: 0,
   unloadOtherSpaces: false,
-  neverUnloadSites: []
+  neverUnloadSites: [],
+  ...YOUTUBE_DEFAULTS
 }
 
 export type AppearanceKey =

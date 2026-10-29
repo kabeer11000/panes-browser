@@ -9,7 +9,7 @@ const api: PermissionApi = {
     return () => ipcRenderer.removeListener('perm:state', listener)
   },
   resize: (height) => ipcRenderer.send('perm:resize', height),
-  answer: (answer) => ipcRenderer.send('perm:answer', answer)
+  answer: (id, answer) => ipcRenderer.send('perm:answer', id, answer)
 }
 
 contextBridge.exposeInMainWorld('permission', api)

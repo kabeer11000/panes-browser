@@ -1,10 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { resolveMode, type PerformanceMode } from '../../../shared/performance'
 import { SEARCH_ENGINES } from '../../../shared/settings'
 import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '../../../shared/types'
 import { Segmented, Toggle } from '../internal/ui'
-import introSrc from './intro.mp4'
 
 const STEPS = ['welcome', 'look', 'layout', 'speed', 'finish'] as const
 type Step = (typeof STEPS)[number]
@@ -92,52 +91,7 @@ function LayoutArt({ kind }: { kind: 'vertical' | 'horizontal' }): React.JSX.Ele
   )
 }
 
-/**
- * The first thing a new person sees: a short dithered film on black, then it gives way to the welcome, which
- * fades in as the film fades out. A click or a key skips it; if it cannot play at all, it never shows.
- */
-function Intro({ onDone }: { onDone: () => void }): React.JSX.Element {
-  const video = useRef<HTMLVideoElement>(null)
-  useEffect(() => {
-    const skip = (): void => onDone()
-    window.addEventListener('keydown', skip)
-    return () => window.removeEventListener('keydown', skip)
-  }, [onDone])
-  return (
-    <motion.div
-      className="wl-intro"
-      initial={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.9, ease: [0.4, 0, 0.2, 1] }}
-      onClick={onDone}
-    >
-      <video
-        ref={video}
-        src={introSrc}
-        muted
-        autoPlay
-        playsInline
-        disablePictureInPicture
-        onEnded={onDone}
-        onError={onDone}
-      />
-    </motion.div>
-  )
-}
-
 export function Welcome(): React.JSX.Element {
-  const [intro, setIntro] = useState(true)
-  return (
-    <>
-      <Onboarding hidden={intro} />
-      <AnimatePresence>
-        {intro && <Intro key="intro" onDone={() => setIntro(false)} />}
-      </AnimatePresence>
-    </>
-  )
-}
-
-function Onboarding({ hidden }: { hidden: boolean }): React.JSX.Element {
   const api = window.panesInternal
   const [step, setStep] = useState<Step>('welcome')
   const [dir, setDir] = useState(1)
@@ -192,7 +146,7 @@ function Onboarding({ hidden }: { hidden: boolean }): React.JSX.Element {
   const recommended = stats ? resolveMode('auto', stats.totalGb * 1024 ** 3) : 'balanced'
 
   return (
-    <main className={'wl' + (hidden ? ' hidden' : '')}>
+    <main className="wl">
       <header className="wl-top">
         <div className="wl-dots" aria-label={`Step ${index + 1} of ${STEPS.length}`}>
           {STEPS.map((st, i) => (

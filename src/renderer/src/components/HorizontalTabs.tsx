@@ -5,6 +5,7 @@ import type { Space, TabInfo } from '../../../shared/types'
 import { tabTitle } from '../tabTitle'
 import { CloseIcon, PlusIcon, SpeakerIcon } from './icons'
 import { CaptureBadge } from './CaptureBadge'
+import { CallBadge } from './CallBadge'
 import { SpaceSwitcher } from './SpaceSwitcher'
 import { GroupAudio } from './TabGroupHeader'
 import { TabFavicon } from './TabFavicon'
@@ -215,6 +216,8 @@ export function HorizontalTabs({
                 (footLeft ? ' foot-left' : '') +
                 (footRight ? ' foot-right' : '') +
                 (t.unloaded ? ' unloaded' : '') +
+                (t.attention.unseen || t.attention.count > 0 ? ' attn' : '') +
+                (t.attention.call === 'ringing' ? ' ringing' : '') +
                 (t.id === dragId ? ' dragging' : '') +
                 (dropIndex === i ? ' drop-before' : '') +
                 (dropIndex === tabs.length && i === tabs.length - 1 ? ' drop-after' : '')
@@ -230,6 +233,7 @@ export function HorizontalTabs({
               {footRight && <span className="htab-foot r" aria-hidden="true" />}
               <TabFavicon tab={t} />
               <span className="htab-title">{tabTitle(t)}</span>
+              <CallBadge call={t.attention.call} />
               <CaptureBadge capture={t.capture} />
               {(t.audible || t.muted) && (
                 <button

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyDrop, leaves } from '../../shared/layout'
 import { NONE, click, type Selection } from '../../shared/selection'
 import { stackEntries } from '../../shared/stack'
+import { KIND_THEME, WELCOME_THEME, isWelcome, kindOf } from '../../shared/tabkind'
 import type { UpdateState } from '../../shared/update'
 import { Panes } from './components/Panes'
 import { SearchPalette, type Anchor } from './components/SearchPalette'
@@ -240,17 +241,32 @@ function App(): React.JSX.Element {
       } else if (opening.current) releasedEarly.current = true
     })
     // Ctrl+wheel over the UI itself (not a page view).
+    // A touchpad pinch arrives as a wheel event with ctrlKey set but no Ctrl key down: only the real key opens the view.
+    let ctrlDown = false
+    const onKeyState = (e: KeyboardEvent): void => {
+      if (e.key === 'Control' || e.key === 'Meta') ctrlDown = e.type === 'keydown'
+    }
+    const onBlur = (): void => {
+      ctrlDown = false
+    }
     const onDomWheel = (e: WheelEvent): void => {
+      if (e.ctrlKey && !ctrlDown && modeRef.current !== 'stack') return e.preventDefault() // a pinch: nothing to do
       if (!e.ctrlKey && modeRef.current !== 'stack') return
       e.preventDefault()
       onStackWheel(e.deltaY)
     }
+    window.addEventListener('keydown', onKeyState)
+    window.addEventListener('keyup', onKeyState)
+    window.addEventListener('blur', onBlur)
     window.addEventListener('wheel', onDomWheel, { passive: false })
     return () => {
       offCmd()
       offWheel()
       offRelease()
       window.removeEventListener('wheel', onDomWheel)
+      window.removeEventListener('keydown', onKeyState)
+      window.removeEventListener('keyup', onKeyState)
+      window.removeEventListener('blur', onBlur)
     }
   }, [closeOverlay, openOverlay, onStackWheel, commitStack, toggleSidebar, stackPos])
 
@@ -267,7 +283,9 @@ function App(): React.JSX.Element {
   const rowH = Math.round(BASE_ROW_H * effective.density)
   // Along the top there is no sidebar at all: the tab bar and the toolbar row are always there.
   const horizontal = effective.tabLayout === 'horizontal'
-  const showSidebar = !horizontal && sidebarOpen
+  // the welcome tour is shown on its own: dark, with no sidebar or bars, so the whole window is the page
+  const immersive = isWelcome(active?.url)
+  const showSidebar = !horizontal && sidebarOpen && !immersive
   // A sidebar the pointer asked for floats over the page instead of pushing it: the page keeps its size, so
   // nothing in it is laid out or repainted for what is a glance at the tab list.
   const pushed = showSidebar && !openedByHover
@@ -369,8 +387,14 @@ function App(): React.JSX.Element {
   )
 
   const { accent, uiScale, density, addressSize, pageMargin, sidebarWidth } = effective
-  const scheme = useScheme(activeSpace?.mode)
-  const theme = activeSpace ?? { color: accent, color2: null, tint: 0, grain: 0 }
+  // a private or Tor tab on screen makes the whole window dark, Tor's in its own purple
+  const kind = kindOf(active)
+  const scheme = useScheme(kind !== 'normal' || immersive ? 'dark' : activeSpace?.mode)
+  const theme = immersive
+    ? WELCOME_THEME
+    : kind !== 'normal'
+      ? KIND_THEME[kind]
+      : (activeSpace ?? { color: accent, color2: null, tint: 0, grain: 0 })
   useEffect(() => {
     const root = document.documentElement.style
     root.setProperty('--s', String(uiScale))
@@ -529,6 +553,7 @@ function App(): React.JSX.Element {
         (showSidebar ? '' : ' sidebar-closed') +
         (hoverShown ? ' hover-open' : '') +
         (barOver ? ' bar-over' : '') +
+        (immersive ? ' immersive' : '') +
         (horizontal ? ' horizontal' : '') +
         (mode ? ' overlay-open' : '')
       }

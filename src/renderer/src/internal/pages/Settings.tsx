@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { MAIL_HANDLERS } from '../../../../shared/mailto'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../../../shared/settings'
 import type { ClearKind, SearchEngineId, Settings as SettingsData } from '../../../../shared/types'
 
@@ -7,6 +8,7 @@ import { Group, Row, Segmented, Select, SliderRow, Toggle } from '../ui'
 import { MemorySection } from './MemorySection'
 import { SitePermissions } from './SitePermissions'
 import { SpacesSection } from './SpacesSection'
+import { YouTubeSection } from './YouTubeSection'
 
 const ACCENTS = ['#8b8bff', '#5eb6ff', '#4ade80', '#fbbf24', '#fb7185', '#e879f9']
 
@@ -193,6 +195,17 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
         <Row
+          label="Email links"
+          hint="What opens when you click an email address or use Send feedback. A web service opens its compose page in a tab."
+        >
+          <Select
+            label="Open email links with"
+            value={s.mailHandler}
+            options={MAIL_HANDLERS}
+            onChange={(v) => void update({ mailHandler: v })}
+          />
+        </Row>
+        <Row
           label="Address bar spans the whole row"
           hint="With tabs along the top: the address bar stretches from side to side. Off keeps it in the middle."
         >
@@ -319,6 +332,8 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
       </Group>
+
+      <YouTubeSection s={s} update={update} />
 
       <Group
         title="Clear browsing data"

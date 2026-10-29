@@ -5,7 +5,11 @@ import type { DockMode, DownloadAction } from '../shared/types'
 import { paintView } from './chromeTheme'
 import type { DownloadManager } from './downloads'
 
-const SIZE = 104 // the view is always this square: the bin, its margin and a little room for its shadow
+// The view is only as big as the bin and a little room round it, and stops short of the window's right edge, so the
+// page's scrollbar and anything at its extreme right can still be reached.
+const WIDTH = 100
+const HEIGHT = 96
+const INSET = 8 // the window's right edge left free
 const SLIVER = 34 // how much of it shows, at the window's bottom edge, while the bin is tucked away
 const CORNER_PX = 56 // the pointer this near the corner brings the bin out
 const REACH_PX = 150 // and keeps it out until the pointer is this far away
@@ -103,8 +107,8 @@ class Dock {
     if (this.mode === 'full') this.view.setBounds({ x: 0, y: 0, width: w, height: h })
     else {
       // tucked away, the view sits mostly below the window's edge and only its top shows
-      const y = this.mode === 'peek' ? h - SLIVER : h - SIZE
-      this.view.setBounds({ x: w - SIZE, y, width: SIZE, height: SIZE })
+      const y = this.mode === 'peek' ? h - SLIVER : h - HEIGHT
+      this.view.setBounds({ x: w - INSET - WIDTH, y, width: WIDTH, height: HEIGHT })
     }
   }
 }

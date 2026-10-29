@@ -23,6 +23,7 @@ import {
   SplitIcon
 } from './icons'
 import { CaptureBadge } from './CaptureBadge'
+import { CallBadge } from './CallBadge'
 import { NavButtons } from './NavButtons'
 import { SpaceSwitcher } from './SpaceSwitcher'
 import { TabGroupHeader } from './TabGroupHeader'
@@ -222,6 +223,8 @@ export function Sidebar({
                   (firstDrawn ? ' pair-first' : '') +
                   (lastDrawn ? ' pair-last' : '') +
                   (t.unloaded ? ' unloaded' : '') +
+                  (t.attention.unseen || t.attention.count > 0 ? ' attn' : '') +
+                  (t.attention.call === 'ringing' ? ' ringing' : '') +
                   (gi === 0 ? ' group-first' : '') +
                   (inSplit && gi === group.length - 1 ? ' group-last' : '') +
                   (t.id === dragId ? ' dragging' : '') +
@@ -265,6 +268,7 @@ export function Sidebar({
                     </button>
                   )
                 )}
+                <CallBadge call={t.attention.call} />
                 <CaptureBadge capture={t.capture} />
                 {(t.audible || t.muted) && (
                   <button

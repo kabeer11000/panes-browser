@@ -1,4 +1,13 @@
-import { app, ipcMain, net, protocol, shell, type IpcMainInvokeEvent, type Session } from 'electron'
+import {
+  app,
+  ipcMain,
+  net,
+  protocol,
+  shell,
+  webContents,
+  type IpcMainInvokeEvent,
+  type Session
+} from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join, normalize } from 'path'
 import { pathToFileURL } from 'url'
@@ -18,7 +27,7 @@ import { currentChromeTheme } from './chromeTheme'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
-import type { PermKind } from '../shared/permissions'
+import { isPermKind, originOf } from '../shared/permissions'
 import type { PermissionStore } from './permissions'
 import { flushAllStores } from './store'
 import type { SettingsStore } from './settings'
@@ -89,6 +98,13 @@ interface Deps {
   clearBrowsingData: (kinds: ClearKind[], sinceMs: number | null) => Promise<void>
 }
 
+/** Tell every open panes:// page that something it shows changed, so it reads it again instead of polling. */
+export function notifyInternalPages(channel: string): void {
+  for (const wc of webContents.getAllWebContents()) {
+    if (!wc.isDestroyed() && wc.getURL().startsWith('panes://')) wc.send(channel)
+  }
+}
+
 /** IPC for panes:// pages. Every handler refuses callers that are not on the panes:// scheme. */
 export function registerInternalIpc(d: Deps): void {
   const handle = <A extends unknown[], R>(
@@ -149,9 +165,14 @@ export function registerInternalIpc(d: Deps): void {
     }
   })
   handle('int:perms-list', () => d.permissions.list())
-  handle('int:perm-remove', (origin: string, kind: PermKind) =>
-    d.permissions.remove(String(origin), kind)
-  )
+  handle('int:perm-set', (origin: unknown, kind: unknown, decision: unknown) => {
+    const o = typeof origin === 'string' ? originOf(origin) : null
+    if (!o || !isPermKind(kind)) return
+    d.permissions.set(o, [kind], decision === 'allow' || decision === 'block' ? decision : null)
+  })
+  handle('int:perm-remove', (origin: unknown, kind: unknown) => {
+    if (isPermKind(kind)) d.permissions.remove(String(origin), kind)
+  })
   handle('int:perms-reset', () => d.permissions.reset())
   handle('int:memory-stats', () => d.memory.stats())
   handle('int:memory-free', () => d.memory.free())

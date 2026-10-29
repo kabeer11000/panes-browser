@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { SitePanelApi } from '../shared/types'
+import type { SiteInfo, SitePanelApi } from '../shared/types'
 
 const api: SitePanelApi = {
   info: () => ipcRenderer.invoke('panel:info'),
@@ -11,6 +11,11 @@ const api: SitePanelApi = {
     const listener = (): void => cb()
     ipcRenderer.on('panel:show', listener)
     return () => ipcRenderer.removeListener('panel:show', listener)
+  },
+  onInfo: (cb) => {
+    const listener = (_e: unknown, info: SiteInfo | null): void => cb(info)
+    ipcRenderer.on('panel:info', listener)
+    return () => ipcRenderer.removeListener('panel:info', listener)
   }
 }
 

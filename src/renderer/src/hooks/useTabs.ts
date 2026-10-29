@@ -15,7 +15,8 @@ export function useTabs(): TabsView {
     spaces: [],
     activeSpaceId: 0,
     tabGroups: [],
-    spaceAudio: {}
+    spaceAudio: {},
+    spaceAttention: {}
   })
   const [thumbs, setThumbs] = useState<Record<number, string>>({})
 

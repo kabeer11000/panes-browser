@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
 import type { TabsState } from '../../../shared/types'
 
-/** Which spaces have sound playing or muted, for the speaker on their avatars. */
-export function useSpaceAudio(): TabsState['spaceAudio'] {
-  const [audio, setAudio] = useState<TabsState['spaceAudio']>({})
+type SpaceMarks = Pick<TabsState, 'spaceAudio' | 'spaceAttention'>
+
+/** What each space has going on, for the marks on their avatars: sound playing or muted, and what waits there. */
+export function useSpaceMarks(): SpaceMarks {
+  const [marks, setMarks] = useState<SpaceMarks>({ spaceAudio: {}, spaceAttention: {} })
   useEffect(() => {
     let alive = true
-    void window.api.getState().then((d) => alive && setAudio(d.state.spaceAudio))
-    const off = window.api.onState((s) => setAudio(s.spaceAudio))
+    const take = (s: TabsState): void =>
+      setMarks({ spaceAudio: s.spaceAudio, spaceAttention: s.spaceAttention })
+    void window.api.getState().then((d) => alive && take(d.state))
+    const off = window.api.onState(take)
     return () => {
       alive = false
       off()
     }
   }, [])
-  return audio
+  return marks
 }

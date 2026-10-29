@@ -409,30 +409,6 @@ body {
   }
 }
 
-/* the opening film: black, centred, then the welcome fades in underneath as it fades out */
-.wl {
-  transition: opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.wl.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-.wl-intro {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  background: #000;
-  cursor: pointer;
-}
-.wl-intro video {
-  width: min(640px, 82vmin);
-  height: min(640px, 82vmin);
-  object-fit: contain;
-  background: #000;
-}
-
 /* a note about the downloads bin, with the bucket drawn small beside it */
 .wl-dock {
   display: flex;

@@ -31,8 +31,15 @@ if (location.protocol === 'panes:') {
     getSettings: () => ipcRenderer.invoke('int:settings-get'),
     setSettings: (patch) => ipcRenderer.invoke('int:settings-set', patch),
     permissionsList: () => ipcRenderer.invoke('int:perms-list'),
+    permissionSet: (origin, kind, decision) =>
+      ipcRenderer.invoke('int:perm-set', origin, kind, decision),
     permissionRemove: (origin, kind) => ipcRenderer.invoke('int:perm-remove', origin, kind),
     permissionsReset: () => ipcRenderer.invoke('int:perms-reset'),
+    onPermissionsChanged: (cb) => {
+      const listener = (): void => cb()
+      ipcRenderer.on('int:perms-changed', listener)
+      return () => ipcRenderer.removeListener('int:perms-changed', listener)
+    },
     memoryStats: () => ipcRenderer.invoke('int:memory-stats'),
     memoryFree: () => ipcRenderer.invoke('int:memory-free'),
     restart: () => ipcRenderer.invoke('int:restart'),

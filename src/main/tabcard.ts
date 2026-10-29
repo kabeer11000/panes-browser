@@ -79,10 +79,13 @@ class TabCard {
     const [winW, winH] = this.win.getContentSize()
     const width = PAD_L + CARD_WIDTH + PAD_R
     const height = Math.min(this.height, winH)
-    const left = side === 'right' ? ax + aw : ax - PAD_L
-    const top = side === 'right' ? ay - PAD_T : ay + ah
-    const x = Math.max(0, Math.min(Math.round(left), winW - width))
-    const y = Math.max(0, Math.min(Math.round(top), winH - height))
+    // The edge facing the tab is rounded away from it, plus a pixel: the UI scale makes tab edges fractional, and
+    // a view that covers even the tab's last row of pixels takes the pointer off it. The tab then loses :hover, the
+    // card hides, the pointer is back on the tab, the card reopens at once, and the tab flickers between states.
+    const left = side === 'right' ? Math.ceil(ax + aw) + 1 : Math.round(ax - PAD_L)
+    const top = side === 'right' ? Math.round(ay - PAD_T) : Math.ceil(ay + ah) + 1
+    const x = Math.max(0, Math.min(left, winW - width))
+    const y = Math.max(0, Math.min(top, winH - height))
     this.view.setBounds({ x, y, width, height })
   }
 

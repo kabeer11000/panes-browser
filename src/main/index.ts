@@ -11,6 +11,7 @@ import { linksFromArgv } from '../shared/launch'
 import type { Edge } from '../shared/layout'
 import type { ClearKind, Rect, SpacePatch } from '../shared/types'
 import { Adblock } from './adblock'
+import { YouTube } from './youtube'
 import { applyPerformance, runningMode } from './performance'
 import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
@@ -18,15 +19,21 @@ import { BookmarkStore, HistoryStore } from './history'
 import { DumpStore } from './dumps'
 import { TorManager } from './tor'
 import { chromeVars } from '../shared/color'
+import { KIND_THEME, WELCOME_THEME } from '../shared/tabkind'
 import { registerDock } from './dock'
 import { registerTabCard } from './tabcard'
 import { setChromeThemeSource } from './chromeTheme'
 import { PasswordStore, registerPasswordIpc } from './passwords'
-import { registerInternalIpc, registerInternalScheme, serveInternalPages } from './internal'
+import {
+  notifyInternalPages,
+  registerInternalIpc,
+  registerInternalScheme,
+  serveInternalPages
+} from './internal'
 import icon from '../../resources/icon.png?asset'
 import { PermissionManager, PermissionStore } from './permissions'
 import { SitePanel } from './sitePanel'
-import { SiteSettings } from './sites'
+import { SiteSettings, watchCertificates } from './sites'
 import { SettingsStore } from './settings'
 import { SpaceStore } from './spaces'
 import { UpdateManager } from './updater'
@@ -154,9 +161,14 @@ function createWindow(): void {
   void adblock.attach(privateSession)
   void adblock.set(settings.get().adblock)
   adblock.setOffSites(settings.get().adblockOffSites, settings.get().adblockCosmeticOffSites)
+  // YouTube's in-page ad defences and options go wherever the blocker does (not into Tor tabs).
+  const youtube = new YouTube(settings, adblock)
+  youtube.attach(tabSession)
+  youtube.attach(privateSession)
   settings.onChange((s) => {
     void adblock.set(s.adblock)
     adblock.setOffSites(s.adblockOffSites, s.adblockCosmeticOffSites)
+    youtube.update()
     tabs.applyDarkening()
     tabs.sweepMemory() // a stricter memory setting applies at once, not at the next sweep
     if (!win.isDestroyed()) win.webContents.send('settings:changed', s)
@@ -182,36 +194,43 @@ function createWindow(): void {
     const space = spaces.get(spaces.activeId())
     const dark = nativeTheme.shouldUseDarkColors
     const accent = settings.get().accent
-    const theme = space ?? { color: accent, color2: null, tint: 0 }
+    const kind = tabs.activeKind()
+    const theme = tabs.activeIsWelcome()
+      ? WELCOME_THEME
+      : kind !== 'normal'
+        ? KIND_THEME[kind]
+        : (space ?? { color: accent, color2: null, tint: 0 })
     return {
       scheme: dark ? 'dark' : 'light',
       vars: chromeVars(theme, dark, accent, DEFAULT_SETTINGS.accent)
     }
   })
+  const permissionManager = new PermissionManager({
+    win,
+    anchor: () => tabs.activeRect(),
+    onKeyboardLock: (wc) => tabs.markKeyboardLock(wc),
+    hidden: (wc) => tabs.isHidden(wc)
+  })
+  permissionManager.install(tabSession, permissions)
+  // Private and Tor tabs ask the same questions, but what they are told is kept in memory only, each session
+  // apart, and never reaches the normal profile's saved answers.
+  permissionManager.install(privateSession, new PermissionStore(false))
+  permissionManager.install(torSession, new PermissionStore(false))
+  for (const s of [tabSession, privateSession, torSession]) watchCertificates(s)
   const sites = new SiteSettings({
     settings,
-    session: tabSession,
     spaces,
-    permissions,
+    permissions: permissionManager,
     active: () => tabs.activeSite(),
     blocked: (id) => adblock.blockedOn(id),
     muteSite: (key, muted) => tabs.setSiteMuted(key, muted),
     defaultZoom: (spaceId) => tabs.defaultZoom(spaceId),
+    reload: () => tabs.reload(),
     changed: () => {
       tabs.applyBoosts()
       tabs.applyZoom()
     }
   })
-  const permissionManager = new PermissionManager(
-    win,
-    permissions,
-    () => tabs.activeRect(),
-    (wc) => tabs.markKeyboardLock(wc)
-  )
-  permissionManager.install(tabSession)
-  // Private and Tor tabs ask the same questions, but what they are told is kept in memory only.
-  permissionManager.install(privateSession, false)
-  permissionManager.install(torSession, false)
 
   const updater = new UpdateManager()
   updater.onChange((s) => {
@@ -433,7 +452,17 @@ function createWindow(): void {
   ipcMain.on('tabs:group-menu', (_e, id: number) => tabs.groupMenu(id))
   // the downloads bin, at the window's bottom-right corner
   const dock = registerDock(win, downloads, () => tabs.openInternal('downloads'))
-  tabs.onRefresh = () => dock.raise() // page views made later would otherwise cover it
+  tabs.onViewAdded = () => dock.raise() // page views made later would otherwise cover it
+  tabs.onRefresh = () => {
+    permissionManager.sync() // the same, and a question waiting for its tab shows once the tab is on screen
+    sitePanel.refresh() // the open panel follows the tab as it navigates, loads, or starts capturing
+  }
+  // Answers changed or a page was told something: the open panel and any panes://settings page re-read them.
+  permissionManager.onChange(() => {
+    sitePanel.refresh()
+    notifyInternalPages('int:perms-changed')
+  })
+  settings.onChange(() => sitePanel.refresh())
   ipcMain.on('app:feedback', (e) => {
     if (e.sender === win.webContents) tabs.sendFeedback()
   })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { PermissionApi, ScreenSource } from '../../../shared/types'
+import { shareTab } from '../../../shared/capture'
+import type { PermissionAnswer, ScreenSource } from '../../../shared/types'
 
 const host = (origin: string): string => origin.replace(/^https?:\/\//, '')
 
@@ -7,17 +8,22 @@ const host = (origin: string): string => origin.replace(/^https?:\/\//, '')
 export function ShareDialog({
   origin,
   sources,
+  loading,
   audio,
   onAnswer
 }: {
   origin: string
+  /** Fills in while the dialog is open: names first, then pictures, refreshed as windows change. */
   sources: ScreenSource[]
+  loading: boolean
   audio: boolean
-  onAnswer: PermissionApi['answer']
+  onAnswer: (answer: PermissionAnswer) => void
 }): React.JSX.Element {
   const screens = sources.filter((s) => s.kind === 'screen')
   const windows = sources.filter((s) => s.kind === 'window')
-  const [tab, setTab] = useState<'screen' | 'window'>(screens.length > 0 ? 'screen' : 'window')
+  // Until a tab is chosen, the open one follows the list as it arrives (it starts out empty).
+  const [chosenTab, setTab] = useState<'screen' | 'window' | null>(null)
+  const tab = shareTab(chosenTab, screens.length, windows.length)
   const [picked, setPicked] = useState<string | null>(null)
   const [withAudio, setWithAudio] = useState(true)
   const shown = tab === 'screen' ? screens : windows
@@ -61,7 +67,11 @@ export function ShareDialog({
           role="listbox"
           aria-label={tab === 'screen' ? 'Screens' : 'Windows'}
         >
-          {shown.length === 0 && <p className="share-empty">Nothing to share here.</p>}
+          {shown.length === 0 && (
+            <p className="share-empty">
+              {loading ? 'Looking for screens and windows...' : 'Nothing to share here.'}
+            </p>
+          )}
           {shown.map((s) => (
             <button
               key={s.id}

@@ -14,6 +14,7 @@ export function useTabHover(): void {
   useEffect(() => {
     let timer: number | undefined
     let current: number | null = null
+    let hovered: HTMLElement | null = null
     let open = false
     let closedAt = 0
 
@@ -33,6 +34,7 @@ export function useTabHover(): void {
       if (id === current) return
       hide()
       current = id
+      hovered = el
       const show = (): void => {
         const r = el.getBoundingClientRect()
         window.api.tabHover(id, {
@@ -47,9 +49,24 @@ export function useTabHover(): void {
       timer = window.setTimeout(show, Date.now() - closedAt < QUICK_MS ? 0 : DELAY_MS)
     }
 
+    // A native view (the card itself, a popover) appearing under the pointer reads as the pointer leaving the
+    // window. Over the tab that is not a leave: hiding there would bring the pointer back, reopen the card at once
+    // (QUICK_MS), and loop. Only a leave from somewhere else ends the hover. The tab's outermost pixel does not
+    // count, so leaving the window across a tab that touches its edge still ends it.
+    const leave = (e: PointerEvent): void => {
+      const r = current === null ? undefined : hovered?.getBoundingClientRect()
+      const onTab =
+        r &&
+        e.clientX > r.left + 1 &&
+        e.clientX < r.right - 1 &&
+        e.clientY > r.top + 1 &&
+        e.clientY < r.bottom - 1
+      if (!onTab) hide()
+    }
+
     // pressing, scrolling, typing and leaving the window all end a hover
     document.addEventListener('pointerover', over)
-    document.documentElement.addEventListener('pointerleave', hide)
+    document.documentElement.addEventListener('pointerleave', leave)
     document.addEventListener('pointerdown', hide, true)
     document.addEventListener('wheel', hide, { passive: true })
     document.addEventListener('keydown', hide, true)
@@ -57,7 +74,7 @@ export function useTabHover(): void {
     return () => {
       hide()
       document.removeEventListener('pointerover', over)
-      document.documentElement.removeEventListener('pointerleave', hide)
+      document.documentElement.removeEventListener('pointerleave', leave)
       document.removeEventListener('pointerdown', hide, true)
       document.removeEventListener('wheel', hide)
       document.removeEventListener('keydown', hide, true)

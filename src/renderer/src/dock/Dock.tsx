@@ -10,14 +10,17 @@ declare global {
   }
 }
 
-// Geometry, in step with the main process (see dock.ts): the view is SIZE square at the window's corner; the bin sits
-// MARGIN in from the corner; tucked away only the top SLIVER of the view shows.
-const SIZE = 104
+// Geometry, in step with the main process (see dock.ts): the view is WIDTH by HEIGHT at the window's corner (8px short of
+// its right edge); the bin sits MARGIN_R from that edge and MARGIN_B from the bottom; tucked away only the top SLIVER
+// of the view shows.
+const HEIGHT = 96
 const SLIVER = 34
 const BIN = 68
-const MARGIN = 16
-const HIDE_Y = SIZE - SLIVER - (SIZE - MARGIN - BIN) // how far below its place the bin is, with the view at the edge
-const PEEK_Y = -(SIZE - MARGIN - BIN) // and how far above it, when the view has dropped to the edge (it shows the top)
+const MARGIN_R = 24
+const MARGIN_B = 16
+const BASE_ROW = HEIGHT - MARGIN_B - BIN // the bin's top, in the view, when it is out
+const HIDE_Y = HEIGHT - SLIVER - BASE_ROW // how far below its place the bin is, with the view at the edge
+const PEEK_Y = -BASE_ROW // and how far above it, when the view has dropped to the edge (it shows the top)
 const FAN_MAX = 7
 const ROW_H = 52
 const FAN_GAP = 6
@@ -179,7 +182,7 @@ export function Dock(): React.JSX.Element {
   useEffect(() => window.dock.onStart((s) => setPending((p) => [...p, s])), [])
   useEffect(() => {
     if (pending.length === 0 || win.w < 300) return
-    const to = { x: win.w - MARGIN - BIN / 2, y: win.h - MARGIN - BIN / 2 }
+    const to = { x: win.w - MARGIN_R - BIN / 2, y: win.h - MARGIN_B - BIN / 2 }
     setFlights((f) => [
       ...f,
       ...pending.map((s) => ({
@@ -245,7 +248,7 @@ export function Dock(): React.JSX.Element {
       {open && <div className="dk-scrim" onClick={() => setOpen(false)} />}
       <motion.div
         className="dk-tile"
-        style={{ y: ty, right: MARGIN, bottom: MARGIN, width: BIN, height: BIN }}
+        style={{ y: ty, right: MARGIN_R, bottom: MARGIN_B, width: BIN, height: BIN }}
       >
         <div ref={squash} className="dk-squash">
           <button
@@ -280,7 +283,7 @@ export function Dock(): React.JSX.Element {
           <div
             key="fan"
             className="dk-fan"
-            style={{ left: win.w - MARGIN - BIN / 2, top: win.h - MARGIN - BIN / 2 }}
+            style={{ left: win.w - MARGIN_R - BIN / 2, top: win.h - MARGIN_B - BIN / 2 }}
             role="dialog"
             aria-label="Recent downloads"
           >

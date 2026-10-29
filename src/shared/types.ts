@@ -2,10 +2,13 @@ import type { LocalSuggestion } from './search'
 import type { UpdateState } from './update'
 import type { Edge, LayoutNode } from './layout'
 import type { PerformanceMode, RunningMode } from './performance'
-import type { PermDecision, PermKind, SiteGrant } from './permissions'
+import type { PermDecision, PermKind, PermSetting, SiteGrant } from './permissions'
+import type { TabKind } from './tabkind'
 import type { CaptureState } from './capture'
+import type { SpaceAttention, TabAttention } from './attention'
 import type { TabDump } from './dumps'
 import type { TorStatus } from './tor'
+import type { YouTubeCodec, YouTubeQuality } from './youtube'
 import type { TabGroup } from './tabgroups'
 import type { SpaceIcon } from './spaceicons'
 
@@ -35,6 +38,8 @@ export interface TabInfo {
   audible: boolean
   /** The tab's audio is muted by the user. */
   muted: boolean
+  /** New messages or a call waiting for the person (cleared once they look at the tab). */
+  attention: TabAttention
   bookmarked: boolean
   canGoBack: boolean
   canGoForward: boolean
@@ -116,6 +121,8 @@ export interface TabsState {
   tabGroups: TabGroup[]
   /** Sound in every space, not just this one: a space with a tab playing (or muted) shows it. */
   spaceAudio: Record<number, { playing: boolean; muted: boolean }>
+  /** What is waiting in every space (only spaces with something): unread, unseen, a call and the tab it is in. */
+  spaceAttention: Record<number, SpaceAttention>
 }
 
 export interface Rect {
@@ -291,6 +298,8 @@ export interface Settings {
   paneView: 'full' | 'side'
   /** Letting go of Ctrl in the pane view: open the tab it is on (as Alt+Tab does), or leave the view open. */
   paneViewRelease: 'select' | 'stay'
+  /** What opens mailto: links (and the feedback message): the system's email app, or a web mail service. */
+  mailHandler: 'system' | 'gmail' | 'outlook' | 'yahoo'
   /** In a dark space, darken pages that do not have a dark theme of their own. */
   darkenSites: boolean
   /** The welcome pages have been seen (or skipped). */
@@ -309,6 +318,21 @@ export interface Settings {
   unloadOtherSpaces: boolean
   /** Sites whose tabs are never unloaded (host names; subdomains match too). */
   neverUnloadSites: string[]
+  /** YouTube: hide Shorts shelves, the Shorts menu entry and Shorts in results. */
+  youtubeHideShorts: boolean
+  /** YouTube: hide the cards and end screen laid over a video. */
+  youtubeHideEndCards: boolean
+  youtubeHideComments: boolean
+  /** YouTube: the speed each video starts at (1 leaves it to YouTube). */
+  youtubeSpeed: number
+  /** YouTube: the quality each video starts at, or the best below it (`auto` leaves it to YouTube). */
+  youtubeQuality: YouTubeQuality
+  /** YouTube: video formats to avoid, to save CPU and battery (`auto` avoids none). */
+  youtubeCodec: YouTubeCodec
+  /** YouTube: open videos in theater mode. */
+  youtubeTheater: boolean
+  /** YouTube: leave its "autoplay the next video" switch alone (false turns it off). */
+  youtubeAutoplay: boolean
 }
 
 /** What the memory section of settings shows. */
@@ -322,11 +346,41 @@ export interface MemoryStats {
   totalGb: number
 }
 
+/** The certificate a site last presented over HTTPS, as Chromium checked it. */
+export interface SiteCert {
+  subject: string
+  issuer: string
+  /** ms since epoch */
+  validFrom: number
+  validTo: number
+  /** Chromium accepted it; false when the page was let through despite an error. */
+  ok: boolean
+}
+
+/** One kind of access in the site settings: its setting, and how the page on screen stands with it. */
+export interface SitePerm {
+  kind: PermKind
+  setting: PermSetting
+  /** "Allow this time": when it lapses (ms since epoch), else null. */
+  until: number | null
+  /** What the page on screen was told when it last asked, or null if it has not asked since it loaded. */
+  asked: 'granted' | 'refused' | null
+}
+
 /** What the site settings panel shows for the page you are on. */
 export interface SiteInfo {
   key: string
   origin: string
+  /** host[:port], as the panel names the site */
+  host: string
+  title: string
+  favicon: string | null
+  loading: boolean
   secure: boolean
+  /** The certificate behind `secure`, when one has been seen this run. */
+  cert: SiteCert | null
+  /** A private or Tor tab: its answers and data last only until Panes closes. */
+  tabKind: TabKind
   /** Cookies this site has set that the browser would send it. */
   cookies: number
   spaceName: string
@@ -341,7 +395,12 @@ export interface SiteInfo {
   defaultZoom: number
   /** The site is muted wherever it is open. */
   muted: boolean
-  perms: Partial<Record<PermKind, PermDecision>>
+  /** Every kind, in PERM_KINDS order. */
+  perms: SitePerm[]
+  /** Kinds whose current setting the page will only see once it reloads. */
+  reload: PermKind[]
+  /** What the page is capturing right now. */
+  capture: CaptureState
   /** The space's own colour, for the panel to wear. */
   theme: { color: string; tint: number }
 }
@@ -351,8 +410,8 @@ export interface SitePatch {
   adblockOff?: boolean
   /** Forget the site's cookies and stored data. */
   clearData?: boolean
-  /** Allow camera, microphone and screen sharing together: what a call site needs. */
-  allowCalls?: boolean
+  /** Reload the page, so it sees settings it could not be told about. */
+  reload?: boolean
   /** Whether the blocker may hide elements on the page (requests stay blocked either way). */
   adblockCosmetic?: boolean
   boost?: SiteTheme | null
@@ -484,8 +543,12 @@ export interface InternalApi {
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): Promise<Settings>
   permissionsList(): Promise<SiteGrant[]>
+  /** A decision for one site and kind, or null to ask again. */
+  permissionSet(origin: string, kind: PermKind, decision: PermDecision | null): Promise<void>
   permissionRemove(origin: string, kind: PermKind): Promise<void>
   permissionsReset(): Promise<void>
+  /** Saved decisions changed (here, in the site panel, or from a prompt): read them again. */
+  onPermissionsChanged(cb: () => void): () => void
   memoryStats(): Promise<MemoryStats>
   memoryFree(): Promise<number>
   restart(): Promise<void>
@@ -605,10 +668,16 @@ export interface ScreenSource {
 
 /** What the permission card shows: a site asking for something, or a site asking to share the screen. */
 export interface PermissionPromptState {
+  /** Which question this is, so an answer can never land on another that took its place. */
+  id: number
   origin: string
+  /** Asked in a private or Tor tab: the answer is forgotten when Panes closes. */
+  temporary?: boolean
   kinds: PermKind[]
   /** Present for screen sharing: what the page may capture, picked from a list instead of allowed or blocked. */
   sources?: ScreenSource[]
+  /** The picker is open and the system has not listed what can be shared yet. */
+  loading?: boolean
   /** The page asked for the system's sound as well (only whole screens can give it). */
   audio?: boolean
   /** The system itself is keeping apps from this device: the card says so and points to the switch. */
@@ -624,7 +693,7 @@ export interface PermissionApi {
   state(): Promise<PermissionPromptState | null>
   onState(cb: (state: PermissionPromptState | null) => void): () => void
   resize(height: number): void
-  answer(answer: PermissionAnswer): void
+  answer(id: number, answer: PermissionAnswer): void
 }
 
 /** What the site panel (a transparent view above the page) can do. */
@@ -636,8 +705,10 @@ export interface SitePanelApi {
   close(): void
   /** Let the user choose an element on the page to hide. */
   pick(): void
-  /** The panel was opened (or a pick finished): read it again. */
+  /** The panel was opened (or a pick finished): start from its first screen. */
   onShow(cb: () => void): () => void
+  /** Fresh state while the panel is open: the tab navigated or loaded, a setting changed elsewhere. */
+  onInfo(cb: (info: SiteInfo | null) => void): () => void
 }
 
 /** What the picture-in-picture controls overlay can do. */
