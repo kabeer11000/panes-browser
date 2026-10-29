@@ -3253,3 +3253,11 @@ kbd {
 [data-fx='low'] .tab-list {
   transition: none !important;
 }
+
+/* efficient mode also drops the see-through window background: nothing behind the window can flash through a repaint */
+[data-fx='low'] {
+  --bg: rgb(20 20 26);
+}
+[data-fx='low'][data-scheme='light'] {
+  --bg: rgb(238 238 244);
+}
