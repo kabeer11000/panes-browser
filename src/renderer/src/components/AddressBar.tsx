@@ -1,8 +1,7 @@
-import { useState, type KeyboardEvent, type WheelEvent } from 'react'
+import type { KeyboardEvent, WheelEvent } from 'react'
 import type { Settings, TabInfo } from '../../../shared/types'
 import { splitUrl } from '../../../shared/url'
 import { SiteIcon, SpeakerIcon, StarIcon } from './icons'
-import { SiteSettings } from './SiteSettings'
 import { TabFavicon } from './TabFavicon'
 
 interface Props {
@@ -24,8 +23,6 @@ export function AddressBar({
   onWheel
 }: Props): React.JSX.Element {
   const url = active?.url ?? ''
-  // Where the site settings button is while its panel is open (the panel hangs under it); null when closed.
-  const [siteAnchor, setSiteAnchor] = useState<DOMRect | null>(null)
   const { host, rest } = splitUrl(url)
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -74,20 +71,18 @@ export function AddressBar({
       {active && /^https?:/i.test(url) && (
         <button
           type="button"
-          className={'addr-star addr-site' + (siteAnchor ? ' open' : '')}
+          className="addr-star addr-site"
           title="Site settings: boosts, ad blocking, permissions"
           aria-label="Site settings"
-          aria-expanded={siteAnchor !== null}
           onClick={(e) => {
             e.stopPropagation()
-            const rect = e.currentTarget.getBoundingClientRect()
-            setSiteAnchor((open) => (open ? null : rect))
+            const r = e.currentTarget.getBoundingClientRect()
+            window.api.toggleSitePanel({ x: r.left, y: r.top, width: r.width, height: r.height })
           }}
         >
           <SiteIcon />
         </button>
       )}
-      {siteAnchor && <SiteSettings anchor={siteAnchor} onClose={() => setSiteAnchor(null)} />}
       {active && /^https?:/i.test(url) && (
         <button
           type="button"

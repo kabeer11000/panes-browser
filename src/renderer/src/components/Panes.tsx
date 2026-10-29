@@ -15,6 +15,7 @@ import { tabTitle } from '../tabTitle'
 import { CloseIcon, GripIcon, PipIcon } from './icons'
 import { NewTab } from './NewTab'
 import { TabFavicon } from './TabFavicon'
+import { holdOverlay, releaseOverlay } from '../overlay'
 
 interface Props {
   tabs: TabInfo[]
@@ -81,7 +82,6 @@ export function Panes({
   const resizeTimer = useRef<number | undefined>(undefined)
   const [live, setLive] = useState<LiveRatios | null>(null)
   const [resizing, setResizing] = useState(false)
-  const overlayOpened = useRef<Promise<void> | null>(null)
   const dragRef = useRef<{ div: DividerFrame; ratios: number[] } | null>(null)
 
   // Divider drags are applied locally and committed on release.
@@ -148,7 +148,7 @@ export function Panes({
     e.currentTarget.setPointerCapture(e.pointerId)
     dragRef.current = { div, ratios: div.ratios }
     setResizing(true)
-    overlayOpened.current = window.api.setOverlay(true)
+    void holdOverlay('divider')
   }
   const resize = (e: PointerEvent<HTMLDivElement>): void => {
     const d = dragRef.current
@@ -177,7 +177,7 @@ export function Panes({
     dragRef.current = null
     window.api.setRatios(d.div.path, d.ratios)
     setResizing(false)
-    void overlayOpened.current?.then(() => window.api.setOverlay(false))
+    void releaseOverlay('divider')
   }
 
   return (

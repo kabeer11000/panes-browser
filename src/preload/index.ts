@@ -39,6 +39,7 @@ const api: PanesApi = {
   dropTab: (id, targetId, edge) => ipcRenderer.send('tabs:drop', id, targetId, edge),
   closePane: (id) => ipcRenderer.send('tabs:close-pane', id),
   tabMenu: (id) => ipcRenderer.send('tabs:tab-menu', id),
+  toggleSitePanel: (anchor) => ipcRenderer.send('site:panel-toggle', anchor),
   addToGroup: (id, groupId) => ipcRenderer.send('tabs:add-to-group', id, groupId),
   siteInfo: () => ipcRenderer.invoke('site:info'),
   siteUpdate: (patch) => ipcRenderer.invoke('site:update', patch),

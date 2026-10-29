@@ -60,14 +60,25 @@ export interface Space {
   sites: Record<string, SiteTheme>
 }
 
-/** How one site's pages are recoloured in one space. */
+/** A boost: how one site's pages are restyled in one space. Colour, type, hidden parts and your own CSS. */
 export interface SiteTheme {
   /** Invert the page into a dark version (pictures stay as they are). */
   dark: boolean
-  /** Wash the whole page toward this colour, or null for none. */
+  /** The theme colour: pages are mapped from near-black to near-white along a gradient built from it. */
   tint: string | null
-  /** How strong the wash is, 0 to 1. */
+  /** How far the page moves toward the theme, 0 to 1. */
   strength: number
+  /** 0.6 to 1.4; 1 leaves it alone. */
+  brightness: number
+  contrast: number
+  /** 0 to 2; 1 leaves it alone. */
+  saturation: number
+  /** A key of BOOST_FONTS, or null for the site's own typeface. */
+  font: string | null
+  /** Selectors of elements to hide (zapped). */
+  zap: string[]
+  /** Your own CSS, applied last. */
+  css: string
 }
 
 /** Fields of a space that can be edited; main validates every one. */
@@ -130,6 +141,8 @@ export interface PanesApi {
   closePane(id: number): void
   /** Native right-click menus; their choices come back as state changes (and rename requests). */
   tabMenu(id: number): void
+  /** Open or close the site panel under the address bar's site button. */
+  toggleSitePanel(anchor: Rect): void
   addToGroup(id: number, groupId: number): void
   siteInfo(): Promise<SiteInfo | null>
   siteUpdate(patch: SitePatch): Promise<SiteInfo | null>
@@ -226,6 +239,8 @@ export interface Settings {
   sidebarHover: boolean
   /** Tabs down the side (a sidebar) or along the top. */
   tabLayout: 'vertical' | 'horizontal'
+  /** With tabs along the top, the address bar spans the whole row rather than sitting in the middle of it. */
+  fullWidthAddress: boolean
   /** Where the command bar appears: grown out of the address bar, or centred on the page. */
   searchStyle: 'dropdown' | 'center'
   /** In a dark space, darken pages that do not have a dark theme of their own. */
@@ -271,12 +286,17 @@ export interface SiteInfo {
   boost: SiteTheme | null
   keepLoaded: boolean
   perms: Partial<Record<PermKind, PermDecision>>
+  /** The space's own colour, for the panel to wear. */
+  theme: { color: string; tint: number }
 }
 
 /** One change from the panel; main validates every field. */
 export interface SitePatch {
   adblockOff?: boolean
   boost?: SiteTheme | null
+  /** Hide one more element (its selector), or bring one back. */
+  zapAdd?: string
+  zapRemove?: string
   keepLoaded?: boolean
   /** A decision for one kind of access, or null to ask again. */
   perm?: { kind: PermKind; decision: PermDecision | null }
@@ -459,6 +479,19 @@ export interface PermissionApi {
   onState(cb: (state: PermissionPromptState | null) => void): () => void
   resize(height: number): void
   answer(answer: PermissionAnswer): void
+}
+
+/** What the site panel (a transparent view above the page) can do. */
+export interface SitePanelApi {
+  info(): Promise<SiteInfo | null>
+  update(patch: SitePatch): Promise<SiteInfo | null>
+  /** Content height, so the main process can size the view to fit the card. */
+  resize(height: number): void
+  close(): void
+  /** Let the user choose an element on the page to hide. */
+  pick(): void
+  /** The panel was opened (or a pick finished): read it again. */
+  onShow(cb: () => void): () => void
 }
 
 /** What the picture-in-picture controls overlay can do. */

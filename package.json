@@ -1,9 +1,9 @@
 {
   "name": "panes",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Panes browser",
   "main": "./out/main/index.js",
-  "author": "Rafay",
+  "author": "Panes Authors",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",

@@ -1,6 +1,6 @@
 import { originOf, type PermDecision, type PermKind, type SiteGrant } from '../shared/permissions'
 import { normalizeSites, siteListed } from '../shared/memory'
-import { sanitizeSiteTheme, siteKey } from '../shared/sitetheme'
+import { DEFAULT_THEME, sanitizeSiteTheme, siteKey } from '../shared/sitetheme'
 import type { SiteInfo, SitePatch } from '../shared/types'
 import type { PermissionStore } from './permissions'
 import type { SettingsStore } from './settings'
@@ -52,6 +52,7 @@ export class SiteSettings {
       spaceName: space?.name ?? '',
       adblock: { global: settings.adblock, off: siteListed(key, settings.adblockOffSites) },
       boost: space?.sites[key] ?? null,
+      theme: { color: space?.color ?? '#6e7bff', tint: space?.tint ?? 0 },
       keepLoaded: siteListed(key, settings.neverUnloadSites),
       perms
     }
@@ -85,6 +86,14 @@ export class SiteSettings {
     }
     if (patch.boost !== undefined) {
       this.d.spaces.setSite(page.spaceId, key, sanitizeSiteTheme(patch.boost))
+    }
+    // Hiding or restoring one element edits the boost's list without the panel having to send all of it.
+    const edit = typeof patch.zapAdd === 'string' || typeof patch.zapRemove === 'string'
+    if (edit) {
+      const current = this.d.spaces.get(page.spaceId)?.sites[key] ?? DEFAULT_THEME
+      const zap = current.zap.filter((z) => z !== patch.zapRemove)
+      if (typeof patch.zapAdd === 'string') zap.push(patch.zapAdd)
+      this.d.spaces.setSite(page.spaceId, key, sanitizeSiteTheme({ ...current, zap }))
     }
     if (patch.perm && isKind(patch.perm.kind)) {
       const { kind, decision } = patch.perm

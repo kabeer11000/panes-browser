@@ -1,7 +1,7 @@
 import { nativeTheme } from 'electron'
 import { APPEARANCE_LIMITS, SPACE_COLORS, type AppearanceKey } from '../shared/settings'
 import { defaultSpaceIcon, isSpaceIcon, type SpaceIcon } from '../shared/spaceicons'
-import { MAX_SITES_PER_SPACE } from '../shared/sitetheme'
+import { MAX_SITES_PER_SPACE, sanitizeSiteTheme } from '../shared/sitetheme'
 import type { SiteTheme, Space, SpacePatch, SpaceUi } from '../shared/types'
 import { JsonStore } from './store'
 
@@ -66,6 +66,12 @@ export class SpaceStore {
       sp.mode ??= 'system'
       sp.ui ??= {}
       sp.sites ??= {}
+      // boosts saved by an older version gain the newer fields (and a broken one is dropped)
+      for (const [key, theme] of Object.entries(sp.sites)) {
+        const fixed = sanitizeSiteTheme(theme)
+        if (fixed) sp.sites[key] = fixed
+        else delete sp.sites[key]
+      }
       if (!d.followsSystem) sp.mode = 'system'
     })
     if (!d.followsSystem) {

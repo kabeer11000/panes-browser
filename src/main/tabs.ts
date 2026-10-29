@@ -24,6 +24,7 @@ import {
 } from '../shared/tabgroups'
 import { stageBackground } from '../shared/color'
 import { siteKey, siteThemeCss } from '../shared/sitetheme'
+import { ZAP_PREFIX, ZAP_SCRIPT } from '../shared/zap'
 import { errorPageUrl } from '../shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
 import { totalmem } from 'os'
@@ -176,11 +177,16 @@ export class TabManager {
       onReturn: (id) => this.activate(id)
     })
     win.on('resize', () => this.applyVisibility())
-    setInterval(() => {
-      if (!this.win.isFocused()) return
-      for (const id of this.visibleIds()) if (this.tabs.get(id)?.dirty) void this.snapshot(id)
-    }, THUMB_INTERVAL_MS).unref()
-    setInterval(() => this.sweepMemory(), MEMORY_SWEEP_MS).unref()
+    // Timers outlive the window while the app quits (an update restarts it): they must not touch it then.
+    const timers = [
+      setInterval(() => {
+        if (this.win.isDestroyed() || !this.win.isFocused()) return
+        for (const id of this.visibleIds()) if (this.tabs.get(id)?.dirty) void this.snapshot(id)
+      }, THUMB_INTERVAL_MS),
+      setInterval(() => this.sweepMemory(), MEMORY_SWEEP_MS)
+    ]
+    for (const t of timers) t.unref()
+    win.once('closed', () => timers.forEach(clearInterval))
     nativeTheme.on('updated', () => this.applyDarkening())
   }
 
@@ -238,6 +244,24 @@ export class TabManager {
     for (const [id, t] of [...this.tabs]) {
       if (liveContents(t)?.getURL().startsWith(`panes://${page}`)) this.close(id)
     }
+  }
+
+  /** Let the user click an element on the active page; reports its selector, or null if they cancelled. */
+  pickElement(done: (selector: string | null) => void): void {
+    const tab = this.current()
+    const wc = tab && liveContents(tab)
+    if (!wc) return done(null)
+    const onMessage = (e: { message: string }): void => {
+      if (!e.message.startsWith(ZAP_PREFIX)) return
+      wc.off('console-message', onMessage)
+      done(e.message.slice(ZAP_PREFIX.length) || null)
+    }
+    wc.on('console-message', onMessage)
+    wc.focus() // so Esc reaches the page
+    wc.executeJavaScript(ZAP_SCRIPT, true).catch(() => {
+      wc.off('console-message', onMessage)
+      done(null)
+    })
   }
 
   /** The active tab's address and space: what the site settings panel is about. */
@@ -1028,6 +1052,7 @@ export class TabManager {
    * parked one keeps it. Blank tabs show renderer UI instead of a view.
    */
   private applyVisibility(): void {
+    if (this.win.isDestroyed()) return
     const shown = this.visibleIds()
     const [w, h] = this.win.getContentSize()
     for (const [id, tab] of this.tabs) {
@@ -1515,6 +1540,7 @@ export class TabManager {
 
   /** Unload tabs the memory saver says are done with. `force` takes every tab that is safe to take. */
   sweepMemory(force = false): number {
+    if (this.win.isDestroyed()) return 0
     const ids = pickUnloads(this.memoryFacts(), this.memoryPolicy(), Date.now(), force)
     for (const id of ids) this.unload(id)
     if (ids.length > 0) this.refresh()
@@ -1556,6 +1582,7 @@ export class TabManager {
   // ---- renderer sync ----
 
   private refresh(): void {
+    if (this.win.isDestroyed()) return
     this.pruneGroups()
     const visible = this.visibleIds()
     const now = Date.now()

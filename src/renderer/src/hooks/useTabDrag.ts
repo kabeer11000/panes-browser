@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { ROOT_TARGET, type Edge } from '../../../shared/layout'
+import { holdOverlay, releaseOverlay } from '../overlay'
 
 export type DragSource = 'tab' | 'pane'
 
@@ -181,7 +182,6 @@ export function useTabDrag(
       const sx = e.clientX
       const sy = e.clientY
       let dragging = false
-      let overlay: Promise<void> | null = null
       let lastBox: Box | null = null
       const count = (): number => {
         const g = ctxRef.current().group
@@ -192,7 +192,7 @@ export function useTabDrag(
         if (!dragging) {
           if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < THRESHOLD) return
           dragging = true
-          overlay = window.api.setOverlay(true)
+          void holdOverlay('drag')
         }
         const { target, box } = targetAt(ev.clientX, ev.clientY, id, ctxRef.current())
         if (box) lastBox = box
@@ -221,7 +221,7 @@ export function useTabDrag(
           else if (source === 'tab') window.api.moveTab(id, target.index)
           else window.api.closePane(id) // a pane dragged back onto the sidebar leaves the group
         }
-        void overlay?.then(() => window.api.setOverlay(false))
+        if (dragging) void releaseOverlay('drag')
       }
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)

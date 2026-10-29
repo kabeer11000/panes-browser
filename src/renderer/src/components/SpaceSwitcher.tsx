@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react'
 import type { Space } from '../../../shared/types'
 import { PlusIcon } from './icons'
 import { SpaceAvatar } from './SpaceAvatar'
+import { holdOverlay, releaseOverlay } from '../overlay'
 import { SpacePopover } from './SpacePopover'
 
 interface Props {
@@ -33,6 +34,7 @@ export function SpaceSwitcher({
   const [editingSpace, setEditingSpace] = useState<number | null>(null)
   const editing = spaces.find((s) => s.id === editingSpace)
   const groupId = useId() // the sliding ring is shared by one row only, never across switchers
+  const owner = 'space-' + groupId
 
   // Page views are native and take every click over them, so while the editor is open the page is swapped
   // for its snapshot (as for the search popover). That also lets a click anywhere outside close the editor,
@@ -40,9 +42,9 @@ export function SpaceSwitcher({
   const dropsOverPage = editing !== undefined
   useEffect(() => {
     if (!dropsOverPage) return
-    const opened = window.api.setOverlay(true)
-    return () => void opened.then(() => window.api.setOverlay(false))
-  }, [dropsOverPage])
+    void holdOverlay(owner)
+    return () => void releaseOverlay(owner)
+  }, [dropsOverPage, owner])
 
   return (
     <div className={'space-switcher ' + placement}>

@@ -38,21 +38,27 @@ export class Adblock {
    * site opt out: requests, response headers and page-hiding styles are all skipped for the page's own site.
    */
   private exempt(blocker: ElectronBlocker): void {
+    // A page can be gone by the time its last requests arrive (a tab closing, the app quitting), and a
+    // destroyed WebContents throws when asked anything: treat that as "no page" and let the engine decide.
+    const pageOf = (id: number | undefined): string => {
+      const wc = id ? webContents.fromId(id) : undefined
+      return wc && !wc.isDestroyed() ? wc.getURL() : ''
+    }
     const before = blocker.onBeforeRequest
     blocker.onBeforeRequest = (details, callback) => {
-      const page = details.webContentsId ? webContents.fromId(details.webContentsId)?.getURL() : ''
+      const page = pageOf(details.webContentsId)
       if (page && this.listed(page)) callback({})
       else before(details, callback)
     }
     const headers = blocker.onHeadersReceived
     blocker.onHeadersReceived = (details, callback) => {
-      const page = details.webContentsId ? webContents.fromId(details.webContentsId)?.getURL() : ''
-      if (this.listed(page || details.url)) callback({})
+      if (this.listed(pageOf(details.webContentsId) || details.url)) callback({})
       else headers(details, callback)
     }
     const cosmetic = blocker.onInjectCosmeticFilters
     blocker.onInjectCosmeticFilters = async (event, url, msg) => {
-      if (this.listed(event.sender.getURL() || url)) return
+      const page = event.sender.isDestroyed() ? '' : event.sender.getURL()
+      if (this.listed(page || url)) return
       return cosmetic(event, url, msg)
     }
   }

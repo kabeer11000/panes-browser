@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, screen, session, shell } from 'electron'
 import { createServer } from 'http'
 import { existsSync, statSync } from 'fs'
 import { pathToFileURL } from 'url'
@@ -19,6 +19,7 @@ import { PasswordStore, registerPasswordIpc } from './passwords'
 import { registerInternalIpc, registerInternalScheme, serveInternalPages } from './internal'
 import icon from '../../resources/icon.png?asset'
 import { PermissionManager, PermissionStore } from './permissions'
+import { SitePanel } from './sitePanel'
 import { SiteSettings } from './sites'
 import { SettingsStore } from './settings'
 import { SpaceStore } from './spaces'
@@ -320,6 +321,15 @@ function createWindow(): void {
   ipcMain.on('pip:toggle', () => tabs.togglePip())
   ipcMain.on('pip:exit', () => tabs.exitPip())
   ipcMain.on('tabs:close-pane', (_e, id: number) => tabs.closePane(id))
+  const sitePanel = new SitePanel({ win, sites, pickElement: (done) => tabs.pickElement(done) })
+  ipcMain.on('site:panel-toggle', (e, raw: unknown) => {
+    const r = raw as Partial<Rect> | null
+    if (e.sender !== win.webContents || !r) return
+    const ok = [r.x, r.y, r.width, r.height].every(
+      (n) => typeof n === 'number' && Number.isFinite(n)
+    )
+    if (ok) sitePanel.toggle(r as Rect)
+  })
   ipcMain.handle('site:info', () => sites.info())
   ipcMain.handle('site:update', (_e, patch: unknown) => sites.update(patch))
   ipcMain.on('tabs:add-to-group', (_e, id: number, groupId: number) => tabs.addToGroup(id, groupId))
@@ -624,7 +634,20 @@ if (gotLock)
     })
   })
 
-app.on('before-quit', flushAllStores)
+let quitting = false
+app.on('before-quit', () => {
+  quitting = true
+  flushAllStores()
+})
+
+// While the app quits (an update restarting it, say) late callbacks can touch windows and pages that are
+// already gone. That is harmless, so it must not become an error popup. Anything else still is one.
+process.on('uncaughtException', (err) => {
+  console.error('[main] uncaught:', err)
+  const message = String((err as Error)?.message ?? err)
+  if (quitting || /Object has been destroyed/.test(message)) return
+  dialog.showErrorBox('Panes ran into a problem', String((err as Error)?.stack ?? message))
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

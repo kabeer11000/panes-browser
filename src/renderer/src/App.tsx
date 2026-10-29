@@ -16,12 +16,14 @@ import { HorizontalTabs } from './components/HorizontalTabs'
 import { SpaceSwitcher } from './components/SpaceSwitcher'
 import { WindowControls } from './components/WindowControls'
 import { useSpaceDir } from './hooks/useSpaceDir'
+import { holdOverlay, releaseOverlay } from './overlay'
 import { useScheme } from './useScheme'
 import { useSwipe } from './hooks/useSwipe'
 import { useTabDrag } from './hooks/useTabDrag'
 import { useTabs } from './hooks/useTabs'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../shared/settings'
 import type { LoginEdits, PasswordPrompt, Settings } from '../../shared/types'
+import { maxSafeTint } from '../../shared/color'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 
 type Mode = 'grid' | 'stack' | 'search' | null
@@ -136,7 +138,7 @@ function App(): React.JSX.Element {
               : null
         )
       }
-      await window.api.setOverlay(true, m !== 'search')
+      await holdOverlay('app', m !== 'search')
       opening.current = false
       setMode(m)
       if (m === 'stack' && releasedEarly.current) {
@@ -266,7 +268,8 @@ function App(): React.JSX.Element {
     root.setProperty('--sidebar-full', `${sidebarWidth}px`)
     root.setProperty('--space', theme.color)
     root.setProperty('--space2', theme.color2 ?? theme.color)
-    root.setProperty('--tint', `${Math.round(theme.tint * 100)}%`)
+    const safe = maxSafeTint(theme.color, theme.color2, scheme === 'dark')
+    root.setProperty('--tint', `${Math.round(Math.min(theme.tint, safe) * 100)}%`)
     root.setProperty('--grain', String(theme.grain))
     document.documentElement.dataset.scheme = scheme
   }, [
@@ -392,7 +395,14 @@ function App(): React.JSX.Element {
             onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
           />
         )}
-        <div className={'strip drag' + (stripHidden ? ' hidden' : '')} inert={stripHidden}>
+        <div
+          className={
+            'strip drag' +
+            (stripHidden ? ' hidden' : '') +
+            (horizontal && effective.fullWidthAddress ? ' full' : '')
+          }
+          inert={stripHidden}
+        >
           {/* controls on the left, buttons on the right, and the address bar in the true middle of the window */}
           <div className="strip-side start">
             {!horizontal && window.api.platform !== 'darwin' && <WindowControls />}
@@ -465,7 +475,7 @@ function App(): React.JSX.Element {
             {drag && <DropIndicator drag={drag} />}
             <AnimatePresence
               onExitComplete={() => {
-                if (modeRef.current === null) void window.api.setOverlay(false)
+                if (modeRef.current === null) void releaseOverlay('app')
               }}
             >
               {mode === 'grid' && (

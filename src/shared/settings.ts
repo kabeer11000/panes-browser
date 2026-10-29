@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoHideTopBar: false,
   sidebarHover: false,
   tabLayout: 'vertical',
+  fullWidthAddress: true,
   searchStyle: 'dropdown',
   darkenSites: true,
   memorySaver: true,

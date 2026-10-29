@@ -12,7 +12,8 @@ export default defineConfig({
           internal: resolve('src/preload/internal.ts'),
           pip: resolve('src/preload/pip.ts'),
           popover: resolve('src/preload/popover.ts'),
-          permission: resolve('src/preload/permission.ts')
+          permission: resolve('src/preload/permission.ts'),
+          panel: resolve('src/preload/panel.ts')
         }
       }
     }
@@ -33,6 +34,7 @@ export default defineConfig({
           popover: resolve('src/renderer/popover.html'),
           error: resolve('src/renderer/error.html'),
           welcome: resolve('src/renderer/welcome.html'),
+          panel: resolve('src/renderer/panel.html'),
           permission: resolve('src/renderer/permission.html')
         }
       }

@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { isPlain, sanitizeSiteTheme, siteKey, siteThemeCss } from './sitetheme'
+import {
+  DEFAULT_THEME,
+  gradientMapSvg,
+  isPlain,
+  isSafeSelector,
+  sanitizeSiteTheme,
+  siteKey,
+  siteThemeCss,
+  tintShades,
+  withTheme
+} from './sitetheme'
 
 describe('siteKey', () => {
   test('lowercases the host and drops www', () => {
@@ -15,61 +25,110 @@ describe('siteKey', () => {
 })
 
 describe('sanitizeSiteTheme', () => {
-  test('keeps a valid theme and lowercases the tint', () => {
-    expect(sanitizeSiteTheme({ dark: true, tint: '#FF8800', strength: 0.5 })).toEqual({
+  test('keeps a valid boost and lowercases the tint', () => {
+    const t = sanitizeSiteTheme({ dark: true, tint: '#FF8800', strength: 0.5, font: 'serif' })
+    expect(t).toMatchObject({ dark: true, tint: '#ff8800', strength: 0.5, font: 'serif' })
+  })
+
+  test('fills what an older saved boost lacks', () => {
+    const t = sanitizeSiteTheme({ dark: true, tint: null, strength: 0.45 })!
+    expect(t.brightness).toBe(1)
+    expect(t.zap).toEqual([])
+    expect(t.css).toBe('')
+  })
+
+  test('clamps every number into its range', () => {
+    const t = sanitizeSiteTheme({
       dark: true,
-      tint: '#ff8800',
-      strength: 0.5
-    })
+      strength: 9,
+      brightness: 5,
+      contrast: -3,
+      saturation: 7
+    })!
+    expect([t.strength, t.brightness, t.contrast, t.saturation]).toEqual([1, 1.4, 0.6, 2])
   })
 
-  test('clamps strength and defaults it when missing or not a number', () => {
-    expect(sanitizeSiteTheme({ dark: true, tint: null, strength: 9 })?.strength).toBe(1)
-    expect(sanitizeSiteTheme({ dark: true, tint: null, strength: -2 })?.strength).toBe(0)
-    expect(sanitizeSiteTheme({ dark: true, tint: null, strength: 'x' })?.strength).toBe(0.45)
-    expect(sanitizeSiteTheme({ dark: true })?.strength).toBe(0.45)
-  })
-
-  test('drops a tint that is not a six digit hex colour, so it can never smuggle CSS', () => {
+  test('drops a tint or font it does not know, so neither can smuggle CSS', () => {
     for (const tint of ['red', '#fff', 'url(x)', '#12345; x', 5, {}]) {
-      expect(sanitizeSiteTheme({ dark: true, tint, strength: 0.5 })?.tint).toBeNull()
+      expect(sanitizeSiteTheme({ dark: true, tint })?.tint).toBeNull()
     }
+    expect(sanitizeSiteTheme({ dark: true, font: 'comic; x' })?.font).toBeNull()
   })
 
-  test('returns null for a theme that changes nothing, and for junk', () => {
-    expect(sanitizeSiteTheme({ dark: false, tint: null, strength: 0.5 })).toBeNull()
-    expect(sanitizeSiteTheme({ dark: 'yes', tint: 'nope' })).toBeNull()
+  test('keeps only safe, unique selectors to hide', () => {
+    const t = sanitizeSiteTheme({
+      zap: ['.ad', '.ad', ' #banner ', 'a{color:red}', 'x; y', '@import', 'div > p', 5]
+    })!
+    expect(t.zap).toEqual(['.ad', '#banner', 'div > p'])
+  })
+
+  test('returns null for a boost that changes nothing, and for junk', () => {
+    expect(sanitizeSiteTheme({ ...DEFAULT_THEME })).toBeNull()
+    expect(sanitizeSiteTheme({ tint: '#ff0000', strength: 0 })).toBeNull() // a tint at no strength is nothing
     for (const v of [null, undefined, 3, 'x']) expect(sanitizeSiteTheme(v)).toBeNull()
+  })
+
+  test('custom CSS is capped', () => {
+    expect(sanitizeSiteTheme({ css: 'a{}'.repeat(10000) })!.css.length).toBe(20000)
+  })
+})
+
+describe('isSafeSelector', () => {
+  test('accepts selectors and refuses anything that could write other CSS', () => {
+    for (const s of ['.ad', '#top > .bar:not(.x)', 'a[href^="http"]'])
+      expect(isSafeSelector(s)).toBe(true)
+    for (const s of ['', 'a{b}', 'a;b', '@media', 'a/*x*/', 'a[x=url(y)]', '<script>'])
+      expect(isSafeSelector(s)).toBe(false)
   })
 })
 
 describe('siteThemeCss', () => {
   test('is empty when there is nothing to do', () => {
-    expect(isPlain({ dark: false, tint: null, strength: 0.5 })).toBe(true)
-    expect(siteThemeCss({ dark: false, tint: null, strength: 0.5 })).toBe('')
+    expect(isPlain(DEFAULT_THEME)).toBe(true)
+    expect(siteThemeCss(DEFAULT_THEME)).toBe('')
   })
 
   test('dark mode inverts the page and puts media back', () => {
-    const css = siteThemeCss({ dark: true, tint: null, strength: 0.5 })
+    const css = siteThemeCss(withTheme(null, { dark: true }))
     expect(css).toContain('html { filter: invert(1) hue-rotate(180deg) !important;')
     expect(css).toContain('img, picture, video')
   })
 
-  test('a tint is a sepia and hue rotation toward its hue, without touching media', () => {
-    const css = siteThemeCss({ dark: false, tint: '#0000ff', strength: 1 })
-    expect(css).toContain('sepia(0.80)')
-    expect(css).toContain('saturate(2.50)')
-    expect(css).toContain('hue-rotate(190deg)') // blue is 240 degrees, sepia sits near 50
-    expect(css).not.toContain('invert')
+  test('a theme colour is a gradient map, not a colour shift, and does not touch media on its own', () => {
+    const css = siteThemeCss(withTheme(null, { tint: '#3b82f6', strength: 0.7 }))
+    expect(css).toContain('url("data:image/svg+xml,')
+    expect(css).not.toContain('sepia')
+    expect(css).not.toContain('hue-rotate')
+    expect(css).not.toContain('img, picture')
   })
 
-  test('dark mode and a tint share one filter chain, dark first', () => {
-    const css = siteThemeCss({ dark: true, tint: '#ff0000', strength: 0 })
-    expect(css.indexOf('invert(1)')).toBeLessThan(css.indexOf('sepia('))
+  test('brightness, contrast and saturation only appear when changed', () => {
+    expect(siteThemeCss(withTheme(null, { dark: true }))).not.toContain('brightness')
+    const css = siteThemeCss(withTheme(null, { brightness: 1.2, contrast: 0.9, saturation: 1.5 }))
+    expect(css).toContain('brightness(1.20) contrast(0.90) saturate(1.50)')
   })
 
-  test('a tint with strength 0 still produces a mild wash, and out of range strength is clamped', () => {
-    expect(siteThemeCss({ dark: false, tint: '#ff0000', strength: 0 })).toContain('sepia(0.15)')
-    expect(siteThemeCss({ dark: false, tint: '#ff0000', strength: 5 })).toContain('sepia(0.80)')
+  test('a font only covers text elements, hidden elements get a rule each, and your CSS comes last', () => {
+    const css = siteThemeCss(
+      withTheme(null, { font: 'serif', zap: ['.a', '.b'], css: 'body{margin:0}' })
+    )
+    expect(css).toContain('font-family: Georgia')
+    expect(css).toContain('.a { display: none !important; }')
+    expect(css).toContain('.b { display: none !important; }')
+    expect(css.trim().endsWith('body{margin:0}')).toBe(true)
+  })
+})
+
+describe('gradient map', () => {
+  test('shades run from a dark to a light end in the tint hue', () => {
+    const { dark, light } = tintShades('#3b82f6')
+    expect(parseInt(dark.slice(1, 3), 16)).toBeLessThan(0x30)
+    expect(parseInt(light.slice(1, 3), 16)).toBeGreaterThan(0xd0)
+    expect(parseInt(light.slice(5, 7), 16)).toBeGreaterThan(parseInt(light.slice(1, 3), 16)) // still blue
+  })
+
+  test('strength blends the map with the original page', () => {
+    expect(gradientMapSvg('#3b82f6', 0.25)).toContain('k2="0.250" k3="0.750"')
+    expect(gradientMapSvg('#3b82f6', 9)).toContain('k2="1.000" k3="0.000"')
   })
 })

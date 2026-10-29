@@ -160,6 +160,16 @@ export function Settings(): React.JSX.Element {
             onChange={(v) => void update({ tabLayout: v })}
           />
         </Row>
+        <Row
+          label="Address bar spans the whole row"
+          hint="With tabs along the top: the address bar stretches from side to side. Off keeps it in the middle."
+        >
+          <Toggle
+            label="Address bar spans the whole row"
+            on={s.fullWidthAddress}
+            onChange={(v) => void update({ fullWidthAddress: v })}
+          />
+        </Row>
       </Group>
 
       <Group
