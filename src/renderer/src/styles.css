@@ -3439,3 +3439,30 @@ kbd {
   margin-right: calc(-10px * var(--d));
   padding-right: calc(10px * var(--d));
 }
+
+/* ---- the taper: where the active tab meets the toolbar, the surface curves up into it ---- */
+.htab.active {
+  overflow: visible;
+}
+.htab-foot {
+  position: absolute;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+.htab-foot.l {
+  left: -10px;
+  background: radial-gradient(circle at 0 0, transparent 9.5px, var(--tab-surface) 10px);
+}
+.htab-foot.r {
+  right: -10px;
+  background: radial-gradient(circle at 100% 0, transparent 9.5px, var(--tab-surface) 10px);
+}
+.htab-list {
+  padding: 0 10px; /* room for the first and last tab's feet */
+}
+/* and the surface goes all the way down: toolbar, the margins around the page, and the bottom edge */
+.stage-wrap.hlayout {
+  background: var(--tab-surface);
+}

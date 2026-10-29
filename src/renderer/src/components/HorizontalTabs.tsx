@@ -201,6 +201,12 @@ export function HorizontalTabs({
               }}
               onAuxClick={(e) => e.button === 1 && window.api.closeTab(t.id)}
             >
+              {t.id === activeId && (
+                <>
+                  <span className="htab-foot l" aria-hidden="true" />
+                  <span className="htab-foot r" aria-hidden="true" />
+                </>
+              )}
               <TabFavicon tab={t} />
               <span className="htab-title">{tabTitle(t)}</span>
               <CaptureBadge capture={t.capture} />
