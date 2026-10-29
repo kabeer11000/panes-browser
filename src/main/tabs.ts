@@ -906,7 +906,7 @@ export class TabManager {
     const wc = this.current()?.view.webContents
     if (!wc || !/^https?:/i.test(wc.getURL())) return
     const name = (wc.getTitle() || 'page')
-      .replace(/[\/:*?"<>|]+/g, ' ')
+      .replace(/[\\/:*?"<>|]+/g, ' ')
       .trim()
       .slice(0, 80)
     const { canceled, filePath } = await dialog.showSaveDialog(this.win, {
