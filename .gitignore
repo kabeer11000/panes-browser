@@ -6,3 +6,7 @@ out
 *.log*
 .remember
 .debug-shot*.png
+.debug-userdata
+
+Logos.zip
+No Background.png
