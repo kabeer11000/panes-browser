@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   Menu,
   nativeTheme,
   shell,
@@ -13,6 +14,7 @@ import {
   type WebContents
 } from 'electron'
 import { writeFileSync } from 'fs'
+import { pathToFileURL } from 'url'
 import {
   GROUP_COLORS,
   GROUP_COLOR_NAMES,
@@ -869,12 +871,56 @@ export class TabManager {
   forward(): void {
     this.current()?.view.webContents.navigationHistory.goForward()
   }
-  reload(): void {
+  reload(hard = false): void {
     const tab = this.current()
     if (!tab) return
     // Reloading an error page means trying the address that failed, not showing the error again.
     if (tab.failed) void tab.view.webContents.loadURL(tab.failed.url).catch(() => {})
+    else if (hard) tab.view.webContents.reloadIgnoringCache()
     else tab.view.webContents.reload()
+  }
+
+  /** Next or previous match of the last search, or open the find bar if there has been none. */
+  private findAgain(forward: boolean): void {
+    if (this.lastFind) this.find(this.lastFind, forward)
+    else this.command('find')
+  }
+
+  /** Move the current tab one place along the list (Ctrl+Shift+PageUp/Down). */
+  private moveActive(delta: 1 | -1): void {
+    if (this.activeId === null) return
+    const i = this.own().indexOf(this.activeId)
+    const to = i + delta
+    if (i === -1 || to < 0 || to >= this.own().length) return
+    this.moveTab(this.activeId, delta > 0 ? to + 1 : to)
+  }
+
+  private viewSource(): void {
+    const url = this.current()?.view.webContents.getURL()
+    if (!url || !/^https?:/i.test(url)) return
+    const id = this.create('')
+    void this.tabs.get(id)?.view.webContents.loadURL(`view-source:${url}`)
+  }
+
+  private async savePage(): Promise<void> {
+    const wc = this.current()?.view.webContents
+    if (!wc || !/^https?:/i.test(wc.getURL())) return
+    const name = (wc.getTitle() || 'page')
+      .replace(/[\/:*?"<>|]+/g, ' ')
+      .trim()
+      .slice(0, 80)
+    const { canceled, filePath } = await dialog.showSaveDialog(this.win, {
+      defaultPath: `${name}.html`,
+      filters: [{ name: 'Web page', extensions: ['html'] }]
+    })
+    if (!canceled && filePath) await wc.savePage(filePath, 'HTMLComplete').catch(() => {})
+  }
+
+  private async openFile(): Promise<void> {
+    const { canceled, filePaths } = await dialog.showOpenDialog(this.win, {
+      properties: ['openFile']
+    })
+    if (!canceled && filePaths[0]) this.create(pathToFileURL(filePaths[0]).href)
   }
   stop(): void {
     this.current()?.view.webContents.stop()
@@ -1290,8 +1336,11 @@ export class TabManager {
     if (mod && !input.alt && !input.shift) {
       if (k === 't') this.create()
       else if (k === 'w' && this.activeId !== null) this.close(this.activeId)
+      else if (k === 'f4' && this.activeId !== null) this.close(this.activeId)
       else if (k === 'l') this.command('focus-address')
       else if (k === 'r') this.reload()
+      else if (k === 'f5') this.reload(true)
+      else if (k === 'u') this.viewSource()
       else if (k === 'b') this.command('toggle-sidebar')
       else if (k === '\\') this.toggleSplit()
       else if (k === 'f') this.command('find')
@@ -1314,7 +1363,14 @@ export class TabManager {
       if (target) this.switchSpace(target.id)
       else handled = false
     } else if (mod && input.shift && !input.alt) {
-      if (k === 'tab') this.send('ui:stack-wheel', -STACK_STEP)
+      if (k === 'r') this.reload(true)
+      else if (k === 'delete')
+        this.openInternal('settings') // clear browsing data lives there
+      else if (k === 'b') this.openInternal('bookmarks')
+      else if (k === 'j' || k === 'c') this.current()?.view.webContents.toggleDevTools()
+      else if (k === 'pagedown') this.moveActive(1)
+      else if (k === 'pageup') this.moveActive(-1)
+      else if (k === 'tab') this.send('ui:stack-wheel', -STACK_STEP)
       else if (k === 'a') this.command('toggle-taskview')
       else if (k === 't') this.reopenClosed()
       else if (k === 'o') this.openInternal('bookmarks')
@@ -1335,9 +1391,16 @@ export class TabManager {
       if (k === 'arrowleft') this.back()
       else if (k === 'arrowright') this.forward()
       else if (k === 'p') this.togglePip()
+      else if (k === 'd') this.command('focus-address')
       else handled = false
     } else if (k === 'f5' && !mod) {
       this.reload()
+    } else if (k === 'f6' && !mod) {
+      this.command('focus-address')
+    } else if (k === 'f3' && !mod) {
+      this.findAgain(!input.shift)
+    } else if (k === 'f11' && !mod) {
+      this.win.setFullScreen(!this.win.isFullScreen())
     } else if (k === 'f12' && !mod) {
       this.current()?.view.webContents.toggleDevTools()
     } else if (k === 'escape' && this.fullscreenId !== null) {
@@ -1561,6 +1624,9 @@ export class TabManager {
       { type: 'separator' },
       { label: 'Find in page', accelerator: 'CmdOrCtrl+F', click: () => this.command('find') },
       { label: 'Save all tabs as a session', click: () => this.dumpTabs() },
+      { label: 'Save page as...', click: () => void this.savePage() },
+      { label: 'Open file...', click: () => void this.openFile() },
+      { label: 'View page source', accelerator: 'CmdOrCtrl+U', click: () => this.viewSource() },
       { type: 'separator' },
       { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => this.openInternal('settings') },
       page('About and updates', 'software')
