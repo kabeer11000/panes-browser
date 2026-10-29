@@ -196,6 +196,8 @@ export class TabManager {
       tor: TorManager
       /** The Chrome user agent, for the few sites that insist on Chrome (the sessions carry the plain one). */
       chromeUa: string
+      /** The app icon, for pop-up windows. */
+      icon: string
       /** In-memory session whose traffic goes through Tor's local proxy (and nowhere else). */
       torSession: Session
     }
@@ -480,6 +482,38 @@ export class TabManager {
    * Start loading an address, once the tab has taken on the identity that address wants. A first page that
    * loads before that sees one browser in its user agent and another in its client hints.
    */
+  /**
+   * How a pop-up (a sign-in window) looks: centred over the browser, the size the page asked for, in the colours
+   * of the browser's scheme, with the browser's icon and no menu bar. The title bar stays: it shows the address
+   * you are signing in on.
+   */
+  private popupOptions(
+    features: string,
+    session: Session
+  ): Electron.BrowserWindowConstructorOptions {
+    const asked = (name: string, fallback: number): number => {
+      const m = new RegExp(`${name}=(\\d+)`, 'i').exec(features)
+      return m ? Number(m[1]) : fallback
+    }
+    const width = Math.min(Math.max(asked('width', 480), 360), 900)
+    const height = Math.min(Math.max(asked('height', 640), 400), 900)
+    const at = this.win.getBounds()
+    return {
+      width,
+      height,
+      x: Math.round(at.x + (at.width - width) / 2),
+      y: Math.round(at.y + (at.height - height) / 3),
+      minWidth: 360,
+      minHeight: 400,
+      parent: this.win,
+      autoHideMenuBar: true,
+      title: 'Panes',
+      icon: this.deps.icon,
+      backgroundColor: nativeTheme.shouldUseDarkColors ? '#16161c' : '#ffffff',
+      webPreferences: { session, sandbox: true }
+    }
+  }
+
   private identities(tab: { private: boolean; tor: boolean }): { plain: string; chrome: string } {
     return { plain: this.sessionFor(tab).getUserAgent(), chrome: this.deps.chromeUa }
   }
@@ -1381,12 +1415,14 @@ export class TabManager {
     const tabSession = this.sessionFor(tab)
     // Nothing about the real network address may leave through WebRTC in a Tor tab.
     if (tab.tor) wc.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
-    wc.on('did-create-window', (child) => {
-      void applyIdentity(
-        child.webContents,
-        { plain: tabSession.getUserAgent(), chrome: this.deps.chromeUa },
-        child.webContents.getURL()
-      )
+    wc.on('did-create-window', (child, details) => {
+      // A pop-up (Google sign-in, for one) is on its way to an address already: give it the identity that address wants
+      // without loading anything, and keep it matched as it moves on.
+      const ids = { plain: tabSession.getUserAgent(), chrome: this.deps.chromeUa }
+      void applyIdentity(child.webContents, ids, details.url, false)
+      child.webContents.on('did-start-navigation', (d) => {
+        if (d.isMainFrame && !d.isSameDocument) followIdentity(child.webContents, ids, d.url)
+      })
     })
     wc.on('did-start-loading', refresh)
     wc.on('dom-ready', () => {
@@ -1517,11 +1553,7 @@ export class TabManager {
       if (disposition === 'new-window' || /\b(width|height|popup)\b/i.test(features)) {
         return {
           action: 'allow',
-          overrideBrowserWindowOptions: {
-            autoHideMenuBar: true,
-            backgroundColor: '#ffffff',
-            webPreferences: { session: tabSession, sandbox: true }
-          }
+          overrideBrowserWindowOptions: this.popupOptions(features, tabSession)
         }
       }
       this.openLink(url, id)

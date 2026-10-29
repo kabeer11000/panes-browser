@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { ROOT_TARGET, type Edge } from '../../../shared/layout'
 import { groupForSlot } from '../../../shared/tabgroups'
+import { settleDrag } from './dragSettle'
 import { holdOverlay, releaseOverlay } from '../overlay'
 
 export type DragSource = 'tab' | 'pane'
@@ -23,6 +24,7 @@ export interface DragState {
   id: number
   /** Where the pointer was when the press began, so a dragged tab can follow it from there. */
   startX: number
+  startY: number
   source: DragSource
   x: number
   y: number
@@ -277,6 +279,7 @@ export function useTabDrag(
         setDrag({
           id,
           startX: sx,
+          startY: sy,
           source,
           x: ev.clientX,
           y: ev.clientY,
@@ -291,7 +294,17 @@ export function useTabDrag(
         window.removeEventListener('pointercancel', up)
         if (!dragging) return onClick(id)
         const { target } = targetAt(ev.clientX, ev.clientY, id, ctxRef.current())
-        setDrag(null)
+        void (async () => {
+          // a tab dropped in its list glides into its place first, then the new order is made
+          if (ev.type === 'pointerup' && source === 'tab' && target?.kind === 'list') {
+            await settleDrag()
+          }
+          setDrag(null)
+          finish(ev, target)
+          void releaseOverlay('drag')
+        })()
+      }
+      const finish = (ev: globalThis.PointerEvent, target: DropTarget | null): void => {
         if (ev.type === 'pointerup' && target) {
           if (target.kind === 'space') window.api.moveTabToSpace(id, target.spaceId)
           else if (target.kind === 'group') {
@@ -300,7 +313,6 @@ export function useTabDrag(
           else if (source === 'tab') window.api.moveTab(id, target.index, target.groupId)
           else window.api.closePane(id) // a pane dragged back onto the sidebar leaves the group
         }
-        if (dragging) void releaseOverlay('drag')
       }
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)

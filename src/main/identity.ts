@@ -81,11 +81,13 @@ async function setIdentity(wc: WebContents, ids: Identities, chrome: boolean): P
 export async function applyIdentity(
   wc: WebContents,
   ids: Identities,
-  firstUrl: string
+  firstUrl: string,
+  /** Load a blank page first so commands have a renderer to talk to. Not for a pop-up already on its way somewhere. */
+  prime = true
 ): Promise<void> {
   try {
     // Commands to a page that has never loaded anything wait for a renderer that does not exist yet.
-    if (!wc.getURL()) await wc.loadURL('about:blank').catch(() => undefined)
+    if (prime && !wc.getURL()) await wc.loadURL('about:blank').catch(() => undefined)
     if (!wc.debugger.isAttached()) wc.debugger.attach('1.3')
     await setIdentity(wc, ids, wantsChromeIdentity(firstUrl))
     await wc.debugger.sendCommand('Page.enable').catch(() => undefined)

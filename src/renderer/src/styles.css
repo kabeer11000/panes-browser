@@ -1567,13 +1567,6 @@ button {
 .space-chip.active {
   opacity: 1;
 }
-.space-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--sc) 22%, transparent);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sc) 70%, var(--fg));
-}
 .space-chip .sav {
   position: relative;
 }
@@ -3750,9 +3743,6 @@ kbd {
   gap: 2px;
   padding: 0 4px 0 0;
 }
-.space-chip.sounding .space-ring {
-  inset: 0;
-}
 .space-sound {
   position: relative;
   display: grid;
@@ -3892,4 +3882,17 @@ kbd {
 .tab-pin svg {
   width: 13px;
   height: 13px;
+}
+
+/* the tab being dragged along its list is the tab itself, lifted above the others, in the sidebar as along the top */
+.tab-row.floating {
+  z-index: 6;
+  opacity: 1;
+  transition: none;
+  background: var(--tab-surface-strong);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  cursor: grabbing;
+}
+.tab-list:has(.tab-row.floating) {
+  overflow: visible;
 }

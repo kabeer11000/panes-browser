@@ -34,7 +34,7 @@ export function SpaceSwitcher({
 }: Props): React.JSX.Element {
   const [editingSpace, setEditingSpace] = useState<number | null>(null)
   const editing = spaces.find((s) => s.id === editingSpace)
-  const groupId = useId() // the sliding ring is shared by one row only, never across switchers
+  const groupId = useId() // scopes the layout animation to this row, never across switchers
   const owner = 'space-' + groupId
   const audio = useSpaceAudio()
 
@@ -78,8 +78,6 @@ export function SpaceSwitcher({
                 layout
                 data-space={s.id}
                 title={`${s.name} (Ctrl+Alt+${i + 1}). ${on ? 'Click to edit' : 'Right-click to edit'}.`}
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.92 }}
                 onClick={() =>
                   on
                     ? setEditingSpace(editingSpace === s.id ? null : s.id)
@@ -90,14 +88,6 @@ export function SpaceSwitcher({
                   setEditingSpace(s.id)
                 }}
               >
-                {on && (
-                  <motion.span
-                    layoutId="space-ring"
-                    className="space-ring"
-                    style={{ ['--sc' as string]: s.color }}
-                    transition={{ type: 'spring', stiffness: 520, damping: 34 }}
-                  />
-                )}
                 <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={size} />
                 {sounding && (
                   <span

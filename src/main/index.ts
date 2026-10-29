@@ -168,7 +168,8 @@ function createWindow(): void {
     dumps,
     tor,
     torSession,
-    chromeUa: chromeUserAgent()
+    chromeUa: chromeUserAgent(),
+    icon
   })
   const permissions = new PermissionStore()
   // Popover views (site panel, permission and password cards) wear the window's colours too.

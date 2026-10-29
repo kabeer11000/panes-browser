@@ -657,7 +657,7 @@ function App(): React.JSX.Element {
           </div>
         </div>
       </main>
-      {drag && !(horizontal && drag.source === 'tab' && drag.target?.kind === 'list') && (
+      {drag && !(drag.source === 'tab' && drag.target?.kind === 'list') && (
         <DragLayer drag={drag} tab={tabs.find((t) => t.id === drag.id)} />
       )}
       {installing && (

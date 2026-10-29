@@ -33,7 +33,9 @@ const CACHE_BYTES = { balanced: 512 * 1024 ** 2, efficient: 256 * 1024 ** 2 } as
  * same-site tabs for memory; Balanced keeps one process per tab.
  */
 export function flagsFor(mode: RunningMode): ChromiumFlags {
-  const disableFeatures = ['SpareRendererForSitePerProcess']
+  // FedCm: Google's sign-in tries the browser's own account chooser first, which embedded Chromium does not have
+  // ("FedCM get() rejects with NetworkError"), and only falls back to the pop-up when the API is simply absent.
+  const disableFeatures = ['SpareRendererForSitePerProcess', 'FedCm', 'FedCmAutoReauthn']
   const switches: Array<[string, string?]> = [['disk-cache-size', String(CACHE_BYTES[mode])]]
   if (mode === 'efficient') {
     switches.push(['process-per-site'], ['enable-low-end-device-mode'])
