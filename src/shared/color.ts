@@ -68,6 +68,73 @@ export function stageBackground(color: string, tint: number, dark: boolean): str
   return mixHex(color, dark ? STAGE_BASE.dark : STAGE_BASE.light, tint * STAGE_SHARE)
 }
 
+// ---- legibility ----
+
+/** Light as the eye counts it (WCAG relative luminance), 0 black to 1 white. */
+export function luminance(hex: string): number {
+  const n = parseInt(hex.slice(1), 16)
+  const lin = (v: number): number => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+  return (
+    0.2126 * lin(((n >> 16) & 255) / 255) +
+    0.7152 * lin(((n >> 8) & 255) / 255) +
+    0.0722 * lin((n & 255) / 255)
+  )
+}
+
+/** WCAG contrast ratio, 1 (none) to 21 (black on white). Body text should have at least 4.5. */
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+/** The interface's text and plain window colour in each scheme, as the CSS tokens set them. */
+export const UI_TEXT = {
+  dark: { fg: '#f4f4f8', dim: 0.74, base: '#15151b' },
+  light: { fg: '#101015', dim: 0.72, base: '#eeeef4' }
+} as const
+
+/**
+ * How readable the dimmest interface text is on the window when it is tinted: the worst contrast over the
+ * theme's one or two colours. The window is its base colour with each theme colour washed over it by `tint`.
+ */
+export function legibility(
+  color: string,
+  color2: string | null,
+  tint: number,
+  dark: boolean
+): number {
+  const { fg, dim, base } = dark ? UI_TEXT.dark : UI_TEXT.light
+  let worst = Infinity
+  for (const c of color2 ? [color, color2] : [color]) {
+    const bg = mixHex(c, base, tint)
+    worst = Math.min(worst, contrastRatio(mixHex(fg, bg, dim), bg))
+  }
+  return worst
+}
+
+/**
+ * The strongest tint at which the interface text is still comfortably readable (4.5 to 1, the usual bar
+ * for small text). A bright yellow or a deep navy cannot be pushed as far as a mid blue: that is what
+ * keeps any colour a person picks from producing a window they cannot read.
+ */
+export function maxSafeTint(
+  color: string,
+  color2: string | null,
+  dark: boolean,
+  limit = 0.7
+): number {
+  const ok = (t: number): boolean => legibility(color, color2, t, dark) >= 4.5
+  if (ok(limit)) return limit
+  let lo = 0
+  let hi = limit
+  for (let i = 0; i < 18; i++) {
+    const mid = (lo + hi) / 2
+    if (ok(mid)) lo = mid
+    else hi = mid
+  }
+  return lo
+}
+
 export type Scheme = 'single' | 'analogous' | 'complementary' | 'triad' | 'split' | 'free'
 
 /** Hue offset of the second colour for each harmony. */

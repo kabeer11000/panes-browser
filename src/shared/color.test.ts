@@ -85,3 +85,26 @@ describe('stage background', () => {
     expect(parseInt(soft.slice(1, 3), 16)).toBeGreaterThan(0x12)
   })
 })
+
+import { contrastRatio, legibility, luminance, maxSafeTint } from './color'
+
+describe('contrast guard', () => {
+  test('luminance and ratio extremes', () => {
+    expect(luminance('#000000')).toBe(0)
+    expect(luminance('#ffffff')).toBeCloseTo(1)
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21)
+  })
+  test('maxSafeTint keeps text at 4.5 or better', () => {
+    for (const c of ['#f2d94e', '#2bb3a3', '#1d2a6b', '#ffffff']) {
+      for (const dark of [true, false]) {
+        const t = maxSafeTint(c, null, dark)
+        expect(t).toBeGreaterThanOrEqual(0)
+        expect(t).toBeLessThanOrEqual(0.7)
+        expect(legibility(c, null, t, dark)).toBeGreaterThanOrEqual(4.49)
+      }
+    }
+  })
+  test('bright colours are limited more than dark ones in dark mode', () => {
+    expect(maxSafeTint('#f2d94e', null, true)).toBeLessThan(maxSafeTint('#1d2a6b', null, true))
+  })
+})

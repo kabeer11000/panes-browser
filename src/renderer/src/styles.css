@@ -1,12 +1,12 @@
 /* ---- tokens ---- */
 :root {
-  --bg: rgba(20, 20, 26, 0.74);
-  --surface: rgba(255, 255, 255, 0.055);
-  --surface-hover: rgba(255, 255, 255, 0.095);
-  --surface-active: rgba(255, 255, 255, 0.15);
-  --border: rgba(255, 255, 255, 0.08);
-  --fg: #ececf1;
-  --fg-dim: rgba(236, 236, 241, 0.58);
+  --bg: rgba(20, 20, 26, 0.8);
+  --surface: rgba(255, 255, 255, 0.07);
+  --surface-hover: rgba(255, 255, 255, 0.12);
+  --surface-active: rgba(255, 255, 255, 0.18);
+  --border: rgba(255, 255, 255, 0.12);
+  --fg: #f4f4f8;
+  --fg-dim: rgba(244, 244, 248, 0.74);
   --accent: #8b8bff;
   /* the page area leans toward the space's colour; keep the 0.28 in step with STAGE_SHARE in shared/color.ts */
   --stage-bg: color-mix(in srgb, var(--space, #121216) calc(var(--tint, 0%) * 0.28), #121216);
@@ -1933,13 +1933,13 @@ button {
 
 /* ---- light mode: the same tokens, flipped. Applies to the root and to any element that sets data-scheme. ---- */
 [data-scheme='light'] {
-  --bg: rgb(238 238 244 / 0.78);
-  --surface: rgb(0 0 0 / 0.05);
-  --surface-hover: rgb(0 0 0 / 0.08);
-  --surface-active: rgb(0 0 0 / 0.12);
-  --border: rgb(0 0 0 / 0.1);
-  --fg: #1a1a21;
-  --fg-dim: rgb(26 26 33 / 0.6);
+  --bg: rgb(238 238 244 / 0.86);
+  --surface: rgb(0 0 0 / 0.06);
+  --surface-hover: rgb(0 0 0 / 0.1);
+  --surface-active: rgb(0 0 0 / 0.15);
+  --border: rgb(0 0 0 / 0.14);
+  --fg: #101015;
+  --fg-dim: rgb(16 16 21 / 0.72);
   --stage-bg: color-mix(in srgb, var(--space, #ffffff) calc(var(--tint, 0%) * 0.28), #ffffff);
   --overlay: rgb(244 244 248 / 0.97);
   --overlay-solid: rgb(244 244 248);
@@ -3101,4 +3101,9 @@ kbd {
 }
 .sp-field:focus-within {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* tabs along the top, address bar across the whole row: the sides take what they need, the bar the rest */
+.strip.full {
+  grid-template-columns: auto minmax(160px, 1fr) auto;
 }

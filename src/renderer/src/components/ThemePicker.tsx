@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
-import { harmonize, hexToHsl, tasteful, wheelDistance } from '../../../shared/color'
+import { harmonize, maxSafeTint } from '../../../shared/color'
 import type { SpaceMode } from '../../../shared/types'
+import { ColorWheel } from './ColorWheel'
 import { type Theme } from './themeVars'
 
 interface Props extends Theme {
@@ -29,47 +29,6 @@ const PRESETS: Preset[] = [
   { color: '#3b82f6', color2: null }
 ]
 
-const WHEEL = 200 // css px
-const DOT_GAP = 8.6
-const DOT_R = 2.5
-
-/** Position of a colour on the wheel, as percentages of the wheel box. */
-function puckPos(hex: string): { left: string; top: string } {
-  const { h } = hexToHsl(hex)
-  const r = 0.2 + 0.8 * wheelDistance(hex) // the wheel's centre is a little saturated, so pucks never sit dead centre
-  const rad = (h * Math.PI) / 180
-  return { left: `${50 + 50 * r * Math.sin(rad)}%`, top: `${50 - 50 * r * Math.cos(rad)}%` }
-}
-
-/** The wheel itself: rings of small dots, hue around, saturation outward. Drawn once. */
-function DotWheel(): React.JSX.Element {
-  const ref = useRef<HTMLCanvasElement>(null)
-  useEffect(() => {
-    const el = ref.current
-    const ctx = el?.getContext('2d')
-    if (!el || !ctx) return
-    const dpr = window.devicePixelRatio || 1
-    el.width = WHEEL * dpr
-    el.height = WHEEL * dpr
-    ctx.scale(dpr, dpr)
-    const c = WHEEL / 2
-    const R = c - DOT_R - 1
-    for (let ring = 0; ring * DOT_GAP <= R; ring++) {
-      const r = ring * DOT_GAP
-      const n = ring === 0 ? 1 : Math.round((2 * Math.PI * r) / DOT_GAP)
-      const t = Math.min(1, Math.max(0, (r / c - 0.2) / 0.8))
-      for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2 // from the top, clockwise: the same hue the pointer maths reads
-        ctx.fillStyle = tasteful((a * 180) / Math.PI, t)
-        ctx.beginPath()
-        ctx.arc(c + r * Math.sin(a), c - r * Math.cos(a), DOT_R, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-  }, [])
-  return <canvas ref={ref} className="tp-dots" style={{ width: WHEEL, height: WHEEL }} />
-}
-
 const MODES: Array<{ id: SpaceMode; label: string; path: string }> = [
   {
     id: 'system',
@@ -97,32 +56,12 @@ export function ThemePicker({
   mode,
   onChange
 }: Props): React.JSX.Element {
-  const wheelRef = useRef<HTMLDivElement>(null)
-  const [active, setActive] = useState<1 | 2>(1)
-  const editing = active === 2 && color2 ? 2 : 1
-
-  const pickAt = (e: PointerEvent, which: 1 | 2): void => {
-    const box = wheelRef.current?.getBoundingClientRect()
-    if (!box) return
-    const dx = e.clientX - (box.left + box.width / 2)
-    const dy = e.clientY - (box.top + box.height / 2)
-    const h = ((Math.atan2(dx, -dy) * 180) / Math.PI + 360) % 360
-    // Map the outer 80% of the radius onto the allowed saturation range.
-    const t = (Math.min(1, Math.hypot(dx, dy) / (box.width / 2)) - 0.2) / 0.8
-    onChange(which === 1 ? { color: tasteful(h, t) } : { color2: tasteful(h, t) })
-  }
-
-  const onDown = (e: PointerEvent<HTMLDivElement>): void => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    const hit = (e.target as HTMLElement).dataset.puck
-    const which = hit === '1' || hit === '2' ? (Number(hit) as 1 | 2) : editing
-    setActive(which)
-    if (!hit) pickAt(e, which)
-  }
-  const onMove = (e: PointerEvent<HTMLDivElement>): void => {
-    if (e.buttons === 1) pickAt(e, editing)
-  }
-
+  // The strongest tint that keeps text readable; "system" has to hold in both schemes.
+  const safe = Math.min(
+    mode === 'light' ? 1 : maxSafeTint(color, color2, true),
+    mode === 'dark' ? 1 : maxSafeTint(color, color2, false)
+  )
+  const shown = Math.min(tint, safe)
   return (
     <div className="tp" style={{ ['--tpc' as string]: color }}>
       <div className="tp-head">
@@ -148,38 +87,14 @@ export function ThemePicker({
       </div>
 
       <div className="tp-panel">
-        <div
-          className="tp-wheel"
-          ref={wheelRef}
-          style={{ width: WHEEL, height: WHEEL }}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          role="group"
-          aria-label="Colour wheel"
-        >
-          <DotWheel />
-          <span
-            className={'tp-puck' + (editing === 1 ? ' on' : '')}
-            data-puck="1"
-            style={{ ...puckPos(color), background: color }}
-          />
-          {color2 && (
-            <span
-              className={'tp-puck small' + (editing === 2 ? ' on' : '')}
-              data-puck="2"
-              style={{ ...puckPos(color2), background: color2 }}
-            />
-          )}
-        </div>
+        <ColorWheel color={color} color2={color2} onChange={onChange} />
         <button
           type="button"
           className="tp-add"
           onClick={() => {
             if (color2) {
-              setActive(1)
               onChange({ color2: null })
             } else {
-              setActive(2)
               onChange({ color2: harmonize(color, 'analogous') })
             }
           }}
@@ -207,7 +122,6 @@ export function ThemePicker({
                   : p.color
             }}
             onClick={() => {
-              setActive(1)
               onChange({
                 color: p.color,
                 color2: p.color2,
@@ -226,11 +140,12 @@ export function ThemePicker({
           min={0}
           max={0.7}
           step={0.01}
-          value={tint}
-          style={{ ['--pct' as string]: `${(tint / 0.7) * 100}%` }}
-          onChange={(e) => onChange({ tint: Number(e.target.value) })}
+          value={shown}
+          style={{ ['--pct' as string]: `${(shown / 0.7) * 100}%` }}
+          onChange={(e) => onChange({ tint: Math.min(Number(e.target.value), safe) })}
+          title={safe < 0.7 ? 'Limited so text stays readable on this colour' : undefined}
         />
-        <em>{Math.round((tint / 0.7) * 100)}%</em>
+        <em>{Math.round((shown / 0.7) * 100)}%</em>
       </label>
       <label className="tp-slider">
         <span>Texture</span>
