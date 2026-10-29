@@ -683,9 +683,27 @@ export class TabManager {
     this.activeId = remembered != null && own.includes(remembered) ? remembered : (own[0] ?? null)
   }
 
+  /** While the light or dark scheme flips under the pages, they stay out of sight behind their pictures. */
+  private settling = false
+  private settleTimer: NodeJS.Timeout | null = null
+
+  private settle(ms: number): void {
+    this.settling = true
+    if (this.settleTimer) clearTimeout(this.settleTimer)
+    this.settleTimer = setTimeout(() => {
+      this.settling = false
+      this.settleTimer = null
+      this.applyVisibility()
+    }, ms)
+    this.settleTimer.unref()
+  }
+
   switchSpace(id: number): void {
     if (id === this.activeSpaceId || !this.deps.spaces.get(id)) return
+    const dark = nativeTheme.shouldUseDarkColors
     this.enterSpace(id)
+    // Going from a dark space to a light one (or back) repaints every page: do not show that happening.
+    if (nativeTheme.shouldUseDarkColors !== dark) this.settle(170)
     if (this.activeId === null) this.create()
     else this.activate(this.activeId)
   }
@@ -1261,7 +1279,7 @@ export class TabManager {
           : placed && this.fullscreenId === null
             ? { ...placed, x: placed.x + this.slideX }
             : placed
-      const show = rect !== null && !this.isBlank(tab) && !tab.awaiting
+      const show = rect !== null && !this.isBlank(tab) && !tab.awaiting && !this.settling
       // A full-screen page has no window edge to be rounded against.
       const flat = this.fullscreenId === id
       if (flat !== tab.flat && !tab.unloaded) {
