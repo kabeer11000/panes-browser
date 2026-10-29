@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Panes - the browser that thinks in panes</title>
+    <meta
+      name="description"
+      content="Panes is a browser with vertical tabs, instant split view, a tab stack, and a built-in ad blocker. Everything side by side."
+    />
+    <meta name="theme-color" content="#faf7f2" />
+    <link rel="icon" href="favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="glow glow-blue" aria-hidden="true"></div>
+    <div class="glow glow-pink" aria-hidden="true"></div>
+    <div class="glow glow-orange" aria-hidden="true"></div>
+
+    <header class="nav" id="nav">
+      <a class="brand" href="#top" aria-label="Panes home">
+        <img src="logo.png" alt="" width="28" height="28" />
+        <span>Panes</span>
+      </a>
+      <nav aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#split">Split view</a>
+        <a href="#stack">Tab stack</a>
+        <a href="#privacy">Privacy</a>
+      </nav>
+      <a class="btn btn-dark btn-sm" href="https://github.com/kabeer11000/panes-browser/releases/latest">Download</a>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <p class="pill reveal"><span class="dot"></span> 0.1 alpha is here</p>
+        <h1 class="reveal">The web, in <em>panes.</em></h1>
+        <p class="lede reveal">
+          Panes is a calm, fast browser built around the way you actually work: vertical tabs,
+          instant split view, and a stack you can scrub through. No clutter. No ads.
+        </p>
+        <div class="cta reveal">
+          <a class="btn btn-dark" href="https://github.com/kabeer11000/panes-browser/releases/latest">Download Panes</a>
+          <a class="btn btn-ghost" href="#features">See what's inside</a>
+        </div>
+
+        <div class="stage reveal" id="stage">
+          <div class="win" id="heroWin" data-mode="one">
+            <aside class="side">
+              <div class="dots"><i></i><i></i><i></i></div>
+              <div class="omni">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1.8 8h12.4M8 1.8c2 2 2 10.4 0 12.4M8 1.8c-2 2-2 10.4 0 12.4" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+                <span>notes.panes.dev</span>
+              </div>
+              <ul class="tabs" id="heroTabs">
+                <li class="tab on"><b style="--c: var(--blue)"></b>Product notes</li>
+                <li class="tab"><b style="--c: var(--pink)"></b>Launch film</li>
+                <li class="tab"><b style="--c: var(--orange)"></b>Roadmap</li>
+                <li class="tab ghost"><span>+</span>New tab</li>
+              </ul>
+              <div class="side-foot"><i></i><i></i><i></i></div>
+            </aside>
+            <div class="view">
+              <div class="pane p1">
+                <div class="pane-head"><b style="--c: var(--blue)"></b>Product notes</div>
+                <div class="doc">
+                  <span class="h"></span><span class="l w90"></span><span class="l w75"></span>
+                  <span class="l w85"></span><span class="img"></span><span class="l w60"></span>
+                  <span class="l w80"></span>
+                </div>
+              </div>
+              <div class="pane p2">
+                <div class="pane-head"><b style="--c: var(--pink)"></b>Launch film</div>
+                <div class="video"><span class="play"></span><span class="bar"><i></i></span></div>
+              </div>
+            </div>
+          </div>
+          <p class="caption">Press <kbd>Ctrl</kbd> <kbd>\</kbd> and your tab splits right where you are.</p>
+        </div>
+      </section>
+
+      <section class="marquee" aria-label="Highlights">
+        <div class="track">
+          <span>Vertical tabs</span><span>Split view</span><span>Tab stack</span><span>Built-in ad blocker</span>
+          <span>Spaces</span><span>Picture in picture</span><span>Password autofill</span><span>Find in page</span>
+          <span>Vertical tabs</span><span>Split view</span><span>Tab stack</span><span>Built-in ad blocker</span>
+          <span>Spaces</span><span>Picture in picture</span><span>Password autofill</span><span>Find in page</span>
+        </div>
+      </section>
+
+      <section class="section" id="features">
+        <h2 class="reveal">Built to <em>get out of the way.</em></h2>
+        <p class="sub reveal">
+          Every part of Panes is designed around one idea: you should see more of the web and less of the browser.
+        </p>
+
+        <div class="bento">
+          <article class="card c-wide reveal">
+            <div class="card-art art-tabs" aria-hidden="true">
+              <div class="vt"><i class="a"></i><i></i><i></i><i></i><i class="g"></i></div>
+              <div class="vt-page"></div>
+            </div>
+            <h3>Vertical tabs that breathe</h3>
+            <p>Titles you can actually read. Drag to reorder. Collapse the whole strip to a hairline when you want the page to have it all.</p>
+          </article>
+
+          <article class="card reveal">
+            <div class="card-art art-block" aria-hidden="true">
+              <div class="shield"><svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2.5 4.5 5.5v6c0 4.5 3 8.2 7.5 10 4.5-1.8 7.5-5.5 7.5-10v-6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m8.6 12.2 2.6 2.6 4.4-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="strike s1"></span><span class="strike s2"></span><span class="strike s3"></span>
+            </div>
+            <h3>Ads blocked, by default</h3>
+            <p>A fast built-in blocker, no extension to install. Flip it off in settings if you ever want to.</p>
+          </article>
+
+          <article class="card reveal">
+            <div class="card-art art-spaces" aria-hidden="true">
+              <span style="--c: var(--blue)">W</span><span style="--c: var(--pink)">H</span><span style="--c: var(--orange)">P</span>
+            </div>
+            <h3>Spaces for every part of life</h3>
+            <p>Work, home, side project. Each space keeps its own tabs so context never bleeds.</p>
+          </article>
+
+          <article class="card c-wide reveal">
+            <div class="card-art art-native" aria-hidden="true">
+              <div class="chip"><b>panes://history</b></div>
+              <div class="chip"><b>panes://bookmarks</b></div>
+              <div class="chip"><b>panes://downloads</b></div>
+              <div class="chip"><b>panes://settings</b></div>
+            </div>
+            <h3>Native pages, not afterthoughts</h3>
+            <p>History, bookmarks, downloads and settings are first-class pages with the same polish as the rest of the browser.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section dark" id="split">
+        <div class="split-copy">
+          <h2 class="reveal">Two pages. <em>One glance.</em></h2>
+          <p class="sub reveal">
+            Drop a tab on the edge of the page, or hit <kbd>Ctrl</kbd> <kbd>\</kbd>. Drag the divider to give either side the room it needs. Swap panes or close one with a click.
+          </p>
+          <ul class="ticks reveal">
+            <li>Drag a tab to the left or right edge to split</li>
+            <li>Resizable divider with a smooth, snappy feel</li>
+            <li>Swap sides or close a pane from its header</li>
+          </ul>
+        </div>
+
+        <div class="demo reveal" id="splitDemo" style="--split: 52%">
+          <div class="demo-pane dp-a">
+            <div class="pane-head"><b style="--c: var(--blue)"></b>Spec</div>
+            <div class="doc">
+              <span class="h"></span><span class="l w90"></span><span class="l w75"></span>
+              <span class="l w85"></span><span class="l w60"></span><span class="l w80"></span><span class="l w70"></span>
+            </div>
+          </div>
+          <div class="handle" id="splitHandle" role="separator" aria-orientation="vertical" aria-label="Resize panes" aria-valuemin="25" aria-valuemax="75" aria-valuenow="52" tabindex="0"><span></span></div>
+          <div class="demo-pane dp-b">
+            <div class="pane-head"><b style="--c: var(--orange)"></b>Prototype</div>
+            <div class="proto">
+              <span class="btn1"></span><span class="btn2"></span><span class="card1"></span><span class="card2"></span>
+            </div>
+          </div>
+          <p class="hint">Drag the divider</p>
+        </div>
+      </section>
+
+      <section class="section" id="stack">
+        <h2 class="reveal">A stack you can <em>scrub through.</em></h2>
+        <p class="sub reveal">
+          Hold <kbd>Ctrl</kbd> and scroll to fan through your open tabs along a timeline. Or open Task view for the whole grid at once.
+        </p>
+
+        <div class="stack reveal" id="stackDemo" tabindex="0" aria-label="Tab stack demo, hover or focus to fan out">
+          <div class="rail" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="cards">
+            <div class="sc" style="--i: 0; --c: var(--blue)"><b></b><span>Inbox</span></div>
+            <div class="sc" style="--i: 1; --c: var(--pink)"><b></b><span>Design review</span></div>
+            <div class="sc" style="--i: 2; --c: var(--orange)"><b></b><span>Docs</span></div>
+            <div class="sc" style="--i: 3; --c: #8be0b4"><b></b><span>Pull request</span></div>
+            <div class="sc" style="--i: 4; --c: #b69cff"><b></b><span>Research</span></div>
+          </div>
+          <p class="hint">Hover to fan out</p>
+        </div>
+      </section>
+
+      <section class="section" id="privacy">
+        <div class="stats">
+          <div class="stat reveal"><strong>1</strong><span>process per tab, so one bad page never takes the rest down</span></div>
+          <div class="stat reveal"><strong>0</strong><span>ads, with the built-in blocker on by default</span></div>
+          <div class="stat reveal"><strong>Local</strong><span>history, bookmarks and settings are stored on your machine</span></div>
+        </div>
+      </section>
+
+      <section class="final" id="download">
+        <img class="final-logo reveal" src="app-icon.png" alt="" width="96" height="96" />
+        <h2 class="reveal">Give your tabs <em>some room.</em></h2>
+        <p class="sub reveal">Panes 0.1.0-alpha.1. Built with Electron. Windows, macOS and Linux.</p>
+        <div class="cta reveal">
+          <a class="btn btn-dark" href="https://github.com/kabeer11000/panes-browser/releases/latest">Download for Windows</a>
+          <a class="btn btn-ghost" href="https://github.com/kabeer11000/panes-browser/releases/latest">macOS</a>
+          <a class="btn btn-ghost" href="https://github.com/kabeer11000/panes-browser/releases/latest">Linux</a>
+        </div>
+        <p class="fine reveal">Alpha software. Expect rough edges, and tell us about them.</p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <a class="brand" href="#top"><img src="logo.png" alt="" width="22" height="22" /><span>Panes</span></a>
+      <span>Made for people with too many tabs.</span>
+    </footer>
+
+    <script src="main.js"></script>
+  </body>
+</html>
