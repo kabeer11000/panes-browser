@@ -1,6 +1,6 @@
 /*
- * Builds the icon files electron-builder and the window need from the logo
- * (src/renderer/src/assets/logo.png, the transparent-background mark; swap in logo-light.png for the tile version).
+ * Builds the icon files electron-builder and the window need from build/icon-source.png:
+ * the app icon (taskbar, shortcuts, installer). It is not used inside the app itself.
  * Sizes larger than the source are skipped rather than blurred up. Run with Electron:
  *
  *   node_modules/electron/dist/electron.exe scripts/render-icons.cjs
@@ -10,7 +10,7 @@ const { mkdirSync, readFileSync, writeFileSync } = require('fs')
 const { join } = require('path')
 
 const root = join(__dirname, '..')
-const source = readFileSync(join(root, 'src/renderer/src/assets/logo.png'))
+const source = readFileSync(join(root, 'build/icon-source.png'))
 const WANTED = [1024, 512, 256, 128, 64, 48, 32, 16]
 
 /** PNGs wrapped in an ICO container (supported since Windows Vista). */
