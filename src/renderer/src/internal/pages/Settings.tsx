@@ -29,6 +29,14 @@ export function Settings(): React.JSX.Element {
   const [kinds, setKinds] = useState<Set<ClearKind>>(new Set(['history']))
   const [range, setRange] = useState(1)
   const [cleared, setCleared] = useState(false)
+  // Whether the system opens links with Panes; checked again when you come back from its settings.
+  const [isDefault, setIsDefault] = useState<boolean | null>(null)
+  useEffect(() => {
+    const check = (): void => void window.panesInternal.defaultBrowserStatus().then(setIsDefault)
+    check()
+    window.addEventListener('focus', check)
+    return () => window.removeEventListener('focus', check)
+  }, [])
 
   useEffect(() => {
     void window.panesInternal.getSettings().then((v) => setS({ ...DEFAULT_SETTINGS, ...v }))
@@ -99,6 +107,38 @@ export function Settings(): React.JSX.Element {
               { value: 'restore', label: 'Restore tabs' }
             ]}
             onChange={(v) => void update({ startup: v })}
+          />
+        </Row>
+      </Group>
+
+      <Group
+        title="Default browser"
+        footer="Windows asks you to confirm this itself, so Panes opens its default apps page. Links and HTML or PDF files then open here."
+      >
+        <Row
+          label={isDefault ? 'Panes is your default browser' : 'Make Panes your default browser'}
+          hint={
+            isDefault
+              ? 'Links from other apps open in Panes.'
+              : 'Open links from other apps, and web files, in Panes.'
+          }
+        >
+          {isDefault ? (
+            <span className="int-sub">Default</span>
+          ) : (
+            <button
+              className="int-btn primary small"
+              onClick={() => void window.panesInternal.defaultBrowserRequest()}
+            >
+              Make default
+            </button>
+          )}
+        </Row>
+        <Row label="Ask me about this" hint="Show the offer in the sidebar until you answer.">
+          <Toggle
+            label="Ask me about this"
+            on={s.askDefaultBrowser}
+            onChange={(v) => void update({ askDefaultBrowser: v })}
           />
         </Row>
       </Group>

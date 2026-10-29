@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import type { PasswordPrompt } from '../../../shared/types'
+import type { LoginEdits, PasswordPrompt } from '../../../shared/types'
 import { CloseIcon, EyeIcon, EyeOffIcon, KeyIcon } from './icons'
 
 /**
  * Offer to remember a login. Inline under the address bar when the sidebar is open; with it closed the
  * same card is shown by the popover view, which hangs under the address bar over the page.
+ * The username and password can be corrected before saving: sites often fill the wrong field.
  */
 export function SavePrompt({
   prompt,
@@ -14,18 +15,22 @@ export function SavePrompt({
   prompt: PasswordPrompt
   /** Fetches the password on request; it is never part of the prompt itself. */
   reveal: () => Promise<string | null>
-  onAnswer: (answer: 'save' | 'never' | 'dismiss') => void
+  onAnswer: (answer: 'save' | 'never' | 'dismiss', edits?: LoginEdits) => void
 }): React.JSX.Element {
   const host = new URL(prompt.origin).host
   const update = prompt.kind === 'update'
   const title = update ? 'Update password?' : 'Save password?'
 
-  // Callers key this component per prompt, so a revealed password is forgotten with its prompt.
-  const [secret, setSecret] = useState<string | null>(null)
+  // Callers key this component per prompt, so edits and a revealed password are forgotten with their prompt.
+  const [username, setUsername] = useState(prompt.username)
+  const [password, setPassword] = useState<string | null>(null) // null: leave the captured one as it is
+  const [shown, setShown] = useState(false)
   const toggleSecret = (): void => {
-    if (secret !== null) return setSecret(null)
-    void reveal().then(setSecret)
+    if (shown) return setShown(false)
+    if (password === null) void reveal().then((p) => setPassword((cur) => cur ?? p ?? ''))
+    setShown(true)
   }
+  const save = (): void => onAnswer('save', { username: username.trim(), password })
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -59,25 +64,42 @@ export function SavePrompt({
           </div>
 
           <div className="sp-fields">
-            <div className="sp-field">
+            <label className="sp-field">
               <span className="sp-key">Username</span>
-              <span className="sp-val">{prompt.username || 'None'}</span>
-            </div>
-            <div className="sp-field">
+              <input
+                className="sp-input"
+                value={username}
+                placeholder="Username or email"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Username"
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && save()}
+              />
+            </label>
+            <label className="sp-field">
               <span className="sp-key">Password</span>
-              <span className={'sp-val ' + (secret === null ? 'mask' : 'mono')}>
-                {secret ?? '••••••••'}
-              </span>
+              <input
+                className={'sp-input' + (shown ? ' mono' : '')}
+                type={shown ? 'text' : 'password'}
+                value={password ?? ''}
+                placeholder="Keep the one just typed"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Password"
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && save()}
+              />
               <button
                 type="button"
                 className="sp-eye"
-                aria-label={secret === null ? 'Show password' : 'Hide password'}
-                title={secret === null ? 'Show password' : 'Hide password'}
+                aria-label={shown ? 'Hide password' : 'Show password'}
+                title={shown ? 'Hide password' : 'Show password'}
                 onClick={toggleSecret}
               >
-                {secret === null ? <EyeIcon /> : <EyeOffIcon />}
+                {shown ? <EyeOffIcon /> : <EyeIcon />}
               </button>
-            </div>
+            </label>
           </div>
 
           <div className="sp-actions">
@@ -89,7 +111,7 @@ export function SavePrompt({
             >
               Never
             </button>
-            <button type="button" className="sp-btn primary" onClick={() => onAnswer('save')}>
+            <button type="button" className="sp-btn primary" onClick={save}>
               {update ? 'Update' : 'Save'}
             </button>
           </div>

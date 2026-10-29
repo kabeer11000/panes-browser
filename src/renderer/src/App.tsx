@@ -21,7 +21,7 @@ import { useSwipe } from './hooks/useSwipe'
 import { useTabDrag } from './hooks/useTabDrag'
 import { useTabs } from './hooks/useTabs'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../shared/settings'
-import type { PasswordPrompt, Settings } from '../../shared/types'
+import type { LoginEdits, PasswordPrompt, Settings } from '../../shared/types'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 
 type Mode = 'grid' | 'stack' | 'search' | null
@@ -58,8 +58,8 @@ function App(): React.JSX.Element {
   const [findKey, setFindKey] = useState<number | null>(null)
   const [passwordPrompt, setPasswordPrompt] = useState<PasswordPrompt | null>(null)
   useEffect(() => window.api.onPasswordPrompt(setPasswordPrompt), [])
-  const answerPassword = (answer: 'save' | 'never' | 'dismiss'): void => {
-    window.api.answerPassword(answer)
+  const answerPassword = (answer: 'save' | 'never' | 'dismiss', edits?: LoginEdits): void => {
+    window.api.answerPassword(answer, edits)
     setPasswordPrompt(null)
   }
   // The version waiting to be installed, if any: the sidebar shows a pill for it.
@@ -68,6 +68,14 @@ function App(): React.JSX.Element {
     const apply = (s: UpdateState): void => setUpdateVersion(s.kind === 'ready' ? s.version : null)
     void window.api.getUpdateState().then(apply)
     return window.api.onUpdateState(apply)
+  }, [])
+  // Whether the system already opens links with Panes; asked again when you come back from its settings.
+  const [isDefault, setIsDefault] = useState(true)
+  useEffect(() => {
+    const check = (): void => void window.api.isDefaultBrowser().then(setIsDefault)
+    check()
+    window.addEventListener('focus', check)
+    return () => window.removeEventListener('focus', check)
   }, [])
   const [anchor, setAnchor] = useState<Anchor | null>(null) // where the command bar grows out of
   const [peekBar, setPeekBar] = useState(false) // pointer at the top edge brings an auto-hidden top bar back
@@ -358,6 +366,7 @@ function App(): React.JSX.Element {
           passwordPrompt={passwordPrompt}
           onAnswerPassword={answerPassword}
           updateVersion={updateVersion}
+          defaultPrompt={settings.askDefaultBrowser && !isDefault}
           peeking={openedByHover}
           onToggle={toggleSidebar}
           onTaskView={toggleGrid}

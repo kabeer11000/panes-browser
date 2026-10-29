@@ -3034,3 +3034,71 @@ kbd {
   box-shadow: 0 0 0 2px var(--gc);
   color: var(--fg);
 }
+
+/* the default-browser offer: the update pill's shape, with a button to dismiss it */
+.default-pill {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.default-pill .pill-main {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 12px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.default-pill .pill-main i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--space);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--space) 30%, transparent);
+}
+.default-pill .pill-main span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.default-pill .pill-x {
+  flex: none;
+  width: 32px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--fg-dim);
+}
+.default-pill .pill-x:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--space) 22%, transparent);
+}
+
+/* editable fields in the save prompt */
+.sp-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 34px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  outline: 0;
+}
+.sp-input::placeholder {
+  color: var(--fg-dim);
+  opacity: 0.7;
+}
+.sp-input.mono {
+  font-family: ui-monospace, Consolas, monospace;
+}
+.sp-field:focus-within {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}

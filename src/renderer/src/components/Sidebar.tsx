@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState, type PointerEvent, type WheelEvent } from 'react'
 import { leaves, type LayoutNode } from '../../../shared/layout'
 import type { TabGroup } from '../../../shared/tabgroups'
-import type { PasswordPrompt, Settings, Space, TabInfo } from '../../../shared/types'
+import type { LoginEdits, PasswordPrompt, Settings, Space, TabInfo } from '../../../shared/types'
 import { tabTitle } from '../tabTitle'
 import { AddressBar } from './AddressBar'
 import { FindBar } from './FindBar'
@@ -48,7 +48,9 @@ interface Props {
   passwordPrompt: PasswordPrompt | null
   /** Version of a downloaded update waiting for a restart, or null. */
   updateVersion: string | null
-  onAnswerPassword: (answer: 'save' | 'never' | 'dismiss') => void
+  /** Offer to make Panes the default browser. */
+  defaultPrompt: boolean
+  onAnswerPassword: (answer: 'save' | 'never' | 'dismiss', edits?: LoginEdits) => void
   /** The pointer brought the sidebar out; the toggle then keeps it open. */
   peeking: boolean
   onToggle: () => void
@@ -76,6 +78,7 @@ export function Sidebar({
   onCloseFind,
   passwordPrompt,
   updateVersion,
+  defaultPrompt,
   onAnswerPassword,
   peeking,
   onToggle,
@@ -259,6 +262,28 @@ export function Sidebar({
           caption
           dir={dir}
         />
+        {defaultPrompt && (
+          <div className="update-pill default-pill">
+            <button
+              type="button"
+              className="pill-main"
+              onClick={() => void window.api.setDefaultBrowser()}
+              title="Open web links and files in Panes"
+            >
+              <i />
+              <span>Make Panes your default browser</span>
+            </button>
+            <button
+              type="button"
+              className="pill-x"
+              aria-label="Do not ask again"
+              title="Do not ask again"
+              onClick={() => window.api.dismissDefaultBrowser()}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+        )}
         {updateVersion && (
           <button
             type="button"

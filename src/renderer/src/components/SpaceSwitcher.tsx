@@ -34,9 +34,10 @@ export function SpaceSwitcher({
   const editing = spaces.find((s) => s.id === editingSpace)
   const groupId = useId() // the sliding ring is shared by one row only, never across switchers
 
-  // An editor that drops down over the page would sit behind the native page view, so while it is open
-  // the page is swapped for its snapshot, the same as for the search popover.
-  const dropsOverPage = placement === 'down' && editing !== undefined
+  // Page views are native and take every click over them, so while the editor is open the page is swapped
+  // for its snapshot (as for the search popover). That also lets a click anywhere outside close the editor,
+  // and keeps a dropped-down editor from hiding behind the page.
+  const dropsOverPage = editing !== undefined
   useEffect(() => {
     if (!dropsOverPage) return
     const opened = window.api.setOverlay(true)
