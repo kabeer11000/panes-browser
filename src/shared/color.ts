@@ -48,6 +48,26 @@ export function hslToHex({ h, s, l }: Hsl): string {
   return `#${hex(r)}${hex(g)}${hex(b)}`
 }
 
+/** Blend two #rrggbb colours; `t` is how much of `a` (0 to 1). */
+export function mixHex(a: string, b: string, t: number): string {
+  const k = Math.min(1, Math.max(0, t))
+  const ch = (hex: string, shift: number): number => (parseInt(hex.slice(1), 16) >> shift) & 255
+  const part = (shift: number): string =>
+    Math.round(ch(a, shift) * k + ch(b, shift) * (1 - k))
+      .toString(16)
+      .padStart(2, '0')
+  return `#${part(16)}${part(8)}${part(0)}`
+}
+
+/** How much of a space's colour reaches the page background, per unit of its intensity. Mirrors --stage-bg in styles.css. */
+export const STAGE_SHARE = 0.28
+export const STAGE_BASE = { dark: '#121216', light: '#ffffff' } as const
+
+/** The page area's background (new tab, panes:// pages, error pages) in a space: its colour, softly. */
+export function stageBackground(color: string, tint: number, dark: boolean): string {
+  return mixHex(color, dark ? STAGE_BASE.dark : STAGE_BASE.light, tint * STAGE_SHARE)
+}
+
 export type Scheme = 'single' | 'analogous' | 'complementary' | 'triad' | 'split' | 'free'
 
 /** Hue offset of the second colour for each harmony. */

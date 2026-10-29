@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { S_MAX, S_MIN, harmonize, hexToHsl, hslToHex, tasteful, wheelDistance } from './color'
+import {
+  S_MAX,
+  S_MIN,
+  harmonize,
+  hexToHsl,
+  hslToHex,
+  mixHex,
+  stageBackground,
+  tasteful,
+  wheelDistance
+} from './color'
 
 describe('colour conversion', () => {
   test('primary colours', () => {
@@ -55,5 +65,23 @@ describe('harmonize', () => {
   })
   test('analogous stays close', () => {
     expect(Math.abs(apart(hueOf(base), hueOf(harmonize(base, 'analogous'))))).toBeLessThan(45)
+  })
+})
+
+describe('stage background', () => {
+  test('mixHex blends by share and clamps', () => {
+    expect(mixHex('#ff0000', '#000000', 0.5)).toBe('#800000')
+    expect(mixHex('#ff0000', '#0000ff', 1)).toBe('#ff0000')
+    expect(mixHex('#ff0000', '#0000ff', 0)).toBe('#0000ff')
+    expect(mixHex('#ff0000', '#0000ff', 7)).toBe('#ff0000')
+  })
+
+  test('no tint leaves the plain page colour, more tint leans toward the space colour', () => {
+    expect(stageBackground('#e5754c', 0, true)).toBe('#121216')
+    expect(stageBackground('#e5754c', 0, false)).toBe('#ffffff')
+    const soft = stageBackground('#e5754c', 0.24, true)
+    const strong = stageBackground('#e5754c', 0.7, true)
+    expect(parseInt(strong.slice(1, 3), 16)).toBeGreaterThan(parseInt(soft.slice(1, 3), 16))
+    expect(parseInt(soft.slice(1, 3), 16)).toBeGreaterThan(0x12)
   })
 })

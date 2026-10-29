@@ -10,6 +10,8 @@ export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; url: string 
 export const DEFAULT_SETTINGS: Settings = {
   searchEngine: 'duckduckgo',
   adblock: true,
+  performanceMode: 'auto',
+  adblockOffSites: [],
   startup: 'newtab',
   accent: '#8b8bff',
   uiScale: 1,
@@ -20,7 +22,15 @@ export const DEFAULT_SETTINGS: Settings = {
   urlDisplay: 'full',
   searchSuggestions: true,
   autoHideTopBar: false,
-  searchStyle: 'dropdown'
+  sidebarHover: false,
+  tabLayout: 'vertical',
+  searchStyle: 'dropdown',
+  darkenSites: true,
+  memorySaver: true,
+  unloadIdleMin: 30,
+  maxLoadedTabs: 0,
+  unloadOtherSpaces: false,
+  neverUnloadSites: []
 }
 
 export type AppearanceKey = 'uiScale' | 'density' | 'sidebarWidth' | 'pageMargin' | 'addressSize'
@@ -35,7 +45,14 @@ export const APPEARANCE_LIMITS: Record<AppearanceKey, { min: number; max: number
     addressSize: { min: 0.8, max: 1.5, step: 0.05 }
   }
 
-export const INTERNAL_PAGES = ['history', 'bookmarks', 'downloads', 'settings'] as const
+export const INTERNAL_PAGES = [
+  'history',
+  'bookmarks',
+  'downloads',
+  'passwords',
+  'settings',
+  'software'
+] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]
 
 export const internalUrl = (page: InternalPage): string => `panes://${page}`

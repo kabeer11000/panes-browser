@@ -1,5 +1,12 @@
 import type { LocalSuggestion } from './search'
+import type { UpdateState } from './update'
 import type { Edge, LayoutNode } from './layout'
+import type { PerformanceMode, RunningMode } from './performance'
+import type { PermDecision, PermKind, SiteGrant } from './permissions'
+import type { TabGroup } from './tabgroups'
+import type { SpaceIcon } from './spaceicons'
+
+export type SpaceMode = 'system' | 'dark' | 'light'
 
 export interface TabInfo {
   id: number
@@ -7,8 +14,16 @@ export interface TabInfo {
   title: string
   favicon: string | null
   loading: boolean
+  /** The sidebar group this tab belongs to, if any. */
+  groupId: number | null
   /** This tab's page is out in a floating picture-in-picture window. */
   pip: boolean
+  /** The page has been unloaded to save memory (or not loaded yet) and loads when shown. */
+  unloaded: boolean
+  /** The page is currently making sound. */
+  audible: boolean
+  /** The tab's audio is muted by the user. */
+  muted: boolean
   bookmarked: boolean
   canGoBack: boolean
   canGoForward: boolean
@@ -36,9 +51,23 @@ export interface Space {
   tint: number
   /** Film grain over the tinted background, 0 to 1. */
   grain: number
-  /** Light or dark interface while in this space. */
-  mode: 'dark' | 'light'
+  /** Glyph on the space's avatar. */
+  icon: SpaceIcon
+  /** Light or dark interface while in this space; 'system' follows the operating system. */
+  mode: SpaceMode
   ui: SpaceUi
+  /** Page recolouring for individual sites, only while browsing in this space. Keyed by siteKey(). */
+  sites: Record<string, SiteTheme>
+}
+
+/** How one site's pages are recoloured in one space. */
+export interface SiteTheme {
+  /** Invert the page into a dark version (pictures stay as they are). */
+  dark: boolean
+  /** Wash the whole page toward this colour, or null for none. */
+  tint: string | null
+  /** How strong the wash is, 0 to 1. */
+  strength: number
 }
 
 /** Fields of a space that can be edited; main validates every one. */
@@ -48,7 +77,8 @@ export interface SpacePatch {
   color2?: string | null
   tint?: number
   grain?: number
-  mode?: 'dark' | 'light'
+  icon?: SpaceIcon
+  mode?: SpaceMode
   ui?: SpaceUi
 }
 
@@ -59,6 +89,8 @@ export interface TabsState {
   layout: LayoutNode | null
   spaces: Space[]
   activeSpaceId: number
+  /** Groups in the active space, in no particular order (tab order says where each one sits). */
+  tabGroups: TabGroup[]
 }
 
 export interface Rect {
@@ -96,11 +128,23 @@ export interface PanesApi {
   /** Drop a tab on an edge (or the centre) of the pane showing targetId. */
   dropTab(id: number, targetId: number, edge: Edge | 'center'): void
   closePane(id: number): void
+  /** Native right-click menus; their choices come back as state changes (and rename requests). */
+  tabMenu(id: number): void
+  addToGroup(id: number, groupId: number): void
+  siteInfo(): Promise<SiteInfo | null>
+  siteUpdate(patch: SitePatch): Promise<SiteInfo | null>
+  groupMenu(id: number): void
+  updateGroup(id: number, patch: Partial<Pick<TabGroup, 'name' | 'color' | 'collapsed'>>): void
+  onRenameGroup(cb: (id: number) => void): () => void
+  toggleMute(id: number): void
   /** Float the current tab's video in a small window (or bring it back). */
   togglePip(): void
   exitPip(): void
   /** Ask main to watch the cursor and report when it touches the top edge (auto-hidden top bar). */
   watchTopBar(enabled: boolean, barPx: number): void
+  /** Tell main whether the left-edge sidebar trigger is wanted and where the sidebar stands. */
+  watchSidebar(enabled: boolean, open: boolean, openedByHover: boolean, widthPx: number): void
+  onSideHover(cb: (action: 'open' | 'close') => void): () => void
   onPeekBar(cb: (show: boolean) => void): () => void
   suggestLocal(query: string): Promise<LocalSuggestion[]>
   suggestRemote(query: string): Promise<string[]>
@@ -122,7 +166,21 @@ export interface PanesApi {
   closeWindow(): void
   getSettings(): Promise<Settings>
   onSettings(cb: (settings: Settings) => void): () => void
-  openInternal(page: 'history' | 'bookmarks' | 'downloads' | 'settings'): void
+  openInternal(
+    page: 'history' | 'bookmarks' | 'downloads' | 'passwords' | 'settings' | 'software'
+  ): void
+  /** A login was submitted that is worth saving; null clears the prompt. */
+  onPasswordPrompt(cb: (prompt: PasswordPrompt | null) => void): () => void
+  answerPassword(answer: 'save' | 'never' | 'dismiss'): void
+  /** Where the app is with updating itself; pushed as it changes. */
+  onUpdateState(cb: (state: UpdateState) => void): () => void
+  getUpdateState(): Promise<UpdateState>
+  /** Restart into a downloaded update. */
+  installUpdate(): void
+  /** The password waiting in the save prompt, fetched only when the user asks to see it. */
+  revealPendingPassword(): Promise<string | null>
+  /** Where the save-password popover should hang, or null to hide it. Only used with the sidebar closed. */
+  setPromptAnchor(anchor: PromptAnchor | null): void
   toggleBookmark(): void
   find(text: string, forward?: boolean): void
   stopFind(): void
@@ -140,6 +198,8 @@ export type SearchEngineId = 'duckduckgo' | 'google' | 'bing' | 'brave'
 export interface Settings {
   searchEngine: SearchEngineId
   adblock: boolean
+  /** Sites (host names) where the ad blocker is off even though it is on everywhere else. */
+  adblockOffSites: string[]
   startup: 'newtab' | 'restore'
   accent: string
   /** Scales text and icons in the sidebar and headers. */
@@ -157,8 +217,61 @@ export interface Settings {
   searchSuggestions: boolean
   /** With the sidebar collapsed, hide the top bar until the pointer touches the top edge. */
   autoHideTopBar: boolean
+  /** With the sidebar collapsed, open it when the pointer touches the left edge; it tucks away again when the pointer leaves. */
+  sidebarHover: boolean
+  /** Tabs down the side (a sidebar) or along the top. */
+  tabLayout: 'vertical' | 'horizontal'
   /** Where the command bar appears: grown out of the address bar, or centred on the page. */
   searchStyle: 'dropdown' | 'center'
+  /** In a dark space, darken pages that do not have a dark theme of their own. */
+  darkenSites: boolean
+  /** How Chromium is set up at launch: one process per tab, or tabs of a site sharing one. Applies after a restart. */
+  performanceMode: PerformanceMode
+  /** Unload background tabs to free memory. They reload when you open them. */
+  memorySaver: boolean
+  /** Minutes a background tab can sit unused before it is unloaded. */
+  unloadIdleMin: number
+  /** Most tabs kept loaded at once; 0 means no limit. */
+  maxLoadedTabs: number
+  /** Tabs in spaces you are not using unload after a couple of minutes. */
+  unloadOtherSpaces: boolean
+  /** Sites whose tabs are never unloaded (host names; subdomains match too). */
+  neverUnloadSites: string[]
+}
+
+/** What the memory section of settings shows. */
+export interface MemoryStats {
+  usedMb: number
+  loaded: number
+  unloaded: number
+  /** The mode this run actually started in (the setting may have changed since). */
+  runningMode: RunningMode
+  /** This computer's memory, which Auto decides by. */
+  totalGb: number
+}
+
+/** What the site settings panel shows for the page you are on. */
+export interface SiteInfo {
+  key: string
+  origin: string
+  secure: boolean
+  spaceName: string
+  /** `global` is the main ad blocker switch; `off` is this site's exception. */
+  adblock: { global: boolean; off: boolean }
+  /** This site's boost in the current space, or null for none. */
+  boost: SiteTheme | null
+  keepLoaded: boolean
+  perms: Partial<Record<PermKind, PermDecision>>
+}
+
+/** One change from the panel; main validates every field. */
+export interface SitePatch {
+  adblockOff?: boolean
+  boost?: SiteTheme | null
+  keepLoaded?: boolean
+  /** A decision for one kind of access, or null to ask again. */
+  perm?: { kind: PermKind; decision: PermDecision | null }
+  reset?: boolean
 }
 
 export interface FindResult {
@@ -199,20 +312,70 @@ export type DownloadAction = 'open' | 'show' | 'cancel' | 'pause' | 'resume' | '
 export type ClearKind = 'history' | 'cookies' | 'cache' | 'downloads'
 
 /** API exposed to panes:// pages only. */
+/** What the save-password bar asks the user. The password itself never leaves the main process. */
+export interface PasswordPrompt {
+  origin: string
+  username: string
+  kind: 'save' | 'update'
+}
+
+export interface LoginSummary {
+  id: number
+  origin: string
+  username: string
+  updated: number
+}
+
+export interface LoginInput {
+  origin: string
+  username: string
+  password: string
+}
+
+/** What the Software page shows about this build. */
+export interface AboutInfo {
+  version: string
+  electron: string
+  chrome: string
+  node: string
+  platform: string
+  arch: string
+}
+
 export interface InternalApi {
+  updateState(): Promise<UpdateState>
+  updateCheck(): Promise<void>
+  updateInstall(): Promise<void>
+  about(): Promise<AboutInfo>
   historyList(query: string, limit: number, offset: number): Promise<HistoryEntry[]>
   historyRemove(id: number): Promise<void>
+  historyRemoveMany(ids: number[]): Promise<void>
   bookmarksList(): Promise<Bookmark[]>
   bookmarkRemove(id: number): Promise<void>
   downloadsList(): Promise<DownloadInfo[]>
   downloadAction(id: number, action: DownloadAction): Promise<void>
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): Promise<Settings>
+  permissionsList(): Promise<SiteGrant[]>
+  permissionRemove(origin: string, kind: PermKind): Promise<void>
+  permissionsReset(): Promise<void>
+  memoryStats(): Promise<MemoryStats>
+  memoryFree(): Promise<number>
+  restart(): Promise<void>
   clearData(kinds: ClearKind[], sinceMs: number | null): Promise<void>
   spacesList(): Promise<Space[]>
   spaceCreate(): Promise<Space>
   spaceUpdate(id: number, patch: SpacePatch): Promise<void>
   spaceDelete(id: number): Promise<void>
+  passwordsList(): Promise<LoginSummary[]>
+  passwordReveal(id: number): Promise<string | null>
+  /** Adds a login, or changes the password of the one with the same site and username. */
+  passwordSave(login: LoginInput): Promise<boolean>
+  passwordEdit(id: number, username: string, password: string): Promise<boolean>
+  passwordRemove(id: number): Promise<void>
+  passwordsImport(csv: string): Promise<{ added: number; skipped: number }>
+  passwordsExport(): Promise<string>
+  passwordGenerate(): Promise<string>
 }
 
 export interface PipState {
@@ -222,6 +385,59 @@ export interface PipState {
   muted: boolean
   w: number
   h: number
+}
+
+/** The address bar's rectangle in window coordinates, plus the colours the popover should wear. */
+export interface PromptAnchor {
+  x: number
+  y: number
+  width: number
+  height: number
+  theme: { scheme: 'dark' | 'light'; color: string; color2: string }
+}
+
+/** What the save-password popover shows; null prompt means nothing to show. */
+export interface PopoverState {
+  prompt: PasswordPrompt | null
+  theme: PromptAnchor['theme']
+}
+
+/** What the save-password popover (a transparent view above the page) can do. */
+export interface PopoverApi {
+  state(): Promise<PopoverState>
+  onState(cb: (state: PopoverState) => void): () => void
+  /** Content height, so the main process can size the view to fit the card. */
+  resize(height: number): void
+  answer(answer: 'save' | 'never' | 'dismiss'): void
+  reveal(): Promise<string | null>
+}
+
+/** A screen or window a page may capture, as offered in the screen-sharing picker. */
+export interface ScreenSource {
+  id: string
+  name: string
+  kind: 'screen' | 'window'
+  /** Data URL of a small preview. */
+  thumb: string
+}
+
+/** What the permission card shows: a site asking for something, or a site asking to share the screen. */
+export interface PermissionPromptState {
+  origin: string
+  kinds: PermKind[]
+  /** Present for screen sharing: what the page may capture, picked from a list instead of allowed or blocked. */
+  sources?: ScreenSource[]
+}
+
+export type PermissionAnswer =
+  { action: 'allow' | 'once' | 'block' | 'cancel' } | { action: 'share'; sourceId: string }
+
+/** What the permission card (a transparent view above the page) can do. */
+export interface PermissionApi {
+  state(): Promise<PermissionPromptState | null>
+  onState(cb: (state: PermissionPromptState | null) => void): () => void
+  resize(height: number): void
+  answer(answer: PermissionAnswer): void
 }
 
 /** What the picture-in-picture controls overlay can do. */
