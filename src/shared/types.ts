@@ -149,13 +149,17 @@ export interface PanesApi {
   /** Where each visible tab's native view goes, keyed by tab id. */
   setContentBounds(rects: Record<number, Rect>): void
   splitWith(id: number): void
+  /** Tile several tabs side by side (the tabs picked with Shift or Ctrl). */
+  splitMany(ids: number[]): void
   unsplit(keepId?: number): void
   toggleSplit(): void
   /** Drop a tab on an edge (or the centre) of the pane showing targetId. */
   dropTab(id: number, targetId: number, edge: Edge | 'center'): void
   closePane(id: number): void
   /** Native right-click menus; their choices come back as state changes (and rename requests). */
-  tabMenu(id: number): void
+  tabMenu(id: number, picked?: number[]): void
+  /** The pointer rests on a tab (with where it is) or has left it (null): show or hide its card. */
+  tabHover(id: number | null, anchor?: TabHoverAnchor): void
   /** Open or close the site panel under the address bar's site button. */
   toggleSitePanel(anchor: Rect): void
   addToGroup(id: number, groupId: number): void
@@ -199,10 +203,12 @@ export interface PanesApi {
   /** Move a tab to an insertion index (counted with the tab still in the list). */
   /** `groupId`: the group the tab ends up in (null for none); left out, it is worked out from its neighbours. */
   moveTab(id: number, index: number, groupId?: number | null): void
+  /** Move several picked tabs together to the drop slot. */
+  moveTabs(ids: number[], index: number, groupId?: number | null): void
   /** Hide the native page view (so renderer overlays can show); snapshots the active tab first. */
   setOverlay(open: boolean, snapshot?: boolean, sharp?: boolean): Promise<void>
-  /** Shift the page views right by this many pixels, keeping their size (the hover sidebar sliding out). */
-  setSlide(px: number): void
+  /** Shift the page views right by x and down by y pixels, keeping their size (the hover sidebar or top bar sliding out). */
+  setSlide(x: number, y: number): void
   minimizeWindow(): void
   toggleMaximizeWindow(): void
   closeWindow(): void
@@ -277,6 +283,10 @@ export interface Settings {
   fullWidthAddress: boolean
   /** Where the command bar appears: grown out of the address bar, or centred on the page. */
   searchStyle: 'dropdown' | 'center'
+  /** Pane view (Ctrl and scroll): the tabs fill the page area, or a small strip down the right edge beside the page. */
+  paneView: 'full' | 'side'
+  /** Letting go of Ctrl in the pane view: open the tab it is on (as Alt+Tab does), or leave the view open. */
+  paneViewRelease: 'select' | 'stay'
   /** In a dark space, darken pages that do not have a dark theme of their own. */
   darkenSites: boolean
   /** The welcome pages have been seen (or skipped). */
@@ -501,6 +511,34 @@ export interface PromptAnchor {
   width: number
   height: number
   theme: { scheme: 'dark' | 'light'; color: string; color2: string }
+}
+
+/** Where the hovered tab is in the window, and which side of it the card goes. */
+export interface TabHoverAnchor extends Rect {
+  side: 'below' | 'right'
+}
+
+/** What the hover card says about a tab. */
+export interface TabCardInfo {
+  title: string
+  host: string
+  /** Memory the tab's page process uses, or null when it cannot be read. */
+  memoryMb: number | null
+  /** Other tabs live in the same process, so the number is this tab's share of it. */
+  shared: boolean
+  unloaded: boolean
+  audible: boolean
+  muted: boolean
+  private: boolean
+  tor: boolean
+}
+
+/** What the tab hover card (a transparent view above the page) can do. */
+export interface TabCardApi {
+  state(): Promise<TabCardInfo | null>
+  onState(cb: (info: TabCardInfo | null) => void): () => void
+  /** Content height, so the main process can size the view to fit the card. */
+  resize(height: number): void
 }
 
 /** What the save-password popover shows; null prompt means nothing to show. */

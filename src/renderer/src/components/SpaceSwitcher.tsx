@@ -72,9 +72,7 @@ export function SpaceSwitcher({
                 role="tab"
                 aria-selected={on}
                 aria-label={s.name}
-                className={
-                  'space-chip no-drag' + (on ? ' active' : '') + (sounding ? ' sounding' : '')
-                }
+                className={'space-chip no-drag' + (on ? ' active' : '')}
                 layout
                 data-space={s.id}
                 title={`${s.name} (Ctrl+Alt+${i + 1}). ${on ? 'Click to edit' : 'Right-click to edit'}.`}

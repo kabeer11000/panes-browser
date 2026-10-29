@@ -22,9 +22,9 @@ export function settleDrag(): Promise<void> {
   if (!s || s.els.length === 0) return Promise.resolve()
   return new Promise((resolve) => {
     for (const el of s.els) {
-      el.style.transition = 'translate 0.17s cubic-bezier(0.22, 1, 0.36, 1)'
+      el.style.transition = 'translate 0.12s cubic-bezier(0.22, 1, 0.36, 1)'
       el.style.translate = s.axis === 'x' ? `${s.offset}px 0` : `0 ${s.offset}px`
     }
-    setTimeout(resolve, 180)
+    setTimeout(resolve, 125)
   })
 }

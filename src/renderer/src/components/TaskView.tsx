@@ -5,6 +5,7 @@ import type { TabInfo } from '../../../shared/types'
 import { useGridDrag } from '../hooks/useGridDrag'
 import { tabTitle } from '../tabTitle'
 import { CardThumb } from './CardThumb'
+import { CardFavicons, CardMarks } from './CardMarks'
 import { entryTitle, pageAspect } from './cardUtils'
 import { CloseIcon, PlusIcon, SearchIcon, SplitIcon } from './icons'
 import { TabFavicon } from './TabFavicon'
@@ -161,20 +162,9 @@ export function TaskView({
               onMouseEnter={() => !drag && setSel(i)}
             >
               <div className="card-head">
-                {isGroup ? (
-                  <span className="card-favicons">
-                    {entry.tabs.slice(0, 3).map((t) => (
-                      <TabFavicon key={t.id} tab={t} />
-                    ))}
-                  </span>
-                ) : (
-                  <TabFavicon tab={entry.tabs[0]} />
-                )}
+                <CardFavicons entry={entry} />
                 <span className="tab-title">{entryTitle(entry)}</span>
-                {isGroup && <span className="group-badge">Split {entry.tabs.length}</span>}
-                {entry.tabs.some((t) => t.id === activeId) && (
-                  <span className="current-chip">Current</span>
-                )}
+                <CardMarks entry={entry} current={entry.tabs.some((t) => t.id === activeId)} />
                 {!isGroup && entry.primaryId !== activeId && (
                   <button
                     className="card-btn"

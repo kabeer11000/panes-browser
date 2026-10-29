@@ -109,21 +109,30 @@ describe('contrast guard', () => {
   })
 })
 
-import { accentFor, chromeVars } from './color'
+import { accentFor, chromeVars, hexToHsl } from './color'
 
 describe('accentFor', () => {
   const DEF = '#8b8bff'
   test('a colour chosen in settings always wins', () => {
-    expect(accentFor('#ff0000', DEF, '#2bb3a3', 0.5, true)).toBe('#ff0000')
+    expect(accentFor('#ff0000', DEF, '#2bb3a3', true)).toBe('#ff0000')
   })
-  test('a neutral space keeps the default', () => {
-    expect(accentFor(DEF, DEF, '#8b8b95', 0, true)).toBe(DEF)
+  test('a space lends its own muted hue, whatever its tint', () => {
+    const a = hexToHsl(accentFor(DEF, DEF, '#2bb36a', true))
+    const space = hexToHsl('#2bb36a')
+    expect(Math.abs(a.h - space.h)).toBeLessThan(8)
+    expect(a.s).toBeLessThan(space.s)
+    expect(accentFor(DEF, DEF, '#2bb36a', true)).not.toBe(DEF)
   })
-  test('a coloured space lends its colour, made visible against the window', () => {
-    const dark = accentFor(DEF, DEF, '#1d2a6b', 0.5, true)
+  test('made visible against the window', () => {
+    const dark = accentFor(DEF, DEF, '#1d2a6b', true)
     expect(contrastRatio(dark, '#15151b')).toBeGreaterThanOrEqual(3)
-    const light = accentFor(DEF, DEF, '#f2d94e', 0.5, false)
+    const light = accentFor(DEF, DEF, '#f2d94e', false)
     expect(contrastRatio(light, '#eeeef4')).toBeGreaterThanOrEqual(3)
+  })
+  test('a grey space gets a grey accent, still visible', () => {
+    const grey = accentFor(DEF, DEF, '#8b8b8b', true)
+    expect(hexToHsl(grey).s).toBeLessThan(0.05)
+    expect(contrastRatio(grey, '#15151b')).toBeGreaterThanOrEqual(3)
   })
 })
 

@@ -470,6 +470,7 @@ button {
   color: var(--fg);
 }
 .card-thumb {
+  position: relative;
   aspect-ratio: 16 / 10;
   display: grid;
   place-items: center;
@@ -825,37 +826,6 @@ button {
   font-weight: 650;
 }
 
-/* ---- tiled groups in the sidebar ---- */
-.tab-row.in-split {
-  background: color-mix(in srgb, var(--accent) 11%, transparent);
-  border-radius: 0;
-  box-shadow: none;
-}
-.tab-row.in-split.active {
-  background: color-mix(in srgb, var(--accent) 24%, transparent);
-}
-.tab-row.in-split:not(.group-first) {
-  margin-top: -2px;
-}
-.tab-row.group-first {
-  border-radius: 10px 10px 0 0;
-}
-.tab-row.group-last {
-  border-radius: 0 0 10px 10px;
-}
-.tab-row.group-first.group-last {
-  border-radius: 10px;
-}
-.tab-row.in-split::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--accent);
-}
-
 /* ---- absolutely positioned panes (stable elements that glide between frames) ---- */
 .panes {
   display: block;
@@ -1030,11 +1000,16 @@ button {
 }
 
 /* ---- stack cards: one consistent size, split groups drawn as a mini tiled layout ---- */
+/* a split card: its tiles sit inside a small margin, so the card edge and the tiles never touch */
+.mini-layout {
+  position: absolute;
+  inset: 7px;
+}
 .mini-pane {
   position: absolute;
   overflow: hidden;
-  border-radius: 6px;
-  background: var(--thumb-bg);
+  border-radius: 5px;
+  background: var(--card-bg);
   box-shadow: 0 0 0 1px var(--border);
 }
 .mini-pane img {
@@ -1051,20 +1026,33 @@ button {
   font-size: 11px;
 }
 .card-favicons {
+  flex: none;
   display: flex;
-  flex: none;
+  align-items: center;
+  gap: 5px;
+  color: var(--fg-dim);
+  font-size: 11.5px;
 }
-.card-favicons .favicon + .favicon {
-  margin-left: -4px;
-}
-.group-badge {
+.card-split {
   flex: none;
-  padding: 1px 7px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
-  color: var(--fg);
-  font-size: 11px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.card-split svg {
+  width: 13px;
+  height: 13px;
+}
+.card-current {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 /* ---- overview grid ---- */
@@ -1213,6 +1201,11 @@ button {
 }
 
 /* ---- tab stack (Ctrl + wheel) ---- */
+@property --shade {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #808080;
+}
 @property --glow {
   syntax: '<color>';
   inherits: true;
@@ -1231,21 +1224,24 @@ button {
 }
 .stack-ambient {
   position: absolute;
-  left: 50%;
-  top: 40%;
-  width: 90%;
-  height: 90%;
-  transform: translate(-50%, -50%);
+  inset: 0;
   pointer-events: none;
-  background: radial-gradient(
-    closest-side,
-    color-mix(in srgb, var(--glow) 20%, transparent),
-    transparent
-  );
+  /* the colour of the page in front, pooled behind the deck and again on the floor under it */
+  background:
+    radial-gradient(
+      ellipse 60% 55% at 58% 42%,
+      color-mix(in srgb, var(--glow) 26%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      ellipse 70% 22% at 58% 86%,
+      color-mix(in srgb, var(--glow) 14%, transparent),
+      transparent
+    );
 }
 .stack-scene {
   position: absolute;
-  inset: 0 0 118px 210px;
+  inset: 0 0 104px 210px;
   display: grid;
   place-items: center;
   perspective: 1500px;
@@ -1257,20 +1253,21 @@ button {
   width: min(66%, 780px, calc((100vh - 270px) * var(--stack-aspect, 1.4)));
   display: flex;
   flex-direction: column;
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--card-bg);
   overflow: hidden;
   position: relative;
   transform-style: preserve-3d;
   will-change: transform, opacity;
   box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.08),
-    0 18px 40px -14px rgb(0 0 0 / 0.55);
+    0 0 0 1px var(--border),
+    0 12px 28px -14px rgb(0 0 0 / 0.5);
+  transition: box-shadow 0.3s var(--ease);
 }
 .stack-card.front {
   box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.2),
-    0 18px 40px -14px rgb(0 0 0 / 0.55);
+    0 0 0 1px color-mix(in srgb, var(--fg) 22%, transparent),
+    0 30px 70px -26px color-mix(in srgb, var(--glow) 55%, rgb(0 0 0 / 0.6));
 }
 .card-dim {
   position: absolute;
@@ -1282,6 +1279,8 @@ button {
 .stack-card .card-head {
   color: var(--fg);
   gap: 8px;
+  height: 36px;
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
 }
 .stack-card .card-thumb {
   aspect-ratio: var(--stack-aspect, 1.4);
@@ -1293,15 +1292,6 @@ button {
   object-fit: cover;
   object-position: top left;
 }
-.current-chip {
-  flex: none;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.1);
-  color: var(--fg-dim);
-  font-size: 11px;
-  font-weight: 500;
-}
 .thumb-skeleton {
   position: absolute;
   inset: 0;
@@ -1309,21 +1299,88 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   color: var(--fg-dim);
-  font-size: 12px;
+  font-size: 11.5px;
   background: var(--thumb-bg);
 }
 .thumb-skeleton .favicon {
-  width: 44px;
-  height: 44px;
+  width: 30px;
+  height: 30px;
   opacity: 0.5;
+}
+/* arrows and a way out, only while the pointer is about: the view explains itself without a line of text */
+.stack-nav,
+.stack-exit {
+  position: absolute;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s var(--ease);
+}
+.stack.awake .stack-nav,
+.stack.awake .stack-exit {
+  opacity: 1;
+  pointer-events: auto;
+}
+.stack-nav {
+  right: 28px;
+  top: calc(50% - 52px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stack-exit {
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--fg-dim);
+}
+.stack-nav-btn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  box-shadow: 0 0 0 1px var(--border);
+  transition:
+    background 0.15s,
+    opacity 0.15s,
+    scale 0.15s var(--ease);
+}
+.stack-nav-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.stack-nav-btn.up svg {
+  rotate: 180deg;
+}
+.stack-exit:hover,
+.stack-nav-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+  color: var(--fg);
+}
+.stack-nav-btn:active:not(:disabled) {
+  scale: 0.94;
+}
+.stack-nav-btn:disabled {
+  opacity: 0.3;
+}
+.stack-exit svg {
+  width: 16px;
+  height: 16px;
 }
 .stack-label {
   position: absolute;
   left: 210px;
   right: 0;
-  bottom: 44px;
+  bottom: 38px;
   text-align: center;
   pointer-events: none;
 }
@@ -1333,19 +1390,14 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .stack-meta {
-  margin-top: 3px;
-  display: flex;
-  justify-content: center;
-  gap: 14px;
+  margin-top: 4px;
   color: var(--fg-dim);
   font-size: 12.5px;
-}
-.stack-count {
-  font-variant-numeric: tabular-nums;
 }
 .sr-only {
   position: absolute;
@@ -1402,20 +1454,17 @@ button {
 }
 .rail-dot {
   flex: none;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #2b2b35;
-  box-shadow: 0 0 0 2px #0f0f14;
+  background: color-mix(in srgb, var(--fg) 24%, transparent);
 }
 .rail-item.current .rail-dot {
-  background: rgb(236 236 241 / 0.5);
+  background: color-mix(in srgb, var(--fg) 55%, transparent);
 }
 .rail-item.active .rail-dot {
   background: var(--glow);
-  box-shadow:
-    0 0 0 2px #0f0f14,
-    0 0 16px var(--glow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--glow) 26%, transparent);
 }
 .rail-title {
   flex: 1;
@@ -1444,21 +1493,6 @@ button {
 }
 .panes {
   isolation: isolate;
-}
-
-.stack-hints {
-  position: absolute;
-  right: 22px;
-  bottom: 18px;
-  display: flex;
-  gap: 18px;
-  color: var(--fg-dim);
-  font-size: 12px;
-  pointer-events: none;
-}
-.stack-hints b {
-  color: var(--fg);
-  font-weight: 500;
 }
 
 .grid-card.selected {
@@ -2672,16 +2706,6 @@ kbd {
     inset 0 0 0 1px var(--border),
     inset 0 -2px 0 var(--gc);
 }
-.htab.in-split::after {
-  content: '';
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-}
 .htab.unloaded .favicon,
 .htab.unloaded .htab-title {
   opacity: 0.55;
@@ -3374,34 +3398,6 @@ kbd {
     inset 0 2px 0 var(--accent),
     inset 0 -2px 0 var(--gc);
 }
-/* tiles in a split read as one wide tab: shared tint, one line underneath, a hairline between them */
-.htab.in-split {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-radius: 0;
-}
-.htab.in-split.active {
-  background: color-mix(in srgb, var(--accent) 22%, var(--tab-surface));
-}
-.htab.in-split.split-first {
-  border-radius: 9px 0 0 0;
-}
-.htab.in-split.split-last {
-  border-radius: 0 9px 0 0;
-}
-.htab.in-split + .htab.in-split {
-  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
-}
-.htab.in-split + .htab.in-split.active {
-  box-shadow:
-    inset 1px 0 0 color-mix(in srgb, var(--accent) 40%, transparent),
-    inset 0 2px 0 var(--accent);
-}
-.htab.in-split::after {
-  left: 0;
-  right: 0;
-  height: 2px;
-  border-radius: 0;
-}
 
 /* ---- the active tab and the page it shows are one plane ---- */
 /* top tabs: the toolbar is the same surface as the active tab, and the page card sits inside it */
@@ -3476,23 +3472,10 @@ kbd {
 .htab.in-split.active.grouped {
   box-shadow: inset 0 -2px 0 var(--gc);
 }
-/* a split reads as two tabs that belong together: the same soft tint, no line under them, a hairline between */
-.htab.in-split::after {
-  display: none;
-}
-.htab.in-split:not(.active) {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.htab.in-split.active {
-  background: var(--tab-surface);
-}
 .htab.in-split + .htab.in-split:not(.active) {
   box-shadow: inset 1px 0 0 var(--border);
 }
-.htab.in-split.split-first:not(.active),
-.htab.in-split.split-last:not(.active) {
-  border-radius: 9px 9px 0 0;
-}
+
 /* the address bar keeps still when a split pane is focused: no ring, no pulse */
 .hstrip .address.pane-focus,
 .hstrip .address.pane-focus:hover {
@@ -3606,9 +3589,6 @@ kbd {
 .htab.in-split.pair-active:not(.active) {
   background: var(--tab-surface);
 }
-.htab.in-split.pair-active.active {
-  background: color-mix(in srgb, var(--fg) 7%, var(--tab-surface));
-}
 .htab.in-split:not(.pair-active) {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
@@ -3674,16 +3654,8 @@ kbd {
 .htab-list:has(.htab.floating) {
   overflow: visible;
 }
-
-/* ---- side tabs, split: every tile of a split runs out to the page like the active tab does, as one slab ---- */
-.tab-row.in-split::before {
-  display: none; /* the accent bar on the left fought the surface: the tint and the shared slab say it */
-}
 .tab-row.in-split:not(.pair-active) {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.tab-row.in-split.active:not(.pair-active) {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .tab-row.pair-active,
 .tab-row.pair-active.active {
@@ -3735,29 +3707,38 @@ kbd {
   transition: opacity 0.14s;
 }
 
-/* a space with sound: its chip widens to make room for a speaker, which mutes or unmutes the space */
-.space-chip.sounding {
-  width: auto;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 4px 0 0;
-}
+/* the sound control is a badge on the chip's corner, so the chip (and the strip) never change width when audio starts or stops */
 .space-sound {
-  position: relative;
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--overlay-solid);
+  box-shadow: 0 0 0 1px var(--border);
   color: var(--accent);
+  animation: space-sound-in 0.16s var(--ease);
+}
+.space-sound::before {
+  content: '';
+  position: absolute;
+  inset: -4px; /* a larger target than the badge */
 }
 .space-sound svg {
-  width: 14px;
-  height: 14px;
+  width: 11px;
+  height: 11px;
 }
 .space-sound.muted {
   color: var(--fg-dim);
+}
+@keyframes space-sound-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
 }
 .space-sound:hover {
   background: var(--surface-active);
@@ -3895,4 +3876,146 @@ kbd {
 }
 .tab-list:has(.tab-row.floating) {
   overflow: visible;
+}
+
+/* ---- tabs picked with Shift or Ctrl: a soft accent fill, the same in the sidebar and along the top ---- */
+.tab-row.picked,
+.htab.picked {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.tab-row.picked:hover,
+.htab.picked:hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+/* ---- pane view as a strip down the right edge (Settings, Pane view): the page stays in view, the tabs scroll past beside it ---- */
+.stack-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 19;
+}
+.stack.side {
+  inset: 10px 10px 10px auto;
+  width: 232px;
+  /* no panel: the cards float over the page, lifted by a shallow shade that deepens toward the edge */
+  overflow: visible;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  transition: --shade 0.5s var(--ease);
+}
+.stack.side::before,
+.stack.side::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  bottom: -10px;
+  width: 290px; /* a little wider than the strip, so no edge of the shade shows: it thins out into the page */
+  pointer-events: none;
+  /* the layers fill the page area exactly, so they take its right-hand corners and never paint outside them */
+  border-radius: 0 var(--radius-m) var(--radius-m) 0;
+}
+/* behind the cards: the page deepens toward the edge, in the window's own colour (white in light, dark in dark).
+   Eased in from the left (roughly t^2.2), so the shade has no start to be seen */
+.stack.side::before {
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--shade) 1.3%, transparent) 15%,
+    color-mix(in srgb, var(--shade) 5.8%, transparent) 30%,
+    color-mix(in srgb, var(--shade) 14%, transparent) 45%,
+    color-mix(in srgb, var(--shade) 27%, transparent) 60%,
+    color-mix(in srgb, var(--shade) 44%, transparent) 75%,
+    color-mix(in srgb, var(--shade) 65%, transparent) 90%,
+    color-mix(in srgb, var(--shade) 82%, transparent)
+  );
+}
+/* over the cards: the scroll shade at the top and bottom, as in the menus, fading out sideways with the shade */
+.stack.side::after {
+  z-index: 2;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--shade) 94%, transparent),
+    transparent 120px,
+    transparent calc(100% - 120px),
+    color-mix(in srgb, var(--shade) 94%, transparent)
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    rgb(0 0 0 / 0.1) 25%,
+    rgb(0 0 0 / 0.45) 55%,
+    #000 85%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    rgb(0 0 0 / 0.1) 25%,
+    rgb(0 0 0 / 0.45) 55%,
+    #000 85%
+  );
+}
+.stack.side .stack-scene {
+  inset: -10px 0; /* the strip itself keeps a 10px margin; the cards run the page area's full height, from the bar to the window's edge */
+  perspective: none;
+  /* cut off at the page area's edges (the strip sits 10px inside it on the right) and its rounded corners, so nothing
+     reaches the margin or the window frame; open to the left, where a tilted card and its shadow reach */
+  clip-path: inset(0 -10px 0 -120px round 0 var(--radius-m) var(--radius-m) 0);
+}
+.stack.side .stack-card {
+  width: calc(100% - 28px);
+  border-radius: 10px;
+}
+.stack.side .stack-card .card-head {
+  height: 28px;
+  padding: 0 6px 0 9px;
+  gap: 6px;
+  font-size: 12px;
+}
+.stack.side .card-favicons .favicon {
+  width: 14px;
+  height: 14px;
+}
+.stack.side .card-split {
+  display: none; /* the favicons side by side already say it is a split */
+}
+.stack.side .mini-layout {
+  inset: 4px;
+}
+.stack.side .stack-card.front {
+  /* no coloured glow under the front card in the strip: the same neutral lift as the others, and a ring */
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--fg) 22%, transparent),
+    0 12px 28px -14px rgb(0 0 0 / 0.5);
+}
+
+/* set for a moment when the hover sidebar hands back to the ordinary layout: nothing may animate across that change */
+.no-anim .sidebar,
+.no-anim .sidebar-inner,
+.no-anim .stage-wrap,
+.no-anim .strip,
+.no-anim .strip > * {
+  transition: none !important;
+}
+
+/* the top bar the pointer brought out: it slides down over the page area, which slides down with it at its own size
+   (the page views follow from the main process), so nothing is laid out again; --slide-y is how far out it is */
+.main {
+  position: relative;
+}
+.bar-over .strip {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  right: 0;
+  transform: translateY(calc(var(--slide-y, 0px) - 100%));
+  will-change: transform;
+  transition: none;
+}
+.bar-over .stage-wrap {
+  transform: translateY(var(--slide-y, 0px));
+  will-change: transform;
+  transition: none;
 }

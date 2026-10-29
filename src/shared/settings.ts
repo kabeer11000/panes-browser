@@ -33,6 +33,8 @@ export const DEFAULT_SETTINGS: Settings = {
   tabLayout: 'vertical',
   fullWidthAddress: true,
   searchStyle: 'dropdown',
+  paneView: 'full',
+  paneViewRelease: 'stay',
   darkenSites: true,
   memorySaver: true,
   unloadIdleMin: 30,

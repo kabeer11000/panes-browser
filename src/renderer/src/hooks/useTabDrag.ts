@@ -4,6 +4,12 @@ import { groupForSlot } from '../../../shared/tabgroups'
 import { settleDrag } from './dragSettle'
 import { holdOverlay, releaseOverlay } from '../overlay'
 
+/** Modifier keys held when a tab was clicked. */
+export interface ClickMods {
+  shift: boolean
+  ctrl: boolean
+}
+
 export type DragSource = 'tab' | 'pane'
 
 /** Box in viewport coordinates. */
@@ -41,8 +47,23 @@ export interface DragContext {
   /** The group of each tab in `order` (null for none), for working out what a drop joins or leaves. */
   groups: Array<number | null>
   group: number[]
+  /** Tabs picked with Shift or Ctrl: dragging one of them takes them all. */
+  picked: number[]
   /** The active tab is part of a tiled group, so outer-edge docking makes sense. */
   tiled: boolean
+}
+
+/** Resolves when the main process next sends the tab state (or after a moment, if the drop changed nothing). */
+function nextState(): Promise<void> {
+  return new Promise((resolve) => {
+    const off = window.api.onState(() => done())
+    const timer = window.setTimeout(() => done(), 160)
+    function done(): void {
+      off()
+      window.clearTimeout(timer)
+      resolve()
+    }
+  })
 }
 
 const THRESHOLD = 6 // px of movement before a press becomes a drag
@@ -133,6 +154,12 @@ function slotGroup(
   return groupForSlot(gb, ga, inside)
 }
 
+/** The tabs that travel with the one grabbed: the picked tabs, else its tiled group, else just it. */
+function travelling(ctx: DragContext, id: number): number[] {
+  if (ctx.picked.length > 1 && ctx.picked.includes(id)) return ctx.picked
+  return ctx.group.length > 1 && ctx.group.includes(id) ? ctx.group : [id]
+}
+
 /** Resolve what the pointer is over: a pane edge, a sidebar insertion slot, or nothing. */
 function targetAt(
   x: number,
@@ -198,17 +225,13 @@ function targetAt(
       return x < r.left + r.width / 2
     })
     let index = hit === -1 ? ctx.order.length : ctx.order.indexOf(Number(rows[hit].dataset.tabId))
-    const start = ctx.group.length > 1 ? ctx.order.indexOf(ctx.group[0]) : -1
-    const end = start + ctx.group.length
+    // a tiled group is one unit in the list: never drop into the middle of it (picked tabs are not side by side)
+    const moving = travelling(ctx, id)
+    const start = moving === ctx.group ? ctx.order.indexOf(ctx.group[0]) : -1
+    const end = start + moving.length
     if (start !== -1 && index > start && index < end)
       index = index - start <= end - index ? start : end
-    const groupId = slotGroup(
-      ctx,
-      ctx.group.length > 1 && ctx.group.includes(id) ? ctx.group : [id],
-      index,
-      x,
-      'x'
-    )
+    const groupId = slotGroup(ctx, moving, index, x, 'x')
     return { target: { kind: 'list', index, groupId }, box: null }
   }
 
@@ -222,17 +245,13 @@ function targetAt(
     // Rows hidden inside a folded group are not in the DOM, so read the position from the tab, not the row.
     let index = hit === -1 ? ctx.order.length : ctx.order.indexOf(Number(rows[hit].dataset.tabId))
     // A tiled group is one unit in the list: never drop into the middle of it.
-    const start = ctx.group.length > 1 ? ctx.order.indexOf(ctx.group[0]) : -1
-    const end = start + ctx.group.length
+    // a tiled group is one unit in the list: never drop into the middle of it (picked tabs are not side by side)
+    const moving = travelling(ctx, id)
+    const start = moving === ctx.group ? ctx.order.indexOf(ctx.group[0]) : -1
+    const end = start + moving.length
     if (start !== -1 && index > start && index < end)
       index = index - start <= end - index ? start : end
-    const groupId = slotGroup(
-      ctx,
-      ctx.group.length > 1 && ctx.group.includes(id) ? ctx.group : [id],
-      index,
-      y,
-      'y'
-    )
+    const groupId = slotGroup(ctx, moving, index, y, 'y')
     return { target: { kind: 'list', index, groupId }, box: null }
   }
   return { target: null, box: null }
@@ -244,7 +263,7 @@ function targetAt(
  * the page area can show a drop indicator.
  */
 export function useTabDrag(
-  onClick: (id: number) => void,
+  onClick: (id: number, mods: ClickMods) => void,
   getContext: () => DragContext
 ): {
   drag: DragState | null
@@ -264,8 +283,7 @@ export function useTabDrag(
       let dragging = false
       let lastBox: Box | null = null
       const count = (): number => {
-        const g = ctxRef.current().group
-        return source === 'tab' && g.includes(id) ? g.length : 1
+        return source === 'tab' ? travelling(ctxRef.current(), id).length : 1
       }
 
       const move = (ev: globalThis.PointerEvent): void => {
@@ -292,26 +310,35 @@ export function useTabDrag(
         window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', up)
         window.removeEventListener('pointercancel', up)
-        if (!dragging) return onClick(id)
+        if (!dragging) return onClick(id, { shift: ev.shiftKey, ctrl: ev.ctrlKey || ev.metaKey })
         const { target } = targetAt(ev.clientX, ev.clientY, id, ctxRef.current())
         void (async () => {
           // a tab dropped in its list glides into its place first, then the new order is made
-          if (ev.type === 'pointerup' && source === 'tab' && target?.kind === 'list') {
-            await settleDrag()
-          }
-          setDrag(null)
+          const settles = ev.type === 'pointerup' && source === 'tab' && target?.kind === 'list'
+          if (settles) await settleDrag()
+          // listen before asking, so the answer cannot be missed; it ends the drag's hold on the tab (below)
+          const arrived = settles ? nextState() : null
           finish(ev, target)
+          // The tab stays where it landed until the new order arrives: letting go of it first would show it back at its
+          // old place for the moment the order takes to come round.
+          if (arrived) await arrived
+          setDrag(null)
           void releaseOverlay('drag')
         })()
       }
       const finish = (ev: globalThis.PointerEvent, target: DropTarget | null): void => {
         if (ev.type === 'pointerup' && target) {
-          if (target.kind === 'space') window.api.moveTabToSpace(id, target.spaceId)
+          const picked = source === 'tab' ? ctxRef.current().picked : []
+          const all = picked.length > 1 && picked.includes(id) ? picked : [id]
+          if (target.kind === 'space')
+            all.forEach((t) => window.api.moveTabToSpace(t, target.spaceId))
           else if (target.kind === 'group') {
-            if (source === 'tab') window.api.addToGroup(id, target.groupId)
+            if (source === 'tab') all.forEach((t) => window.api.addToGroup(t, target.groupId))
           } else if (target.kind === 'pane') window.api.dropTab(id, target.tabId, target.edge)
-          else if (source === 'tab') window.api.moveTab(id, target.index, target.groupId)
-          else window.api.closePane(id) // a pane dragged back onto the sidebar leaves the group
+          else if (source === 'tab') {
+            if (all.length > 1) window.api.moveTabs(all, target.index, target.groupId)
+            else window.api.moveTab(id, target.index, target.groupId)
+          } else window.api.closePane(id) // a pane dragged back onto the sidebar leaves the group
         }
       }
       window.addEventListener('pointermove', move)

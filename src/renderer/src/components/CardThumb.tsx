@@ -4,7 +4,7 @@ import type { TabInfo } from '../../../shared/types'
 import { displayHost } from '../../../shared/url'
 import { TabFavicon } from './TabFavicon'
 
-const MINI_GAP = 1.6 // gap between tiles in a group card, in percent of the card
+const MINI_GAP = 1.4 // gap between tiles in a group card, in percent of the card
 
 /** Stand-in for a tab with no snapshot yet (it has not been on screen): its icon and site name. */
 function Placeholder({ tab, compact }: { tab: TabInfo; compact?: boolean }): React.JSX.Element {
@@ -32,7 +32,7 @@ export function CardThumb({
   const byId = new Map(entry.tabs.map((t) => [t.id, t]))
   const { leaves } = computeFrames(entry.layout, { x: 0, y: 0, w: 100, h: 100 }, MINI_GAP)
   return (
-    <>
+    <div className="mini-layout">
       {[...leaves].map(([id, f]) => {
         const tab = byId.get(id)
         return (
@@ -49,6 +49,6 @@ export function CardThumb({
           </div>
         )
       })}
-    </>
+    </div>
   )
 }

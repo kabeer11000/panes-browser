@@ -13,6 +13,11 @@ export function setChromeThemeSource(fn: () => ChromeTheme): void {
   source = fn
 }
 
+/** The current theme, for pages that read it over IPC (panes:// pages) instead of being painted into. */
+export function currentChromeTheme(): ChromeTheme | null {
+  return source ? source() : null
+}
+
 /** Paint the colours into a popover view: now if it has loaded, else as soon as it does. */
 export function paintView(wc: WebContents): void {
   const apply = (): void => {

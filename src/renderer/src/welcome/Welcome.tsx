@@ -63,12 +63,9 @@ export function Welcome(): React.JSX.Element {
   useEffect(() => {
     void api.getSettings().then((v) => {
       setS(v)
-      const { spaceColor, spaceTint } = v as unknown as { spaceColor?: string; spaceTint?: number }
+      const { chromeVars } = v as unknown as { chromeVars?: Record<string, string> }
       const root = document.documentElement.style
-      if (spaceColor) {
-        root.setProperty('--space', spaceColor)
-        root.setProperty('--tint', `${Math.round((spaceTint ?? 0) * 100)}%`)
-      }
+      for (const [k, val] of Object.entries(chromeVars ?? {})) root.setProperty(k, val)
       root.removeProperty('--stage-bg')
     })
     void api.spacesList().then((list) => setSpace(list[0] ?? null))

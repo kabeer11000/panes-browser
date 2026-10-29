@@ -49,6 +49,17 @@ function flatten(n: SplitNode): SplitNode {
   return { ...n, children, ratios: normalize(ratios) }
 }
 
+/** Tabs side by side in equal shares, left to right. */
+export function rowOf(ids: number[]): LayoutNode {
+  if (ids.length === 1) return leaf(ids[0])
+  return {
+    type: 'split',
+    dir: 'row',
+    ratios: ids.map(() => 1 / ids.length),
+    children: ids.map(leaf)
+  }
+}
+
 /** Put newId beside targetId on the given edge. */
 export function insertTab(
   root: LayoutNode,

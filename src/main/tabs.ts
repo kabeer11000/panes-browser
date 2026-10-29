@@ -49,6 +49,7 @@ import {
   normalizeLayout,
   removeTab,
   ROOT_TARGET,
+  rowOf,
   setRatios,
   type Edge,
   type LayoutNode
@@ -58,11 +59,12 @@ import type {
   MemoryStats,
   Rect,
   SpacePatch,
+  TabCardInfo,
   TabInfo,
   TabsState,
   UiCommand
 } from '../shared/types'
-import { resolveInput } from '../shared/url'
+import { displayHost, resolveInput } from '../shared/url'
 import { showContextMenu } from './contextMenu'
 import { PipController } from './pip'
 import type { BookmarkStore, HistoryStore } from './history'
@@ -146,6 +148,8 @@ function liveContents(tab: Tab): WebContents | null {
 
 export class TabManager {
   private tabs = new Map<number, Tab>() // insertion order is display order
+  /** The stack was opened with Shift+wheel (over a PDF), so letting go of Shift is what releases it. */
+  private shiftStack = false
   private activeId: number | null = null
   private nextId = 1
   private layout: LayoutNode | null = null
@@ -1135,6 +1139,26 @@ export class TabManager {
     this.activate(id)
   }
 
+  /** Tile the picked tabs side by side, in list order, beside the tab on screen when it is one of them. */
+  splitMany(ids: number[]): void {
+    const order = [...this.tabs.keys()].filter((id) => ids.includes(id))
+    if (order.length < 2) return
+    const anchor =
+      this.activeId !== null && order.includes(this.activeId) ? this.activeId : order[0]
+    let next = this.layoutWith(anchor)
+    if (next.type === 'leaf') next = rowOf(order)
+    else {
+      let prev = anchor
+      for (const id of order) {
+        if (leaves(next).includes(id)) continue
+        next = insertTab(next, prev, id, 'right')
+        prev = id
+      }
+    }
+    this.setLayout(next)
+    this.activate(anchor)
+  }
+
   /** Dissolve the whole group; every tab stays open. */
   unsplit(keepId?: number): void {
     this.setLayout(null)
@@ -1258,13 +1282,35 @@ export class TabManager {
   /** Reorder a tab in the sidebar. A tab in a group moves its whole group with it. */
   moveTab(id: number, index: number, groupId?: number | null): void {
     if (!this.tabs.has(id)) return
-    const group = this.layout && leaves(this.layout).includes(id) ? leaves(this.layout) : [id]
+    // a tab in a tiled group moves with the group
+    this.moveTogether(
+      this.layout && leaves(this.layout).includes(id) ? leaves(this.layout) : [id],
+      index,
+      groupId,
+      id
+    )
+  }
+
+  /** Several tabs picked with Shift or Ctrl, dropped as one: they end up side by side at the drop, in list order. */
+  moveTabs(ids: number[], index: number, groupId?: number | null): void {
+    const own = this.own()
+    const moving = own.filter((i) => ids.includes(i))
+    if (moving.length > 0) this.moveTogether(moving, index, groupId, moving[0])
+  }
+
+  /** `lead` is the tab that was grabbed: whether it is pinned says which end of the list the drop belongs to. */
+  private moveTogether(
+    group: number[],
+    index: number,
+    groupId: number | null | undefined,
+    lead: number
+  ): void {
     const own = this.own()
     const rest = own.filter((i) => !group.includes(i))
     const removedBefore = group.filter((g) => own.indexOf(g) < index).length
     // Pinned tabs keep to the start of the list and the others to what follows it.
     const pinnedRest = rest.filter((i) => this.tabs.get(i)?.pinned).length
-    const mine = !!this.tabs.get(id)?.pinned
+    const mine = !!this.tabs.get(lead)?.pinned
     const raw = Math.max(0, Math.min(rest.length, index - removedBefore))
     const at = mine ? Math.min(raw, pinnedRest) : Math.max(raw, pinnedRest)
     rest.splice(at, 0, ...group)
@@ -1319,13 +1365,16 @@ export class TabManager {
   }
 
   /** `sharp`: the pictures stand in for the pages on screen, so they must match them pixel for pixel. */
-  /** The page views are shifted right by this much, at their own size (the window clips what runs off). */
+  /** The page views are shifted right and down by this much, at their own size (the window clips what runs off). */
   private slideX = 0
+  private slideY = 0
 
-  setSlide(px: number): void {
-    const next = Math.max(0, Math.min(600, Math.round(px)))
-    if (next === this.slideX) return
-    this.slideX = next
+  setSlide(x: number, y: number): void {
+    const nx = Math.max(0, Math.min(600, Math.round(x)))
+    const ny = Math.max(0, Math.min(200, Math.round(y)))
+    if (nx === this.slideX && ny === this.slideY) return
+    this.slideX = nx
+    this.slideY = ny
     this.applyVisibility()
   }
 
@@ -1381,7 +1430,7 @@ export class TabManager {
         placed && this.overlay
           ? { ...placed, x: PARKED_X }
           : placed && this.fullscreenId === null
-            ? { ...placed, x: placed.x + this.slideX }
+            ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
             : placed
       const show = rect !== null && !this.isBlank(tab) && !tab.awaiting && !this.settling
       // A full-screen page has no window edge to be rounded against.
@@ -1539,10 +1588,14 @@ export class TabManager {
       if (ev.type === 'mouseDown' || ev.type === 'mouseWheel') tab.dirty = true
       if (ev.type === 'mouseDown') this.focusPane(id)
       if (ev.type !== 'mouseWheel') return
-      if (!ev.modifiers?.some((m) => m === 'control' || m === 'ctrl')) return
-      // The built-in PDF viewer (and anything else in an extension frame) uses Ctrl+wheel to zoom; leave it
-      // that, and let Ctrl+Tab open the stack there.
-      if (wc.mainFrame.framesInSubtree.some((f) => f.url.startsWith('chrome-extension://'))) return
+      // The built-in PDF viewer (and anything else in an extension frame) uses Ctrl+wheel to zoom: there the
+      // stack opens on Shift+wheel instead (and Ctrl+Tab still works).
+      const inExtension = wc.mainFrame.framesInSubtree.some((f) =>
+        f.url.startsWith('chrome-extension://')
+      )
+      const wanted = inExtension ? ['shift'] : ['control', 'ctrl']
+      if (!ev.modifiers?.some((m) => wanted.includes(m))) return
+      this.shiftStack = inExtension
       const { wheelTicksY = 0, deltaY = 0 } = ev as MouseWheelInputEvent
       // Chromium's wheel delta is positive for scroll-up; the renderer expects DOM units (down is positive).
       this.send('ui:stack-wheel', wheelTicksY !== 0 ? -wheelTicksY * 100 : -deltaY)
@@ -1593,6 +1646,12 @@ export class TabManager {
   handleKey(event: Event, input: Input): void {
     if (this.trackEscHold(input)) return // the page still sees the key; only the exit is timed
     if (input.type === 'keyUp' && (input.key === 'Control' || input.key === 'Meta')) {
+      this.send('ui:stack-release')
+      return
+    }
+    // a stack opened with Shift+wheel (over a PDF) is let go of with Shift
+    if (input.type === 'keyUp' && input.key === 'Shift' && this.shiftStack) {
+      this.shiftStack = false
       this.send('ui:stack-release')
       return
     }
@@ -1857,9 +1916,18 @@ export class TabManager {
     for (const tid of members) this.close(tid)
   }
 
-  tabMenu(id: number): void {
+  tabMenu(id: number, picked: number[] = []): void {
     const tab = this.tabs.get(id)
     if (!tab) return
+    if (picked.length > 1 && picked.includes(id)) {
+      // several tabs picked with Shift or Ctrl: the actions that make sense for all of them
+      Menu.buildFromTemplate([
+        { label: `Add ${picked.length} tabs to split view`, click: () => this.splitMany(picked) },
+        { type: 'separator' },
+        { label: `Close ${picked.length} tabs`, click: () => picked.forEach((t) => this.close(t)) }
+      ]).popup({ window: this.win })
+      return
+    }
     const others = [...this.groups.values()].filter(
       (g) => g.spaceId === tab.spaceId && g.id !== tab.groupId
     )
@@ -2050,6 +2118,42 @@ export class TabManager {
     tab.view = this.inertView()
     tab.unloaded = true
     tab.darkened = false
+  }
+
+  /** What a tab's hover card shows. The process list is read here, once, when a card opens. */
+  cardInfo(id: number): TabCardInfo | null {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (!t || !wc) return null
+    const url = t.failed ? t.failed.url : wc.getURL() || t.pending?.url || t.firstUrl
+    let memoryMb: number | null = null
+    let shared = false
+    if (!t.unloaded) {
+      const pid = wc.getOSProcessId()
+      const metric = app.getAppMetrics().find((m) => m.pid === pid)
+      if (metric) {
+        // tabs of one site can share a renderer: each is shown its share of it
+        let sharing = 0
+        for (const other of this.tabs.values()) {
+          const ow = !other.unloaded && liveContents(other)
+          if (ow && ow.getOSProcessId() === pid) sharing++
+        }
+        shared = sharing > 1
+        const kb = metric.memory.privateBytes ?? metric.memory.workingSetSize
+        memoryMb = Math.round(kb / 1024 / Math.max(1, sharing))
+      }
+    }
+    return {
+      title: wc.getTitle() || t.pending?.title || '',
+      host: /^(https?|file|panes):/i.test(url) ? displayHost(url) : '',
+      memoryMb,
+      shared,
+      unloaded: t.unloaded,
+      audible: wc.isCurrentlyAudible(),
+      muted: wc.audioMuted,
+      private: t.private,
+      tor: t.tor
+    }
   }
 
   /** Memory Panes is using across all its processes, and how many tabs hold a page. */

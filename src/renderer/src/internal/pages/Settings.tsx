@@ -165,6 +165,34 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
         <Row
+          label="Pane view"
+          hint="Ctrl and scroll opens it. Full fills the page area with your tabs; Side strip keeps the page in view and scrolls your tabs down the right edge."
+        >
+          <Segmented
+            label="Pane view"
+            value={s.paneView}
+            options={[
+              { value: 'full', label: 'Full' },
+              { value: 'side', label: 'Side strip' }
+            ]}
+            onChange={(v) => void update({ paneView: v })}
+          />
+        </Row>
+        <Row
+          label="Letting go of Ctrl in pane view"
+          hint="Open tab switches to the tab you are on, as Alt+Tab does. Stay open keeps the view up so you can keep scrolling; click a tab, press Enter, or Esc to leave."
+        >
+          <Segmented
+            label="Letting go of Ctrl in pane view"
+            value={s.paneViewRelease}
+            options={[
+              { value: 'select', label: 'Open tab' },
+              { value: 'stay', label: 'Stay open' }
+            ]}
+            onChange={(v) => void update({ paneViewRelease: v })}
+          />
+        </Row>
+        <Row
           label="Address bar spans the whole row"
           hint="With tabs along the top: the address bar stretches from side to side. Off keeps it in the middle."
         >

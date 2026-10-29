@@ -18,6 +18,7 @@ import { BookmarkStore, HistoryStore } from './history'
 import { DumpStore } from './dumps'
 import { TorManager } from './tor'
 import { chromeVars } from '../shared/color'
+import { registerTabCard } from './tabcard'
 import { setChromeThemeSource } from './chromeTheme'
 import { PasswordStore, registerPasswordIpc } from './passwords'
 import { registerInternalIpc, registerInternalScheme, serveInternalPages } from './internal'
@@ -51,6 +52,9 @@ const fromCommandLine = (argv: readonly string[]): string[] =>
       }
     }
   )
+/** Whole numbers from a value that came over IPC; anything else is dropped. */
+const numbers = (v: unknown): number[] => (Array.isArray(v) ? v.filter(Number.isInteger) : [])
+
 const deliver = (urls: string[]): void => {
   if (urls.length === 0) return
   if (openLinks) openLinks(urls)
@@ -392,6 +396,7 @@ function createWindow(): void {
   ipcMain.on('win:close', () => win.close())
   ipcMain.on('ui:bounds', (_e, rects: Record<number, Rect>) => tabs.setRects(rects))
   ipcMain.on('tabs:split-with', (_e, id: number) => tabs.splitWith(id))
+  ipcMain.on('tabs:split-many', (_e, ids: unknown) => tabs.splitMany(numbers(ids)))
   ipcMain.on('tabs:unsplit', (_e, keepId?: number) => tabs.unsplit(keepId))
   ipcMain.on('tabs:toggle-split', () => tabs.toggleSplit())
   ipcMain.on('tabs:drop', (_e, id: number, targetId: number, edge: Edge | 'center') =>
@@ -420,8 +425,11 @@ function createWindow(): void {
   ipcMain.handle('site:info', () => sites.info())
   ipcMain.handle('site:update', (_e, patch: unknown) => sites.update(patch))
   ipcMain.on('tabs:add-to-group', (_e, id: number, groupId: number) => tabs.addToGroup(id, groupId))
-  ipcMain.on('tabs:tab-menu', (_e, id: number) => tabs.tabMenu(id))
+  ipcMain.on('tabs:tab-menu', (_e, id: number, picked?: unknown) =>
+    tabs.tabMenu(id, numbers(picked))
+  )
   ipcMain.on('tabs:group-menu', (_e, id: number) => tabs.groupMenu(id))
+  registerTabCard(win, (id) => tabs.cardInfo(id))
   ipcMain.on('tabs:mute-space', (_e, id: unknown) => {
     if (typeof id === 'number') tabs.toggleSpaceMute(id)
   })
@@ -436,8 +444,18 @@ function createWindow(): void {
   ipcMain.on('tabs:move', (_e, id: number, index: number, groupId?: number | null) =>
     tabs.moveTab(id, index, groupId)
   )
-  ipcMain.on('ui:slide', (_e, px: unknown) => {
-    if (typeof px === 'number' && Number.isFinite(px)) tabs.setSlide(px)
+  ipcMain.on('tabs:move-many', (_e, ids: unknown, index: number, groupId?: number | null) =>
+    tabs.moveTabs(numbers(ids), index, groupId)
+  )
+  ipcMain.on('ui:slide', (_e, x: unknown, y: unknown) => {
+    if (
+      typeof x === 'number' &&
+      Number.isFinite(x) &&
+      typeof y === 'number' &&
+      Number.isFinite(y)
+    ) {
+      tabs.setSlide(x, y)
+    }
   })
   ipcMain.handle('ui:overlay', (_e, open: boolean, snapshot?: boolean, sharp?: boolean) =>
     tabs.setOverlay(open, snapshot, sharp === true)

@@ -8,4 +8,4 @@ export function pageAspect(): number {
 }
 
 export const entryTitle = (e: StackEntry): string =>
-  e.tabs.length > 1 ? e.tabs.map(tabTitle).join('  |  ') : tabTitle(e.tabs[0])
+  e.tabs.length > 1 ? e.tabs.map(tabTitle).join('  ·  ') : tabTitle(e.tabs[0])

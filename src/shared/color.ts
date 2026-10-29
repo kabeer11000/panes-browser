@@ -177,25 +177,27 @@ export function harmonize(hex: string, scheme: Exclude<Scheme, 'single' | 'free'
 
 const ACCENT_MIN_CONTRAST = 3 // loaders, switches and focus rings need to be seen, not read
 
+const ACCENT_CHROMA = 0.6 // how much of the space colour's saturation the accent keeps: calm, not neon
+
 /**
- * The interface highlight. A colour the user picked in Settings wins. Otherwise a coloured space lends
- * its own colour, nudged toward light or dark until it shows against the window; a neutral space keeps
- * the default, so a grey window never ends up with a grey loader.
+ * The interface highlight. A colour the user picked in Settings wins. Otherwise the accent is the space's own
+ * hue, muted, and nudged toward light or dark until it shows against the window. It does not depend on how
+ * strongly the background is tinted, so every space has an accent that belongs to it.
  */
 export function accentFor(
   setting: string,
   defaultAccent: string,
   color: string,
-  tint: number,
   dark: boolean
 ): string {
   if (setting.toLowerCase() !== defaultAccent.toLowerCase()) return setting
-  if (tint < 0.08) return defaultAccent
   const base = dark ? UI_TEXT.dark.base : UI_TEXT.light.base
   const toward = dark ? '#ffffff' : '#000000'
-  let c = color
+  const { h, s, l } = hexToHsl(color)
+  const muted = hslToHex({ h, s: s * ACCENT_CHROMA, l })
+  let c = muted
   for (let t = 0; t <= 0.9 && contrastRatio(c, base) < ACCENT_MIN_CONTRAST; t += 0.1) {
-    c = mixHex(color, toward, t)
+    c = mixHex(muted, toward, t)
   }
   return c
 }
@@ -212,6 +214,6 @@ export function chromeVars(
     '--space': theme.color,
     '--space2': theme.color2 ?? theme.color,
     '--tint': `${Math.round(safe * 100)}%`,
-    '--accent': accentFor(accentSetting, defaultAccent, theme.color, safe, dark)
+    '--accent': accentFor(accentSetting, defaultAccent, theme.color, dark)
   }
 }

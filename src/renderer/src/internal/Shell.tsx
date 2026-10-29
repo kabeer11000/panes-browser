@@ -53,25 +53,13 @@ export function Shell(): React.JSX.Element {
   useEffect(() => {
     document.title = page.title
     void window.panesInternal.getSettings().then((s) => {
-      const {
-        scheme: m,
-        spaceColor,
-        spaceTint
-      } = s as {
+      const { scheme: m, chromeVars } = s as {
         scheme?: SpaceMode
-        spaceColor?: string | null
-        spaceTint?: number
+        chromeVars?: Record<string, string>
       }
-      // The page highlights in the colour of the space you are in, so recolouring the browser recolours it too.
-      document.documentElement.style.setProperty('--accent', spaceColor ?? s.accent)
-      // The page background leans toward the space's colour (see --stage-bg), so a recoloured space recolours these pages too.
-      if (spaceColor) {
-        document.documentElement.style.setProperty('--space', spaceColor)
-        document.documentElement.style.setProperty(
-          '--tint',
-          `${Math.round((spaceTint ?? 0) * 100)}%`
-        )
-      }
+      // The page wears the window's colours (accent, space colour, readable tint), so recolouring a space recolours it too.
+      for (const [k, v] of Object.entries(chromeVars ?? {}))
+        document.documentElement.style.setProperty(k, v)
       setMode(m ?? 'system')
       document.documentElement.style.removeProperty('--stage-bg')
       setReady(true)

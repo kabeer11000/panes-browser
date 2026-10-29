@@ -13,7 +13,8 @@ export default defineConfig({
           pip: resolve('src/preload/pip.ts'),
           popover: resolve('src/preload/popover.ts'),
           permission: resolve('src/preload/permission.ts'),
-          panel: resolve('src/preload/panel.ts')
+          panel: resolve('src/preload/panel.ts'),
+          tabcard: resolve('src/preload/tabcard.ts')
         }
       }
     }
@@ -35,7 +36,8 @@ export default defineConfig({
           error: resolve('src/renderer/error.html'),
           welcome: resolve('src/renderer/welcome.html'),
           panel: resolve('src/renderer/panel.html'),
-          permission: resolve('src/renderer/permission.html')
+          permission: resolve('src/renderer/permission.html'),
+          tabcard: resolve('src/renderer/tabcard.html')
         }
       }
     }

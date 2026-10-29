@@ -23,6 +23,8 @@ interface Props {
   /** The group a dragged tab would join if dropped now. */
   dropGroupId: number | null
   onTabPointerDown: (e: PointerEvent, id: number) => void
+  /** Tabs picked with Shift or Ctrl; the right-click menu then acts on all of them. */
+  picked: ReadonlySet<number>
 }
 
 /** Group label chip: colour dot and name; click folds the group, double-click renames, right-click opens the menu. */
@@ -121,7 +123,8 @@ export function HorizontalTabs({
   dragId,
   dropIndex,
   dropGroupId,
-  onTabPointerDown
+  onTabPointerDown,
+  picked
 }: Props): React.JSX.Element {
   const split = layout ? leaves(layout) : []
   const list = useRef<HTMLDivElement>(null)
@@ -198,11 +201,11 @@ export function HorizontalTabs({
               role="tab"
               aria-selected={t.id === activeId}
               data-tab-id={t.id}
-              title={tabTitle(t)}
               style={tg ? ({ ['--gc' as string]: tg.color } as React.CSSProperties) : undefined}
               className={
                 'htab' +
                 (t.id === activeId ? ' active' : '') +
+                (picked.has(t.id) ? ' picked' : '') +
                 (t.pinned ? ' pinned' : '') +
                 (tg ? ' grouped' : '') +
                 (inSplit ? ' in-split' : '') +
@@ -219,7 +222,7 @@ export function HorizontalTabs({
               onPointerDown={(e) => onTabPointerDown(e, t.id)}
               onContextMenu={(e) => {
                 e.preventDefault()
-                window.api.tabMenu(t.id)
+                window.api.tabMenu(t.id, picked.has(t.id) ? [...picked] : undefined)
               }}
               onAuxClick={(e) => e.button === 1 && window.api.closeTab(t.id)}
             >

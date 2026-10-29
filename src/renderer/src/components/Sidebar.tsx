@@ -45,6 +45,8 @@ interface Props {
   /** 1 or -1: the side the active space sits on relative to the one before it. */
   dir: number
   onTabPointerDown: (e: PointerEvent, id: number) => void
+  /** Tabs picked with Shift or Ctrl; the right-click menu then acts on all of them. */
+  picked: ReadonlySet<number>
   onOpenSearch: () => void
   rowH: number
   findKey: number | null
@@ -76,6 +78,7 @@ export function Sidebar({
   dropGroupId,
   dir,
   onTabPointerDown,
+  picked,
   onOpenSearch,
   rowH,
   findKey,
@@ -211,6 +214,7 @@ export function Sidebar({
                 className={
                   'tab-row' +
                   (t.id === activeId ? ' active' : '') +
+                  (picked.has(t.id) ? ' picked' : '') +
                   (t.pinned ? ' pinned' : '') +
                   (tg ? ' grouped' : '') +
                   (inSplit ? ' in-split' : '') +
@@ -232,7 +236,7 @@ export function Sidebar({
                 onPointerDown={(e) => onTabPointerDown(e, t.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
-                  window.api.tabMenu(t.id)
+                  window.api.tabMenu(t.id, picked.has(t.id) ? [...picked] : undefined)
                 }}
                 onAuxClick={(e) => e.button === 1 && window.api.closeTab(t.id)}
               >

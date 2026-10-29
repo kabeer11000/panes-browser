@@ -37,6 +37,10 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
     out.accent = patch.accent
   if (patch.searchStyle === 'dropdown' || patch.searchStyle === 'center')
     out.searchStyle = patch.searchStyle
+  if (patch.paneView === 'full' || patch.paneView === 'side') out.paneView = patch.paneView
+  if (patch.paneViewRelease === 'select' || patch.paneViewRelease === 'stay') {
+    out.paneViewRelease = patch.paneViewRelease
+  }
   if (typeof patch.autoHideTopBar === 'boolean') out.autoHideTopBar = patch.autoHideTopBar
   if (typeof patch.sidebarHover === 'boolean') out.sidebarHover = patch.sidebarHover
   if (typeof patch.fullWidthAddress === 'boolean') out.fullWidthAddress = patch.fullWidthAddress

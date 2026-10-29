@@ -14,6 +14,7 @@ import type {
 } from '../shared/types'
 import type { TabDump } from '../shared/dumps'
 import type { TorStatus } from '../shared/tor'
+import { currentChromeTheme } from './chromeTheme'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
@@ -138,8 +139,8 @@ export function registerInternalIpc(d: Deps): void {
     return {
       ...d.settings.get(),
       scheme: space?.mode ?? 'system',
-      spaceColor: space?.color ?? null,
-      spaceTint: space?.tint ?? 0
+      // the same colours the window and its popovers wear (accent, readable tint), worked out once in chromeVars
+      chromeVars: currentChromeTheme()?.vars ?? {}
     }
   })
   handle('int:perms-list', () => d.permissions.list())

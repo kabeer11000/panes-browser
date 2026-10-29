@@ -10,12 +10,22 @@ import {
   normalizeLayout,
   removeTab,
   replaceLeaf,
+  rowOf,
   setRatios,
   swapLeaves,
   type LayoutNode
 } from './layout'
 
 const sum = (r: number[]): number => r.reduce((a, b) => a + b, 0)
+
+describe('rowOf', () => {
+  test('one tab is a leaf, several are an even row in order', () => {
+    expect(rowOf([7])).toEqual(leaf(7))
+    const r = rowOf([3, 1, 2])
+    expect(leaves(r)).toEqual([3, 1, 2])
+    expect(r.type === 'split' && r.ratios.every((x) => Math.abs(x - 1 / 3) < 1e-9)).toBe(true)
+  })
+})
 
 describe('insertTab', () => {
   test('first split makes a row', () => {

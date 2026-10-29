@@ -70,3 +70,50 @@ export function useGlow(src: string | undefined): string {
   }, [src])
   return src && glow ? glow : 'var(--accent)'
 }
+
+const edgeCache = new Map<string, string | null>()
+
+/** Plain average colour of the right-hand fifth of a snapshot: what a shade laid over that edge of the page should be. */
+async function edgeFor(src: string): Promise<string | null> {
+  if (edgeCache.has(src)) return edgeCache.get(src) ?? null
+  const img = new Image()
+  img.src = src
+  try {
+    await img.decode()
+  } catch {
+    return null
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = SAMPLE
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return null
+  const w = img.naturalWidth * 0.2
+  ctx.drawImage(img, img.naturalWidth - w, 0, w, img.naturalHeight, 0, 0, SAMPLE, SAMPLE)
+  const px = ctx.getImageData(0, 0, SAMPLE, SAMPLE).data
+  let r = 0
+  let g = 0
+  let b = 0
+  for (let i = 0; i < px.length; i += 4) {
+    r += px[i]
+    g += px[i + 1]
+    b += px[i + 2]
+  }
+  const n = px.length / 4
+  const color = `rgb(${Math.round(r / n)} ${Math.round(g / n)} ${Math.round(b / n)})`
+  edgeCache.set(src, color)
+  return color
+}
+
+/** The colour of a snapshot's right edge, or null until it is known (and for a page with no snapshot). */
+export function useEdgeColor(src: string | undefined): string | null {
+  const [edge, setEdge] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    if (!src) return
+    void edgeFor(src).then((c) => alive && setEdge(c))
+    return () => {
+      alive = false
+    }
+  }, [src])
+  return src ? edge : null
+}

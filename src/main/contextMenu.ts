@@ -42,7 +42,17 @@ export function showContextMenu(
     )
   }
   if (p.mediaType === 'video') {
-    items.push({ label: 'Picture in Picture', click: a.pip }, sep)
+    // A plain file address can be saved as it is. A stream (a blob: or data: address, as most big sites use) has no
+    // file behind it to fetch, so the entry is shown but off rather than missing.
+    const saveable = /^(https?|file):/i.test(p.srcURL)
+    items.push(
+      { label: 'Picture in Picture', click: a.pip },
+      { label: 'Save video as...', enabled: saveable, click: () => wc.downloadURL(p.srcURL) },
+      ...(saveable
+        ? [{ label: 'Copy video address', click: () => clipboard.writeText(p.srcURL) }]
+        : []),
+      sep
+    )
   }
   if (p.isEditable) {
     if (p.misspelledWord) {

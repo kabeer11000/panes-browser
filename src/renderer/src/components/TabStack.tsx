@@ -8,20 +8,26 @@ import {
   useTransform,
   type MotionValue
 } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { StackEntry } from '../../../shared/stack'
 import { displayHost } from '../../../shared/url'
-import { useGlow } from '../ambient'
-import { tabTitle } from '../tabTitle'
+import { useEdgeColor, useGlow } from '../ambient'
+import { CardFavicons, CardMarks } from './CardMarks'
 import { CardThumb } from './CardThumb'
 import { entryTitle, pageAspect } from './cardUtils'
-import { CloseIcon } from './icons'
-import { TabFavicon } from './TabFavicon'
+import { ChevronIcon, CloseIcon } from './icons'
 
 // Depth feel. d = card index - scroll position: 0 is front. Upcoming cards (d>0) recede down and back
 // (same order as the sidebar and rail), earlier cards (d<0) recede up and back.
 const STEP_Z = 220
 const STEP_Y = 78
+// the side strip is flat: cards one below the other, a card's height and a small gap apart, so none covers another
+const SIDE_WIDTH = 232 // the strip (see .stack.side), less the 14px of margin each side of a card
+const SIDE_HEAD = 28
+const SIDE_GAP = 32 // room for the tilt: a turned card's corners reach past its edge
+// the strip's cards sit on a very large wheel (radius in px): level at the front, curving away and tilting a little
+const SIDE_RADIUS = 2200
+const SIDE_VISIBLE = 6 // cards either side of the front one that are drawn; the strip's edges hide the rest
 const FADE = 0.26
 const DIM_PER_STEP = 0.16
 const DIM_MAX = 0.55
@@ -31,6 +37,8 @@ const RAIL_ITEM_H = 44
 const PAGE_JUMP = 4
 
 interface Props {
+  /** A strip down the right edge, beside the page, instead of the whole page area. */
+  side?: boolean
   entries: StackEntry[]
   activeId: number | null
   thumbs: Record<number, string>
@@ -46,11 +54,8 @@ interface Props {
 
 const holds = (e: StackEntry, id: number | null): boolean => e.tabs.some((t) => t.id === id)
 
-/** Short rail label: a group reads as its first tab plus a count. */
-const railLabel = (e: StackEntry): string =>
-  e.tabs.length > 1 ? `${tabTitle(e.tabs[0])} +${e.tabs.length - 1}` : tabTitle(e.tabs[0])
-
 export function TabStack({
+  side = false,
   entries,
   activeId,
   thumbs,
@@ -72,6 +77,23 @@ export function TabStack({
   // re-renders once per card, and only the cards around it exist.
   const [near, setNear] = useState(() => Math.round(pos.get()))
   useMotionValueEvent(pos, 'change', (v) => setNear(Math.round(v)))
+
+  // The way around is shown, not explained: arrows and a close button appear when the view opens and whenever the
+  // pointer moves, and fade away once it rests, so the cards have the room the rest of the time.
+  const [awake, setAwake] = useState(true)
+  const idle = useRef<number | undefined>(undefined)
+  const rest = useCallback((): void => {
+    window.clearTimeout(idle.current)
+    idle.current = window.setTimeout(() => setAwake(false), 2400)
+  }, [])
+  const wake = useCallback((): void => {
+    setAwake(true)
+    rest()
+  }, [rest])
+  useEffect(() => {
+    rest()
+    return () => window.clearTimeout(idle.current)
+  }, [rest])
 
   // The deck fans open from a single pile when the view appears.
   const spread = useMotionValue(reduced ? 1 : 0)
@@ -107,23 +129,78 @@ export function TabStack({
     if (last >= 0 && target.get() > last) target.set(last)
   }, [last, target])
   const glow = useGlow(current ? thumbs[current.primaryId] : undefined)
+  // the strip's shade takes the colour of the page it lies over (the tab on screen), so it blends in with it
+  const shade = useEdgeColor(side && activeId !== null ? thumbs[activeId] : undefined)
 
   return (
     <motion.div
-      className="stack"
+      className={'stack' + (side ? ' side' : '') + (awake ? ' awake' : '')}
+      onPointerMove={wake}
       role="listbox"
       aria-label="Open tabs"
-      style={{ '--stack-aspect': aspect, '--glow': glow } as React.CSSProperties}
+      style={
+        {
+          '--stack-aspect': aspect,
+          '--glow': glow,
+          '--shade': shade ?? 'var(--overlay-solid)'
+        } as React.CSSProperties
+      }
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 1.03 }}
+      exit={side ? { opacity: 0 } : { opacity: 0, scale: 1.03 }}
       transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="stack-ambient" aria-hidden="true" />
-      <TimelineRail entries={entries} activeId={activeId} pos={pos} index={index} onJump={onJump} />
+      {!side && <div className="stack-ambient" aria-hidden="true" />}
+      {!side && (
+        <button
+          type="button"
+          tabIndex={-1}
+          className="stack-exit"
+          title="Stay on this tab (Esc)"
+          aria-label="Close pane view"
+          onClick={onCancel}
+        >
+          <CloseIcon />
+        </button>
+      )}
+      {!side && (
+        <div className="stack-nav">
+          <button
+            type="button"
+            tabIndex={-1}
+            className="stack-nav-btn up"
+            title="Previous tab"
+            aria-label="Previous tab"
+            disabled={index <= 0}
+            onClick={() => onStep(-1)}
+          >
+            <ChevronIcon />
+          </button>
+          <button
+            type="button"
+            tabIndex={-1}
+            className="stack-nav-btn"
+            title="Next tab"
+            aria-label="Next tab"
+            disabled={index >= last}
+            onClick={() => onStep(1)}
+          >
+            <ChevronIcon />
+          </button>
+        </div>
+      )}
+      {!side && (
+        <TimelineRail
+          entries={entries}
+          activeId={activeId}
+          pos={pos}
+          index={index}
+          onJump={onJump}
+        />
+      )}
       <div className="stack-scene">
         {entries.map((e, i) =>
-          Math.abs(i - near) > VISIBLE ? null : (
+          Math.abs(i - near) > (side ? SIDE_VISIBLE : VISIBLE) ? null : (
             <StackCard
               key={e.key}
               entry={e}
@@ -133,41 +210,25 @@ export function TabStack({
               selected={i === index}
               pos={pos}
               spread={spread}
+              stepY={side ? Math.round(SIDE_HEAD + (SIDE_WIDTH - 28) / aspect + SIDE_GAP) : STEP_Y}
+              flat={side}
               onClick={() => (i === index ? onCommit() : onJump(i))}
               onClose={() => onCloseEntry(e)}
             />
           )
         )}
       </div>
-      {current && (
+      {current && !side && (
         <div className="stack-label">
           <div className="stack-title">{entryTitle(current)}</div>
-          <div className="stack-meta">
-            <span>
-              {current.tabs.length > 1
-                ? `Split of ${current.tabs.length} tabs`
-                : displayHost(current.tabs[0].url) || 'New tab'}
-            </span>
-            <span className="stack-count">
-              {index + 1} of {entries.length}
-            </span>
-          </div>
+          {current.tabs.length === 1 && (
+            <div className="stack-meta">{displayHost(current.tabs[0].url) || 'New tab'}</div>
+          )}
           <div className="sr-only" aria-live="polite">
             {entryTitle(current)}, {index + 1} of {entries.length}
           </div>
         </div>
       )}
-      <div className="stack-hints" aria-hidden="true">
-        <span>
-          <b>Release&nbsp;Ctrl</b> to open
-        </span>
-        <span>
-          <b>Esc</b> to stay
-        </span>
-        <span>
-          <b>Del</b> to close
-        </span>
-      </div>
     </motion.div>
   )
 }
@@ -180,6 +241,8 @@ function StackCard({
   selected,
   pos,
   spread,
+  stepY,
+  flat,
   onClick,
   onClose
 }: {
@@ -190,17 +253,34 @@ function StackCard({
   selected: boolean
   pos: MotionValue<number>
   spread: MotionValue<number>
+  /** Pixels between one card and the next. */
+  stepY: number
+  /** The side strip: no depth in z; cards ride a very large wheel instead and stay full size and solid. */
+  flat: boolean
   onClick: () => void
   onClose: () => void
 }): React.JSX.Element {
+  const stepZ = flat ? 0 : STEP_Z
   const d = useTransform(pos, (p) => index - p)
-  const z = useTransform([d, spread], ([v, s]: number[]) => -Math.abs(v) * STEP_Z * s)
-  const y = useTransform([d, spread], ([v, s]: number[]) => v * STEP_Y * s)
-  const opacity = useTransform(d, (v) => Math.max(0, 1 - Math.abs(v) * FADE))
+  const z = useTransform([d, spread], ([v, s]: number[]) => -Math.abs(v) * stepZ * s)
+  // Along the wheel: `angle` is how far round this card is from the front. Not flat: a straight line, down the screen.
+  const angle = (v: number, s: number): number => (v * stepY * s) / SIDE_RADIUS
+  const y = useTransform([d, spread], ([v, s]: number[]) =>
+    flat ? SIDE_RADIUS * Math.sin(angle(v, s)) : v * stepY * s
+  )
+  const x = useTransform([d, spread], ([v, s]: number[]) =>
+    flat ? SIDE_RADIUS * (1 - Math.cos(angle(v, s))) : 0
+  )
+  const rotate = useTransform([d, spread], ([v, s]: number[]) =>
+    flat ? (-angle(v, s) * 180) / Math.PI : 0
+  )
+  // a flat strip keeps its cards solid: the shade at its edges does the fading, not the cards' own opacity
+  const opacity = useTransform(d, (v) => (flat ? 1 : Math.max(0, 1 - Math.abs(v) * FADE)))
   // Things further from the front darken. A dim layer fades on the compositor; a per-frame blur filter did not.
-  const dim = useTransform(d, (v) => Math.min(DIM_MAX, Math.abs(v) * DIM_PER_STEP))
+  const dim = useTransform(d, (v) =>
+    flat ? Math.min(0.18, Math.abs(v) * 0.05) : Math.min(DIM_MAX, Math.abs(v) * DIM_PER_STEP)
+  )
   const isGroup = entry.tabs.length > 1
-  const first = entry.tabs[0]
 
   return (
     <motion.div
@@ -208,22 +288,13 @@ function StackCard({
       role="option"
       aria-selected={selected}
       aria-label={entryTitle(entry)}
-      style={{ z, y, opacity }}
+      style={{ z, x, y, rotate, opacity }}
       onClick={onClick}
     >
       <div className="card-head">
-        {isGroup ? (
-          <span className="card-favicons">
-            {entry.tabs.slice(0, 3).map((t) => (
-              <TabFavicon key={t.id} tab={t} />
-            ))}
-          </span>
-        ) : (
-          <TabFavicon tab={first} />
-        )}
+        <CardFavicons entry={entry} />
         <span className="tab-title">{entryTitle(entry)}</span>
-        {isGroup && <span className="group-badge">Split {entry.tabs.length}</span>}
-        {current && <span className="current-chip">Current</span>}
+        <CardMarks entry={entry} current={current} />
         <button
           type="button"
           tabIndex={-1}
@@ -310,8 +381,8 @@ function RailItem({
       onClick={onClick}
     >
       <motion.span className="rail-dot" style={{ scale: dotScale }} />
-      <TabFavicon tab={entry.tabs[0]} />
-      <span className="rail-title">{railLabel(entry)}</span>
+      <CardFavicons entry={entry} />
+      <span className="rail-title">{entryTitle(entry)}</span>
     </motion.button>
   )
 }

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyDrop, leaves } from '../../shared/layout'
+import { NONE, click, type Selection } from '../../shared/selection'
 import { stackEntries } from '../../shared/stack'
 import type { UpdateState } from '../../shared/update'
 import { Panes } from './components/Panes'
@@ -17,10 +18,11 @@ import { SpaceSwitcher } from './components/SpaceSwitcher'
 import { WindowControls } from './components/WindowControls'
 import { useSpaceDir } from './hooks/useSpaceDir'
 import { holdOverlay, releaseOverlay } from './overlay'
-import { getSlide, setSlide } from './slide'
+import { getSlide, getSlideY, setSlide, setSlideY } from './slide'
 import { useScheme } from './useScheme'
 import { useSwipe } from './hooks/useSwipe'
-import { useTabDrag } from './hooks/useTabDrag'
+import { useTabDrag, type ClickMods } from './hooks/useTabDrag'
+import { useTabHover } from './hooks/useTabHover'
 import { useTabSlide } from './hooks/useTabSlide'
 import { useTabs } from './hooks/useTabs'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../shared/settings'
@@ -111,8 +113,10 @@ function App(): React.JSX.Element {
   // ---- overlays (the native view sits above the UI, so hide it before showing one) ----
   const opening = useRef(false)
   const releasedEarly = useRef(false)
-  // Opened by a one-shot shortcut (a touchpad gesture sends it): Ctrl is already up, so letting go must not commit.
+  // Letting go of Ctrl must not commit: the view was opened by a one-shot shortcut (a touchpad gesture sends it,
+  // Ctrl is already up) or by Ctrl+wheel, and from then on it stays open until a card is chosen or Esc.
   const stackSticky = useRef(false)
+  const releaseRef = useRef<Settings['paneViewRelease']>('stay')
   const stackPos = useMotionValue(0)
   const snapTimer = useRef<number | undefined>(undefined)
 
@@ -194,6 +198,9 @@ function App(): React.JSX.Element {
           )
         )
         releasedEarly.current = false
+        // With "stay open" (Settings), letting go of Ctrl once the view is up leaves it open and the wheel alone keeps
+        // scrolling; a flick that ends before it has opened still lands on the tab it reached (see releasedEarly).
+        stackSticky.current = releaseRef.current === 'stay'
         void openOverlay('stack')
       } else if (modeRef.current === 'grid') {
         setMode('stack')
@@ -254,6 +261,9 @@ function App(): React.JSX.Element {
     return window.api.onSettings((s) => setSettings(merge(s)))
   }, [])
   const effective = { ...settings, ...activeSpace?.ui }
+  useEffect(() => {
+    releaseRef.current = settings.paneViewRelease
+  }, [settings.paneViewRelease])
   const rowH = Math.round(BASE_ROW_H * effective.density)
   // Along the top there is no sidebar at all: the tab bar and the toolbar row are always there.
   const horizontal = effective.tabLayout === 'horizontal'
@@ -277,16 +287,62 @@ function App(): React.JSX.Element {
       if (target > 0) setHoverShown(true)
       setSlide(from + (target - from) * (1 - Math.pow(1 - t, 3)), effective.sidebarWidth)
       if (t < 1) raf = requestAnimationFrame(step)
-      else if (target === 0) setHoverShown(false)
+      else if (target === 0) {
+        // Leaving hover mode hands the sidebar back to the ordinary rules, whose width transition would run from
+        // the hover width down to nothing and shove the page along with it: switch transitions off across the change.
+        const root = document.documentElement.classList
+        root.add('no-anim')
+        setHoverShown(false)
+        requestAnimationFrame(() => requestAnimationFrame(() => root.remove('no-anim')))
+      }
     }
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
   }, [openedByHover, showSidebar, effective.sidebarWidth])
   const barAutoHidden = !pushed && !horizontal && settings.autoHideTopBar
+  // the sidebar and the top bar are never both brought out by the pointer: whichever came first keeps the stage
+  const peeking = peekBar && !openedByHover
+  const peekRef = useRef(false)
+  useEffect(() => {
+    peekRef.current = peeking
+  }, [peeking])
+  const barPx = Math.round((6 + 26 * effective.addressSize) * effective.density * effective.uiScale)
+  // The top bar the pointer brings out slides down over the page area while the page area, at its own size, slides
+  // down with it (the page views follow from the main process): the page is not laid out or repainted for a glance
+  // at the bar, and a little of its foot runs off the window instead.
+  const [barShown, setBarShown] = useState(false)
+  const barOver = barAutoHidden && (peeking || barShown)
   const stripHidden =
     pushed ||
-    (barAutoHidden && !peekBar && mode !== 'search' && !passwordPrompt && findKey === null)
-  const barPx = Math.round((6 + 26 * effective.addressSize) * effective.density * effective.uiScale)
+    (barAutoHidden &&
+      !peeking &&
+      !barShown &&
+      mode !== 'search' &&
+      !passwordPrompt &&
+      findKey === null)
+  const barTarget = barAutoHidden && peeking ? barPx : 0
+  useEffect(() => {
+    const from = getSlideY()
+    if (from === barTarget) return
+    const start = performance.now()
+    const duration = barTarget > 0 ? 170 : 150
+    let raf = 0
+    const step = (now: number): void => {
+      const t = Math.min(1, (now - start) / duration)
+      if (barTarget > 0) setBarShown(true)
+      setSlideY(from + (barTarget - from) * (1 - Math.pow(1 - t, 3)), barPx)
+      if (t < 1) raf = requestAnimationFrame(step)
+      else if (barTarget === 0) {
+        // the bar goes back into the ordinary rules, whose transitions must not run across the change
+        const root = document.documentElement.classList
+        root.add('no-anim')
+        setBarShown(false)
+        requestAnimationFrame(() => requestAnimationFrame(() => root.remove('no-anim')))
+      }
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [barTarget, barPx])
   useEffect(() => {
     window.api.watchTopBar(barAutoHidden, barPx)
   }, [barAutoHidden, barPx])
@@ -305,6 +361,7 @@ function App(): React.JSX.Element {
         // The search popover hangs off the address bar, which moves when the sidebar does; leave the
         // layout alone until it is dismissed (the pointer keeps asking, so a close still follows).
         if (modeRef.current !== null) return
+        if (action === 'open' && peekRef.current) return // the top bar is out: leave the sidebar for later
         setSidebarOpen(action === 'open')
         setOpenedByHover(action === 'open')
       }),
@@ -373,10 +430,57 @@ function App(): React.JSX.Element {
 
   const toggleGrid = (): void => (mode === 'grid' ? closeOverlay() : void openOverlay('grid'))
 
-  const { drag, start: startDrag } = useTabDrag(window.api.activateTab, () => ({
+  // Tabs picked with Shift (a run) or Ctrl (one at a time). A plain click, Escape, or any change of layout ends it.
+  const [picked, setPicked] = useState<Selection>(NONE)
+  const pickedRef = useRef(picked)
+  useEffect(() => {
+    pickedRef.current = picked
+  }, [picked])
+  const onTabClick = useCallback((id: number, mods: ClickMods) => {
+    if (!mods.shift && !mods.ctrl) {
+      setPicked(NONE)
+      window.api.activateTab(id)
+      return
+    }
+    const { tabs: ts, activeId: a } = latest.current
+    // a selection starts from the tab on screen, so Shift-clicking another tab picks the run between them
+    const seed: Selection = a === null ? NONE : { ids: new Set([a]), anchor: a }
+    const from = pickedRef.current.ids.size > 0 ? pickedRef.current : seed
+    const next = click(
+      from,
+      ts.map((t) => t.id),
+      id,
+      mods
+    )
+    setPicked(next.ids.size > 1 ? next : NONE)
+  }, [])
+  const pickedIds = picked.ids
+  // a new layout, space or tab count means the picked tabs are no longer what was picked
+  const [seen, setSeen] = useState({ layout, activeSpaceId, count: tabs.length })
+  if (
+    seen.layout !== layout ||
+    seen.activeSpaceId !== activeSpaceId ||
+    seen.count !== tabs.length
+  ) {
+    setSeen({ layout, activeSpaceId, count: tabs.length })
+    setPicked(NONE)
+  }
+  useEffect(() => {
+    if (pickedIds.size === 0) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setPicked(NONE)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pickedIds])
+
+  useTabHover()
+
+  const { drag, start: startDrag } = useTabDrag(onTabClick, () => ({
     order: latest.current.tabs.map((t) => t.id),
     groups: latest.current.tabs.map((t) => t.groupId),
     group: latest.current.layout ? leaves(latest.current.layout) : [],
+    picked: [...pickedRef.current.ids],
     tiled:
       !!latest.current.layout &&
       latest.current.activeId !== null &&
@@ -420,6 +524,7 @@ function App(): React.JSX.Element {
         'app themed' +
         (showSidebar ? '' : ' sidebar-closed') +
         (hoverShown ? ' hover-open' : '') +
+        (barOver ? ' bar-over' : '') +
         (horizontal ? ' horizontal' : '') +
         (mode ? ' overlay-open' : '')
       }
@@ -443,6 +548,7 @@ function App(): React.JSX.Element {
           dropGroupId={dropGroupId}
           dir={spaceDir}
           onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
+          picked={pickedIds}
           onOpenSearch={() => void openOverlay('search')}
           rowH={rowH}
           findKey={showSidebar ? findKey : null}
@@ -474,13 +580,14 @@ function App(): React.JSX.Element {
               drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
             }
             onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
+            picked={pickedIds}
           />
         )}
         <div
           className={
             'strip drag' +
             (stripHidden ? ' hidden' : '') +
-            (barAutoHidden && peekBar ? ' peeking' : '') +
+            (barAutoHidden && peeking ? ' peeking' : '') +
             (horizontal ? ' hstrip' : '') +
             (horizontal && effective.fullWidthAddress ? ' full' : '')
           }
@@ -558,7 +665,7 @@ function App(): React.JSX.Element {
             (horizontal ? ' hlayout' : '') +
             (pushed && !horizontal ? ' plane' : '') +
             (!pushed && hoverShown && !horizontal ? ' plane-hover' : '') +
-            (stripHidden && !pushed ? ' no-bar' : '')
+            ((stripHidden || barOver) && !pushed ? ' no-bar' : '')
           }
         >
           {/* With the top bar tucked away, its loading bar is gone too: show progress on the window's top edge. */}
@@ -589,6 +696,10 @@ function App(): React.JSX.Element {
               onOpenSearch={() => void openOverlay('search')}
             />
             {drag && <DropIndicator drag={drag} />}
+            {mode === 'stack' && effective.paneView === 'side' && (
+              // the page stays in view beside the strip: a click anywhere on it leaves the view
+              <div className="stack-scrim" onClick={closeOverlay} />
+            )}
             <AnimatePresence
               onExitComplete={() => {
                 if (modeRef.current === null) void releaseOverlay('app')
@@ -642,6 +753,7 @@ function App(): React.JSX.Element {
               {mode === 'stack' && (
                 <TabStack
                   key="stack"
+                  side={effective.paneView === 'side'}
                   entries={stackEntries(tabs, layout, activeId)}
                   activeId={activeId}
                   thumbs={thumbs}
