@@ -3772,3 +3772,33 @@ kbd {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+
+/* ---- top tab sizes: the tab you are on is the widest, the others share what is left, as in Edge and Chrome.
+   A width depends only on whether a tab is active and how many there are, never on a title. ---- */
+.htab {
+  flex: 0 1 150px;
+  width: 150px;
+  min-width: 42px;
+  max-width: 150px;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    translate 0.2s var(--ease),
+    flex-basis 0.2s var(--ease),
+    width 0.2s var(--ease);
+}
+.htab.active {
+  flex-basis: 232px;
+  width: 232px;
+  max-width: 232px;
+  min-width: 128px;
+}
+.htab.in-split.pair-active {
+  flex-basis: 188px;
+  width: 188px;
+  max-width: 188px;
+  min-width: 96px;
+}
+.htab.floating {
+  transition: none;
+}
