@@ -277,7 +277,7 @@ export function Passwords(): React.JSX.Element {
           <div className="u-text">
             <div className="u-label">Import from CSV</div>
             <div className="u-hint">
-              Chrome, Edge, Firefox and most password managers export CSV.
+              Chrome, Edge, Brave, Opera, Vivaldi, Firefox, Safari, 1Password, Bitwarden, LastPass and KeePass all export CSV. Pick the file here.
             </div>
           </div>
         </button>

@@ -2297,8 +2297,25 @@ kbd {
     filter 0.18s,
     transform 0.18s;
 }
-.panes.blurred .pane-frozen {
-  filter: blur(7px) brightness(0.92); /* no scaling: the picture stays exactly where the page was */
+@keyframes frozen-blur-in {
+  from {
+    filter: blur(0) brightness(1);
+  }
+}
+.panes.fb-slight .pane-frozen,
+.panes.fb-strong .pane-frozen {
+  animation: frozen-blur-in 0.3s var(--ease) both;
+}
+.panes.fb-slight .pane-frozen {
+  filter: blur(3px) brightness(1); /* no scaling: the picture stays exactly where the page was */
+}
+.panes.fb-strong .pane-frozen {
+  filter: blur(8px) brightness(0.92);
+}
+/* blurring is GPU work: efficient mode shows the stored picture as it is */
+[data-fx='low'] .panes .pane-frozen {
+  filter: none;
+  animation: none;
 }
 
 /* the tab whose page is floating in picture in picture */

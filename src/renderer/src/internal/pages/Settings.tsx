@@ -298,6 +298,18 @@ export function Settings(): React.JSX.Element {
             onChange={(v) => void update({ urlDisplay: v })}
           />
         </Row>
+        <Row label="Page blur behind overlays" hint="How soft a page looks while the command bar or another overlay is open over it.">
+          <Segmented
+            label="Page blur behind overlays"
+            value={s.frozenBlur}
+            options={[
+              { value: 'off', label: 'Off' },
+              { value: 'slight', label: 'Slight' },
+              { value: 'strong', label: 'Strong' }
+            ]}
+            onChange={(v) => void update({ frozenBlur: v })}
+          />
+        </Row>
         <div className="u-row center">
           <button
             className="int-btn small"

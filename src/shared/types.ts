@@ -284,6 +284,8 @@ export interface Settings {
   pageZoom: number
   /** Show the full address, or just the site name, when the bar is not being edited. */
   urlDisplay: 'full' | 'host'
+  /** How much a page's stored picture is softened while it stands in for the live page (an overlay is open). */
+  frozenBlur: 'off' | 'slight' | 'strong'
   /** Send what you type in the command bar to your search engine to get suggestions. */
   searchSuggestions: boolean
   /** With the sidebar collapsed, hide the top bar until the pointer touches the top edge. */

@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pageZoom: 0,
   addressSize: 1,
   urlDisplay: 'full',
+  frozenBlur: 'slight',
   searchSuggestions: true,
   autoHideTopBar: false,
   sidebarHover: false,

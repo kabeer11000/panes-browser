@@ -725,6 +725,7 @@ function App(): React.JSX.Element {
           </AnimatePresence>
           <div className="stage">
             <Panes
+              frozenBlur={settings.frozenBlur}
               tabs={tabs}
               activeId={activeId}
               layout={layout}

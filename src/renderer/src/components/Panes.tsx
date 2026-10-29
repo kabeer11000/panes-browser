@@ -9,7 +9,7 @@ import {
   type Frame,
   type LayoutNode
 } from '../../../shared/layout'
-import type { Rect, TabInfo } from '../../../shared/types'
+import type { Rect, Settings, TabInfo } from '../../../shared/types'
 import { displayHost } from '../../../shared/url'
 import { tabTitle } from '../tabTitle'
 import { CloseIcon, GripIcon, PipIcon } from './icons'
@@ -28,8 +28,8 @@ interface Props {
   dragId: number | null
   onHeaderPointerDown: (e: PointerEvent, id: number) => void
   onOpenSearch: () => void
-  /** The saved page image behind the command bar is soft-focused rather than shown stretched and pixelated. */
-  blurred?: boolean
+  /** How soft the saved page image is while it stands in for the live page (the frozenBlur setting). */
+  frozenBlur?: Settings['frozenBlur']
 }
 
 const GAP = 5 // the gap between tiled panes; the divider's grab area extends past it (see .divider::before)
@@ -65,7 +65,7 @@ export function Panes({
   dragId,
   onHeaderPointerDown,
   onOpenSearch,
-  blurred = false
+  frozenBlur = 'off'
 }: Props): React.JSX.Element {
   const byId = new Map(tabs.map((t) => [t.id, t]))
   const singleRoot: LayoutNode | null =
@@ -185,7 +185,7 @@ export function Panes({
   return (
     <div
       className={
-        'panes' + (resizing || windowResizing ? ' resizing' : '') + (blurred ? ' blurred' : '')
+        'panes' + (resizing || windowResizing ? ' resizing' : '') + (frozenBlur === 'off' ? '' : ` fb-${frozenBlur}`)
       }
       ref={containerRef}
     >

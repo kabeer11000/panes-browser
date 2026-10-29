@@ -43,16 +43,17 @@ const quote = (f: string): string => (/[",\r\n]/.test(f) ? `"${f.replace(/"/g, '
 export const toCsv = (rows: string[][]): string =>
   rows.map((r) => r.map(quote).join(',')).join('\r\n') + '\r\n'
 
-// Column names used by Chrome, Edge, Firefox, Bitwarden and 1Password exports.
+// Column names used by the exports of Chrome, Edge, Brave, Opera, Vivaldi, Firefox, Safari, Bitwarden, 1Password,
+// LastPass, Dashlane and KeePass.
 const COLUMNS = {
-  url: ['url', 'login_uri', 'website', 'web site', 'origin'],
-  username: ['username', 'login_username', 'user', 'login', 'email'],
+  url: ['url', 'login_uri', 'login url', 'website', 'web site', 'origin', 'site', 'address'],
+  username: ['username', 'login_username', 'login name', 'user', 'user name', 'login', 'email'],
   password: ['password', 'login_password']
 }
 
 /** Logins from a password-manager export. Rows without a usable site or password are skipped. */
 export function loginsFromCsv(text: string): { rows: LoginRow[]; skipped: number } {
-  const [header, ...body] = parseCsv(text)
+  const [header, ...body] = parseCsv(text.replace(/^\uFEFF/, '')) // some exports start with a BOM
   if (!header) return { rows: [], skipped: 0 }
   const names = header.map((h) => h.trim().toLowerCase())
   const col = (keys: string[]): number => names.findIndex((n) => keys.includes(n))

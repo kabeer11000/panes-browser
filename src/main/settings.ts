@@ -52,6 +52,9 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   }
   if (typeof patch.searchSuggestions === 'boolean') out.searchSuggestions = patch.searchSuggestions
   if (patch.urlDisplay === 'full' || patch.urlDisplay === 'host') out.urlDisplay = patch.urlDisplay
+  if (patch.frozenBlur === 'off' || patch.frozenBlur === 'slight' || patch.frozenBlur === 'strong') {
+    out.frozenBlur = patch.frozenBlur
+  }
   if (typeof patch.darkenSites === 'boolean') out.darkenSites = patch.darkenSites
   if (typeof patch.memorySaver === 'boolean') out.memorySaver = patch.memorySaver
   if (typeof patch.unloadOtherSpaces === 'boolean') out.unloadOtherSpaces = patch.unloadOtherSpaces

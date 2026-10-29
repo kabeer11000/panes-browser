@@ -101,6 +101,12 @@ describe('loginsFromCsv', () => {
       1
     )
   })
+  test('reads KeePass style headers, and a file that starts with a BOM', () => {
+    expect(
+      loginsFromCsv('Account,Login Name,Password,Web Site\nA,kim,pw,https://k.test\n').rows
+    ).toEqual([{ origin: 'https://k.test', username: 'kim', password: 'pw' }])
+    expect(loginsFromCsv('\uFEFFurl,username,password\nhttps://b.test,u,p\n').rows).toHaveLength(1)
+  })
   test('skips rows with no site or no password, and unrecognised files', () => {
     const r = loginsFromCsv(
       'url,username,password\nnot a site,u,p\nhttps://a.test,u,\nhttps://b.test,u,p\n'
