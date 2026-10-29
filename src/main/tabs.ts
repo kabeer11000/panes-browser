@@ -94,6 +94,8 @@ interface Tab {
   thumbAt: number
   /** The picture was taken at (nearly) the page's own size, not shrunk for the overview. */
   thumbSharp: boolean
+  /** The size of the page when the picture was taken: a picture of another shape would be stretched. */
+  thumbSize: { w: number; h: number }
   thumbTimer: NodeJS.Timeout | null
   /** The page may look different from `thumb` (input, navigation, sound). Snapshots read the GPU back, so an unchanged page is not captured again. */
   dirty: boolean
@@ -419,6 +421,7 @@ export class TabManager {
       thumb: null,
       thumbAt: 0,
       thumbSharp: false,
+      thumbSize: { w: 0, h: 0 },
       thumbTimer: null,
       dirty: true,
       hasUrl: false,
@@ -1237,7 +1240,10 @@ export class TabManager {
         const t = this.tabs.get(id)
         return (
           !!t &&
-          (!t.thumb || (sharp && !t.thumbSharp) || (t.dirty && now - t.thumbAt > THUMB_FRESH_MS))
+          (!t.thumb ||
+            (sharp && !t.thumbSharp) ||
+            !this.thumbFits(id, t) ||
+            (t.dirty && now - t.thumbAt > THUMB_FRESH_MS))
         )
       })
       if (stale.length > 0) {
@@ -1587,6 +1593,13 @@ export class TabManager {
     tab.thumbTimer = setTimeout(() => void this.snapshot(id), 800)
   }
 
+  /** Whether a tab's picture has the shape of the page as it is now (it is shown in its place). */
+  private thumbFits(id: number, t: Tab): boolean {
+    const r = this.rects[id]
+    if (!r || t.thumbSize.w === 0) return false
+    return Math.abs(r.width - t.thumbSize.w) <= 3 && Math.abs(r.height - t.thumbSize.h) <= 3
+  }
+
   /** Take the full-size pictures early (the pointer is nearly at the edge), so the overlay can open at once. */
   warmSharp(): void {
     if (this.overlay) return
@@ -1605,6 +1618,8 @@ export class TabManager {
       const jpeg = picture.toJPEG(sharp ? 82 : 72)
       tab.thumb = 'data:image/jpeg;base64,' + jpeg.toString('base64')
       tab.thumbSharp = sharp
+      const at = this.rects[id]
+      tab.thumbSize = at ? { w: at.width, h: at.height } : { w: 0, h: 0 }
       tab.thumbAt = Date.now()
       this.win.webContents.send('tabs:thumb', id, tab.thumb)
     } catch {

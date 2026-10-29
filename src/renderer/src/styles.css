@@ -2271,8 +2271,7 @@ kbd {
     transform 0.18s;
 }
 .panes.blurred .pane-frozen {
-  filter: blur(7px) brightness(0.92);
-  transform: scale(1.04);
+  filter: blur(7px) brightness(0.92); /* no scaling: the picture stays exactly where the page was */
 }
 
 /* the tab whose page is floating in picture in picture */
