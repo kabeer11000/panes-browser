@@ -1221,13 +1221,13 @@ export class TabManager {
           }
         }
       }
-      this.openLink(url)
+      this.openLink(url, id)
       return { action: 'deny' }
     })
     wc.on('will-navigate', (e, url) => {
       if (this.externalScheme(url)) {
         e.preventDefault()
-        this.openLink(url)
+        this.openLink(url, id)
       }
     })
   }
@@ -1241,9 +1241,12 @@ export class TabManager {
   }
 
   /** mailto:/tel: go to the OS; everything else becomes a tab. */
-  private openLink(url: string): void {
-    if (this.externalScheme(url)) void shell.openExternal(url)
-    else this.create(url)
+  private openLink(url: string, from?: number): void {
+    if (this.externalScheme(url)) return void shell.openExternal(url)
+    const id = this.create(url)
+    // A link opened from a tab in a group joins that group, at its bottom.
+    const group = from === undefined ? null : (this.tabs.get(from)?.groupId ?? null)
+    if (group !== null) this.addToGroup(id, group)
   }
 
   /** Browser shortcuts. Registered on every tab and the UI window so they work wherever focus is. */
