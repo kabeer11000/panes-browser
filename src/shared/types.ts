@@ -281,6 +281,8 @@ export interface SiteInfo {
   key: string
   origin: string
   secure: boolean
+  /** Cookies this site has set that the browser would send it. */
+  cookies: number
   spaceName: string
   /** `global` is the main ad blocker switch; `off` is this site's exception. */
   adblock: { global: boolean; off: boolean; cosmetic: boolean; blocked: number }
@@ -295,6 +297,8 @@ export interface SiteInfo {
 /** One change from the panel; main validates every field. */
 export interface SitePatch {
   adblockOff?: boolean
+  /** Forget the site's cookies and stored data. */
+  clearData?: boolean
   /** Whether the blocker may hide elements on the page (requests stay blocked either way). */
   adblockCosmetic?: boolean
   boost?: SiteTheme | null

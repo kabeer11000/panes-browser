@@ -1,3 +1,4 @@
+import type { Session } from 'electron'
 import { originOf, type PermDecision, type PermKind, type SiteGrant } from '../shared/permissions'
 import { normalizeSites, siteListed } from '../shared/memory'
 import { DEFAULT_THEME, sanitizeSiteTheme, siteKey } from '../shared/sitetheme'
@@ -18,6 +19,8 @@ const isKind = (v: unknown): v is PermKind => KINDS.includes(v as PermKind)
 
 interface Deps {
   settings: SettingsStore
+  /** The browsing session, for the site's cookies and stored data. */
+  session: Session
   spaces: SpaceStore
   permissions: PermissionStore
   /** The page the panel is about: the active tab's address and its space. */
@@ -36,7 +39,7 @@ interface Deps {
 export class SiteSettings {
   constructor(private d: Deps) {}
 
-  info(): SiteInfo | null {
+  async info(): Promise<SiteInfo | null> {
     const page = this.d.active()
     const key = page && siteKey(page.url)
     const origin = page && originOf(page.url)
@@ -47,9 +50,11 @@ export class SiteSettings {
     for (const g of this.d.permissions.list() as SiteGrant[]) {
       if (g.origin === origin && isKind(g.kind)) perms[g.kind] = g.decision
     }
+    const cookies = await this.d.session.cookies.get({ url: origin }).catch(() => [])
     return {
       key,
       origin,
+      cookies: cookies.length,
       secure: origin.startsWith('https:'),
       spaceName: space?.name ?? '',
       adblock: {
@@ -65,7 +70,7 @@ export class SiteSettings {
     }
   }
 
-  update(raw: unknown): SiteInfo | null {
+  async update(raw: unknown): Promise<SiteInfo | null> {
     const page = this.d.active()
     const key = page && siteKey(page.url)
     const origin = page && originOf(page.url)
@@ -97,6 +102,9 @@ export class SiteSettings {
       this.d.settings.update({
         neverUnloadSites: normalizeSites(patch.keepLoaded ? [...rest, key] : rest)
       })
+    }
+    if (patch.clearData === true) {
+      await this.d.session.clearStorageData({ origin })
     }
     if (patch.boost !== undefined) {
       this.d.spaces.setSite(page.spaceId, key, sanitizeSiteTheme(patch.boost))

@@ -104,6 +104,7 @@ export function Panel(): React.JSX.Element | null {
   const [draft, setDraft] = useState<SiteTheme>(DEFAULT_THEME)
   const [tab, setTab] = useState<Tab>('color')
   const [css, setCss] = useState('')
+  const [cleared, setCleared] = useState(false)
   const box = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
@@ -111,6 +112,7 @@ export function Panel(): React.JSX.Element | null {
       setInfo(i)
       setDraft(i?.boost ?? DEFAULT_THEME)
       setCss(i?.boost?.css ?? '')
+      setCleared(false)
     })
   }, [api])
   useEffect(() => {
@@ -181,8 +183,8 @@ export function Panel(): React.JSX.Element | null {
         <header className="pn-head">
           <div>
             <b>{info.key}</b>
-            <span className={info.secure ? 'ok' : 'bad'}>
-              {info.secure ? 'Secure connection' : 'Not secure'} <em>in {info.spaceName}</em>
+            <span>
+              <em>in {info.spaceName}</em>
             </span>
           </div>
           {boosted && (
@@ -191,6 +193,44 @@ export function Panel(): React.JSX.Element | null {
             </button>
           )}
         </header>
+
+        <section className={'pn-secure ' + (info.secure ? 'ok' : 'bad')} aria-label="Connection">
+          <span className="pn-secure-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              {info.secure ? (
+                <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 10 4.1-1.6 7-5.6 7-10V6l-7-3Zm-1.2 12.4-3-3 1.4-1.4 1.6 1.6 4-4 1.4 1.4-5.4 5.4Z" />
+              ) : (
+                <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 10 4.1-1.6 7-5.6 7-10V6l-7-3Zm-1 5h2v5h-2V8Zm0 6.5h2v2h-2v-2Z" />
+              )}
+            </svg>
+          </span>
+          <div>
+            <b>{info.secure ? 'Connection is secure' : 'Connection is not secure'}</b>
+            <span>
+              {info.secure
+                ? 'What you send to this site is encrypted on the way.'
+                : 'Others on the network could read or change what you send. Do not enter passwords or card numbers here.'}
+            </span>
+          </div>
+          <div className="pn-secure-foot">
+            <span>
+              {info.cookies === 0
+                ? 'No cookies'
+                : `${info.cookies} cookie${info.cookies === 1 ? '' : 's'}`}
+            </span>
+            <button
+              type="button"
+              disabled={cleared}
+              onClick={() => {
+                setCleared(true)
+                send({ clearData: true }, (i) => ({ ...i, cookies: 0 }))
+              }}
+              title="Forget this site's cookies and stored data. You may be signed out."
+            >
+              {cleared ? 'Cleared' : 'Clear site data'}
+            </button>
+          </div>
+        </section>
 
         <nav className="pn-tabs" role="tablist" aria-label="Site settings">
           {TABS.map(([id, label]) => (
