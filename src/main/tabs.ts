@@ -24,6 +24,8 @@ import {
 } from '../shared/tabgroups'
 import { stageBackground } from '../shared/color'
 import { siteKey, siteThemeCss } from '../shared/sitetheme'
+import { dumpableTabs, type TabDump } from '../shared/dumps'
+import type { DumpStore } from './dumps'
 import { ZAP_PREFIX, ZAP_SCRIPT } from '../shared/zap'
 import { errorPageUrl } from '../shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
@@ -166,6 +168,7 @@ export class TabManager {
       history: HistoryStore
       bookmarks: BookmarkStore
       spaces: SpaceStore
+      dumps: DumpStore
     }
   ) {
     this.activeSpaceId = deps.spaces.activeId()
@@ -1292,6 +1295,7 @@ export class TabManager {
       else if (k === 'a') this.command('toggle-taskview')
       else if (k === 't') this.reopenClosed()
       else if (k === 'o') this.openInternal('bookmarks')
+      else if (k === 'd') this.dumpTabs()
       else if (k === 'i') this.current()?.view.webContents.toggleDevTools()
       else if (k === '+') this.zoom(ZOOM_STEP)
       else handled = false
@@ -1398,7 +1402,27 @@ export class TabManager {
     this.reorder(placeInGroup(this.own(), this.groupOf, id, old))
   }
 
-  createGroup(tabId: number): void {
+  /** Save what is open in this space as a session; `close` also closes those tabs (a quick clear-out). */
+  dumpTabs(close = false): TabDump | null {
+    const open = this.state().tabs
+    const dump = this.deps.dumps.add(dumpableTabs(open))
+    if (dump && close) {
+      const saved = new Set(dump.tabs.map((t) => t.url))
+      for (const t of open) if (saved.has(t.url)) this.close(t.id)
+    }
+    return dump
+  }
+
+  /** Open a saved session as a new group of tabs, named after it. */
+  openDump(id: number): void {
+    const dump = this.deps.dumps.get(id)
+    if (!dump || dump.tabs.length === 0) return
+    const ids = dump.tabs.map((t, i) => this.create(t.url, i === 0))
+    this.createGroup(ids[0], dump.name)
+    for (const tid of ids.slice(1)) this.addToGroup(tid, this.tabs.get(ids[0])?.groupId ?? -1)
+  }
+
+  createGroup(tabId: number, name = ''): void {
     const tab = this.tabs.get(tabId)
     if (!tab) return
     this.leaveGroup(tabId)
@@ -1409,13 +1433,13 @@ export class TabManager {
     this.groups.set(id, {
       id,
       spaceId: tab.spaceId,
-      name: '',
+      name,
       color: nextGroupColor(used),
       collapsed: false
     })
     tab.groupId = id
     this.refresh()
-    this.send('ui:rename-group', id) // a new group is named straight away
+    if (!name) this.send('ui:rename-group', id) // a new group is named straight away
   }
 
   addToGroup(tabId: number, groupId: number): void {
@@ -1459,6 +1483,10 @@ export class TabManager {
     const items: MenuItemConstructorOptions[] = [
       { label: 'Add to new group', click: () => this.createGroup(id) }
     ]
+    const saveItems: MenuItemConstructorOptions[] = [
+      { label: 'Save all tabs as a session', click: () => this.dumpTabs() },
+      { label: 'Save all tabs and close them', click: () => this.dumpTabs(true) }
+    ]
     if (others.length > 0) {
       items.push({
         label: 'Add to group',
@@ -1472,6 +1500,8 @@ export class TabManager {
       items.push({ label: 'Remove from group', click: () => this.removeFromGroup(id) })
     }
     items.push(
+      { type: 'separator' },
+      ...saveItems,
       { type: 'separator' },
       {
         label: tab.unloaded ? 'Tab is unloaded' : 'Unload tab',

@@ -15,6 +15,7 @@ import { applyPerformance } from './performance'
 import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
 import { BookmarkStore, HistoryStore } from './history'
+import { DumpStore } from './dumps'
 import { PasswordStore, registerPasswordIpc } from './passwords'
 import { registerInternalIpc, registerInternalScheme, serveInternalPages } from './internal'
 import icon from '../../resources/icon.png?asset'
@@ -124,7 +125,8 @@ function createWindow(): void {
 
   const spaces = new SpaceStore()
   const suggester = new Suggester({ history, bookmarks, settings })
-  const tabs = new TabManager(win, tabSession, { settings, history, bookmarks, spaces })
+  const dumps = new DumpStore()
+  const tabs = new TabManager(win, tabSession, { settings, history, bookmarks, spaces, dumps })
   const permissions = new PermissionStore()
   const sites = new SiteSettings({
     settings,
@@ -156,6 +158,13 @@ function createWindow(): void {
     permissions,
     history,
     bookmarks,
+    dumps: {
+      list: () => dumps.list(),
+      save: (close) => tabs.dumpTabs(close),
+      open: (id) => tabs.openDump(id),
+      rename: (id, name) => dumps.rename(id, name),
+      remove: (id) => dumps.remove(id)
+    },
     downloads,
     passwords,
     spaces: {

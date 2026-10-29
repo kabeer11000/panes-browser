@@ -4,6 +4,7 @@ import { BookmarkIcon, CloseIcon, SearchIcon } from '../../components/icons'
 import { host } from '../format'
 import { Site } from '../Site'
 import { EmptyState } from '../ui'
+import { Sessions } from './Sessions'
 
 export function Bookmarks(): React.JSX.Element {
   const [items, setItems] = useState<Bookmark[]>([])
@@ -25,6 +26,7 @@ export function Bookmarks(): React.JSX.Element {
 
   return (
     <>
+      <Sessions />
       <div className="int-toolbar">
         <label className="int-search">
           <SearchIcon />

@@ -12,6 +12,7 @@ import type {
   Space,
   SpacePatch
 } from '../shared/types'
+import type { TabDump } from '../shared/dumps'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
@@ -56,6 +57,13 @@ interface Deps {
   permissions: PermissionStore
   history: HistoryStore
   bookmarks: BookmarkStore
+  dumps: {
+    list: () => TabDump[]
+    save: (close: boolean) => TabDump | null
+    open: (id: number) => void
+    rename: (id: number, name: unknown) => void
+    remove: (id: number) => void
+  }
   downloads: DownloadManager
   passwords: PasswordStore
   spaces: {
@@ -103,6 +111,11 @@ export function registerInternalIpc(d: Deps): void {
   )
   handle('int:bookmarks-list', () => d.bookmarks.list())
   handle('int:bookmark-remove', (id: number) => d.bookmarks.remove(id))
+  handle('int:dumps-list', () => d.dumps.list())
+  handle('int:dump-save', (close: unknown) => d.dumps.save(close === true))
+  handle('int:dump-open', (id: number) => d.dumps.open(Number(id)))
+  handle('int:dump-rename', (id: number, name: unknown) => d.dumps.rename(Number(id), name))
+  handle('int:dump-remove', (id: number) => d.dumps.remove(Number(id)))
   handle('int:downloads-list', () => d.downloads.list())
   handle('int:download-action', (id: number, action: DownloadAction) => d.downloads.act(id, action))
   // panes:// pages follow the active space: its light or dark mode, and its colour for highlights

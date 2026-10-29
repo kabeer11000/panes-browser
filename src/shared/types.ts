@@ -3,6 +3,7 @@ import type { UpdateState } from './update'
 import type { Edge, LayoutNode } from './layout'
 import type { PerformanceMode, RunningMode } from './performance'
 import type { PermDecision, PermKind, SiteGrant } from './permissions'
+import type { TabDump } from './dumps'
 import type { TabGroup } from './tabgroups'
 import type { SpaceIcon } from './spaceicons'
 
@@ -395,6 +396,13 @@ export interface InternalApi {
   historyRemoveMany(ids: number[]): Promise<void>
   bookmarksList(): Promise<Bookmark[]>
   bookmarkRemove(id: number): Promise<void>
+  /** Saved sessions: sets of tabs to open again or send on. */
+  dumpsList(): Promise<TabDump[]>
+  /** Save this space's open tabs; `close` also closes them. Null when there was nothing to save. */
+  dumpSave(close: boolean): Promise<TabDump | null>
+  dumpOpen(id: number): Promise<void>
+  dumpRename(id: number, name: string): Promise<void>
+  dumpRemove(id: number): Promise<void>
   downloadsList(): Promise<DownloadInfo[]>
   downloadAction(id: number, action: DownloadAction): Promise<void>
   getSettings(): Promise<Settings>
