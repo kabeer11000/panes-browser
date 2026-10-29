@@ -187,6 +187,8 @@ export function HorizontalTabs({
                 (t.id === activeId ? ' active' : '') +
                 (tg ? ' grouped' : '') +
                 (inSplit ? ' in-split' : '') +
+                (inSplit && !split.includes(tabs[i - 1]?.id ?? -1) ? ' split-first' : '') +
+                (inSplit && !split.includes(tabs[i + 1]?.id ?? -1) ? ' split-last' : '') +
                 (t.unloaded ? ' unloaded' : '') +
                 (t.id === dragId ? ' dragging' : '') +
                 (dropIndex === i ? ' drop-before' : '') +

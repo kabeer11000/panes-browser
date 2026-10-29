@@ -433,6 +433,7 @@ function App(): React.JSX.Element {
           className={
             'strip drag' +
             (stripHidden ? ' hidden' : '') +
+            (horizontal ? ' hstrip' : '') +
             (horizontal && effective.fullWidthAddress ? ' full' : '')
           }
           inert={stripHidden}

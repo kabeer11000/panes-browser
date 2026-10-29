@@ -1,5 +1,6 @@
 import '../styles.css'
 import './permission.css'
+import './share.css'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

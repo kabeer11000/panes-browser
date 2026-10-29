@@ -162,7 +162,11 @@ export class PermissionManager {
   private async pickScreen(origin: string | null, audio: boolean): Promise<object> {
     if (!origin) return {}
     const found = await desktopCapturer
-      .getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 180 } })
+      .getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 400, height: 225 },
+        fetchWindowIcons: true
+      })
       .catch(() => [])
     if (found.length === 0) return {}
     const answer = await this.ask({
@@ -172,16 +176,20 @@ export class PermissionManager {
         id: s.id,
         name: s.name,
         kind: s.id.startsWith('screen:') ? ('screen' as const) : ('window' as const),
-        thumb: s.thumbnail.toDataURL()
-      }))
+        thumb: s.thumbnail.isEmpty() ? '' : s.thumbnail.toDataURL(),
+        icon: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : ''
+      })),
+      audio
     })
     const source =
       answer.action === 'share' ? found.find((s) => s.id === answer.sourceId) : undefined
     if (!source) return {}
-    // Whole-screen capture can carry the system's sound (Windows); a single window cannot.
+    // Whole-screen capture can carry the system's sound (Windows); a single window cannot. The dialog
+    // lets the user decline it.
+    const wantsAudio = answer.action === 'share' && answer.audio
     return {
       video: source,
-      ...(audio && source.id.startsWith('screen:') ? { audio: 'loopback' } : {})
+      ...(audio && wantsAudio && source.id.startsWith('screen:') ? { audio: 'loopback' } : {})
     }
   }
 
@@ -229,10 +237,13 @@ export class PermissionManager {
     const view = this.ensureView()
     const [winW, winH] = this.win.getContentSize()
     const page = this.anchor()
-    const width = CARD_WIDTH + PAD * 2
-    const height = Math.min(this.height + PAD * 2, winH)
-    const x = Math.max(0, Math.min((page?.x ?? 80) + INSET - PAD, winW - width))
-    const y = Math.max(0, (page?.y ?? 60) + INSET - PAD)
+    // Choosing what to share is a modal dialog in the middle of the window, dimming it; everything else
+    // is a small card at the corner of the page.
+    const modal = !!this.current.state.sources
+    const width = modal ? winW : CARD_WIDTH + PAD * 2
+    const height = modal ? winH : Math.min(this.height + PAD * 2, winH)
+    const x = modal ? 0 : Math.max(0, Math.min((page?.x ?? 80) + INSET - PAD, winW - width))
+    const y = modal ? 0 : Math.max(0, (page?.y ?? 60) + INSET - PAD)
     view.setBounds({ x, y, width, height })
     // Re-adding moves it to the top, above any tab views created since it was last shown.
     this.win.contentView.addChildView(view)

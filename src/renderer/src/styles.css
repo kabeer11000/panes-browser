@@ -3353,3 +3353,59 @@ kbd {
   background: var(--surface-active);
   color: var(--fg);
 }
+
+/* ---- top tabs: one surface from the active tab down into the toolbar, fixed tab width, split tabs joined ---- */
+:root {
+  --tab-surface: rgba(255, 255, 255, 0.1);
+}
+[data-scheme='light'] {
+  --tab-surface: rgba(255, 255, 255, 0.62);
+}
+.strip.hstrip {
+  background: var(--tab-surface);
+}
+/* a tab's width never depends on its title, so nothing shifts as titles load or change */
+.htab {
+  flex: 0 1 200px;
+  width: 200px;
+  min-width: 56px;
+  max-width: 200px;
+}
+.htab.active,
+.htab.active.grouped {
+  background: var(--tab-surface);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.htab.active.grouped {
+  box-shadow:
+    inset 0 2px 0 var(--accent),
+    inset 0 -2px 0 var(--gc);
+}
+/* tiles in a split read as one wide tab: shared tint, one line underneath, a hairline between them */
+.htab.in-split {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 0;
+}
+.htab.in-split.active {
+  background: color-mix(in srgb, var(--accent) 22%, var(--tab-surface));
+}
+.htab.in-split.split-first {
+  border-radius: 9px 0 0 0;
+}
+.htab.in-split.split-last {
+  border-radius: 0 9px 0 0;
+}
+.htab.in-split + .htab.in-split {
+  box-shadow: inset 1px 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.htab.in-split + .htab.in-split.active {
+  box-shadow:
+    inset 1px 0 0 color-mix(in srgb, var(--accent) 40%, transparent),
+    inset 0 2px 0 var(--accent);
+}
+.htab.in-split::after {
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 0;
+}

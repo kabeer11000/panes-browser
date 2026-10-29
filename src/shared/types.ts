@@ -505,8 +505,10 @@ export interface ScreenSource {
   id: string
   name: string
   kind: 'screen' | 'window'
-  /** Data URL of a small preview. */
+  /** Data URL of a small preview; empty when the system gave none (a minimised window). */
   thumb: string
+  /** The window's application icon, shown when there is no preview. */
+  icon: string
 }
 
 /** What the permission card shows: a site asking for something, or a site asking to share the screen. */
@@ -515,10 +517,13 @@ export interface PermissionPromptState {
   kinds: PermKind[]
   /** Present for screen sharing: what the page may capture, picked from a list instead of allowed or blocked. */
   sources?: ScreenSource[]
+  /** The page asked for the system's sound as well (only whole screens can give it). */
+  audio?: boolean
 }
 
 export type PermissionAnswer =
-  { action: 'allow' | 'once' | 'block' | 'cancel' } | { action: 'share'; sourceId: string }
+  | { action: 'allow' | 'once' | 'block' | 'cancel' }
+  | { action: 'share'; sourceId: string; audio: boolean }
 
 /** What the permission card (a transparent view above the page) can do. */
 export interface PermissionApi {

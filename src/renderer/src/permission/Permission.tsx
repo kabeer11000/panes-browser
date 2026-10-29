@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { describeKinds } from '../../../shared/permissions'
 import type { PermissionApi, PermissionPromptState } from '../../../shared/types'
+import { ShareDialog } from './ShareDialog'
 
 declare global {
   interface Window {
@@ -39,44 +40,27 @@ export function Permission(): React.JSX.Element | null {
   }, [api])
 
   if (!state) return null
-  const { origin, kinds, sources } = state
+  const { origin, kinds, sources, audio } = state
+  if (sources) {
+    return (
+      <ShareDialog
+        key={origin}
+        origin={origin}
+        sources={sources}
+        audio={!!audio}
+        onAnswer={api.answer}
+      />
+    )
+  }
 
   return (
     <div className="perm-root" ref={box} key={origin + kinds.join()}>
       <div className="perm-card" role="dialog" aria-label="Site permission">
         <div className="perm-title">
           <b>{host(origin)}</b>
-          {sources ? ' wants to share your screen' : ` wants to use your ${describeKinds(kinds)}`}
+          {` wants to use your ${describeKinds(kinds)}`}
         </div>
-        {sources ? (
-          <>
-            <div className="perm-sources" role="listbox" aria-label="What to share">
-              {sources.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="option"
-                  aria-selected={false}
-                  className="perm-source"
-                  title={s.name}
-                  onClick={() => api.answer({ action: 'share', sourceId: s.id })}
-                >
-                  <img src={s.thumb} alt="" draggable={false} />
-                  <span>{s.kind === 'screen' ? s.name : s.name || 'Window'}</span>
-                </button>
-              ))}
-            </div>
-            <div className="perm-actions">
-              <button
-                type="button"
-                className="perm-btn"
-                onClick={() => api.answer({ action: 'cancel' })}
-              >
-                Cancel
-              </button>
-            </div>
-          </>
-        ) : (
+        {
           <>
             <div className="perm-actions">
               <button
@@ -106,7 +90,7 @@ export function Permission(): React.JSX.Element | null {
               Allow and Block are remembered. Change them any time in Settings.
             </div>
           </>
-        )}
+        }
       </div>
     </div>
   )
