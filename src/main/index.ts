@@ -114,10 +114,6 @@ function createWindow(): void {
   privateSession.setUserAgent(chromeUserAgent())
   rewriteClientHints(privateSession, chromeUserAgent())
   serveInternalPages(privateSession)
-  // No site is remembered as allowed in a private tab: anything beyond the harmless is declined.
-  privateSession.setPermissionRequestHandler((_wc, permission, cb) =>
-    cb(permission === 'fullscreen' || permission === 'clipboard-sanitized-write')
-  )
 
   // Tor tabs: another in-memory session, whose only way out is Tor's local proxy. Until Tor is up (and after it
   // stops) the proxy points nowhere, so a Tor tab can fail but can never go out directly.
@@ -126,9 +122,6 @@ function createWindow(): void {
   torSession.setUserAgent(chromeUserAgent())
   rewriteClientHints(torSession, chromeUserAgent())
   serveInternalPages(torSession)
-  torSession.setPermissionRequestHandler((_wc, permission, cb) =>
-    cb(permission === 'fullscreen' || permission === 'clipboard-sanitized-write')
-  )
   const DEAD_PROXY = 'socks5://127.0.0.1:1'
   void torSession.setProxy({ proxyRules: DEAD_PROXY })
   tor.onChange((st) => {
@@ -193,12 +186,16 @@ function createWindow(): void {
       tabs.applyZoom()
     }
   })
-  new PermissionManager(
+  const permissionManager = new PermissionManager(
     win,
     permissions,
     () => tabs.activeRect(),
     (wc) => tabs.markKeyboardLock(wc)
-  ).install(tabSession)
+  )
+  permissionManager.install(tabSession)
+  // Private and Tor tabs ask the same questions, but what they are told is kept in memory only.
+  permissionManager.install(privateSession, false)
+  permissionManager.install(torSession, false)
 
   const updater = new UpdateManager()
   updater.onChange((s) => {
@@ -425,7 +422,9 @@ function createWindow(): void {
   ipcMain.on('tabs:ratios', (_e, path: number[], ratios: number[]) =>
     tabs.updateRatios(path, ratios)
   )
-  ipcMain.on('tabs:move', (_e, id: number, index: number) => tabs.moveTab(id, index))
+  ipcMain.on('tabs:move', (_e, id: number, index: number, groupId?: number | null) =>
+    tabs.moveTab(id, index, groupId)
+  )
   ipcMain.on('ui:slide', (_e, px: unknown) => {
     if (typeof px === 'number' && Number.isFinite(px)) tabs.setSlide(px)
   })

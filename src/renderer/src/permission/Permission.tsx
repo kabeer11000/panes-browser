@@ -40,7 +40,7 @@ export function Permission(): React.JSX.Element | null {
   }, [api])
 
   if (!state) return null
-  const { origin, kinds, sources, audio } = state
+  const { origin, kinds, sources, audio, blocked } = state
   if (sources) {
     return (
       <ShareDialog
@@ -50,6 +50,44 @@ export function Permission(): React.JSX.Element | null {
         audio={!!audio}
         onAnswer={api.answer}
       />
+    )
+  }
+
+  if (blocked) {
+    const what = blocked === 'camera' ? 'camera' : 'microphone'
+    return (
+      <div className="perm-root" ref={box} key={origin + blocked}>
+        <div
+          className="perm-card"
+          role="alertdialog"
+          aria-label={`Windows is blocking the ${what}`}
+        >
+          <div className="perm-title">
+            <b>{host(origin)}</b>
+            {` wants to use your ${what}, but Windows is not letting apps use it.`}
+          </div>
+          <div className="perm-note">
+            Turn on the {what} for desktop apps in Windows privacy settings, then try again.
+          </div>
+          <div className="perm-actions">
+            <button
+              type="button"
+              className="perm-btn primary"
+              autoFocus
+              onClick={() => api.answer({ action: 'openSettings' })}
+            >
+              Open settings
+            </button>
+            <button
+              type="button"
+              className="perm-btn"
+              onClick={() => api.answer({ action: 'cancel' })}
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      </div>
     )
   }
 

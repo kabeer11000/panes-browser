@@ -87,3 +87,19 @@ export function groupAfterMove(
   const own = groupOf(id)
   return own !== null && (before === own || after === own) ? own : null
 }
+
+/**
+ * The group a dragged tab joins when it is dropped in the slot between two neighbours. Between two tabs of one
+ * group it is in that group. At a group's edge it is the pointer that decides, as in Chrome: still over the
+ * group's own tabs (`inside` says which neighbour's) joins it, past them leaves it. Anywhere else, no group.
+ */
+export function groupForSlot(
+  before: number | null,
+  after: number | null,
+  inside: 'before' | 'after' | null
+): number | null {
+  if (before !== null && before === after) return before
+  if (inside === 'before') return before
+  if (inside === 'after') return after
+  return null
+}

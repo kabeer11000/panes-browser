@@ -71,7 +71,7 @@ const api: PanesApi = {
   deleteSpace: (id) => ipcRenderer.send('spaces:delete', id),
   popOutPane: (id) => ipcRenderer.send('tabs:pop-out', id),
   setRatios: (path, ratios) => ipcRenderer.send('tabs:ratios', path, ratios),
-  moveTab: (id, index) => ipcRenderer.send('tabs:move', id, index),
+  moveTab: (id, index, groupId) => ipcRenderer.send('tabs:move', id, index, groupId),
   setSlide: (px) => ipcRenderer.send('ui:slide', px),
   setOverlay: (open, snapshot, sharp) =>
     ipcRenderer.invoke('ui:overlay', open, snapshot, sharp) as Promise<void>,

@@ -371,6 +371,7 @@ function App(): React.JSX.Element {
 
   const { drag, start: startDrag } = useTabDrag(window.api.activateTab, () => ({
     order: latest.current.tabs.map((t) => t.id),
+    groups: latest.current.tabs.map((t) => t.groupId),
     group: latest.current.layout ? leaves(latest.current.layout) : [],
     tiled:
       !!latest.current.layout &&
@@ -378,6 +379,13 @@ function App(): React.JSX.Element {
       leaves(latest.current.layout).includes(latest.current.activeId)
   }))
 
+  // The group a drop would put the tab in: its label lights up. Dropping on the label itself joins too.
+  const dropGroupId =
+    drag?.target?.kind === 'group'
+      ? drag.target.groupId
+      : drag?.source === 'tab' && drag.target?.kind === 'list'
+        ? drag.target.groupId
+        : null
   useTabSlide(
     drag,
     tabs.map((t) => t.id),
@@ -428,7 +436,7 @@ function App(): React.JSX.Element {
             // a dragged tab is shown by the others sliding aside; a pane dragged in gets the line
             drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
           }
-          dropGroupId={drag?.target?.kind === 'group' ? drag.target.groupId : null}
+          dropGroupId={dropGroupId}
           dir={spaceDir}
           onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
           onOpenSearch={() => void openOverlay('search')}
@@ -456,7 +464,7 @@ function App(): React.JSX.Element {
             spaces={spaces}
             activeSpaceId={activeSpaceId}
             dir={spaceDir}
-            dropGroupId={drag?.target?.kind === 'group' ? drag.target.groupId : null}
+            dropGroupId={dropGroupId}
             dragId={drag?.id ?? null}
             dropIndex={
               drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null

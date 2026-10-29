@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
 import { ROOT_TARGET, type Edge } from '../../../shared/layout'
+import { groupForSlot } from '../../../shared/tabgroups'
 import { holdOverlay, releaseOverlay } from '../overlay'
 
 export type DragSource = 'tab' | 'pane'
@@ -14,7 +15,7 @@ export interface Box {
 
 export type DropTarget =
   | { kind: 'pane'; tabId: number; edge: Edge | 'center' }
-  | { kind: 'list'; index: number }
+  | { kind: 'list'; index: number; groupId: number | null }
   | { kind: 'space'; spaceId: number }
   | { kind: 'group'; groupId: number }
 
@@ -35,6 +36,8 @@ export interface DragState {
 /** What the drag needs to know about the current tab order and tiled group. */
 export interface DragContext {
   order: number[]
+  /** The group of each tab in `order` (null for none), for working out what a drop joins or leaves. */
+  groups: Array<number | null>
   group: number[]
   /** The active tab is part of a tiled group, so outer-edge docking makes sense. */
   tiled: boolean
@@ -80,6 +83,52 @@ function layoutRect(el: HTMLElement): DOMRect {
   const dx = Number(m[1])
   const dy = m[2] === undefined ? 0 : Number(m[2])
   return new DOMRect(r.x - dx, r.y - dy, r.width, r.height)
+}
+
+/**
+ * The group a tab dropped at `index` would be in: between two members, that group; at a group's edge, the one the
+ * pointer is still over (its last tab, or from its label on), else none. `axis` is the way the list runs.
+ */
+function slotGroup(
+  ctx: DragContext,
+  moving: number[],
+  index: number,
+  pointer: number,
+  axis: 'x' | 'y'
+): number | null {
+  const rest = ctx.order
+    .map((t, i) => ({ t, g: ctx.groups[i] ?? null }))
+    .filter((o) => !moving.includes(o.t))
+  const slot = ctx.order.slice(0, index).filter((t) => !moving.includes(t)).length
+  const before = slot > 0 ? rest[slot - 1] : undefined
+  const after = slot < rest.length ? rest[slot] : undefined
+  const gb = before?.g ?? null
+  const ga = after?.g ?? null
+  const edge = (el: Element | null, which: 'start' | 'end'): number | null => {
+    if (!(el instanceof HTMLElement)) return null
+    const r = layoutRect(el)
+    return axis === 'x'
+      ? which === 'start'
+        ? r.left
+        : r.right
+      : which === 'start'
+        ? r.top
+        : r.bottom
+  }
+  const rowOf = (t: number): Element | null =>
+    document.querySelector(`.htab[data-tab-id="${t}"], .tab-row[data-tab-id="${t}"]`)
+  const labelOf = (g: number): Element | null =>
+    document.querySelector(`.hgroup[data-group-drop="${g}"], .group-head[data-group-drop="${g}"]`)
+  let inside: 'before' | 'after' | null = null
+  if (gb !== null && gb !== ga && before) {
+    const end = edge(rowOf(before.t), 'end')
+    if (end !== null && pointer < end) inside = 'before'
+  }
+  if (inside === null && ga !== null && ga !== gb && after) {
+    const start = edge(labelOf(ga) ?? rowOf(after.t), 'start')
+    if (start !== null && pointer > start) inside = 'after'
+  }
+  return groupForSlot(gb, ga, inside)
 }
 
 /** Resolve what the pointer is over: a pane edge, a sidebar insertion slot, or nothing. */
@@ -151,7 +200,14 @@ function targetAt(
     const end = start + ctx.group.length
     if (start !== -1 && index > start && index < end)
       index = index - start <= end - index ? start : end
-    return { target: { kind: 'list', index }, box: null }
+    const groupId = slotGroup(
+      ctx,
+      ctx.group.length > 1 && ctx.group.includes(id) ? ctx.group : [id],
+      index,
+      x,
+      'x'
+    )
+    return { target: { kind: 'list', index, groupId }, box: null }
   }
 
   const list = document.querySelector('.tab-list')?.getBoundingClientRect()
@@ -168,7 +224,14 @@ function targetAt(
     const end = start + ctx.group.length
     if (start !== -1 && index > start && index < end)
       index = index - start <= end - index ? start : end
-    return { target: { kind: 'list', index }, box: null }
+    const groupId = slotGroup(
+      ctx,
+      ctx.group.length > 1 && ctx.group.includes(id) ? ctx.group : [id],
+      index,
+      y,
+      'y'
+    )
+    return { target: { kind: 'list', index, groupId }, box: null }
   }
   return { target: null, box: null }
 }
@@ -234,7 +297,7 @@ export function useTabDrag(
           else if (target.kind === 'group') {
             if (source === 'tab') window.api.addToGroup(id, target.groupId)
           } else if (target.kind === 'pane') window.api.dropTab(id, target.tabId, target.edge)
-          else if (source === 'tab') window.api.moveTab(id, target.index)
+          else if (source === 'tab') window.api.moveTab(id, target.index, target.groupId)
           else window.api.closePane(id) // a pane dragged back onto the sidebar leaves the group
         }
         if (dragging) void releaseOverlay('drag')

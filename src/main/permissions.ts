@@ -2,6 +2,8 @@ import { is } from '@electron-toolkit/utils'
 import {
   desktopCapturer,
   ipcMain,
+  shell,
+  systemPreferences,
   WebContentsView,
   type BrowserWindow,
   type IpcMainEvent,
@@ -23,12 +25,49 @@ import type { PermissionAnswer, PermissionPromptState, Rect } from '../shared/ty
 import { JsonStore } from './store'
 import { paintView } from './chromeTheme'
 
+/** Where Windows keeps the switch that lets apps use the camera and the microphone. */
+const SETTINGS_URL = {
+  camera: 'ms-settings:privacy-webcam',
+  microphone: 'ms-settings:privacy-microphone'
+} as const
+
+/** Whether the system itself is keeping apps from a device the request needs (Windows and macOS report it). */
+function osBlocked(kinds: readonly PermKind[]): 'camera' | 'microphone' | null {
+  for (const kind of ['camera', 'microphone'] as const) {
+    if (!kinds.includes(kind)) continue
+    try {
+      const status = systemPreferences.getMediaAccessStatus(kind)
+      if (status === 'denied' || status === 'restricted') return kind
+    } catch {
+      // not reported on this system: nothing is known to be blocked
+    }
+  }
+  return null
+}
+
 const CARD_WIDTH = 340
 const PAD = 36 // room around the card for its shadow (blur 24 + offset 8 + slack), so the view never clips it
 const INSET = 12 // from the top-left corner of the page
 
+/** Where answers are kept and looked up: on disk for the browser, in memory for a private session. */
+interface Grants {
+  get(origin: string, kind: PermKind): PermDecision | undefined
+  set(origin: string, kinds: readonly PermKind[], decision: PermDecision): void
+}
+
+/** A private session's answers: they last until Panes closes and are never written down. */
+class MemoryGrants implements Grants {
+  private map = new Map<string, PermDecision>()
+  get(origin: string, kind: PermKind): PermDecision | undefined {
+    return this.map.get(`${origin}|${kind}`)
+  }
+  set(origin: string, kinds: readonly PermKind[], decision: PermDecision): void {
+    for (const k of kinds) this.map.set(`${origin}|${k}`, decision)
+  }
+}
+
 /** What sites were allowed or blocked, per site and per kind of access. */
-export class PermissionStore {
+export class PermissionStore implements Grants {
   private store = new JsonStore<{ grants: SiteGrant[] }>('permissions', { grants: [] })
 
   get(origin: string, kind: PermKind): PermDecision | undefined {
@@ -99,7 +138,12 @@ export class PermissionManager {
     })
   }
 
-  install(session: Session): void {
+  /**
+   * Ask for, and answer, what pages in `session` request. `remember: false` is for private sessions: the answers
+   * are kept only in memory and the saved ones for the normal browser are neither read nor changed.
+   */
+  install(session: Session, remember = true): void {
+    const grants: Grants = remember ? this.store : new MemoryGrants()
     session.setPermissionRequestHandler((wc, permission, cb, details) => {
       if (ALWAYS_ALLOWED.has(permission)) {
         if (permission === 'keyboardLock') this.onKeyboardLock(wc)
@@ -112,9 +156,17 @@ export class PermissionManager {
       // Sharing the screen is consented to in the picker, every time, so a stored Allow or no answer both go on
       // to it; only a stored Block stops the request here.
       if (kinds.length === 1 && kinds[0] === 'screen') {
-        return cb(this.store.get(origin, 'screen') !== 'block')
+        return cb(grants.get(origin, 'screen') !== 'block')
       }
-      void this.decide(origin, kinds).then((d) => cb(d === 'allow'))
+      // Windows can keep apps away from the camera and microphone altogether: say so, rather than fail quietly.
+      const blocked = osBlocked(kinds)
+      if (blocked) {
+        void this.ask({ origin, kinds, blocked }).then((a) => {
+          if (a.action === 'openSettings') void shell.openExternal(SETTINGS_URL[blocked])
+        })
+        return cb(false)
+      }
+      void this.decide(origin, kinds, grants).then((d) => cb(d === 'allow'))
     })
 
     // Synchronous checks (Notification.permission, navigator.permissions.query, device labels): never asks.
@@ -127,7 +179,7 @@ export class PermissionManager {
       )
       const origin = originOf(requestingOrigin)
       if (!kinds || !origin) return false
-      const allowed = (k: PermKind): boolean => this.store.get(origin, k) === 'allow'
+      const allowed = (k: PermKind): boolean => grants.get(origin, k) === 'allow'
       return mediaType === 'unknown' || !mediaType ? kinds.some(allowed) : kinds.every(allowed)
     })
 
@@ -142,8 +194,12 @@ export class PermissionManager {
     )
   }
 
-  private async decide(origin: string, kinds: PermKind[]): Promise<PermDecision> {
-    const stored = resolveKinds(kinds, (k) => this.store.get(origin, k))
+  private async decide(
+    origin: string,
+    kinds: PermKind[],
+    grants: Grants = this.store
+  ): Promise<PermDecision> {
+    const stored = resolveKinds(kinds, (k) => grants.get(origin, k))
     if (stored !== 'ask') return stored
 
     const key = origin + '|' + kinds.join(',')
@@ -151,8 +207,8 @@ export class PermissionManager {
     if (waiting) return waiting
     const answer = this.ask({ origin, kinds }).then((a) => {
       this.inflight.delete(key)
-      if (a.action === 'allow') this.store.set(origin, kinds, 'allow')
-      if (a.action === 'block') this.store.set(origin, kinds, 'block')
+      if (a.action === 'allow') grants.set(origin, kinds, 'allow')
+      if (a.action === 'block') grants.set(origin, kinds, 'block')
       return a.action === 'allow' || a.action === 'once' ? ('allow' as const) : ('block' as const)
     })
     this.inflight.set(key, answer)

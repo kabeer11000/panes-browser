@@ -1193,7 +1193,7 @@ export class TabManager {
   }
 
   /** Reorder a tab in the sidebar. A tab in a group moves its whole group with it. */
-  moveTab(id: number, index: number): void {
+  moveTab(id: number, index: number, groupId?: number | null): void {
     if (!this.tabs.has(id)) return
     const group = this.layout && leaves(this.layout).includes(id) ? leaves(this.layout) : [id]
     const own = this.own()
@@ -1205,7 +1205,15 @@ export class TabManager {
     // A tab dropped between two members of a sidebar group joins it; one dragged away leaves it.
     for (const gid of group) {
       const tab = this.tabs.get(gid)
-      if (tab) tab.groupId = groupAfterMove(rest, this.groupOf, gid)
+      if (!tab) continue
+      // the drop says which group (or none) it ends up in; without that, its neighbours decide
+      const wanted =
+        groupId === undefined
+          ? groupAfterMove(rest, this.groupOf, gid)
+          : groupId !== null && this.groups.get(groupId)?.spaceId === tab.spaceId
+            ? groupId
+            : null
+      tab.groupId = wanted
     }
     this.setLayout(this.layout) // a loose tab dropped inside a split group gets pushed out of it
     this.refresh()

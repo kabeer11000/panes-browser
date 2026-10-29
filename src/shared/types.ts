@@ -195,7 +195,8 @@ export interface PanesApi {
   popOutPane(id: number): void
   setRatios(path: number[], ratios: number[]): void
   /** Move a tab to an insertion index (counted with the tab still in the list). */
-  moveTab(id: number, index: number): void
+  /** `groupId`: the group the tab ends up in (null for none); left out, it is worked out from its neighbours. */
+  moveTab(id: number, index: number, groupId?: number | null): void
   /** Hide the native page view (so renderer overlays can show); snapshots the active tab first. */
   setOverlay(open: boolean, snapshot?: boolean, sharp?: boolean): Promise<void>
   /** Shift the page views right by this many pixels, keeping their size (the hover sidebar sliding out). */
@@ -535,10 +536,12 @@ export interface PermissionPromptState {
   sources?: ScreenSource[]
   /** The page asked for the system's sound as well (only whole screens can give it). */
   audio?: boolean
+  /** The system itself is keeping apps from this device: the card says so and points to the switch. */
+  blocked?: 'camera' | 'microphone'
 }
 
 export type PermissionAnswer =
-  | { action: 'allow' | 'once' | 'block' | 'cancel' }
+  | { action: 'allow' | 'once' | 'block' | 'cancel' | 'openSettings' }
   | { action: 'share'; sourceId: string; audio: boolean }
 
 /** What the permission card (a transparent view above the page) can do. */

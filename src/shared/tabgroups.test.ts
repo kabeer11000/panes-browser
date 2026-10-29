@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   GROUP_COLORS,
   groupAfterMove,
+  groupForSlot,
   nextGroupColor,
   placeInGroup,
   sanitizeGroupPatch
@@ -61,5 +62,25 @@ describe('colours and patches', () => {
     expect(sanitizeGroupPatch({ color: 'red', name: 5, collapsed: 'yes' })).toEqual({})
     expect(sanitizeGroupPatch(null)).toEqual({})
     expect(sanitizeGroupPatch({ name: 'x'.repeat(100) }).name?.length).toBe(32)
+  })
+})
+
+describe('groupForSlot', () => {
+  test('between two tabs of one group it is that group, wherever the pointer is', () => {
+    expect(groupForSlot(4, 4, null)).toBe(4)
+  })
+  test('at a group edge the pointer over the group joins it and past it leaves', () => {
+    expect(groupForSlot(4, null, 'before')).toBe(4)
+    expect(groupForSlot(4, null, null)).toBeNull()
+    expect(groupForSlot(null, 4, 'after')).toBe(4)
+    expect(groupForSlot(null, 4, null)).toBeNull()
+  })
+  test('between two different groups, the neighbour the pointer is over wins', () => {
+    expect(groupForSlot(4, 5, 'before')).toBe(4)
+    expect(groupForSlot(4, 5, 'after')).toBe(5)
+    expect(groupForSlot(4, 5, null)).toBeNull()
+  })
+  test('among loose tabs there is no group', () => {
+    expect(groupForSlot(null, null, null)).toBeNull()
   })
 })
