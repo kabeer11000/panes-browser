@@ -40,7 +40,8 @@ export function kindsFor(
       const kinds: PermKind[] = []
       if (mediaTypes.includes('video')) kinds.push('camera')
       if (mediaTypes.includes('audio')) kinds.push('microphone')
-      return kinds.length > 0 ? kinds : null
+      // getDisplayMedia arrives as a `media` request that names no device type: it is screen sharing
+      return kinds.length > 0 ? kinds : ['screen']
     }
     case 'geolocation':
       return ['location']

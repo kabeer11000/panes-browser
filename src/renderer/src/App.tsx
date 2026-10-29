@@ -345,7 +345,13 @@ function App(): React.JSX.Element {
 
   const swipe = useSwipe(
     (dir) => window.api.activateTab(stepTab(tabs, activeId, dir)),
-    () => void openOverlay('grid')
+    // a swipe up on the address bar opens the panes view (the card stack), not the grid
+    () => {
+      const { tabs: ts, layout: l, activeId: id } = latest.current
+      const at = stackEntries(ts, l, id).findIndex((e) => e.tabs.some((t) => t.id === id))
+      stackPos.jump(Math.max(0, at))
+      void openOverlay('stack')
+    }
   )
 
   return (

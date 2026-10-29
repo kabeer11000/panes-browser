@@ -109,6 +109,11 @@ export class PermissionManager {
       const kinds = kindsFor(permission, mediaTypes)
       const origin = originOf(details.requestingUrl)
       if (!kinds || !origin) return cb(false)
+      // Sharing the screen is consented to in the picker, every time, so a stored Allow or no answer both go on
+      // to it; only a stored Block stops the request here.
+      if (kinds.length === 1 && kinds[0] === 'screen') {
+        return cb(this.store.get(origin, 'screen') !== 'block')
+      }
       void this.decide(origin, kinds).then((d) => cb(d === 'allow'))
     })
 

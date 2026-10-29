@@ -103,6 +103,9 @@ export class SiteSettings {
         neverUnloadSites: normalizeSites(patch.keepLoaded ? [...rest, key] : rest)
       })
     }
+    if (patch.allowCalls === true) {
+      this.d.permissions.set(origin, ['camera', 'microphone', 'screen'], 'allow')
+    }
     if (patch.clearData === true) {
       await this.d.session.clearStorageData({ origin })
     }

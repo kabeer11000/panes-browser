@@ -1,9 +1,14 @@
-import { app, webContents, type Session } from 'electron'
+import { app, ipcMain, webContents, type Session } from 'electron'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import { ElectronBlocker } from '@ghostery/adblocker-electron'
 import { siteListed } from '../shared/memory'
 import { siteKey } from '../shared/sitetheme'
+
+const COSMETIC_CHANNELS = [
+  '@ghostery/adblocker/inject-cosmetic-filters',
+  '@ghostery/adblocker/is-mutation-observer-enabled'
+]
 
 /** Network-level ads + tracker blocking. The engine is cached on disk; failure to load is non-fatal. */
 export class Adblock {
@@ -97,7 +102,16 @@ export class Adblock {
   async attach(session: Session): Promise<void> {
     this.sessions.push(session)
     const blocker = await this.ready
-    if (blocker && this.active) blocker.enableBlockingInSession(session)
+    if (blocker && this.active) this.enable(blocker, session)
+  }
+
+  /**
+   * The engine registers its page-side handlers once per channel for the whole app, and refuses a second
+   * registration. They answer for any session, so each enabling replaces them rather than adding to them.
+   */
+  private enable(blocker: ElectronBlocker, session: Session): void {
+    for (const channel of COSMETIC_CHANNELS) ipcMain.removeHandler(channel)
+    blocker.enableBlockingInSession(session)
   }
 
   async set(enabled: boolean): Promise<void> {
@@ -105,7 +119,7 @@ export class Adblock {
     if (!blocker || enabled === this.active) return
     this.active = enabled
     for (const session of this.sessions) {
-      if (enabled) blocker.enableBlockingInSession(session)
+      if (enabled) this.enable(blocker, session)
       else blocker.disableBlockingInSession(session)
     }
   }

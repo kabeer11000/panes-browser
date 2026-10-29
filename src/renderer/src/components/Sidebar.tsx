@@ -160,7 +160,6 @@ export function Sidebar({
         initial={{ opacity: 0, x: 28 * dir }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-        onWheel={onWheel}
       >
         <AnimatePresence initial={false}>
           {tabs.flatMap((t, i) => {

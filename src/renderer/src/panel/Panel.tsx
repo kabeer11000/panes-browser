@@ -19,7 +19,15 @@ const TABS: Array<[Tab, string]> = [
   ['site', 'Site']
 ]
 
-const PERM_KINDS: PermKind[] = ['camera', 'microphone', 'location', 'notifications', 'clipboard']
+const PERM_KINDS: PermKind[] = [
+  'camera',
+  'microphone',
+  'screen',
+  'location',
+  'notifications',
+  'clipboard'
+]
+const CALL_KINDS: PermKind[] = ['camera', 'microphone', 'screen']
 const PRESETS = [
   '#ff7a59',
   '#ffb454',
@@ -461,6 +469,21 @@ export function Panel(): React.JSX.Element | null {
                 />
               </div>
               <div className="pn-title">Permissions</div>
+              <button
+                type="button"
+                className="pn-allow-calls"
+                onClick={() =>
+                  send({ allowCalls: true }, (i) => ({
+                    ...i,
+                    perms: {
+                      ...i.perms,
+                      ...Object.fromEntries(CALL_KINDS.map((k) => [k, 'allow' as const]))
+                    }
+                  }))
+                }
+              >
+                Allow camera, microphone and screen sharing
+              </button>
               {PERM_KINDS.map((kind) => {
                 const cur: PermDecision | 'ask' = info.perms[kind] ?? 'ask'
                 return (

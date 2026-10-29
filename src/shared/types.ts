@@ -304,6 +304,8 @@ export interface SitePatch {
   adblockOff?: boolean
   /** Forget the site's cookies and stored data. */
   clearData?: boolean
+  /** Allow camera, microphone and screen sharing together: what a call site needs. */
+  allowCalls?: boolean
   /** Whether the blocker may hide elements on the page (requests stay blocked either way). */
   adblockCosmetic?: boolean
   boost?: SiteTheme | null

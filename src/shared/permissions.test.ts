@@ -5,7 +5,7 @@ describe('kindsFor', () => {
   test('maps media requests to camera and microphone', () => {
     expect(kindsFor('media', ['video', 'audio'])).toEqual(['camera', 'microphone'])
     expect(kindsFor('media', ['audio'])).toEqual(['microphone'])
-    expect(kindsFor('media', [])).toBeNull()
+    expect(kindsFor('media', [])).toEqual(['screen']) // getDisplayMedia names no device
   })
 
   test('maps the other prompted permissions and refuses the rest', () => {
