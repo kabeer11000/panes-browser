@@ -3737,3 +3737,38 @@ kbd {
 .strip > * {
   transition: opacity 0.14s;
 }
+
+/* a space with sound: its chip widens to make room for a speaker, which mutes or unmutes the space */
+.space-chip.sounding {
+  width: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px 0 0;
+}
+.space-chip.sounding .space-ring {
+  inset: 0;
+}
+.space-sound {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: var(--accent);
+}
+.space-sound svg {
+  width: 14px;
+  height: 14px;
+}
+.space-sound.muted {
+  color: var(--fg-dim);
+}
+.space-sound:hover {
+  background: var(--surface-active);
+}
+.space-sound:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

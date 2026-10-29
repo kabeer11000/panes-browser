@@ -414,6 +414,9 @@ function createWindow(): void {
   ipcMain.on('tabs:add-to-group', (_e, id: number, groupId: number) => tabs.addToGroup(id, groupId))
   ipcMain.on('tabs:tab-menu', (_e, id: number) => tabs.tabMenu(id))
   ipcMain.on('tabs:group-menu', (_e, id: number) => tabs.groupMenu(id))
+  ipcMain.on('tabs:mute-space', (_e, id: unknown) => {
+    if (typeof id === 'number') tabs.toggleSpaceMute(id)
+  })
   ipcMain.on('tabs:app-menu', (_e, x: unknown, y: unknown) => {
     if (typeof x === 'number' && typeof y === 'number') tabs.appMenu(Math.round(x), Math.round(y))
   })

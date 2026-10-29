@@ -44,6 +44,7 @@ const api: PanesApi = {
   siteInfo: () => ipcRenderer.invoke('site:info'),
   siteUpdate: (patch) => ipcRenderer.invoke('site:update', patch),
   groupMenu: (id) => ipcRenderer.send('tabs:group-menu', id),
+  muteSpace: (id) => ipcRenderer.send('tabs:mute-space', id),
   newPrivateTab: () => ipcRenderer.send('tabs:new-private'),
   newTorTab: () => ipcRenderer.send('tabs:new-tor'),
   appMenu: (x, y) => ipcRenderer.send('tabs:app-menu', x, y),

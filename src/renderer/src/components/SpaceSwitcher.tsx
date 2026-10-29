@@ -1,7 +1,8 @@
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import { useEffect, useId, useState } from 'react'
 import type { Space } from '../../../shared/types'
-import { PlusIcon } from './icons'
+import { useSpaceAudio } from '../hooks/useSpaceAudio'
+import { PlusIcon, SpeakerIcon } from './icons'
 import { SpaceAvatar } from './SpaceAvatar'
 import { holdOverlay, releaseOverlay } from '../overlay'
 import { SpacePopover } from './SpacePopover'
@@ -35,6 +36,7 @@ export function SpaceSwitcher({
   const editing = spaces.find((s) => s.id === editingSpace)
   const groupId = useId() // the sliding ring is shared by one row only, never across switchers
   const owner = 'space-' + groupId
+  const audio = useSpaceAudio()
 
   // Page views are native and take every click over them, so while the editor is open the page is swapped
   // for its snapshot (as for the search popover). That also lets a click anywhere outside close the editor,
@@ -61,6 +63,8 @@ export function SpaceSwitcher({
         <div className="space-row" role="tablist" aria-label="Spaces">
           {spaces.map((s, i) => {
             const on = s.id === activeSpaceId
+            const sound = audio[s.id]
+            const sounding = !!sound && (sound.playing || sound.muted)
             return (
               <motion.button
                 key={s.id}
@@ -68,7 +72,10 @@ export function SpaceSwitcher({
                 role="tab"
                 aria-selected={on}
                 aria-label={s.name}
-                className={'space-chip no-drag' + (on ? ' active' : '')}
+                className={
+                  'space-chip no-drag' + (on ? ' active' : '') + (sounding ? ' sounding' : '')
+                }
+                layout
                 data-space={s.id}
                 title={`${s.name} (Ctrl+Alt+${i + 1}). ${on ? 'Click to edit' : 'Right-click to edit'}.`}
                 whileHover={{ scale: 1.08 }}
@@ -92,6 +99,27 @@ export function SpaceSwitcher({
                   />
                 )}
                 <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={size} />
+                {sounding && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className={'space-sound' + (sound.playing ? '' : ' muted')}
+                    title={sound.playing ? `Mute ${s.name}` : `Unmute ${s.name}`}
+                    aria-label={sound.playing ? `Mute ${s.name}` : `Unmute ${s.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation() // not a switch
+                      window.api.muteSpace(s.id)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return
+                      e.preventDefault()
+                      e.stopPropagation()
+                      window.api.muteSpace(s.id)
+                    }}
+                  >
+                    <SpeakerIcon muted={!sound.playing} />
+                  </span>
+                )}
               </motion.button>
             )
           })}

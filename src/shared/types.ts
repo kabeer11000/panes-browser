@@ -112,6 +112,8 @@ export interface TabsState {
   activeSpaceId: number
   /** Groups in the active space, in no particular order (tab order says where each one sits). */
   tabGroups: TabGroup[]
+  /** Sound in every space, not just this one: a space with a tab playing (or muted) shows it. */
+  spaceAudio: Record<number, { playing: boolean; muted: boolean }>
 }
 
 export interface Rect {
@@ -158,6 +160,8 @@ export interface PanesApi {
   siteInfo(): Promise<SiteInfo | null>
   siteUpdate(patch: SitePatch): Promise<SiteInfo | null>
   groupMenu(id: number): void
+  /** Mute what is playing in a space, or (when nothing is) unmute what was muted. */
+  muteSpace(id: number): void
   newPrivateTab(): void
   newTorTab(): void
   /** The browser menu (pages, sessions, settings) at a point, for when there is no sidebar to hold those buttons. */

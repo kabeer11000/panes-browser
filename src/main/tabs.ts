@@ -250,11 +250,20 @@ export class TabManager {
         canGoForward: wc.navigationHistory.canGoForward()
       })
     }
+    const spaceAudio: TabsState['spaceAudio'] = {}
+    for (const t of this.tabs.values()) {
+      const wc = liveContents(t)
+      if (!wc) continue
+      const cur = (spaceAudio[t.spaceId] ??= { playing: false, muted: false })
+      if (wc.isCurrentlyAudible() && !wc.audioMuted) cur.playing = true
+      else if (wc.audioMuted) cur.muted = true
+    }
     return {
       tabs,
       activeId: this.activeId,
       layout: this.layout,
       spaces: this.deps.spaces.list(),
+      spaceAudio,
       activeSpaceId: this.activeSpaceId,
       tabGroups: [...this.groups.values()]
         .filter((g) => g.spaceId === this.activeSpaceId)
@@ -1077,6 +1086,20 @@ export class TabManager {
     for (const t of this.tabs.values()) {
       const wc = liveContents(t)
       if (wc && siteKey(wc.getURL()) === key) wc.audioMuted = muted
+    }
+    this.refresh()
+  }
+
+  /** The speaker on a space: silence what is playing in it, or bring back what was silenced. */
+  toggleSpaceMute(spaceId: number): void {
+    const own = [...this.tabs.values()].filter((t) => t.spaceId === spaceId)
+    const playing = own.filter((t) => {
+      const wc = liveContents(t)
+      return !!wc && wc.isCurrentlyAudible() && !wc.audioMuted
+    })
+    for (const t of playing.length > 0 ? playing : own) {
+      const wc = liveContents(t)
+      if (wc && (playing.length > 0 || wc.audioMuted)) wc.audioMuted = playing.length > 0
     }
     this.refresh()
   }
