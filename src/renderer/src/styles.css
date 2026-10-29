@@ -2604,8 +2604,8 @@ kbd {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: calc(40px * var(--d));
-  padding: calc(6px * var(--d)) 8px 0 10px;
+  height: calc(34px * var(--d));
+  padding: calc(4px * var(--d)) 8px 0 10px;
 }
 [data-platform='darwin'] .tabbar {
   padding-left: 80px;
@@ -2648,7 +2648,7 @@ kbd {
   flex: 1 1 180px;
   min-width: 40px;
   max-width: 220px;
-  height: calc(30px * var(--d));
+  height: calc(26px * var(--d));
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2753,7 +2753,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: calc(22px * var(--d));
+  height: calc(20px * var(--d));
   padding: 0 8px;
   margin: 0 2px;
   border-radius: 7px;
