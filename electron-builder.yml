@@ -24,6 +24,7 @@ win:
       arch: x64
   icon: build/icon.ico
 nsis:
+  include: build/installer.nsh # registers Panes as a browser in Windows' default apps
   # no version in the name, so releases/latest/download/Panes-setup.exe is a link that never changes
   artifactName: Panes-setup.${ext}
   oneClick: false
@@ -34,6 +35,13 @@ nsis:
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
+    - CFBundleURLTypes:
+        - CFBundleURLName: Web link
+          CFBundleURLSchemes: [http, https]
+    - CFBundleDocumentTypes:
+        - CFBundleTypeName: Web page
+          CFBundleTypeRole: Viewer
+          LSItemContentTypes: [public.html, public.xhtml, com.adobe.pdf]
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
@@ -42,6 +50,7 @@ mac:
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
+  mimeTypes: [x-scheme-handler/http, x-scheme-handler/https, text/html, application/xhtml+xml]
   target:
     - AppImage
     - snap

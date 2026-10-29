@@ -32,6 +32,7 @@ export default defineConfig({
           pip: resolve('src/renderer/pip.html'),
           popover: resolve('src/renderer/popover.html'),
           error: resolve('src/renderer/error.html'),
+          welcome: resolve('src/renderer/welcome.html'),
           permission: resolve('src/renderer/permission.html')
         }
       }
