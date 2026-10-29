@@ -1,4 +1,4 @@
-import { AnimatePresence, useMotionValue } from 'motion/react'
+import { AnimatePresence, motion, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyDrop, leaves } from '../../shared/layout'
 import { stackEntries } from '../../shared/stack'
@@ -464,6 +464,22 @@ function App(): React.JSX.Element {
             (stripHidden && !showSidebar ? ' no-bar' : '')
           }
         >
+          {/* With the top bar tucked away, its loading bar is gone too: show progress on the window's top edge. */}
+          <AnimatePresence>
+            {stripHidden && !showSidebar && active?.loading && (
+              <motion.div
+                key="rim"
+                className="rim-load"
+                aria-hidden="true"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                <span />
+              </motion.div>
+            )}
+          </AnimatePresence>
           <div className="stage">
             <Panes
               tabs={tabs}

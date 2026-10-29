@@ -3174,3 +3174,46 @@ kbd {
   margin-left: 0;
   height: 18px;
 }
+
+/* page loading while the top bar is tucked away: a glowing sweep along the very top edge, over the page margin */
+.stage-wrap {
+  position: relative;
+}
+.stage-wrap.with-strip.no-bar {
+  padding-top: max(var(--edge), 4px);
+}
+.rim-load {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.rim-load span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent) 45%, #fff 70%, var(--accent));
+  box-shadow: 0 0 10px var(--accent);
+  animation: rim-sweep 1.2s var(--ease) infinite;
+}
+@keyframes rim-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(270%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rim-load span {
+    animation: none;
+    width: 100%;
+    opacity: 0.7;
+  }
+}
