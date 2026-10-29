@@ -18,6 +18,7 @@ if (location.protocol === 'panes:') {
     torStart: (snowflake) => ipcRenderer.invoke('int:tor-start', snowflake),
     torStop: () => ipcRenderer.invoke('int:tor-stop'),
     torNewTab: () => ipcRenderer.invoke('int:tor-new-tab'),
+    privateNewTab: () => ipcRenderer.invoke('int:private-new-tab'),
     openTouchpadSettings: () => ipcRenderer.invoke('int:touchpad-settings'),
     dumpsList: () => ipcRenderer.invoke('int:dumps-list'),
     dumpSave: (close) => ipcRenderer.invoke('int:dump-save', close),

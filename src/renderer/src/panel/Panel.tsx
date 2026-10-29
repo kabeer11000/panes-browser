@@ -459,6 +459,17 @@ export function Panel(): React.JSX.Element | null {
               )}
               <div className="pn-row">
                 <span>
+                  Mute this site
+                  <em>Every tab of it, now and later</em>
+                </span>
+                <Switch
+                  label="Mute this site"
+                  on={info.muted}
+                  onChange={(v) => send({ muted: v }, (i) => ({ ...i, muted: v }))}
+                />
+              </div>
+              <div className="pn-row">
+                <span>
                   Keep this site loaded
                   <em>The memory saver will not put its tab to sleep</em>
                 </span>

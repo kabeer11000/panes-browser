@@ -70,6 +70,7 @@ interface Deps {
     start: (snowflake: boolean) => Promise<void>
     stop: () => void
     newTab: () => void
+    newPrivateTab: () => void
   }
   downloads: DownloadManager
   passwords: PasswordStore
@@ -122,6 +123,7 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:tor-start', (snowflake: unknown) => d.tor.start(snowflake === true))
   handle('int:tor-stop', () => d.tor.stop())
   handle('int:tor-new-tab', () => d.tor.newTab())
+  handle('int:private-new-tab', () => d.tor.newPrivateTab())
   handle('int:touchpad-settings', () => shell.openExternal('ms-settings:devices-touchpad'))
   handle('int:dumps-list', () => d.dumps.list())
   handle('int:dump-save', (close: unknown) => d.dumps.save(close === true))

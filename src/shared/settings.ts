@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: Settings = {
   adblockOffSites: [],
   adblockCosmeticOffSites: [],
   torSnowflake: false,
+  mutedSites: [],
   startup: 'newtab',
   accent: '#8b8bff',
   uiScale: 1,
@@ -56,6 +57,7 @@ export const INTERNAL_PAGES = [
   'downloads',
   'passwords',
   'settings',
+  'privacy',
   'software'
 ] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]

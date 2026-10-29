@@ -13,6 +13,7 @@ import {
   DownloadIcon,
   GridIcon,
   MoreIcon,
+  ShieldIcon,
   HistoryIcon,
   PlusIcon,
   SettingsIcon,
@@ -334,6 +335,14 @@ export function Sidebar({
             onClick={() => window.api.openInternal('downloads')}
           >
             <DownloadIcon />
+          </button>
+          <button
+            className="icon-btn"
+            title="Private tab and Tor"
+            aria-label="Private tab and Tor"
+            onClick={() => window.api.openInternal('privacy')}
+          >
+            <ShieldIcon />
           </button>
           <span className="spacer" />
           <button

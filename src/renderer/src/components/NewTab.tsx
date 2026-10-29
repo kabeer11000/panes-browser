@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { LocalSuggestion } from '../../../shared/search'
 import { displayHost } from '../../../shared/url'
-import { SearchIcon } from './icons'
+import { SearchIcon, ShieldIcon } from './icons'
 
 const MAX_SITES = 8
 
@@ -46,6 +46,17 @@ export function NewTab({ onOpenSearch }: { onOpenSearch: () => void }): React.JS
           <span>Search or enter address</span>
           <kbd>Ctrl L</kbd>
         </button>
+
+        <div className="newtab-private">
+          <button type="button" onClick={() => window.api.newPrivateTab()}>
+            <ShieldIcon />
+            Private tab
+          </button>
+          <button type="button" onClick={() => window.api.newTorTab()}>
+            <ShieldIcon />
+            Tor tab
+          </button>
+        </div>
 
         {sites.length > 0 && (
           <div className="newtab-sites">

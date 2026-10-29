@@ -27,6 +27,8 @@ interface Deps {
   active: () => { url: string; spaceId: number; contentsId: number } | null
   /** How many requests the ad blocker has stopped on the page shown in the given WebContents. */
   blocked: (contentsId: number) => number
+  /** Mute or unmute a whole site. */
+  muteSite: (key: string, muted: boolean) => void
   /** Re-apply boosts and the ad blocker's exceptions after a change. */
   changed: () => void
 }
@@ -66,6 +68,7 @@ export class SiteSettings {
       boost: space?.sites[key] ?? null,
       theme: { color: space?.color ?? '#6e7bff', tint: space?.tint ?? 0 },
       keepLoaded: siteListed(key, settings.neverUnloadSites),
+      muted: siteListed(key, settings.mutedSites),
       perms
     }
   }
@@ -97,6 +100,7 @@ export class SiteSettings {
         adblockCosmeticOffSites: patch.adblockCosmetic ? rest : [...rest, key]
       })
     }
+    if (typeof patch.muted === 'boolean') this.d.muteSite(key, patch.muted)
     if (typeof patch.keepLoaded === 'boolean') {
       const rest = settings.neverUnloadSites.filter((s) => s !== key)
       this.d.settings.update({

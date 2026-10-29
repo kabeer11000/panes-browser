@@ -160,6 +160,12 @@ export const ScreenIcon = (): React.JSX.Element => (
     <path d="M6 14h4M8 11v3" />
   </Svg>
 )
+export const ShieldIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M8 1.8 3 3.7v4c0 3 2.1 5.4 5 6.5 2.9-1.1 5-3.5 5-6.5v-4L8 1.8Z" />
+    <path d="M5.8 8.2 7.3 9.7 10.3 6.6" />
+  </Svg>
+)
 export const MoreIcon = (): React.JSX.Element => (
   <Svg>
     <circle cx="3.5" cy="8" r="1" />

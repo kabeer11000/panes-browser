@@ -8,6 +8,7 @@ import {
   HistoryIcon,
   KeyIcon,
   SettingsIcon,
+  ShieldIcon,
   SoftwareIcon
 } from '../components/icons'
 import { Bookmarks } from './pages/Bookmarks'
@@ -15,6 +16,7 @@ import { Downloads } from './pages/Downloads'
 import { History } from './pages/History'
 import { Passwords } from './pages/Passwords'
 import { Settings } from './pages/Settings'
+import { Privacy } from './pages/Privacy'
 import { Software } from './pages/Software'
 
 const PAGES: Record<
@@ -26,6 +28,7 @@ const PAGES: Record<
   downloads: { title: 'Downloads', icon: <DownloadIcon />, view: Downloads },
   passwords: { title: 'Passwords', icon: <KeyIcon />, view: Passwords },
   settings: { title: 'Settings', icon: <SettingsIcon />, view: Settings },
+  privacy: { title: 'Private and Tor', icon: <ShieldIcon />, view: Privacy },
   // the page opens on the app itself; a heading above it would only repeat what the tab says
   software: { title: 'Software', icon: <SoftwareIcon />, view: Software, bare: true }
 }

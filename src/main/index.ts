@@ -186,6 +186,7 @@ function createWindow(): void {
     permissions,
     active: () => tabs.activeSite(),
     blocked: (id) => adblock.blockedOn(id),
+    muteSite: (key, muted) => tabs.setSiteMuted(key, muted),
     changed: () => tabs.applyBoosts()
   })
   new PermissionManager(
@@ -213,7 +214,8 @@ function createWindow(): void {
       status: () => tor.get(),
       start: (snowflake) => tor.start(snowflake),
       stop: () => tor.stop(),
-      newTab: () => tabs.newTorTab()
+      newTab: () => tabs.newTorTab(),
+      newPrivateTab: () => void tabs.newPrivateTab()
     },
     dumps: {
       list: () => dumps.list(),
@@ -366,6 +368,8 @@ function createWindow(): void {
   ipcMain.on('tabs:forward', () => tabs.forward())
   ipcMain.on('tabs:reload', () => tabs.reload())
   ipcMain.on('tabs:stop', () => tabs.stop())
+  ipcMain.on('tabs:new-private', () => void tabs.newPrivateTab())
+  ipcMain.on('tabs:new-tor', () => tabs.newTorTab())
   ipcMain.on('tabs:open-internal', (_e, page: InternalPage) => tabs.openInternal(page))
   ipcMain.on('tabs:toggle-bookmark', () => tabs.toggleBookmark())
   ipcMain.on('find:run', (_e, text: string, forward?: boolean) => tabs.find(text, forward))

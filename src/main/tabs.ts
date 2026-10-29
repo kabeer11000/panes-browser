@@ -25,6 +25,7 @@ import {
   type TabGroup
 } from '../shared/tabgroups'
 import { stageBackground } from '../shared/color'
+import { siteListed } from '../shared/memory'
 import { siteKey, siteThemeCss } from '../shared/sitetheme'
 import { CAPTURE_SCRIPT, NO_CAPTURE, parseCapture, type CaptureState } from '../shared/capture'
 import { dumpableTabs, type TabDump } from '../shared/dumps'
@@ -1018,6 +1019,17 @@ export class TabManager {
     else this.refresh()
   }
 
+  /** Mute or unmute a whole site: its open tabs now, and any tab that goes there later. */
+  setSiteMuted(key: string, muted: boolean): void {
+    const rest = this.deps.settings.get().mutedSites.filter((s) => s !== key)
+    this.deps.settings.update({ mutedSites: muted ? [...rest, key] : rest })
+    for (const t of this.tabs.values()) {
+      const wc = liveContents(t)
+      if (wc && siteKey(wc.getURL()) === key) wc.audioMuted = muted
+    }
+    this.refresh()
+  }
+
   toggleMute(id: number): void {
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
@@ -1317,6 +1329,9 @@ export class TabManager {
       if (!details.isMainFrame || details.isSameDocument) return
       tab.favicon = null
       tab.capture = NO_CAPTURE // a new page starts with nothing captured
+      // a muted site stays muted wherever its tabs go
+      const site = siteKey(details.url)
+      if (site && siteListed(site, this.deps.settings.get().mutedSites)) wc.audioMuted = true
       // panes:// pages are separate documents, so the view shows its own background between
       // navigations. Match the page's stage colour so moving between them does not flash white.
       const space = this.deps.spaces.get(tab.spaceId)
@@ -1669,8 +1684,21 @@ export class TabManager {
     if (tab.groupId !== null) {
       items.push({ label: 'Remove from group', click: () => this.removeFromGroup(id) })
     }
+    const wcOf = liveContents(tab)
+    const key = wcOf ? siteKey(wcOf.getURL()) : null
+    const siteMuted = !!key && siteListed(key, this.deps.settings.get().mutedSites)
     items.push(
       { type: 'separator' },
+      {
+        label: wcOf?.audioMuted ? 'Unmute tab' : 'Mute tab',
+        enabled: !!wcOf,
+        click: () => this.toggleMute(id)
+      },
+      {
+        label: siteMuted ? 'Unmute site' : 'Mute site',
+        enabled: !!key,
+        click: () => key && this.setSiteMuted(key, !siteMuted)
+      },
       ...saveItems,
       { type: 'separator' },
       {
@@ -1711,6 +1739,7 @@ export class TabManager {
       page('History', 'history'),
       page('Downloads', 'downloads'),
       page('Passwords', 'passwords'),
+      page('Private and Tor', 'privacy'),
       { type: 'separator' },
       { label: 'Find in page', accelerator: 'CmdOrCtrl+F', click: () => this.command('find') },
       { label: 'Save all tabs as a session', click: () => this.dumpTabs() },

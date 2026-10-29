@@ -157,6 +157,8 @@ export interface PanesApi {
   siteInfo(): Promise<SiteInfo | null>
   siteUpdate(patch: SitePatch): Promise<SiteInfo | null>
   groupMenu(id: number): void
+  newPrivateTab(): void
+  newTorTab(): void
   /** The browser menu (pages, sessions, settings) at a point, for when there is no sidebar to hold those buttons. */
   appMenu(x: number, y: number): void
   updateGroup(id: number, patch: Partial<Pick<TabGroup, 'name' | 'color' | 'collapsed'>>): void
@@ -197,7 +199,7 @@ export interface PanesApi {
   getSettings(): Promise<Settings>
   onSettings(cb: (settings: Settings) => void): () => void
   openInternal(
-    page: 'history' | 'bookmarks' | 'downloads' | 'passwords' | 'settings' | 'software'
+    page: 'history' | 'bookmarks' | 'downloads' | 'passwords' | 'settings' | 'privacy' | 'software'
   ): void
   /** A login was submitted that is worth saving; null clears the prompt. */
   onPasswordPrompt(cb: (prompt: PasswordPrompt | null) => void): () => void
@@ -234,6 +236,8 @@ export interface Settings {
   adblockCosmeticOffSites: string[]
   /** Reach Tor through Snowflake bridges (for networks that block Tor). */
   torSnowflake: boolean
+  /** Sites whose tabs are always muted, subdomains included. */
+  mutedSites: string[]
   startup: 'newtab' | 'restore'
   accent: string
   /** Scales text and icons in the sidebar and headers. */
@@ -303,6 +307,8 @@ export interface SiteInfo {
   /** This site's boost in the current space, or null for none. */
   boost: SiteTheme | null
   keepLoaded: boolean
+  /** The site is muted wherever it is open. */
+  muted: boolean
   perms: Partial<Record<PermKind, PermDecision>>
   /** The space's own colour, for the panel to wear. */
   theme: { color: string; tint: number }
@@ -322,6 +328,7 @@ export interface SitePatch {
   zapAdd?: string
   zapRemove?: string
   keepLoaded?: boolean
+  muted?: boolean
   /** A decision for one kind of access, or null to ask again. */
   perm?: { kind: PermKind; decision: PermDecision | null }
   reset?: boolean
@@ -420,6 +427,7 @@ export interface InternalApi {
   torStop(): Promise<void>
   /** A private tab through Tor, once Tor is ready. */
   torNewTab(): Promise<void>
+  privateNewTab(): Promise<void>
   dumpsList(): Promise<TabDump[]>
   /** Save this space's open tabs; `close` also closes them. Null when there was nothing to save. */
   dumpSave(close: boolean): Promise<TabDump | null>
