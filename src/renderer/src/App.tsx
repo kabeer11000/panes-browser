@@ -97,10 +97,15 @@ function App(): React.JSX.Element {
   // ---- overlays (the native view sits above the UI, so hide it before showing one) ----
   const opening = useRef(false)
   const releasedEarly = useRef(false)
+  // Opened by a one-shot shortcut (a touchpad gesture sends it): Ctrl is already up, so letting go must not commit.
+  const stackSticky = useRef(false)
   const stackPos = useMotionValue(0)
   const snapTimer = useRef<number | undefined>(undefined)
 
-  const closeOverlay = useCallback(() => setMode(null), [setMode])
+  const closeOverlay = useCallback(() => {
+    stackSticky.current = false
+    setMode(null)
+  }, [setMode])
 
   const commitStack = useCallback(() => {
     const { tabs: ts, layout: l, activeId: a } = latest.current
@@ -191,6 +196,13 @@ function App(): React.JSX.Element {
         setFindKey((k) => (k ?? 0) + 1)
       } else if (cmd === 'toggle-sidebar') {
         toggleSidebar()
+      } else if (cmd === 'open-stack') {
+        if (modeRef.current === 'stack') return closeOverlay()
+        const { tabs: ts, layout: l, activeId: id } = latest.current
+        const at = stackEntries(ts, l, id).findIndex((e) => e.tabs.some((t) => t.id === id))
+        stackPos.jump(Math.max(0, at))
+        stackSticky.current = true
+        void openOverlay('stack')
       } else if (cmd === 'toggle-taskview') {
         if (modeRef.current === 'grid') closeOverlay()
         else void openOverlay('grid')
@@ -201,6 +213,7 @@ function App(): React.JSX.Element {
       // Letting go of Ctrl lands on the card, unless the pointer is on a close button: then the stack
       // stays open (click a card or press Esc to leave), so a card can be closed with the mouse.
       if (modeRef.current === 'stack') {
+        if (stackSticky.current) return
         if (!document.querySelector('.stack-close:hover')) commitStack()
       } else if (opening.current) releasedEarly.current = true
     })
@@ -217,7 +230,7 @@ function App(): React.JSX.Element {
       offRelease()
       window.removeEventListener('wheel', onDomWheel)
     }
-  }, [closeOverlay, openOverlay, onStackWheel, commitStack, toggleSidebar])
+  }, [closeOverlay, openOverlay, onStackWheel, commitStack, toggleSidebar, stackPos])
 
   // Global settings, overridden per space; everything visual hangs off CSS variables on the root.
   useEffect(() => {

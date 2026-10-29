@@ -115,7 +115,8 @@ export interface Rect {
 }
 
 /** Commands main sends to the renderer UI (usually from keyboard shortcuts). */
-export type UiCommand = 'focus-address' | 'toggle-taskview' | 'toggle-sidebar' | 'find'
+export type UiCommand =
+  'focus-address' | 'toggle-taskview' | 'toggle-sidebar' | 'find' | 'open-stack'
 
 export interface PanesApi {
   getState(): Promise<InitialData>
@@ -403,6 +404,8 @@ export interface InternalApi {
   bookmarksList(): Promise<Bookmark[]>
   bookmarkRemove(id: number): Promise<void>
   /** Saved sessions: sets of tabs to open again or send on. */
+  /** Open the system's touchpad settings, where a gesture can be set to send a shortcut. */
+  openTouchpadSettings(): Promise<void>
   dumpsList(): Promise<TabDump[]>
   /** Save this space's open tabs; `close` also closes them. Null when there was nothing to save. */
   dumpSave(close: boolean): Promise<TabDump | null>

@@ -14,6 +14,7 @@ if (location.protocol === 'panes:') {
     historyRemoveMany: (ids) => ipcRenderer.invoke('int:history-remove-many', ids),
     bookmarksList: () => ipcRenderer.invoke('int:bookmarks-list'),
     bookmarkRemove: (id) => ipcRenderer.invoke('int:bookmark-remove', id),
+    openTouchpadSettings: () => ipcRenderer.invoke('int:touchpad-settings'),
     dumpsList: () => ipcRenderer.invoke('int:dumps-list'),
     dumpSave: (close) => ipcRenderer.invoke('int:dump-save', close),
     dumpOpen: (id) => ipcRenderer.invoke('int:dump-open', id),

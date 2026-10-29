@@ -11,7 +11,7 @@ import { linksFromArgv } from '../shared/launch'
 import type { Edge } from '../shared/layout'
 import type { ClearKind, Rect, SpacePatch } from '../shared/types'
 import { Adblock } from './adblock'
-import { applyPerformance } from './performance'
+import { applyPerformance, runningMode } from './performance'
 import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
 import { BookmarkStore, HistoryStore } from './history'
@@ -398,6 +398,14 @@ function createWindow(): void {
   win.on('close', () => tabs.shutdown())
   win.on('ready-to-show', () => win.show())
 
+  // On a machine running in efficient mode the interface stops animating its layout: sliding the sidebar or
+  // the top bar in resizes every page view on every frame, which low-end hardware shows as a shift.
+  win.webContents.on('did-finish-load', () => {
+    const fx = runningMode() === 'efficient' ? 'low' : 'full'
+    void win.webContents
+      .executeJavaScript(`document.documentElement.dataset.fx = '${fx}'`)
+      .catch(() => undefined)
+  })
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {

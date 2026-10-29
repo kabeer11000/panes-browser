@@ -31,6 +31,10 @@ export function Settings(): React.JSX.Element {
   const [cleared, setCleared] = useState(false)
   // Whether the system opens links with Panes; checked again when you come back from its settings.
   const [isDefault, setIsDefault] = useState<boolean | null>(null)
+  const [platform, setPlatform] = useState('')
+  useEffect(() => {
+    void window.panesInternal.about().then((a) => setPlatform(a.platform))
+  }, [])
   useEffect(() => {
     const check = (): void => void window.panesInternal.defaultBrowserStatus().then(setIsDefault)
     check()
@@ -321,6 +325,25 @@ export function Settings(): React.JSX.Element {
         </div>
       </Group>
 
+      {platform === 'win32' && (
+        <Group
+          title="Touchpad gesture"
+          footer="Windows keeps three-finger swipes for itself, and no app can see them. What it can do is press a shortcut for you: open the touchpad settings, set the swipe you want (for example three fingers up) to a custom shortcut, and press Ctrl+Shift+Space. Panes opens the panes view. The same page can move Show desktop to four fingers."
+        >
+          <Row label="Open the panes view" hint="The shortcut a gesture should send">
+            <kbd>Ctrl+Shift+Space</kbd>
+          </Row>
+          <Row label="Set up the gesture in Windows">
+            <button
+              className="int-btn small"
+              onClick={() => void window.panesInternal.openTouchpadSettings()}
+            >
+              Open touchpad settings
+            </button>
+          </Row>
+        </Group>
+      )}
+
       <Group title="Shortcuts">
         {[
           ['Ctrl+T', 'New tab'],
@@ -328,6 +351,11 @@ export function Settings(): React.JSX.Element {
           ['Ctrl+\\', 'Split view'],
           ['Alt+Shift+Arrows', 'Move focused pane'],
           ['Ctrl+Shift+A', 'All tabs'],
+          ['Ctrl+Shift+Space', 'Panes view (stays open)'],
+          ['Ctrl+Shift+N', 'New private tab'],
+          ['Ctrl+Shift+D', 'Save all tabs as a session'],
+          ['Ctrl+Shift+R', 'Hard reload'],
+          ['F3', 'Find next'],
           ['Ctrl+Tab', 'Fly through tabs, release to land'],
           ['Ctrl+scroll', 'Fly through tabs (not in PDFs)'],
           ['Ctrl+PageDown/Up', 'Next or previous tab'],

@@ -1389,7 +1389,8 @@ export class TabManager {
       if (target) this.switchSpace(target.id)
       else handled = false
     } else if (mod && input.shift && !input.alt) {
-      if (k === 'r') this.reload(true)
+      if (k === ' ') this.command('open-stack')
+      else if (k === 'r') this.reload(true)
       else if (k === 'n') this.newPrivateTab()
       else if (k === 'delete')
         this.openInternal('settings') // clear browsing data lives there

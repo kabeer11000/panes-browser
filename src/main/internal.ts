@@ -1,4 +1,4 @@
-import { app, ipcMain, net, protocol, type IpcMainInvokeEvent, type Session } from 'electron'
+import { app, ipcMain, net, protocol, shell, type IpcMainInvokeEvent, type Session } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join, normalize } from 'path'
 import { pathToFileURL } from 'url'
@@ -111,6 +111,7 @@ export function registerInternalIpc(d: Deps): void {
   )
   handle('int:bookmarks-list', () => d.bookmarks.list())
   handle('int:bookmark-remove', (id: number) => d.bookmarks.remove(id))
+  handle('int:touchpad-settings', () => shell.openExternal('ms-settings:devices-touchpad'))
   handle('int:dumps-list', () => d.dumps.list())
   handle('int:dump-save', (close: unknown) => d.dumps.save(close === true))
   handle('int:dump-open', (id: number) => d.dumps.open(Number(id)))

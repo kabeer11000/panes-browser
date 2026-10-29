@@ -3243,3 +3243,13 @@ kbd {
   background: #a855f7;
   box-shadow: 0 0 0 1.5px var(--popover-bg);
 }
+
+/* efficient mode: no animated layout, so nothing slides or resizes page views frame by frame */
+[data-fx='low'] .sidebar,
+[data-fx='low'] .sidebar-inner,
+[data-fx='low'] .strip,
+[data-fx='low'] .stage-wrap,
+[data-fx='low'] .pane,
+[data-fx='low'] .tab-list {
+  transition: none !important;
+}
