@@ -8,6 +8,7 @@ import {
   siteKey,
   siteThemeCss,
   tintShades,
+  washColor,
   withTheme
 } from './sitetheme'
 
@@ -94,12 +95,24 @@ describe('siteThemeCss', () => {
     expect(css).toContain('img, picture, video')
   })
 
-  test('a theme colour is a gradient map, not a colour shift, and does not touch media on its own', () => {
+  test('a light page is washed with the tint, never filtered, so pictures keep their colours', () => {
     const css = siteThemeCss(withTheme(null, { tint: '#3b82f6', strength: 0.7 }))
-    expect(css).toContain('url("data:image/svg+xml,')
+    expect(css).toContain('mix-blend-mode: multiply')
+    expect(css).toContain(`background: ${washColor('#3b82f6', 0.7)}`)
+    expect(css).not.toContain('filter')
     expect(css).not.toContain('sepia')
-    expect(css).not.toContain('hue-rotate')
     expect(css).not.toContain('img, picture')
+  })
+
+  test('the wash darkens as strength rises and is plain white-ish at none', () => {
+    const light = (c: string): number => parseInt(c.slice(1, 3), 16) + parseInt(c.slice(3, 5), 16)
+    expect(light(washColor('#3b82f6', 0))).toBeGreaterThan(light(washColor('#3b82f6', 1)))
+  })
+
+  test('a dark page is mapped through the tint gradient', () => {
+    const css = siteThemeCss(withTheme(null, { dark: true, tint: '#3b82f6', strength: 0.7 }))
+    expect(css).toContain('url("data:image/svg+xml,')
+    expect(css).not.toContain('mix-blend-mode')
   })
 
   test('brightness, contrast and saturation only appear when changed', () => {

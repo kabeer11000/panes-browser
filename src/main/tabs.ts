@@ -105,6 +105,9 @@ interface Tab {
   darkened: boolean
   /** Key of the style sheet a boost put into the page, so it can be taken out again. */
   boostKey: string | null
+  /** A style-sheet swap is under way, and whether another edit arrived during it. */
+  boosting: boolean
+  boostAgain: boolean
   /** The page grabbed the keyboard (games, remote desktops), so Esc only leaves full screen when held. */
   keyLock: boolean
   /** Square corners (the page fills the screen), not the rounded ones of a page inside the window. */
@@ -287,17 +290,35 @@ export class TabManager {
     for (const tab of this.tabs.values()) void this.applyBoost(tab)
   }
 
+  /**
+   * Put the page's current boost in place of the last one. Edits arrive many times a second (a slider being
+   * dragged), and swapping a style sheet is asynchronous: run one swap at a time per tab, and when more
+   * edits arrive meanwhile just do one more swap with the newest, or sheets pile up and an old one can win.
+   */
   private async applyBoost(tab: Tab): Promise<void> {
-    const wc = liveContents(tab)
-    if (!wc || tab.unloaded) return
-    const key = siteKey(wc.getURL())
-    const theme = key ? this.deps.spaces.get(tab.spaceId)?.sites[key] : undefined
-    const css = theme ? siteThemeCss(theme) : ''
+    if (tab.boosting) {
+      tab.boostAgain = true
+      return
+    }
+    tab.boosting = true
     try {
-      if (tab.boostKey) await wc.removeInsertedCSS(tab.boostKey)
-      tab.boostKey = css ? await wc.insertCSS(css, { cssOrigin: 'user' }) : null
-    } catch {
-      tab.boostKey = null // the page went away mid-call
+      do {
+        tab.boostAgain = false
+        const wc = liveContents(tab)
+        if (!wc || tab.unloaded) return
+        const key = siteKey(wc.getURL())
+        const theme = key ? this.deps.spaces.get(tab.spaceId)?.sites[key] : undefined
+        const css = theme ? siteThemeCss(theme) : ''
+        try {
+          if (tab.boostKey) await wc.removeInsertedCSS(tab.boostKey)
+          tab.boostKey = null
+          tab.boostKey = css ? await wc.insertCSS(css, { cssOrigin: 'user' }) : null
+        } catch {
+          tab.boostKey = null // the page went away mid-call
+        }
+      } while (tab.boostAgain)
+    } finally {
+      tab.boosting = false
     }
   }
 
@@ -378,6 +399,8 @@ export class TabManager {
       groupId: null,
       darkened: false,
       boostKey: null,
+      boosting: false,
+      boostAgain: false,
       failed: null,
       flat: false,
       keyLock: false,

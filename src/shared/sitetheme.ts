@@ -105,6 +105,16 @@ export function tintShades(tint: string): { dark: string; light: string } {
   }
 }
 
+/**
+ * The colour a light page is washed with: the tint, darker as `strength` rises. It is multiplied over the
+ * page, so white becomes this colour and dark text stays dark, while pictures and links keep their own hues.
+ */
+export function washColor(tint: string, strength: number): string {
+  const { h, s } = hexToHsl(tint)
+  const k = Math.min(1, Math.max(0, strength))
+  return hslShade(h, Math.min(1, s * 0.8), 0.97 - 0.36 * k)
+}
+
 function hslShade(h: number, s: number, l: number): string {
   const c = (1 - Math.abs(2 * l - 1)) * s
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
@@ -165,7 +175,8 @@ export function siteThemeCss(t: SiteTheme): string {
   if (isPlain(t)) return ''
   const chain: string[] = []
   if (t.dark) chain.push(FLIP)
-  if (t.tint && t.strength > 0) {
+  // A dark page is re-mapped through the tint's gradient; a light one is washed with it (see washColor).
+  if (t.tint && t.strength > 0 && t.dark) {
     chain.push(
       `url("data:image/svg+xml,${encodeURIComponent(gradientMapSvg(t.tint, t.strength))}#m")`
     )
@@ -182,6 +193,14 @@ export function siteThemeCss(t: SiteTheme): string {
         `img, picture, video, canvas, iframe, embed, object, [style*="background-image"] { filter: ${FLIP} !important; }`
       )
     }
+  }
+  if (t.tint && t.strength > 0 && !t.dark) {
+    out.push(
+      `html::after { content: ''; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; ` +
+        `background: ${washColor(t.tint, t.strength)}; mix-blend-mode: multiply; }`,
+      // full-screen video is left alone
+      'html:has(:fullscreen)::after { display: none !important; }'
+    )
   }
   if (t.font && BOOST_FONTS[t.font]) {
     out.push(`body, ${TEXT_TAGS} { font-family: ${BOOST_FONTS[t.font].stack} !important; }`)
