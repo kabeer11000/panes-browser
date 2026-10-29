@@ -226,6 +226,17 @@ export function Software(): React.JSX.Element {
       )}
 
       <Group
+        title="Feedback"
+        footer="Opens your email app with a message to the developer, with this version and your system filled in below where you write."
+      >
+        <Row label="Tell me what you think" hint="A bug, an idea, something that felt wrong.">
+          <button className="int-btn primary" onClick={() => void api.sendFeedback()}>
+            Send feedback
+          </button>
+        </Row>
+      </Group>
+
+      <Group
         title="About"
         footer="Panes checks for updates when it starts and every few hours, downloads them quietly in the background, and installs when you restart. It never restarts on its own."
       >

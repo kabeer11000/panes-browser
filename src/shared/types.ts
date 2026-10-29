@@ -160,6 +160,8 @@ export interface PanesApi {
   tabMenu(id: number, picked?: number[]): void
   /** The pointer rests on a tab (with where it is) or has left it (null): show or hide its card. */
   tabHover(id: number | null, anchor?: TabHoverAnchor): void
+  /** Take the downloads bin off the window (the pane view is open over its edge), or let it back. */
+  hideDock(hide: boolean): void
   /** Open or close the site panel under the address bar's site button. */
   toggleSitePanel(anchor: Rect): void
   addToGroup(id: number, groupId: number): void
@@ -395,6 +397,14 @@ export interface DownloadInfo {
   received: number
   state: DownloadState
   time: number
+  /** A small picture of the file (a thumbnail of an image, else its icon) as a data URL, once it has finished. */
+  preview?: string
+}
+
+/** A download that has just begun, and where on the window the pointer was, for the flight to the downloads bin. */
+export interface DownloadStart {
+  download: DownloadInfo
+  at: { x: number; y: number } | null
 }
 
 export type DownloadAction = 'open' | 'show' | 'cancel' | 'pause' | 'resume' | 'remove'
@@ -442,6 +452,8 @@ export interface InternalApi {
   updateCheck(): Promise<void>
   updateInstall(): Promise<void>
   about(): Promise<AboutInfo>
+  /** Open the email app with a message to the developer. */
+  sendFeedback(): Promise<void>
   historyList(query: string, limit: number, offset: number): Promise<HistoryEntry[]>
   historyRemove(id: number): Promise<void>
   historyRemoveMany(ids: number[]): Promise<void>
@@ -465,6 +477,8 @@ export interface InternalApi {
   dumpRemove(id: number): Promise<void>
   downloadsList(): Promise<DownloadInfo[]>
   downloadAction(id: number, action: DownloadAction): Promise<void>
+  /** Pictures of finished downloads (data URLs), for the ones that have one yet; the rest are made in the background. */
+  downloadPreviews(ids: number[]): Promise<Record<number, string>>
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): Promise<Settings>
   permissionsList(): Promise<SiteGrant[]>
@@ -531,6 +545,25 @@ export interface TabCardInfo {
   muted: boolean
   private: boolean
   tor: boolean
+}
+
+/** How much of the downloads bin is showing: a sliver at the window's edge, the bin out, or the whole window (a fan or flight). */
+export type DockMode = 'peek' | 'out' | 'full'
+
+/** What the downloads bin (a transparent view at the window's bottom-right corner, above the page) can do. */
+export interface DockApi {
+  downloads(): Promise<DownloadInfo[]>
+  onDownloads(cb: (list: DownloadInfo[]) => void): () => void
+  onStart(cb: (start: DownloadStart) => void): () => void
+  /** The pointer is resting in the corner (told by the main process, which can see it over the page). */
+  onCorner(cb: (here: boolean) => void): () => void
+  act(id: number, action: DownloadAction): void
+  /** Open the downloads page. */
+  openDownloads(): void
+  /** Say how much of the window the view should cover. */
+  setMode(mode: DockMode): void
+  /** The bin is told to sink below the window's edge (before it goes), to wait there unseen, or to rise from it. */
+  onSlide(cb: (kind: 'sink' | 'tuck' | 'rise') => void): () => void
 }
 
 /** What the tab hover card (a transparent view above the page) can do. */

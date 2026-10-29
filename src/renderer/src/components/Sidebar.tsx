@@ -10,7 +10,6 @@ import { SavePrompt } from './SavePrompt'
 import {
   BookmarkIcon,
   CloseIcon,
-  DownloadIcon,
   GridIcon,
   MoreIcon,
   PinIcon,
@@ -347,6 +346,14 @@ export function Sidebar({
         <div className="foot-icons">
           <button
             className="icon-btn"
+            title="Settings (Ctrl+,)"
+            aria-label="Settings"
+            onClick={() => window.api.openInternal('settings')}
+          >
+            <SettingsIcon />
+          </button>
+          <button
+            className="icon-btn"
             title="Bookmarks (Ctrl+Shift+O)"
             aria-label="Bookmarks"
             onClick={() => window.api.openInternal('bookmarks')}
@@ -363,14 +370,6 @@ export function Sidebar({
           </button>
           <button
             className="icon-btn"
-            title="Downloads (Ctrl+J)"
-            aria-label="Downloads"
-            onClick={() => window.api.openInternal('downloads')}
-          >
-            <DownloadIcon />
-          </button>
-          <button
-            className="icon-btn"
             title="Private tab and Tor"
             aria-label="Private tab and Tor"
             onClick={() => window.api.openInternal('privacy')}
@@ -378,14 +377,6 @@ export function Sidebar({
             <ShieldIcon />
           </button>
           <span className="spacer" />
-          <button
-            className="icon-btn"
-            title="Settings (Ctrl+,)"
-            aria-label="Settings"
-            onClick={() => window.api.openInternal('settings')}
-          >
-            <SettingsIcon />
-          </button>
         </div>
       </div>
     </div>

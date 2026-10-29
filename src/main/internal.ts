@@ -15,6 +15,7 @@ import type {
 import type { TabDump } from '../shared/dumps'
 import type { TorStatus } from '../shared/tor'
 import { currentChromeTheme } from './chromeTheme'
+import { sendFeedback } from './feedback'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
@@ -103,6 +104,7 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:update-state', () => d.updater.get())
   handle('int:update-check', () => d.updater.check())
   handle('int:update-install', () => d.updater.install())
+  handle('int:feedback', () => sendFeedback())
   handle('int:about', () => ({
     version: app.getVersion(),
     electron: process.versions.electron,
@@ -133,6 +135,9 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:dump-remove', (id: number) => d.dumps.remove(Number(id)))
   handle('int:downloads-list', () => d.downloads.list())
   handle('int:download-action', (id: number, action: DownloadAction) => d.downloads.act(id, action))
+  handle('int:download-previews', (ids: unknown) =>
+    d.downloads.previewsFor(Array.isArray(ids) ? ids.filter(Number.isInteger) : [])
+  )
   // panes:// pages follow the active space: its light or dark mode, and its colour for highlights
   handle('int:settings-get', () => {
     const space = d.spaces.list().find((sp) => sp.id === d.spaces.activeId())

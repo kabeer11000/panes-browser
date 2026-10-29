@@ -475,6 +475,10 @@ function App(): React.JSX.Element {
   }, [pickedIds])
 
   useTabHover()
+  // the downloads bin is tucked off the window while the pane view is open over that edge
+  useEffect(() => {
+    window.api.hideDock(mode === 'stack' || mode === 'grid')
+  }, [mode])
 
   const { drag, start: startDrag } = useTabDrag(onTabClick, () => ({
     order: latest.current.tabs.map((t) => t.id),

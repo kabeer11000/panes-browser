@@ -1,0 +1,260 @@
+/* The downloads bin: a transparent view at the window's bottom-right corner. Builds on styles.css tokens. */
+html,
+body {
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+.dk-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+.dk-scrim {
+  position: absolute;
+  inset: 0;
+}
+.dk-tile {
+  position: absolute;
+  z-index: 5;
+}
+.dk-squash {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 90%;
+}
+.dk-bin {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--fg);
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.22));
+  transition: transform 0.3s var(--ease);
+  transform-origin: 50% 90%;
+}
+.dk-bin:hover,
+.dk-bin.open {
+  transform: rotate(-3deg) scale(1.05);
+}
+
+.dk-back,
+.dk-front {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.dk-mouth {
+  fill: rgb(0 0 0 / 0.4);
+}
+.dk-wall-top {
+  stop-color: color-mix(in srgb, var(--accent) 58%, white);
+}
+.dk-wall-bottom {
+  stop-color: color-mix(in srgb, var(--accent) 82%, black);
+}
+.dk-rim {
+  stroke: rgb(255 255 255 / 0.6);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.dk-shine {
+  stroke: rgb(255 255 255 / 0.3);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+.dk-level {
+  fill: rgb(255 255 255 / 0.3);
+  transition: y 0.3s var(--ease);
+}
+.dk-cards {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.dk-card {
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  width: 24px;
+  height: 31px;
+  margin-left: -12px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 20%, white) center / cover no-repeat;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.14),
+    0 1px 3px rgb(0 0 0 / 0.25);
+  transform-origin: 50% 100%;
+  transition: transform 0.32s var(--ease);
+}
+.dk-card i {
+  color: rgb(0 0 0 / 0.5);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+}
+.dk-card.c0 {
+  transform: translateX(-10px) rotate(-11deg);
+}
+.dk-card.c1 {
+  transform: translateY(-1px);
+}
+.dk-card.c2 {
+  transform: translateX(10px) rotate(11deg);
+}
+/* on hover the downloads rise out of the bucket and spread */
+.dk-bin:hover .dk-card.c0,
+.dk-bin.open .dk-card.c0 {
+  transform: translateX(-15px) translateY(-5px) rotate(-20deg);
+}
+.dk-bin:hover .dk-card.c1,
+.dk-bin.open .dk-card.c1 {
+  transform: translateY(-8px) rotate(-2deg);
+}
+.dk-bin:hover .dk-card.c2,
+.dk-bin.open .dk-card.c2 {
+  transform: translateX(15px) translateY(-5px) rotate(20deg);
+}
+
+.dk-ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 8;
+  width: 40px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--popover-bg);
+  color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 10px 26px rgb(0 0 0 / 0.35);
+  pointer-events: none;
+}
+.dk-ghost b {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.dk-fan {
+  position: absolute;
+  z-index: 6;
+  width: 0;
+  height: 0;
+}
+.dk-row {
+  position: absolute;
+  top: -26px;
+  right: -16px;
+  width: 240px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px 0 6px;
+  border-radius: 14px;
+  background: var(--popover-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    0 10px 30px rgb(0 0 0 / 0.28);
+  overflow: hidden;
+  will-change: transform;
+}
+.dk-row.all {
+  height: 40px;
+  top: -20px;
+  justify-content: center;
+  background: color-mix(in srgb, var(--popover-bg) 88%, var(--fg));
+}
+.dk-row-main {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+  border-radius: 10px;
+  text-align: left;
+  color: var(--fg);
+}
+.dk-row-main:disabled {
+  cursor: default;
+}
+.dk-row.all .dk-row-main {
+  justify-content: center;
+  color: var(--fg-dim);
+}
+.dk-row-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.dk-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.dk-row-meta {
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.dk-face {
+  flex: none;
+  border-radius: 8px;
+  background: center / cover no-repeat;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.dk-face.ext {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+.dk-row-acts {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.dk-row:hover .dk-row-acts,
+.dk-row:focus-within .dk-row-acts {
+  opacity: 1;
+}
+.dk-row-acts button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--fg-dim);
+}
+.dk-row-acts button:hover {
+  background: var(--surface-active);
+  color: var(--fg);
+}
+.dk-row-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 5px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 0.25s var(--ease);
+}

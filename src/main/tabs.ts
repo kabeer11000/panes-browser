@@ -66,6 +66,7 @@ import type {
 } from '../shared/types'
 import { displayHost, resolveInput } from '../shared/url'
 import { showContextMenu } from './contextMenu'
+import { sendFeedback } from './feedback'
 import { PipController } from './pip'
 import type { BookmarkStore, HistoryStore } from './history'
 import type { SettingsStore } from './settings'
@@ -148,6 +149,8 @@ function liveContents(tab: Tab): WebContents | null {
 
 export class TabManager {
   private tabs = new Map<number, Tab>() // insertion order is display order
+  /** Called after every state change: the downloads bin lifts itself back above page views made since. */
+  onRefresh: (() => void) | null = null
   /** The stack was opened with Shift+wheel (over a PDF), so letting go of Shift is what releases it. */
   private shiftStack = false
   private activeId: number | null = null
@@ -2019,7 +2022,8 @@ export class TabManager {
       { label: 'View page source', accelerator: 'CmdOrCtrl+U', click: () => this.viewSource() },
       { type: 'separator' },
       { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => this.openInternal('settings') },
-      page('About and updates', 'software')
+      page('About and updates', 'software'),
+      { label: 'Send feedback', click: () => sendFeedback() }
     ]).popup({ window: this.win, x, y })
   }
 
@@ -2190,6 +2194,7 @@ export class TabManager {
     this.applyVisibility()
     this.persistSession()
     if (!this.win.isDestroyed()) this.win.webContents.send('tabs:state', this.state())
+    this.onRefresh?.()
   }
 
   private command(cmd: UiCommand): void {

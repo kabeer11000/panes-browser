@@ -1,9 +1,10 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { resolveMode, type PerformanceMode } from '../../../shared/performance'
 import { SEARCH_ENGINES } from '../../../shared/settings'
 import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '../../../shared/types'
 import { Segmented, Toggle } from '../internal/ui'
+import introSrc from './intro.mp4'
 
 const STEPS = ['welcome', 'look', 'layout', 'speed', 'finish'] as const
 type Step = (typeof STEPS)[number]
@@ -38,6 +39,46 @@ function Panes(): React.JSX.Element {
   )
 }
 
+/** The downloads bin, small: a bucket with a file standing in it, as it peeks out of the window's corner. */
+function BinArt(): React.JSX.Element {
+  return (
+    <div className="wl-bin" aria-hidden="true">
+      <svg viewBox="0 0 52 52">
+        <defs>
+          <linearGradient id="wl-wall" x1="0" y1="0" x2="0" y2="1">
+            <stop
+              offset="0"
+              style={{ stopColor: 'color-mix(in srgb, var(--accent) 58%, white)' }}
+            />
+            <stop
+              offset="1"
+              style={{ stopColor: 'color-mix(in srgb, var(--accent) 82%, black)' }}
+            />
+          </linearGradient>
+        </defs>
+        <ellipse cx="26" cy="17" rx="20" ry="6" fill="rgb(0 0 0 / 0.4)" />
+        <rect className="wl-bin-file" x="17" y="3" width="18" height="24" rx="3.5" />
+        <path
+          d="M6 17 A20 6 0 0 0 46 17 L42 45.5 Q41.4 49 37.5 49 H14.5 Q10.6 49 10 45.5 Z"
+          fill="url(#wl-wall)"
+        />
+        <path
+          d="M6 17 A20 6 0 0 0 46 17"
+          stroke="rgb(255 255 255 / 0.6)"
+          strokeWidth="1.4"
+          fill="none"
+        />
+        <path
+          d="M14 24 L16.4 43"
+          stroke="rgb(255 255 255 / 0.3)"
+          strokeWidth="2.6"
+          strokeLinecap="round"
+        />
+      </svg>
+    </div>
+  )
+}
+
 /** Tiny drawings of the two layouts, so the choice shows what it does. */
 function LayoutArt({ kind }: { kind: 'vertical' | 'horizontal' }): React.JSX.Element {
   return (
@@ -51,7 +92,52 @@ function LayoutArt({ kind }: { kind: 'vertical' | 'horizontal' }): React.JSX.Ele
   )
 }
 
+/**
+ * The first thing a new person sees: a short dithered film on black, then it gives way to the welcome, which
+ * fades in as the film fades out. A click or a key skips it; if it cannot play at all, it never shows.
+ */
+function Intro({ onDone }: { onDone: () => void }): React.JSX.Element {
+  const video = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const skip = (): void => onDone()
+    window.addEventListener('keydown', skip)
+    return () => window.removeEventListener('keydown', skip)
+  }, [onDone])
+  return (
+    <motion.div
+      className="wl-intro"
+      initial={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.9, ease: [0.4, 0, 0.2, 1] }}
+      onClick={onDone}
+    >
+      <video
+        ref={video}
+        src={introSrc}
+        muted
+        autoPlay
+        playsInline
+        disablePictureInPicture
+        onEnded={onDone}
+        onError={onDone}
+      />
+    </motion.div>
+  )
+}
+
 export function Welcome(): React.JSX.Element {
+  const [intro, setIntro] = useState(true)
+  return (
+    <>
+      <Onboarding hidden={intro} />
+      <AnimatePresence>
+        {intro && <Intro key="intro" onDone={() => setIntro(false)} />}
+      </AnimatePresence>
+    </>
+  )
+}
+
+function Onboarding({ hidden }: { hidden: boolean }): React.JSX.Element {
   const api = window.panesInternal
   const [step, setStep] = useState<Step>('welcome')
   const [dir, setDir] = useState(1)
@@ -106,7 +192,7 @@ export function Welcome(): React.JSX.Element {
   const recommended = stats ? resolveMode('auto', stats.totalGb * 1024 ** 3) : 'balanced'
 
   return (
-    <main className="wl">
+    <main className={'wl' + (hidden ? ' hidden' : '')}>
       <header className="wl-top">
         <div className="wl-dots" aria-label={`Step ${index + 1} of ${STEPS.length}`}>
           {STEPS.map((st, i) => (
@@ -298,6 +384,14 @@ export function Welcome(): React.JSX.Element {
                       Make Panes my default browser
                     </button>
                   )}
+                </div>
+                <div className="wl-dock">
+                  <BinArt />
+                  <p>
+                    <b>Your downloads wait in the corner.</b> A bucket peeks out of the bottom-right
+                    edge of the window: point there to bring it out, and click it to see what you
+                    have downloaded.
+                  </p>
                 </div>
                 <dl className="wl-keys">
                   {KEYS.map(([k, label]) => (

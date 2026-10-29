@@ -18,6 +18,7 @@ import { BookmarkStore, HistoryStore } from './history'
 import { DumpStore } from './dumps'
 import { TorManager } from './tor'
 import { chromeVars } from '../shared/color'
+import { registerDock } from './dock'
 import { registerTabCard } from './tabcard'
 import { setChromeThemeSource } from './chromeTheme'
 import { PasswordStore, registerPasswordIpc } from './passwords'
@@ -429,6 +430,12 @@ function createWindow(): void {
     tabs.tabMenu(id, numbers(picked))
   )
   ipcMain.on('tabs:group-menu', (_e, id: number) => tabs.groupMenu(id))
+  // the downloads bin, at the window's bottom-right corner
+  const dock = registerDock(win, downloads, () => tabs.openInternal('downloads'))
+  tabs.onRefresh = () => dock.raise() // page views made later would otherwise cover it
+  ipcMain.on('ui:dock-hide', (e, hide: unknown) => {
+    if (e.sender === win.webContents) dock.setHidden(hide === true)
+  })
   registerTabCard(win, (id) => tabs.cardInfo(id))
   ipcMain.on('tabs:mute-space', (_e, id: unknown) => {
     if (typeof id === 'number') tabs.toggleSpaceMute(id)
