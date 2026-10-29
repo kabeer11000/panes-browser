@@ -265,11 +265,15 @@ export class TabManager {
   }
 
   /** The active tab's address and space: what the site settings panel is about. */
-  activeSite(): { url: string; spaceId: number } | null {
+  activeSite(): { url: string; spaceId: number; contentsId: number } | null {
     const tab = this.current()
     const wc = tab && liveContents(tab)
     if (!tab || !wc) return null
-    return { url: tab.failed ? tab.failed.url : wc.getURL(), spaceId: tab.spaceId }
+    return {
+      url: tab.failed ? tab.failed.url : wc.getURL(),
+      spaceId: tab.spaceId,
+      contentsId: wc.id
+    }
   }
 
   /**

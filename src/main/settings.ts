@@ -22,6 +22,8 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (isPerformanceMode(patch.performanceMode)) out.performanceMode = patch.performanceMode
   if (patch.adblockOffSites !== undefined)
     out.adblockOffSites = normalizeSites(patch.adblockOffSites)
+  if (patch.adblockCosmeticOffSites !== undefined)
+    out.adblockCosmeticOffSites = normalizeSites(patch.adblockCosmeticOffSites)
   if (patch.startup === 'newtab' || patch.startup === 'restore') out.startup = patch.startup
   if (typeof patch.accent === 'string' && /^#[0-9a-f]{6}$/i.test(patch.accent))
     out.accent = patch.accent

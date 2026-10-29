@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
   performanceMode: 'auto',
   adblockOffSites: [],
+  adblockCosmeticOffSites: [],
   startup: 'newtab',
   accent: '#8b8bff',
   uiScale: 1,

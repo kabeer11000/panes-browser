@@ -387,6 +387,28 @@ export function Panel(): React.JSX.Element | null {
                   }
                 />
               </div>
+              {info.adblock.global && !info.adblock.off && (
+                <div className="pn-row">
+                  <span>
+                    Hide ad spaces on the page
+                    <em>
+                      {info.adblock.blocked > 0
+                        ? `${info.adblock.blocked} requests blocked here. Turn off if the page looks broken`
+                        : 'Turn off if the page looks broken; ads stay blocked'}
+                    </em>
+                  </span>
+                  <Switch
+                    label="Hide ad spaces on this site"
+                    on={info.adblock.cosmetic}
+                    onChange={(v) =>
+                      send({ adblockCosmetic: v }, (i) => ({
+                        ...i,
+                        adblock: { ...i.adblock, cosmetic: v }
+                      }))
+                    }
+                  />
+                </div>
+              )}
               <div className="pn-row">
                 <span>
                   Keep this site loaded

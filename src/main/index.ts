@@ -110,10 +110,10 @@ function createWindow(): void {
   registerPasswordIpc(win, passwords)
   const adblock = new Adblock(tabSession)
   void adblock.set(settings.get().adblock)
-  adblock.setOffSites(settings.get().adblockOffSites)
+  adblock.setOffSites(settings.get().adblockOffSites, settings.get().adblockCosmeticOffSites)
   settings.onChange((s) => {
     void adblock.set(s.adblock)
-    adblock.setOffSites(s.adblockOffSites)
+    adblock.setOffSites(s.adblockOffSites, s.adblockCosmeticOffSites)
     tabs.applyDarkening()
     tabs.sweepMemory() // a stricter memory setting applies at once, not at the next sweep
     if (!win.isDestroyed()) win.webContents.send('settings:changed', s)
@@ -128,6 +128,7 @@ function createWindow(): void {
     spaces,
     permissions,
     active: () => tabs.activeSite(),
+    blocked: (id) => adblock.blockedOn(id),
     changed: () => tabs.applyBoosts()
   })
   new PermissionManager(

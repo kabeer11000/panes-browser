@@ -21,7 +21,9 @@ interface Deps {
   spaces: SpaceStore
   permissions: PermissionStore
   /** The page the panel is about: the active tab's address and its space. */
-  active: () => { url: string; spaceId: number } | null
+  active: () => { url: string; spaceId: number; contentsId: number } | null
+  /** How many requests the ad blocker has stopped on the page shown in the given WebContents. */
+  blocked: (contentsId: number) => number
   /** Re-apply boosts and the ad blocker's exceptions after a change. */
   changed: () => void
 }
@@ -50,7 +52,12 @@ export class SiteSettings {
       origin,
       secure: origin.startsWith('https:'),
       spaceName: space?.name ?? '',
-      adblock: { global: settings.adblock, off: siteListed(key, settings.adblockOffSites) },
+      adblock: {
+        global: settings.adblock,
+        off: siteListed(key, settings.adblockOffSites),
+        cosmetic: !siteListed(key, settings.adblockCosmeticOffSites),
+        blocked: this.d.blocked(page.contentsId)
+      },
       boost: space?.sites[key] ?? null,
       theme: { color: space?.color ?? '#6e7bff', tint: space?.tint ?? 0 },
       keepLoaded: siteListed(key, settings.neverUnloadSites),
@@ -69,6 +76,7 @@ export class SiteSettings {
     if (patch.reset === true) {
       this.d.settings.update({
         adblockOffSites: settings.adblockOffSites.filter((s) => s !== key),
+        adblockCosmeticOffSites: settings.adblockCosmeticOffSites.filter((s) => s !== key),
         neverUnloadSites: settings.neverUnloadSites.filter((s) => s !== key)
       })
       this.d.spaces.setSite(page.spaceId, key, null)
@@ -77,6 +85,12 @@ export class SiteSettings {
     if (typeof patch.adblockOff === 'boolean') {
       const rest = settings.adblockOffSites.filter((s) => s !== key)
       this.d.settings.update({ adblockOffSites: patch.adblockOff ? [...rest, key] : rest })
+    }
+    if (typeof patch.adblockCosmetic === 'boolean') {
+      const rest = settings.adblockCosmeticOffSites.filter((s) => s !== key)
+      this.d.settings.update({
+        adblockCosmeticOffSites: patch.adblockCosmetic ? rest : [...rest, key]
+      })
     }
     if (typeof patch.keepLoaded === 'boolean') {
       const rest = settings.neverUnloadSites.filter((s) => s !== key)

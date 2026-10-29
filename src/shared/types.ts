@@ -218,6 +218,8 @@ export interface Settings {
   adblock: boolean
   /** Sites (host names) where the ad blocker is off even though it is on everywhere else. */
   adblockOffSites: string[]
+  /** Sites where requests are still blocked but the blocker leaves the page's own elements alone. */
+  adblockCosmeticOffSites: string[]
   startup: 'newtab' | 'restore'
   accent: string
   /** Scales text and icons in the sidebar and headers. */
@@ -281,7 +283,7 @@ export interface SiteInfo {
   secure: boolean
   spaceName: string
   /** `global` is the main ad blocker switch; `off` is this site's exception. */
-  adblock: { global: boolean; off: boolean }
+  adblock: { global: boolean; off: boolean; cosmetic: boolean; blocked: number }
   /** This site's boost in the current space, or null for none. */
   boost: SiteTheme | null
   keepLoaded: boolean
@@ -293,6 +295,8 @@ export interface SiteInfo {
 /** One change from the panel; main validates every field. */
 export interface SitePatch {
   adblockOff?: boolean
+  /** Whether the blocker may hide elements on the page (requests stay blocked either way). */
+  adblockCosmetic?: boolean
   boost?: SiteTheme | null
   /** Hide one more element (its selector), or bring one back. */
   zapAdd?: string
