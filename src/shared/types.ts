@@ -144,6 +144,11 @@ export interface PanesApi {
   watchTopBar(enabled: boolean, barPx: number): void
   /** Tell main whether the left-edge sidebar trigger is wanted and where the sidebar stands. */
   watchSidebar(enabled: boolean, open: boolean, openedByHover: boolean, widthPx: number): void
+  /** Whether Panes is the default browser, for the sidebar prompt. */
+  isDefaultBrowser(): Promise<boolean>
+  setDefaultBrowser(): Promise<void>
+  /** Stop asking about the default browser. */
+  dismissDefaultBrowser(): void
   onSideHover(cb: (action: 'open' | 'close') => void): () => void
   onPeekBar(cb: (show: boolean) => void): () => void
   suggestLocal(query: string): Promise<LocalSuggestion[]>
@@ -171,7 +176,7 @@ export interface PanesApi {
   ): void
   /** A login was submitted that is worth saving; null clears the prompt. */
   onPasswordPrompt(cb: (prompt: PasswordPrompt | null) => void): () => void
-  answerPassword(answer: 'save' | 'never' | 'dismiss'): void
+  answerPassword(answer: 'save' | 'never' | 'dismiss', edits?: LoginEdits): void
   /** Where the app is with updating itself; pushed as it changes. */
   onUpdateState(cb: (state: UpdateState) => void): () => void
   getUpdateState(): Promise<UpdateState>
@@ -225,6 +230,10 @@ export interface Settings {
   searchStyle: 'dropdown' | 'center'
   /** In a dark space, darken pages that do not have a dark theme of their own. */
   darkenSites: boolean
+  /** The welcome pages have been seen (or skipped). */
+  onboarded: boolean
+  /** Show the "make Panes your default browser" prompt until it is answered or dismissed. */
+  askDefaultBrowser: boolean
   /** How Chromium is set up at launch: one process per tab, or tabs of a site sharing one. Applies after a restart. */
   performanceMode: PerformanceMode
   /** Unload background tabs to free memory. They reload when you open them. */
@@ -313,6 +322,12 @@ export type ClearKind = 'history' | 'cookies' | 'cache' | 'downloads'
 
 /** API exposed to panes:// pages only. */
 /** What the save-password bar asks the user. The password itself never leaves the main process. */
+/** What the save prompt sends back besides the answer: the username and password as edited. A null password means unchanged. */
+export interface LoginEdits {
+  username: string
+  password: string | null
+}
+
 export interface PasswordPrompt {
   origin: string
   username: string
@@ -362,6 +377,12 @@ export interface InternalApi {
   memoryStats(): Promise<MemoryStats>
   memoryFree(): Promise<number>
   restart(): Promise<void>
+  /** The welcome page is finished: remember that, and close it. */
+  onboardingDone(): Promise<void>
+  /** Whether Panes is what the system opens web links with. */
+  defaultBrowserStatus(): Promise<boolean>
+  /** Ask the system to make it so (it may open the system's default apps page). */
+  defaultBrowserRequest(): Promise<void>
   clearData(kinds: ClearKind[], sinceMs: number | null): Promise<void>
   spacesList(): Promise<Space[]>
   spaceCreate(): Promise<Space>
@@ -408,7 +429,7 @@ export interface PopoverApi {
   onState(cb: (state: PopoverState) => void): () => void
   /** Content height, so the main process can size the view to fit the card. */
   resize(height: number): void
-  answer(answer: 'save' | 'never' | 'dismiss'): void
+  answer(answer: 'save' | 'never' | 'dismiss', edits?: LoginEdits): void
   reveal(): Promise<string | null>
 }
 

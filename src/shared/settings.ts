@@ -10,6 +10,8 @@ export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; url: string 
 export const DEFAULT_SETTINGS: Settings = {
   searchEngine: 'duckduckgo',
   adblock: true,
+  askDefaultBrowser: true,
+  onboarded: false,
   performanceMode: 'auto',
   adblockOffSites: [],
   startup: 'newtab',
