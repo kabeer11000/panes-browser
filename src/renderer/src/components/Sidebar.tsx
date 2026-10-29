@@ -12,6 +12,7 @@ import {
   CloseIcon,
   DownloadIcon,
   GridIcon,
+  MoreIcon,
   HistoryIcon,
   PlusIcon,
   SettingsIcon,
@@ -135,6 +136,18 @@ export function Sidebar({
         </button>
         <button className="icon-btn no-drag" onClick={onTaskView} title="All tabs (Ctrl+Shift+A)">
           <GridIcon />
+        </button>
+        <button
+          className="icon-btn no-drag"
+          title="Menu: private tab, bookmarks, history, settings"
+          aria-label="Menu"
+          aria-haspopup="menu"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            window.api.appMenu(r.left, r.bottom + 4)
+          }}
+        >
+          <MoreIcon />
         </button>
       </div>
       <AddressBar
