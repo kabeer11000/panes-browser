@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import {
-  APPEARANCE_LIMITS,
-  DEFAULT_SETTINGS,
-  SEARCH_ENGINES,
-  type AppearanceKey
-} from '../../../../shared/settings'
+import { APPEARANCE_LIMITS, DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../../../shared/settings'
 import type { ClearKind, SearchEngineId, Settings as SettingsData } from '../../../../shared/types'
+
+import { SLIDERS } from '../sliders'
+import { SpacesSection } from './SpacesSection'
 
 const ACCENTS = ['#8b8bff', '#5eb6ff', '#4ade80', '#fbbf24', '#fb7185', '#e879f9']
 
@@ -41,38 +39,6 @@ function Toggle({
     </button>
   )
 }
-
-const SLIDERS: Array<{
-  key: AppearanceKey
-  label: string
-  hint: string
-  format: (v: number) => string
-}> = [
-  {
-    key: 'uiScale',
-    label: 'Interface size',
-    hint: 'Text and icons in the sidebar and pane headers.',
-    format: (v) => `${Math.round(v * 100)}%`
-  },
-  {
-    key: 'density',
-    label: 'Density',
-    hint: 'Lower is thinner: smaller rows, buttons and spacing.',
-    format: (v) => `${Math.round(v * 100)}%`
-  },
-  {
-    key: 'sidebarWidth',
-    label: 'Sidebar width',
-    hint: 'How wide the tab sidebar is.',
-    format: (v) => `${v}px`
-  },
-  {
-    key: 'pageMargin',
-    label: 'Page margin',
-    hint: 'Space between the page and the window edge.',
-    format: (v) => `${v}px`
-  }
-]
 
 export function Settings(): React.JSX.Element {
   const [s, setS] = useState<SettingsData>(DEFAULT_SETTINGS)
@@ -141,6 +107,21 @@ export function Settings(): React.JSX.Element {
         </div>
       </section>
 
+      <SpacesSection />
+
+      <section className="int-section">
+        <h2>Top bar</h2>
+        <div className="int-field">
+          <div>
+            <div className="int-label">Hide the top bar when the sidebar is collapsed</div>
+            <div className="int-sub">
+              Gives the page the whole window. Move the pointer to the top edge to bring it back.
+            </div>
+          </div>
+          <Toggle on={s.autoHideTopBar} onChange={(v) => void update({ autoHideTopBar: v })} />
+        </div>
+      </section>
+
       <section className="int-section">
         <h2>Interface size</h2>
         {SLIDERS.map((sl) => {
@@ -165,6 +146,21 @@ export function Settings(): React.JSX.Element {
             </div>
           )
         })}
+        <div className="int-field">
+          <div>
+            <div className="int-label">Address bar shows</div>
+            <div className="int-sub">What you see in the bar while you are not typing.</div>
+          </div>
+          <select
+            value={s.urlDisplay}
+            onChange={(e) =>
+              void update({ urlDisplay: e.target.value as SettingsData['urlDisplay'] })
+            }
+          >
+            <option value="full">Full address</option>
+            <option value="host">Site name only</option>
+          </select>
+        </div>
         <button
           className="int-btn small"
           onClick={() =>
@@ -172,7 +168,8 @@ export function Settings(): React.JSX.Element {
               uiScale: DEFAULT_SETTINGS.uiScale,
               density: DEFAULT_SETTINGS.density,
               sidebarWidth: DEFAULT_SETTINGS.sidebarWidth,
-              pageMargin: DEFAULT_SETTINGS.pageMargin
+              pageMargin: DEFAULT_SETTINGS.pageMargin,
+              addressSize: DEFAULT_SETTINGS.addressSize
             })
           }
         >
@@ -215,6 +212,37 @@ export function Settings(): React.JSX.Element {
             <div className="int-sub">Filters requests at the network level on every site.</div>
           </div>
           <Toggle on={s.adblock} onChange={(v) => void update({ adblock: v })} />
+        </div>
+
+        <div className="int-field">
+          <div>
+            <div className="int-label">Command bar style</div>
+            <div className="int-sub">
+              Grow out of the address bar, or open in the middle of the page.
+            </div>
+          </div>
+          <select
+            value={s.searchStyle}
+            onChange={(e) =>
+              void update({ searchStyle: e.target.value as SettingsData['searchStyle'] })
+            }
+          >
+            <option value="dropdown">Under the address bar</option>
+            <option value="center">Centered</option>
+          </select>
+        </div>
+
+        <div className="int-field">
+          <div>
+            <div className="int-label">Search suggestions</div>
+            <div className="int-sub">
+              Send what you type in the command bar to your search engine to get suggestions.
+            </div>
+          </div>
+          <Toggle
+            on={s.searchSuggestions}
+            onChange={(v) => void update({ searchSuggestions: v })}
+          />
         </div>
 
         <div className="int-field column">

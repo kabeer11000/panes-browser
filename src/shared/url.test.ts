@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { displayHost, resolveInput } from './url'
+import { displayHost, resolveInput, splitUrl } from './url'
 
 const search = (q: string): string => 'https://duckduckgo.com/?q=' + encodeURIComponent(q)
 
@@ -37,4 +37,20 @@ describe('displayHost', () => {
   test('strips www', () => expect(displayHost('https://www.a.com/x')).toBe('a.com'))
   test('keeps port', () => expect(displayHost('http://localhost:3000/')).toBe('localhost:3000'))
   test('falls back to raw', () => expect(displayHost('not a url')).toBe('not a url'))
+})
+
+describe('splitUrl', () => {
+  test('separates the site from the path, query and hash', () => {
+    expect(splitUrl('https://www.github.com/a/b?x=1#top')).toEqual({
+      host: 'github.com',
+      rest: '/a/b?x=1#top'
+    })
+  })
+  test('a bare site has no rest', () => {
+    expect(splitUrl('https://example.com/')).toEqual({ host: 'example.com', rest: '' })
+  })
+  test('internal and unparseable addresses are shown whole', () => {
+    expect(splitUrl('panes://settings')).toEqual({ host: 'panes://settings', rest: '' })
+    expect(splitUrl('not a url')).toEqual({ host: 'not a url', rest: '' })
+  })
 })

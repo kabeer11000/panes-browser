@@ -24,9 +24,10 @@ interface Props {
   thumbs: Record<number, string>
   dragId: number | null
   onHeaderPointerDown: (e: PointerEvent, id: number) => void
+  onOpenSearch: () => void
 }
 
-const GAP = 14 // room between tiled panes for the divider
+const GAP = 5 // the gap between tiled panes; the divider's grab area extends past it (see .divider::before)
 const MIN_RATIO = 0.1
 const SETTLE_MS = 700 // keep syncing native view positions while panes glide to new frames
 const WINDOW_RESIZE_IDLE_MS = 160 // panes follow a resizing window instantly, then glide again
@@ -56,7 +57,8 @@ export function Panes({
   preview,
   thumbs,
   dragId,
-  onHeaderPointerDown
+  onHeaderPointerDown,
+  onOpenSearch
 }: Props): React.JSX.Element {
   const byId = new Map(tabs.map((t) => [t.id, t]))
   const singleRoot: LayoutNode | null =
@@ -191,6 +193,7 @@ export function Panes({
                   dragging={id === dragId}
                   thumb={thumbs[id]}
                   onHeaderPointerDown={onHeaderPointerDown}
+                  onOpenSearch={onOpenSearch}
                 />
               )
             )
@@ -236,6 +239,7 @@ interface PaneProps {
   dragging: boolean
   thumb: string | undefined
   onHeaderPointerDown: (e: PointerEvent, id: number) => void
+  onOpenSearch: () => void
 }
 
 function Pane({
@@ -245,7 +249,8 @@ function Pane({
   focused,
   dragging,
   thumb,
-  onHeaderPointerDown
+  onHeaderPointerDown,
+  onOpenSearch
 }: PaneProps): React.JSX.Element {
   return (
     <motion.div
@@ -258,7 +263,12 @@ function Pane({
       transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
     >
       {header && (
-        <div className="pane-head" onPointerDown={(e) => onHeaderPointerDown(e, tab.id)}>
+        <div
+          className="pane-head"
+          title="Drag to rearrange. Double-click to pop out of the split."
+          onPointerDown={(e) => onHeaderPointerDown(e, tab.id)}
+          onDoubleClick={() => window.api.popOutPane(tab.id)}
+        >
           <GripIcon />
           <TabFavicon tab={tab} />
           <span className="tab-title">{tabTitle(tab)}</span>
@@ -273,7 +283,7 @@ function Pane({
         </div>
       )}
       <div className="pane-body" data-tab-id={tab.id}>
-        {!tab.url && <NewTab />}
+        {!tab.url && <NewTab onOpenSearch={onOpenSearch} />}
         {thumb && tab.url && <img className="pane-frozen" src={thumb} alt="" draggable={false} />}
       </div>
     </motion.div>

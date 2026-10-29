@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import logo from '../assets/logo.png'
 import { INTERNAL_PAGES, type InternalPage } from '../../../shared/settings'
 import { BookmarkIcon, DownloadIcon, HistoryIcon, SettingsIcon } from '../components/icons'
 import { Bookmarks } from './pages/Bookmarks'
@@ -28,13 +29,17 @@ export function Shell(): React.JSX.Element {
     document.title = page.title
     void window.panesInternal.getSettings().then((s) => {
       document.documentElement.style.setProperty('--accent', s.accent)
+      document.documentElement.dataset.scheme = (s as { scheme?: string }).scheme ?? 'dark'
     })
   }, [page.title])
 
   return (
     <div className="int-shell">
       <nav className="int-nav">
-        <div className="int-brand">Panes</div>
+        <div className="int-brand">
+          <img src={logo} alt="" width={26} height={26} />
+          Panes
+        </div>
         {INTERNAL_PAGES.map((p) => (
           <a key={p} href={`panes://${p}`} className={p === current ? 'active' : ''}>
             {PAGES[p].icon}

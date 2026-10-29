@@ -3,7 +3,7 @@ import { is } from '@electron-toolkit/utils'
 import { join, normalize } from 'path'
 import { pathToFileURL } from 'url'
 import { INTERNAL_PAGES } from '../shared/settings'
-import type { ClearKind, DownloadAction } from '../shared/types'
+import type { ClearKind, DownloadAction, Space, SpacePatch } from '../shared/types'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
 import type { SettingsStore } from './settings'
@@ -25,7 +25,7 @@ export function serveInternalPages(session: Session): void {
     }
     const rel = url.pathname === '/' || url.pathname === '' ? '/internal.html' : url.pathname
     const dev = process.env['ELECTRON_RENDERER_URL']
-    if (is.dev && dev) return net.fetch(dev + rel)
+    if (is.dev && dev) return net.fetch(dev + rel + url.search) // keep ?import and friends, or Vite serves raw files instead of modules
     const file = normalize(join(root, rel))
     if (!file.startsWith(root)) return new Response('Forbidden', { status: 403 })
     return net.fetch(pathToFileURL(file).toString())
@@ -37,6 +37,13 @@ interface Deps {
   history: HistoryStore
   bookmarks: BookmarkStore
   downloads: DownloadManager
+  spaces: {
+    list: () => Space[]
+    activeId: () => number
+    create: () => Space
+    update: (id: number, patch: SpacePatch) => void
+    remove: (id: number) => void
+  }
   clearBrowsingData: (kinds: ClearKind[], sinceMs: number | null) => Promise<void>
 }
 
@@ -60,8 +67,16 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:bookmark-remove', (id: number) => d.bookmarks.remove(id))
   handle('int:downloads-list', () => d.downloads.list())
   handle('int:download-action', (id: number, action: DownloadAction) => d.downloads.act(id, action))
-  handle('int:settings-get', () => d.settings.get())
+  // panes:// pages follow the active space's light or dark mode
+  handle('int:settings-get', () => ({
+    ...d.settings.get(),
+    scheme: d.spaces.list().find((sp) => sp.id === d.spaces.activeId())?.mode ?? 'dark'
+  }))
   handle('int:settings-set', (patch: object) => d.settings.update(patch))
+  handle('int:spaces-list', () => d.spaces.list())
+  handle('int:space-create', () => d.spaces.create())
+  handle('int:space-update', (id: number, patch: SpacePatch) => d.spaces.update(id, patch))
+  handle('int:space-delete', (id: number) => d.spaces.remove(id))
   handle('int:clear-data', (kinds: ClearKind[], sinceMs: number | null) =>
     d.clearBrowsingData(kinds, sinceMs)
   )

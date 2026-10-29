@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
-import type { PointerEvent, WheelEvent } from 'react'
+import { useState, type PointerEvent, type WheelEvent } from 'react'
 import { leaves, type LayoutNode } from '../../../shared/layout'
-import type { TabInfo } from '../../../shared/types'
+import type { Settings, Space, TabInfo } from '../../../shared/types'
 import { tabTitle } from '../tabTitle'
 import { AddressBar } from './AddressBar'
 import { FindBar } from './FindBar'
@@ -17,6 +17,7 @@ import {
   SplitIcon
 } from './icons'
 import { NavButtons } from './NavButtons'
+import { SpacePopover } from './SpacePopover'
 import { TabFavicon } from './TabFavicon'
 import { WindowControls } from './WindowControls'
 
@@ -25,11 +26,13 @@ interface Props {
   activeId: number | null
   active: TabInfo | null
   layout: LayoutNode | null
+  spaces: Space[]
+  activeSpaceId: number
+  urlDisplay: Settings['urlDisplay']
   dragId: number | null
   dropIndex: number | null
   onTabPointerDown: (e: PointerEvent, id: number) => void
-  focusTick: number
-  visible: boolean
+  onOpenSearch: () => void
   rowH: number
   findKey: number | null
   onCloseFind: () => void
@@ -43,11 +46,13 @@ export function Sidebar({
   activeId,
   active,
   layout,
+  spaces,
+  activeSpaceId,
+  urlDisplay,
   dragId,
   dropIndex,
   onTabPointerDown,
-  focusTick,
-  visible,
+  onOpenSearch,
   rowH,
   findKey,
   onCloseFind,
@@ -56,6 +61,9 @@ export function Sidebar({
   onWheel
 }: Props): React.JSX.Element {
   const group = layout ? leaves(layout) : []
+  const [editingSpace, setEditingSpace] = useState<number | null>(null)
+  const editing = spaces.find((s) => s.id === editingSpace)
+
   return (
     <div className="sidebar-inner">
       <div className="sidebar-top drag">
@@ -81,13 +89,13 @@ export function Sidebar({
       </div>
       <AddressBar
         active={active}
-        focusTick={focusTick}
-        visible={visible}
+        onOpen={onOpenSearch}
+        urlDisplay={urlDisplay}
         paneFocus={group.includes(activeId ?? -1)}
         onWheel={onWheel}
       />
 
-      <div className="tab-list" onWheel={onWheel}>
+      <div className="tab-list" key={activeSpaceId} onWheel={onWheel}>
         <AnimatePresence initial={false}>
           {tabs.map((t, i) => {
             const gi = group.indexOf(t.id)
@@ -158,35 +166,85 @@ export function Sidebar({
       {findKey !== null && <FindBar focusKey={findKey} onClose={onCloseFind} />}
 
       <div className="sidebar-foot no-drag">
-        <button
-          className="icon-btn"
-          title="Bookmarks (Ctrl+Shift+O)"
-          onClick={() => window.api.openInternal('bookmarks')}
-        >
-          <BookmarkIcon />
-        </button>
-        <button
-          className="icon-btn"
-          title="History (Ctrl+H)"
-          onClick={() => window.api.openInternal('history')}
-        >
-          <HistoryIcon />
-        </button>
-        <button
-          className="icon-btn"
-          title="Downloads (Ctrl+J)"
-          onClick={() => window.api.openInternal('downloads')}
-        >
-          <DownloadIcon />
-        </button>
-        <span className="spacer" />
-        <button
-          className="icon-btn"
-          title="Settings (Ctrl+,)"
-          onClick={() => window.api.openInternal('settings')}
-        >
-          <SettingsIcon />
-        </button>
+        {editing && (
+          <SpacePopover
+            key={editing.id}
+            space={editing}
+            canDelete={spaces.length > 1}
+            onClose={() => setEditingSpace(null)}
+          />
+        )}
+        <div className="space-row" role="tablist" aria-label="Spaces">
+          {spaces.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              role="tab"
+              aria-selected={s.id === activeSpaceId}
+              className={'space-chip' + (s.id === activeSpaceId ? ' active' : '')}
+              data-space={s.id}
+              style={{
+                background: s.color2 ? `linear-gradient(135deg, ${s.color}, ${s.color2})` : s.color
+              }}
+              title={`${s.name} (Ctrl+Alt+${i + 1}). Right-click to edit.`}
+              onClick={() =>
+                s.id === activeSpaceId
+                  ? setEditingSpace(editingSpace === s.id ? null : s.id)
+                  : window.api.switchSpace(s.id)
+              }
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setEditingSpace(s.id)
+              }}
+            >
+              {s.name.charAt(0).toUpperCase()}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="space-chip add"
+            title="New space"
+            aria-label="New space"
+            onClick={window.api.createSpace}
+          >
+            <PlusIcon />
+          </button>
+        </div>
+        <div className="foot-icons">
+          <button
+            className="icon-btn"
+            title="Bookmarks (Ctrl+Shift+O)"
+            aria-label="Bookmarks"
+            onClick={() => window.api.openInternal('bookmarks')}
+          >
+            <BookmarkIcon />
+          </button>
+          <button
+            className="icon-btn"
+            title="History (Ctrl+H)"
+            aria-label="History"
+            onClick={() => window.api.openInternal('history')}
+          >
+            <HistoryIcon />
+          </button>
+          <button
+            className="icon-btn"
+            title="Downloads (Ctrl+J)"
+            aria-label="Downloads"
+            onClick={() => window.api.openInternal('downloads')}
+          >
+            <DownloadIcon />
+          </button>
+          <span className="spacer" />
+          <button
+            className="icon-btn"
+            title="Settings (Ctrl+,)"
+            aria-label="Settings"
+            onClick={() => window.api.openInternal('settings')}
+          >
+            <SettingsIcon />
+          </button>
+        </div>
       </div>
     </div>
   )

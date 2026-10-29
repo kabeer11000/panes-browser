@@ -26,3 +26,15 @@ export function displayHost(url: string): string {
     return url
   }
 }
+
+/** Host plus the rest of the address, for showing a full URL with the site name emphasised. */
+export function splitUrl(url: string): { host: string; rest: string } {
+  try {
+    const u = new URL(url)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return { host: url, rest: '' }
+    const path = u.pathname === '/' ? '' : u.pathname
+    return { host: u.host.replace(/^www\./, ''), rest: path + u.search + u.hash }
+  } catch {
+    return { host: url, rest: '' }
+  }
+}

@@ -1,7 +1,7 @@
 /* panes:// pages: opaque, scrollable, text selectable. Builds on the shared tokens in styles.css. */
 html,
 body {
-  background: #121216;
+  background: var(--stage-bg);
 }
 body {
   overflow: auto;
@@ -30,6 +30,9 @@ a {
   border-right: 1px solid var(--border);
 }
 .int-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 0 12px 18px;
   font-size: 18px;
   font-weight: 650;
@@ -368,7 +371,7 @@ select option {
 }
 .swatch.on {
   box-shadow:
-    0 0 0 2px #121216,
+    0 0 0 2px var(--stage-bg),
     0 0 0 4px var(--fg);
 }
 .swatches input[type='color'] {
@@ -454,4 +457,66 @@ input[type='range']::-webkit-slider-thumb {
 }
 input[type='range']::-webkit-slider-thumb:hover {
   box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+/* ---- spaces section ---- */
+.space-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.space-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg-dim);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.space-tab:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.space-tab.active {
+  background: var(--surface-active);
+  color: var(--fg);
+}
+.space-tab .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.int-text {
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-hover);
+  color: var(--fg);
+  font: inherit;
+  outline: 0;
+  max-width: 320px;
+}
+.int-text:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.int-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.int-field.inner {
+  margin: 0;
+  padding: 10px 0 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.int-field .tp {
+  max-width: 300px;
 }

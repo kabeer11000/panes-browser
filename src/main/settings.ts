@@ -18,6 +18,11 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (patch.startup === 'newtab' || patch.startup === 'restore') out.startup = patch.startup
   if (typeof patch.accent === 'string' && /^#[0-9a-f]{6}$/i.test(patch.accent))
     out.accent = patch.accent
+  if (patch.searchStyle === 'dropdown' || patch.searchStyle === 'center')
+    out.searchStyle = patch.searchStyle
+  if (typeof patch.autoHideTopBar === 'boolean') out.autoHideTopBar = patch.autoHideTopBar
+  if (typeof patch.searchSuggestions === 'boolean') out.searchSuggestions = patch.searchSuggestions
+  if (patch.urlDisplay === 'full' || patch.urlDisplay === 'host') out.urlDisplay = patch.urlDisplay
   for (const key of Object.keys(APPEARANCE_LIMITS) as AppearanceKey[]) {
     const v = patch[key]
     const { min, max } = APPEARANCE_LIMITS[key]

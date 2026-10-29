@@ -1,77 +1,69 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type WheelEvent } from 'react'
-import type { TabInfo } from '../../../shared/types'
-import { displayHost } from '../../../shared/url'
+import type { KeyboardEvent, WheelEvent } from 'react'
+import type { Settings, TabInfo } from '../../../shared/types'
+import { splitUrl } from '../../../shared/url'
 import { StarIcon } from './icons'
 import { TabFavicon } from './TabFavicon'
 
 interface Props {
   active: TabInfo | null
-  focusTick: number
-  /** Only the visible instance reacts to focus requests (the sidebar one is hidden when collapsed). */
-  visible: boolean
-  /** Split view: this bar edits whichever pane is focused, so it should say so. */
+  /** Split view: this bar shows the focused pane, so it should say so. */
   paneFocus?: boolean
+  /** Show the whole address or just the site name. */
+  urlDisplay: Settings['urlDisplay']
+  /** The bar is a doorway to the command bar, where all typing happens. */
+  onOpen: () => void
   onWheel: (e: WheelEvent) => void
 }
 
 export function AddressBar({
   active,
-  focusTick,
-  visible,
   paneFocus = false,
+  urlDisplay,
+  onOpen,
   onWheel
 }: Props): React.JSX.Element {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const seenTick = useRef(focusTick)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
   const url = active?.url ?? ''
+  const { host, rest } = splitUrl(url)
 
-  useEffect(() => {
-    if (focusTick === seenTick.current) return
-    seenTick.current = focusTick
-    if (visible) inputRef.current?.focus()
-  }, [focusTick, visible])
-
-  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === 'Enter') {
-      window.api.navigate(draft)
-      inputRef.current?.blur()
-    } else if (e.key === 'Escape') {
-      inputRef.current?.blur()
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onOpen()
     }
   }
 
   return (
     <div
-      className={'address no-drag' + (editing ? ' editing' : '') + (paneFocus ? ' pane-focus' : '')}
-      title={paneFocus ? 'Address of the focused pane' : undefined}
+      className={'address no-drag' + (paneFocus ? ' pane-focus' : '')}
+      role="button"
+      tabIndex={0}
+      aria-label="Search or enter address"
+      title={paneFocus ? 'Address of the focused pane' : url || undefined}
+      onClick={onOpen}
+      onKeyDown={onKeyDown}
       onWheel={onWheel}
     >
       {/* Re-mounts when the focused pane changes, replaying a one-shot ring that links bar and pane. */}
       {paneFocus && <span key={active?.id} className="addr-pulse" />}
-      {active && url && !editing && <TabFavicon tab={active} />}
-      <input
-        ref={inputRef}
-        value={editing ? draft : displayHost(url)}
-        placeholder="Search or enter address"
-        spellCheck={false}
-        tabIndex={visible ? 0 : -1}
-        onFocus={() => {
-          setDraft(url)
-          setEditing(true)
-          requestAnimationFrame(() => inputRef.current?.select())
-        }}
-        onBlur={() => setEditing(false)}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={onKeyDown}
-      />
+      {active && url && <TabFavicon tab={active} />}
+      {url ? (
+        <div className={'addr-display' + (urlDisplay === 'host' ? ' host-only' : '')}>
+          <b>{host}</b>
+          {urlDisplay === 'full' && <i>{rest}</i>}
+        </div>
+      ) : (
+        <div className="addr-display placeholder">Search or enter address</div>
+      )}
       {active && /^https?:/i.test(url) && (
         <button
+          type="button"
           className={'addr-star' + (active.bookmarked ? ' on' : '')}
           title={active.bookmarked ? 'Remove bookmark (Ctrl+D)' : 'Bookmark this page (Ctrl+D)'}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={window.api.toggleBookmark}
+          aria-label={active.bookmarked ? 'Remove bookmark' : 'Bookmark this page'}
+          onClick={(e) => {
+            e.stopPropagation()
+            window.api.toggleBookmark()
+          }}
         >
           <StarIcon filled={active.bookmarked} />
         </button>

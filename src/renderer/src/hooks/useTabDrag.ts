@@ -12,7 +12,9 @@ export interface Box {
 }
 
 export type DropTarget =
-  { kind: 'pane'; tabId: number; edge: Edge | 'center' } | { kind: 'list'; index: number }
+  | { kind: 'pane'; tabId: number; edge: Edge | 'center' }
+  | { kind: 'list'; index: number }
+  | { kind: 'space'; spaceId: number }
 
 export interface DragState {
   id: number
@@ -72,6 +74,13 @@ function targetAt(
 ): { target: DropTarget | null; box: Box | null } {
   const within = (r: DOMRect, pad = 0): boolean =>
     x >= r.left && x <= r.right && y >= r.top - pad && y <= r.bottom + pad
+
+  // A space chip under the pointer: dropping a tab there moves it to that space.
+  for (const chip of document.querySelectorAll<HTMLElement>('.space-chip[data-space]')) {
+    if (within(chip.getBoundingClientRect(), 4)) {
+      return { target: { kind: 'space', spaceId: Number(chip.dataset.space) }, box: null }
+    }
+  }
 
   const stage = document.querySelector('.stage')?.getBoundingClientRect()
   if (ctx.tiled && stage && within(stage)) {
@@ -180,7 +189,8 @@ export function useTabDrag(
         const { target } = targetAt(ev.clientX, ev.clientY, id, ctxRef.current())
         setDrag(null)
         if (ev.type === 'pointerup' && target) {
-          if (target.kind === 'pane') window.api.dropTab(id, target.tabId, target.edge)
+          if (target.kind === 'space') window.api.moveTabToSpace(id, target.spaceId)
+          else if (target.kind === 'pane') window.api.dropTab(id, target.tabId, target.edge)
           else if (source === 'tab') window.api.moveTab(id, target.index)
           else window.api.closePane(id) // a pane dragged back onto the sidebar leaves the group
         }

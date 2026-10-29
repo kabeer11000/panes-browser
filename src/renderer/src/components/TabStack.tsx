@@ -1,36 +1,54 @@
 import {
+  animate,
   motion,
+  useMotionValue,
   useMotionValueEvent,
+  useReducedMotion,
   useSpring,
   useTransform,
   type MotionValue
 } from 'motion/react'
 import { useEffect, useState } from 'react'
-import type { TabInfo } from '../../../shared/types'
+import type { StackEntry } from '../../../shared/stack'
+import { displayHost } from '../../../shared/url'
+import { useGlow } from '../ambient'
 import { tabTitle } from '../tabTitle'
+import { CardThumb } from './CardThumb'
+import { entryTitle, pageAspect } from './cardUtils'
 import { TabFavicon } from './TabFavicon'
 
-// Depth feel. d = card index - scroll position: 0 is front. Upcoming tabs (d>0) recede down and back (same order as the sidebar and rail),
-// earlier tabs (d<0) recede up and back, so neighbours on both sides stay visible.
+// Depth feel. d = card index - scroll position: 0 is front. Upcoming cards (d>0) recede down and back
+// (same order as the sidebar and rail), earlier cards (d<0) recede up and back.
 const STEP_Z = 220
 const STEP_Y = 78
 const FADE = 0.26
-const TILT = 0
+const BLUR_PER_STEP = 1.5 // depth of field: px of blur per card of distance
+const BLUR_MAX = 5
+const DIM_PER_STEP = 0.16
 const RAIL_ITEM_H = 44
+const PAGE_JUMP = 4
 
 interface Props {
-  tabs: TabInfo[]
+  entries: StackEntry[]
+  activeId: number | null
   thumbs: Record<number, string>
   /** Scroll position in cards (float). Owned by App so wheel events can arrive before mount. */
   target: MotionValue<number>
-  onStep: (delta: 1 | -1) => void
+  onStep: (delta: number) => void
   onJump: (index: number) => void
   onCommit: () => void
   onCancel: () => void
 }
 
+const holds = (e: StackEntry, id: number | null): boolean => e.tabs.some((t) => t.id === id)
+
+/** Short rail label: a group reads as its first tab plus a count. */
+const railLabel = (e: StackEntry): string =>
+  e.tabs.length > 1 ? `${tabTitle(e.tabs[0])} +${e.tabs.length - 1}` : tabTitle(e.tabs[0])
+
 export function TabStack({
-  tabs,
+  entries,
+  activeId,
   thumbs,
   target,
   onStep,
@@ -38,9 +56,21 @@ export function TabStack({
   onCommit,
   onCancel
 }: Props): React.JSX.Element {
-  const pos = useSpring(target, { stiffness: 240, damping: 30, mass: 0.9 })
+  const reduced = useReducedMotion()
+  const spring = useSpring(target, { stiffness: 320, damping: 38, mass: 1 })
+  const pos = reduced ? target : spring
+  const last = entries.length - 1
   const [index, setIndex] = useState(() => Math.round(target.get()))
-  useMotionValueEvent(target, 'change', (v) => setIndex(Math.round(v)))
+  const [aspect] = useState(pageAspect)
+  useMotionValueEvent(target, 'change', (v) => setIndex(Math.min(last, Math.max(0, Math.round(v)))))
+
+  // The deck fans open from a single pile when the view appears.
+  const spread = useMotionValue(reduced ? 1 : 0)
+  useEffect(() => {
+    if (reduced) return
+    const controls = animate(spread, 1, { type: 'spring', stiffness: 200, damping: 32 })
+    return () => controls.stop()
+  }, [spread, reduced])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -48,103 +78,166 @@ export function TabStack({
       else if (e.key === 'Enter') onCommit()
       else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') onStep(1)
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') onStep(-1)
+      else if (e.key === 'PageDown') onStep(PAGE_JUMP)
+      else if (e.key === 'PageUp') onStep(-PAGE_JUMP)
+      else if (e.key === 'Home') onJump(0)
+      else if (e.key === 'End') onJump(last)
       else return
       e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel, onCommit, onStep])
+  }, [onCancel, onCommit, onStep, onJump, last])
 
-  const current = tabs[Math.min(index, tabs.length - 1)]
+  const current = entries[Math.min(index, last)]
+  const glow = useGlow(current ? thumbs[current.primaryId] : undefined)
 
   return (
     <motion.div
       className="stack"
+      role="listbox"
+      aria-label="Open tabs"
+      style={{ '--stack-aspect': aspect, '--glow': glow } as React.CSSProperties}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.16 }}
+      exit={{ opacity: 0, scale: 1.03 }}
+      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
     >
-      <TimelineRail tabs={tabs} pos={pos} index={index} onJump={onJump} />
+      <div className="stack-ambient" aria-hidden="true" />
+      <TimelineRail entries={entries} activeId={activeId} pos={pos} index={index} onJump={onJump} />
       <div className="stack-scene">
-        {tabs.map((t, i) => (
+        {entries.map((e, i) => (
           <StackCard
-            key={t.id}
-            tab={t}
-            thumb={thumbs[t.id]}
+            key={e.key}
+            entry={e}
+            current={holds(e, activeId)}
+            thumbs={thumbs}
             index={i}
+            selected={i === index}
             pos={pos}
+            spread={spread}
             onClick={() => (i === index ? onCommit() : onJump(i))}
           />
         ))}
       </div>
       {current && (
         <div className="stack-label">
-          <div className="stack-title">{tabTitle(current)}</div>
-          <div className="stack-hint">
-            {index + 1} / {tabs.length} &nbsp;·&nbsp; scroll to fly through, release Ctrl to open
+          <div className="stack-title">{entryTitle(current)}</div>
+          <div className="stack-meta">
+            <span>
+              {current.tabs.length > 1
+                ? `Split of ${current.tabs.length} tabs`
+                : displayHost(current.tabs[0].url) || 'New tab'}
+            </span>
+            <span className="stack-count">
+              {index + 1} of {entries.length}
+            </span>
+          </div>
+          <div className="sr-only" aria-live="polite">
+            {entryTitle(current)}, {index + 1} of {entries.length}
           </div>
         </div>
       )}
+      <div className="stack-hints" aria-hidden="true">
+        <span>
+          <b>Release&nbsp;Ctrl</b> to open
+        </span>
+        <span>
+          <b>Esc</b> to stay
+        </span>
+      </div>
     </motion.div>
   )
 }
 
 function StackCard({
-  tab,
-  thumb,
+  entry,
+  current,
+  thumbs,
   index,
+  selected,
   pos,
+  spread,
   onClick
 }: {
-  tab: TabInfo
-  thumb: string | undefined
+  entry: StackEntry
+  current: boolean
+  thumbs: Record<number, string>
   index: number
+  selected: boolean
   pos: MotionValue<number>
+  spread: MotionValue<number>
   onClick: () => void
 }): React.JSX.Element {
   const d = useTransform(pos, (p) => index - p)
-  const z = useTransform(d, (v) => -Math.abs(v) * STEP_Z)
-  const y = useTransform(d, (v) => v * STEP_Y)
+  const z = useTransform([d, spread], ([v, s]: number[]) => -Math.abs(v) * STEP_Z * s)
+  const y = useTransform([d, spread], ([v, s]: number[]) => v * STEP_Y * s)
   const opacity = useTransform(d, (v) => Math.max(0, 1 - Math.abs(v) * FADE))
+  // Depth of field: things further from the front soften and darken.
+  const filter = useTransform(d, (v) => {
+    const a = Math.abs(v)
+    return `blur(${Math.min(BLUR_MAX, a * BLUR_PER_STEP).toFixed(2)}px) brightness(${(1 - Math.min(0.55, a * DIM_PER_STEP)).toFixed(3)})`
+  })
+  const isGroup = entry.tabs.length > 1
+  const first = entry.tabs[0]
 
   return (
-    <motion.div className="stack-card" style={{ z, y, opacity, rotateX: TILT }} onClick={onClick}>
+    <motion.div
+      className={'stack-card' + (selected ? ' front' : '')}
+      role="option"
+      aria-selected={selected}
+      aria-label={entryTitle(entry)}
+      style={{ z, y, opacity, filter }}
+      onClick={onClick}
+    >
       <div className="card-head">
-        <TabFavicon tab={tab} />
-        <span className="tab-title">{tabTitle(tab)}</span>
+        {isGroup ? (
+          <span className="card-favicons">
+            {entry.tabs.slice(0, 3).map((t) => (
+              <TabFavicon key={t.id} tab={t} />
+            ))}
+          </span>
+        ) : (
+          <TabFavicon tab={first} />
+        )}
+        <span className="tab-title">{entryTitle(entry)}</span>
+        {isGroup && <span className="group-badge">Split {entry.tabs.length}</span>}
+        {current && <span className="current-chip">Current</span>}
       </div>
       <div className="card-thumb">
-        {thumb ? <img src={thumb} alt="" draggable={false} /> : <span>New tab</span>}
+        <CardThumb entry={entry} thumbs={thumbs} />
       </div>
     </motion.div>
   )
 }
 
-/** Vertical thread of tab names; the current tab sits at the vertical center and neighbours are readable. */
+/** Vertical thread of card names; the current card sits at the vertical center and neighbours are readable. */
 function TimelineRail({
-  tabs,
+  entries,
+  activeId,
   pos,
   index,
   onJump
 }: {
-  tabs: TabInfo[]
+  entries: StackEntry[]
+  activeId: number | null
   pos: MotionValue<number>
   index: number
   onJump: (index: number) => void
 }): React.JSX.Element {
   const y = useTransform(pos, (p) => -p * RAIL_ITEM_H)
   return (
-    <div className="rail">
+    <div className="rail" aria-hidden="true">
       <motion.div className="rail-track" style={{ y }}>
         <span
           className="rail-line"
-          style={{ height: Math.max(0, tabs.length - 1) * RAIL_ITEM_H }}
+          style={{ height: Math.max(0, entries.length - 1) * RAIL_ITEM_H }}
         />
-        {tabs.map((t, i) => (
+        {entries.map((e, i) => (
           <RailItem
-            key={t.id}
-            tab={t}
+            key={e.key}
+            entry={e}
+            current={holds(e, activeId)}
             index={i}
             pos={pos}
             active={i === index}
@@ -157,13 +250,15 @@ function TimelineRail({
 }
 
 function RailItem({
-  tab,
+  entry,
+  current,
   index,
   pos,
   active,
   onClick
 }: {
-  tab: TabInfo
+  entry: StackEntry
+  current: boolean
   index: number
   pos: MotionValue<number>
   active: boolean
@@ -173,13 +268,15 @@ function RailItem({
   const dotScale = useTransform(pos, (p) => 1 + Math.max(0, 1 - Math.abs(index - p)) * 0.7)
   return (
     <motion.button
-      className={'rail-item' + (active ? ' active' : '')}
+      type="button"
+      tabIndex={-1}
+      className={'rail-item' + (active ? ' active' : '') + (current ? ' current' : '')}
       style={{ opacity, height: RAIL_ITEM_H }}
       onClick={onClick}
     >
       <motion.span className="rail-dot" style={{ scale: dotScale }} />
-      <TabFavicon tab={tab} />
-      <span className="rail-title">{tabTitle(tab)}</span>
+      <TabFavicon tab={entry.tabs[0]} />
+      <span className="rail-title">{railLabel(entry)}</span>
     </motion.button>
   )
 }

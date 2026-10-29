@@ -5,7 +5,8 @@ import {
   type Event,
   type Input,
   type MouseWheelInputEvent,
-  type Session
+  type Session,
+  type WebContents
 } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
@@ -22,11 +23,12 @@ import {
   type Edge,
   type LayoutNode
 } from '../shared/layout'
-import type { InitialData, Rect, TabInfo, TabsState, UiCommand } from '../shared/types'
+import type { InitialData, Rect, SpacePatch, TabInfo, TabsState, UiCommand } from '../shared/types'
 import { resolveInput } from '../shared/url'
 import { showContextMenu } from './contextMenu'
 import type { BookmarkStore, HistoryStore } from './history'
 import type { SettingsStore } from './settings'
+import type { SpaceStore } from './spaces'
 import { JsonStore } from './store'
 
 const THUMB_WIDTH = 800
@@ -45,6 +47,13 @@ interface Tab {
   thumbTimer: NodeJS.Timeout | null
   /** Created with a URL, so it is loading rather than blank even while getURL() is still empty. */
   hasUrl: boolean
+  spaceId: number
+}
+
+/** The tab's live WebContents, or null while it is being torn down (reading it then would throw). */
+function liveContents(tab: Tab): WebContents | null {
+  const wc = tab.view.webContents as WebContents | undefined
+  return wc && !wc.isDestroyed() ? wc : null
 }
 
 export class TabManager {
@@ -52,23 +61,33 @@ export class TabManager {
   private activeId: number | null = null
   private nextId = 1
   private layout: LayoutNode | null = null
+  /** Spaces: the active one owns `activeId` and `layout`; the others keep theirs here while hidden. */
+  private activeSpaceId = 0
+  private layouts = new Map<number, LayoutNode | null>()
+  private lastActive = new Map<number, number | null>()
   private rects: Record<number, Rect> = {}
   private overlay = false
   private closedUrls: string[] = []
 
   private fullscreenId: number | null = null
   private lastFind = ''
-  private sessionStore = new JsonStore<{ urls: string[]; active: number }>('session', {
-    urls: [],
-    active: 0
-  })
+  private sessionStore = new JsonStore<{
+    tabs: Array<{ url: string; spaceId: number }>
+    active: number
+  }>('session-v2', { tabs: [], active: 0 })
   private sessionTimer: NodeJS.Timeout | null = null
 
   constructor(
     private win: BrowserWindow,
     private session: Session,
-    private deps: { settings: SettingsStore; history: HistoryStore; bookmarks: BookmarkStore }
+    private deps: {
+      settings: SettingsStore
+      history: HistoryStore
+      bookmarks: BookmarkStore
+      spaces: SpaceStore
+    }
   ) {
+    this.activeSpaceId = deps.spaces.activeId()
     win.on('resize', () => this.applyVisibility())
     setInterval(() => {
       if (this.win.isFocused()) for (const id of this.visibleIds()) void this.snapshot(id)
@@ -86,7 +105,9 @@ export class TabManager {
   private state(): TabsState {
     const tabs: TabInfo[] = []
     for (const [id, t] of this.tabs) {
-      const wc = t.view.webContents
+      if (t.spaceId !== this.activeSpaceId) continue
+      const wc = liveContents(t)
+      if (!wc) continue
       tabs.push({
         id,
         url: wc.getURL(),
@@ -98,7 +119,18 @@ export class TabManager {
         canGoForward: wc.navigationHistory.canGoForward()
       })
     }
-    return { tabs, activeId: this.activeId, layout: this.layout }
+    return {
+      tabs,
+      activeId: this.activeId,
+      layout: this.layout,
+      spaces: this.deps.spaces.list(),
+      activeSpaceId: this.activeSpaceId
+    }
+  }
+
+  /** Ids of the active space's tabs, in display order. */
+  private own(): number[] {
+    return [...this.tabs].filter(([, t]) => t.spaceId === this.activeSpaceId).map(([id]) => id)
   }
 
   private current(): Tab | null {
@@ -113,12 +145,13 @@ export class TabManager {
   }
 
   private isBlank(tab: Tab): boolean {
-    return !tab.hasUrl && tab.view.webContents.getURL() === ''
+    const wc = liveContents(tab)
+    return !wc || (!tab.hasUrl && wc.getURL() === '')
   }
 
   // ---- tab lifecycle ----
 
-  create(input = '', activate = true): number {
+  create(input = '', activate = true, spaceId = this.activeSpaceId): number {
     const view = new WebContentsView({
       webPreferences: {
         session: this.session,
@@ -132,7 +165,14 @@ export class TabManager {
     this.win.contentView.addChildView(view)
 
     const id = this.nextId++
-    const tab: Tab = { view, favicon: null, thumb: null, thumbTimer: null, hasUrl: false }
+    const tab: Tab = {
+      view,
+      favicon: null,
+      thumb: null,
+      thumbTimer: null,
+      hasUrl: false,
+      spaceId
+    }
     this.tabs.set(id, tab)
     this.wire(id, tab)
 
@@ -149,6 +189,7 @@ export class TabManager {
   activate(id: number): void {
     const tab = this.tabs.get(id)
     if (!tab) return
+    if (tab.spaceId !== this.activeSpaceId) this.enterSpace(tab.spaceId)
     this.activeId = id
     this.refresh()
     if (this.isBlank(tab)) {
@@ -162,16 +203,16 @@ export class TabManager {
   close(id: number): void {
     const tab = this.tabs.get(id)
     if (!tab) return
-    const url = tab.view.webContents.getURL()
+    const url = liveContents(tab)?.getURL()
     if (url) this.closedUrls.push(url)
 
     if (this.layout) this.setLayout(removeTab(this.layout, id))
-    const ids = [...this.tabs.keys()]
+    const ids = this.own()
     const idx = ids.indexOf(id)
     if (tab.thumbTimer) clearTimeout(tab.thumbTimer)
+    this.tabs.delete(id)
     this.win.contentView.removeChildView(tab.view)
     tab.view.webContents.close()
-    this.tabs.delete(id)
 
     if (this.activeId !== id) return this.refresh()
     this.activeId = null
@@ -186,14 +227,14 @@ export class TabManager {
   }
 
   step(delta: 1 | -1): void {
-    const ids = [...this.tabs.keys()]
+    const ids = this.own()
     if (ids.length < 2 || this.activeId === null) return
     const i = ids.indexOf(this.activeId)
     this.activate(ids[(i + delta + ids.length) % ids.length])
   }
 
   private activateIndex(i: number): void {
-    const ids = [...this.tabs.keys()]
+    const ids = this.own()
     const id = i === 8 ? ids[ids.length - 1] : ids[i] // Ctrl+9 jumps to the last tab
     if (id !== undefined) this.activate(id)
   }
@@ -201,9 +242,14 @@ export class TabManager {
   /** Open saved tabs when the user chose to restore, otherwise a fresh blank tab. */
   restoreOrNew(): void {
     const saved = this.sessionStore.value
-    if (this.deps.settings.get().startup === 'restore' && saved.urls.length > 0) {
-      const ids = saved.urls.map((u) => this.create(u, false))
-      this.activate(ids[Math.min(saved.active, ids.length - 1)])
+    const known = new Set(this.deps.spaces.list().map((sp) => sp.id))
+    if (this.deps.settings.get().startup === 'restore' && saved.tabs.length > 0) {
+      const ids = saved.tabs.map((t) =>
+        this.create(t.url, false, known.has(t.spaceId) ? t.spaceId : this.activeSpaceId)
+      )
+      const own = ids.filter((id) => this.tabs.get(id)?.spaceId === this.activeSpaceId)
+      const pick = ids[Math.min(saved.active, ids.length - 1)]
+      this.activate(own.includes(pick) ? pick : (own[0] ?? this.create()))
     } else {
       this.create()
     }
@@ -213,17 +259,87 @@ export class TabManager {
     if (this.sessionTimer) return
     this.sessionTimer = setTimeout(() => {
       this.sessionTimer = null
-      const urls: string[] = []
+      const tabs: Array<{ url: string; spaceId: number }> = []
       let active = 0
       for (const [id, t] of this.tabs) {
-        const u = t.view.webContents.getURL()
-        if (!/^(https?|file):/i.test(u)) continue
-        if (id === this.activeId) active = urls.length
-        urls.push(u)
+        const url = liveContents(t)?.getURL() ?? ''
+        if (!/^(https?|file):/i.test(url)) continue
+        if (id === this.activeId) active = tabs.length
+        tabs.push({ url, spaceId: t.spaceId })
       }
-      this.sessionStore.value = { urls, active }
+      this.sessionStore.value = { tabs, active }
       this.sessionStore.save()
     }, 1500)
+  }
+
+  // ---- spaces ----
+
+  /** Park the current space's layout and active tab, then make `id` the active space (no tab activation). */
+  private enterSpace(id: number): void {
+    this.layouts.set(this.activeSpaceId, this.layout)
+    this.lastActive.set(this.activeSpaceId, this.activeId)
+    this.activeSpaceId = id
+    this.deps.spaces.setActive(id)
+    this.layout = this.layouts.get(id) ?? null
+    const own = this.own()
+    const remembered = this.lastActive.get(id)
+    this.activeId = remembered != null && own.includes(remembered) ? remembered : (own[0] ?? null)
+  }
+
+  switchSpace(id: number): void {
+    if (id === this.activeSpaceId || !this.deps.spaces.get(id)) return
+    this.enterSpace(id)
+    if (this.activeId === null) this.create()
+    else this.activate(this.activeId)
+  }
+
+  /** Make a new space and switch to it. */
+  createSpace(): ReturnType<SpaceStore['add']> {
+    const space = this.deps.spaces.add()
+    this.switchSpace(space.id)
+    return space
+  }
+
+  updateSpace(id: number, patch: SpacePatch): void {
+    this.deps.spaces.update(id, patch)
+    this.refresh()
+  }
+
+  /** Delete a space and close every tab in it. The last space cannot be deleted. */
+  deleteSpace(id: number): void {
+    const list = this.deps.spaces.list()
+    if (list.length <= 1 || !this.deps.spaces.get(id)) return
+    if (id === this.activeSpaceId) {
+      this.switchSpace((list.find((sp) => sp.id !== id) as { id: number }).id)
+    }
+    for (const [tid, t] of [...this.tabs]) {
+      if (t.spaceId !== id) continue
+      if (t.thumbTimer) clearTimeout(t.thumbTimer)
+      this.tabs.delete(tid)
+      this.win.contentView.removeChildView(t.view)
+      t.view.webContents.close()
+    }
+    this.layouts.delete(id)
+    this.lastActive.delete(id)
+    this.deps.spaces.remove(id)
+    this.refresh()
+  }
+
+  /** Move a tab to another space (it leaves any split it was in). */
+  moveTabToSpace(tabId: number, spaceId: number): void {
+    const tab = this.tabs.get(tabId)
+    if (!tab || tab.spaceId === spaceId || !this.deps.spaces.get(spaceId)) return
+    const wasActive = this.activeId === tabId
+    if (this.layout) this.setLayout(removeTab(this.layout, tabId))
+    tab.spaceId = spaceId
+    if (wasActive) {
+      this.activeId = null
+      const next = this.own()[0]
+      if (next !== undefined) this.activate(next)
+      else this.create()
+    } else {
+      this.refresh()
+    }
   }
 
   /** Dev aid: save a PNG of the active tab so layout problems can be inspected without a screen. */
@@ -249,13 +365,45 @@ export class TabManager {
     writeFileSync(file.replace('.png', '-ui.png'), ui.toPNG())
   }
 
+  /** Dev aid: drag the theme picker's wheel with real mouse events and report whether the space changed. */
+  async debugPicker(): Promise<void> {
+    const wc = this.current()?.view.webContents
+    if (!wc) return console.log('[picker] no tab')
+    const spaces = (): Promise<string> =>
+      wc.executeJavaScript('window.panesInternal.spacesList().then((l) => JSON.stringify(l[0]))')
+    console.log('[picker] before', await spaces())
+    const rect = JSON.parse(
+      await wc.executeJavaScript(
+        "(() => { const el = document.querySelector('.tp-wheel'); el.scrollIntoView({block:'center'}); const r = el.getBoundingClientRect(); return JSON.stringify({x:r.x,y:r.y,w:r.width,h:r.height}) })()"
+      )
+    )
+    const cx = Math.round(rect.x + rect.w / 2)
+    const cy = Math.round(rect.y + rect.h / 2)
+    const at = (dx: number, dy: number): { x: number; y: number } => ({ x: cx + dx, y: cy + dy })
+    wc.sendInputEvent({ type: 'mouseDown', ...at(60, 0), button: 'left', clickCount: 1 })
+    for (const [dx, dy] of [
+      [55, 10],
+      [40, 40],
+      [0, 60],
+      [-40, 40]
+    ]) {
+      wc.sendInputEvent({ type: 'mouseMove', ...at(dx, dy), modifiers: ['leftbuttondown'] })
+      await new Promise((r) => setTimeout(r, 40))
+    }
+    wc.sendInputEvent({ type: 'mouseUp', ...at(-40, 40), button: 'left', clickCount: 1 })
+    await new Promise((r) => setTimeout(r, 500))
+    console.log('[picker] after ', await spaces())
+  }
+
   // ---- navigation ----
 
   /** Focus the tab already showing this internal page, or open it in a new tab. */
   openInternal(page: InternalPage): void {
     const url = internalUrl(page)
     for (const [id, t] of this.tabs) {
-      if (t.view.webContents.getURL().startsWith(url)) return this.activate(id)
+      if (t.spaceId === this.activeSpaceId && liveContents(t)?.getURL().startsWith(url)) {
+        return this.activate(id)
+      }
     }
     this.create(url)
   }
@@ -367,10 +515,27 @@ export class TabManager {
     else this.refresh()
   }
 
+  /** Take a pane out of the group and show it on its own, full size. */
+  popOut(id: number): void {
+    if (!this.layout || !this.tabs.has(id)) return
+    this.setLayout(removeTab(this.layout, id))
+    this.activate(id)
+  }
+
+  /** Load an address or search in a new tab and tile it beside the current one. */
+  openInSplit(input: string): void {
+    const base = this.activeId
+    const id = this.create(input, false)
+    if (base !== null) {
+      this.activate(base)
+      this.splitWith(id)
+    }
+  }
+
   toggleSplit(): void {
     if (this.activeId === null) return
     if (this.visibleIds().length > 1) return this.unsplit(this.activeId)
-    const ids = [...this.tabs.keys()]
+    const ids = this.own()
     const partner =
       ids.length > 1 ? ids[(ids.indexOf(this.activeId) + 1) % ids.length] : this.create('', false)
     this.splitWith(partner)
@@ -382,10 +547,9 @@ export class TabManager {
    */
   dropTab(id: number, targetId: number, edge: Edge | 'center'): void {
     if (!this.tabs.has(id) || (targetId !== ROOT_TARGET && !this.tabs.has(targetId))) return
-    const tiled =
-      this.layout && leaves(this.layout).includes(this.activeId ?? -1) ? this.layout : null
-    const next = applyDrop(tiled, id, targetId, edge)
-    if (next === tiled) return
+    // The target may belong to a group other than the active one (dragging in the overview).
+    const next = applyDrop(this.layout, id, targetId, edge)
+    if (next === this.layout) return
     this.setLayout(next)
     this.activate(id)
   }
@@ -425,12 +589,16 @@ export class TabManager {
   moveTab(id: number, index: number): void {
     if (!this.tabs.has(id)) return
     const group = this.layout && leaves(this.layout).includes(id) ? leaves(this.layout) : [id]
-    const ids = [...this.tabs.keys()]
-    const rest = ids.filter((i) => !group.includes(i))
-    const removedBefore = group.filter((g) => ids.indexOf(g) < index).length
+    const own = this.own()
+    const rest = own.filter((i) => !group.includes(i))
+    const removedBefore = group.filter((g) => own.indexOf(g) < index).length
     const at = Math.max(0, Math.min(rest.length, index - removedBefore))
     rest.splice(at, 0, ...group)
-    this.tabs = new Map(rest.map((i) => [i, this.tabs.get(i)!]))
+    // Write the new order back into the slots this space's tabs occupy in the global order.
+    const global = [...this.tabs.keys()]
+    let k = 0
+    for (let i = 0; i < global.length; i++) if (own.includes(global[i])) global[i] = rest[k++]
+    this.tabs = new Map(global.map((i) => [i, this.tabs.get(i)!]))
     this.setLayout(this.layout) // a loose tab dropped inside a group gets pushed out of it
     this.refresh()
   }
@@ -458,8 +626,8 @@ export class TabManager {
     this.applyVisibility()
   }
 
-  async setOverlay(open: boolean): Promise<void> {
-    if (open) {
+  async setOverlay(open: boolean, snapshot = true): Promise<void> {
+    if (open && snapshot) {
       const snaps = Promise.all(this.visibleIds().map((id) => this.snapshot(id)))
       await Promise.race([
         snaps,
@@ -566,7 +734,19 @@ export class TabManager {
       // Chromium's wheel delta is positive for scroll-up; the renderer expects DOM units (down is positive).
       this.send('ui:stack-wheel', wheelTicksY !== 0 ? -wheelTicksY * 100 : -deltaY)
     })
-    wc.setWindowOpenHandler(({ url }) => {
+    wc.setWindowOpenHandler(({ url, features, disposition }) => {
+      // Sign-in flows (Google, Figma, ...) open a popup and message the page that opened it, so a
+      // real popup window must stay linked to its opener. Ordinary links still become tabs.
+      if (disposition === 'new-window' || /\b(width|height|popup)\b/i.test(features)) {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            autoHideMenuBar: true,
+            backgroundColor: '#ffffff',
+            webPreferences: { session: this.session, sandbox: true }
+          }
+        }
+      }
       this.openLink(url)
       return { action: 'deny' }
     })
@@ -621,6 +801,10 @@ export class TabManager {
       else if (k === '0') this.zoom(null)
       else if (k === 'tab') this.step(1)
       else if (/^[1-9]$/.test(k)) this.activateIndex(Number(k) - 1)
+      else handled = false
+    } else if (mod && input.alt && !input.shift) {
+      const target = /^[1-9]$/.test(k) ? this.deps.spaces.list()[Number(k) - 1] : undefined
+      if (target) this.switchSpace(target.id)
       else handled = false
     } else if (mod && input.shift && !input.alt) {
       if (k === 'tab') this.step(-1)

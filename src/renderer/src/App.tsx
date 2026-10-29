@@ -1,22 +1,25 @@
 import { AnimatePresence, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyDrop, leaves } from '../../shared/layout'
+import { stackEntries } from '../../shared/stack'
 import { Panes } from './components/Panes'
+import { SearchPalette, type Anchor } from './components/SearchPalette'
 import { Sidebar } from './components/Sidebar'
 import { TabStack } from './components/TabStack'
 import { TaskView } from './components/TaskView'
 import { AddressBar } from './components/AddressBar'
+import { FindBar } from './components/FindBar'
 import { GridIcon, SidebarIcon, SplitIcon } from './components/icons'
 import { NavButtons } from './components/NavButtons'
 import { WindowControls } from './components/WindowControls'
 import { useSwipe } from './hooks/useSwipe'
 import { useTabDrag } from './hooks/useTabDrag'
 import { useTabs } from './hooks/useTabs'
-import { DEFAULT_SETTINGS } from '../../shared/settings'
+import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../shared/settings'
 import type { Settings } from '../../shared/types'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 
-type Mode = 'grid' | 'stack' | null
+type Mode = 'grid' | 'stack' | 'search' | null
 
 const BASE_ROW_H = 38 // tab row height at density 1
 
@@ -26,12 +29,13 @@ const SNAP_MS = 160 // idle time before the stack settles on the nearest card
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 
 function App(): React.JSX.Element {
-  const { tabs, activeId, layout, thumbs, active } = useTabs()
+  const { tabs, activeId, layout, thumbs, active, spaces, activeSpaceId, activeSpace } = useTabs()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mode, setModeState] = useState<Mode>(null)
-  const [focusTick, setFocusTick] = useState(0)
-  const [rowH, setRowH] = useState(BASE_ROW_H)
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [findKey, setFindKey] = useState<number | null>(null)
+  const [anchor, setAnchor] = useState<Anchor | null>(null) // where the command bar grows out of
+  const [peekBar, setPeekBar] = useState(false) // pointer at the top edge brings an auto-hidden top bar back
 
   // Event handlers outlive renders, so they read the latest values through refs.
   const modeRef = useRef<Mode>(null)
@@ -53,18 +57,37 @@ function App(): React.JSX.Element {
   const closeOverlay = useCallback(() => setMode(null), [setMode])
 
   const commitStack = useCallback(() => {
-    const { tabs: ts } = latest.current
-    const t = ts[clamp(Math.round(stackPos.get()), 0, ts.length - 1)]
-    if (t) window.api.activateTab(t.id)
+    const { tabs: ts, layout: l, activeId: a } = latest.current
+    const entries = stackEntries(ts, l, a)
+    const entry = entries[clamp(Math.round(stackPos.get()), 0, entries.length - 1)]
+    if (entry) window.api.activateTab(entry.primaryId)
     closeOverlay()
   }, [stackPos, closeOverlay])
 
   const openOverlay = useCallback(
-    async (m: 'grid' | 'stack') => {
+    async (m: 'grid' | 'stack' | 'search') => {
       if (modeRef.current) return setMode(m) // already hidden, just switch
       if (opening.current) return
       opening.current = true
-      await window.api.setOverlay(true)
+      if (m === 'search') {
+        const bar = [...document.querySelectorAll<HTMLElement>('.address')]
+          .map((el) => el.getBoundingClientRect())
+          .find((r) => r.width > 0 && r.height > 0)
+        const stage = document.querySelector('.stage')?.getBoundingClientRect()
+        setAnchor(
+          bar
+            ? { left: bar.left, top: bar.top, width: bar.width, height: bar.height }
+            : stage
+              ? {
+                  left: stage.left + Math.max(0, (stage.width - 600) / 2),
+                  top: stage.top + 6,
+                  width: Math.min(600, stage.width),
+                  height: 40
+                }
+              : null
+        )
+      }
+      await window.api.setOverlay(true, m !== 'search')
       opening.current = false
       setMode(m)
       if (m === 'stack' && releasedEarly.current) {
@@ -77,10 +100,11 @@ function App(): React.JSX.Element {
 
   const nudgeStack = useCallback(
     (cards: number, snapNow = false) => {
-      const n = latest.current.tabs.length
+      const { tabs: ts, layout: l, activeId: a } = latest.current
+      const n = stackEntries(ts, l, a).length
       stackPos.set(clamp(stackPos.get() + cards, 0, n - 1))
       window.clearTimeout(snapTimer.current)
-      const snap = (): void => stackPos.set(Math.round(stackPos.get()))
+      const snap = (): void => stackPos.set(clamp(Math.round(stackPos.get()), 0, n - 1))
       if (snapNow) snap()
       else snapTimer.current = window.setTimeout(snap, SNAP_MS)
     },
@@ -90,11 +114,11 @@ function App(): React.JSX.Element {
   const onStackWheel = useCallback(
     (dy: number) => {
       if (modeRef.current === null && !opening.current) {
-        const { tabs: ts, activeId: id } = latest.current
+        const { tabs: ts, layout: l, activeId: id } = latest.current
         stackPos.jump(
           Math.max(
             0,
-            ts.findIndex((t) => t.id === id)
+            stackEntries(ts, l, id).findIndex((e) => e.tabs.some((t) => t.id === id))
           )
         )
         releasedEarly.current = false
@@ -107,15 +131,11 @@ function App(): React.JSX.Element {
     [stackPos, openOverlay, nudgeStack, setMode]
   )
 
-  const focusAddress = useCallback(() => setFocusTick((n) => n + 1), [])
-
   useEffect(() => {
     const offCmd = window.api.onCommand((cmd) => {
       if (cmd === 'focus-address') {
-        closeOverlay()
-        focusAddress()
+        void openOverlay('search')
       } else if (cmd === 'find') {
-        setSidebarOpen(true)
         setFindKey((k) => (k ?? 0) + 1)
       } else if (cmd === 'toggle-sidebar') {
         setSidebarOpen((o) => !o)
@@ -142,23 +162,52 @@ function App(): React.JSX.Element {
       offRelease()
       window.removeEventListener('wheel', onDomWheel)
     }
-  }, [closeOverlay, openOverlay, onStackWheel, commitStack, focusAddress])
+  }, [closeOverlay, openOverlay, onStackWheel, commitStack])
 
-  // Accent colour is a user setting; it drives every highlight via a CSS variable.
+  // Global settings, overridden per space; everything visual hangs off CSS variables on the root.
   useEffect(() => {
-    const apply = (raw: Settings): void => {
-      const s = { ...DEFAULT_SETTINGS, ...raw } // tolerate settings saved by an older version
-      const root = document.documentElement.style
-      root.setProperty('--accent', s.accent)
-      root.setProperty('--s', String(s.uiScale))
-      root.setProperty('--d', String(s.density))
-      root.setProperty('--edge', `${s.pageMargin}px`)
-      root.setProperty('--sidebar-full', `${s.sidebarWidth}px`)
-      setRowH(Math.round(BASE_ROW_H * s.density))
-    }
-    void window.api.getSettings().then(apply)
-    return window.api.onSettings(apply)
+    const merge = (s: Settings): Settings => ({ ...DEFAULT_SETTINGS, ...s }) // older saved files lack newer keys
+    void window.api.getSettings().then((s) => setSettings(merge(s)))
+    return window.api.onSettings((s) => setSettings(merge(s)))
   }, [])
+  const effective = { ...settings, ...activeSpace?.ui }
+  const rowH = Math.round(BASE_ROW_H * effective.density)
+  const barAutoHidden = !sidebarOpen && settings.autoHideTopBar
+  const stripHidden = sidebarOpen || (barAutoHidden && !peekBar && mode !== 'search')
+  const barPx = Math.round((6 + 26 * effective.addressSize) * effective.density * effective.uiScale)
+  useEffect(() => {
+    window.api.watchTopBar(barAutoHidden, barPx)
+  }, [barAutoHidden, barPx])
+  useEffect(() => window.api.onPeekBar(setPeekBar), [])
+
+  const { accent, uiScale, density, addressSize, pageMargin, sidebarWidth } = effective
+  const theme = activeSpace ?? { color: accent, color2: null, tint: 0, grain: 0 }
+  useEffect(() => {
+    const root = document.documentElement.style
+    root.setProperty('--accent', accent)
+    root.setProperty('--s', String(uiScale))
+    root.setProperty('--d', String(density))
+    root.setProperty('--addr', String(addressSize))
+    root.setProperty('--edge', `${pageMargin}px`)
+    root.setProperty('--sidebar-full', `${sidebarWidth}px`)
+    root.setProperty('--space', theme.color)
+    root.setProperty('--space2', theme.color2 ?? theme.color)
+    root.setProperty('--tint', `${Math.round(theme.tint * 100)}%`)
+    root.setProperty('--grain', String(theme.grain))
+    document.documentElement.dataset.scheme = activeSpace?.mode ?? 'dark'
+  }, [
+    accent,
+    uiScale,
+    density,
+    addressSize,
+    pageMargin,
+    sidebarWidth,
+    theme.color,
+    theme.color2,
+    theme.tint,
+    theme.grain,
+    activeSpace?.mode
+  ])
 
   const toggleGrid = (): void => (mode === 'grid' ? closeOverlay() : void openOverlay('grid'))
 
@@ -185,24 +234,26 @@ function App(): React.JSX.Element {
 
   return (
     <div
-      className="app"
+      className={'app themed' + (sidebarOpen ? '' : ' sidebar-closed')}
       style={{ '--sidebar-w': sidebarOpen ? 'var(--sidebar-full)' : '0px' } as React.CSSProperties}
     >
-      <aside className="sidebar">
+      <aside className="sidebar" inert={!sidebarOpen}>
         <Sidebar
           tabs={tabs}
           activeId={activeId}
           active={active}
           layout={layout}
+          spaces={spaces}
+          activeSpaceId={activeSpaceId}
+          urlDisplay={effective.urlDisplay}
           dragId={drag?.id ?? null}
           dropIndex={
             drag?.source === 'tab' && drag.target?.kind === 'list' ? drag.target.index : null
           }
           onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
-          focusTick={focusTick}
-          visible={sidebarOpen}
+          onOpenSearch={() => void openOverlay('search')}
           rowH={rowH}
-          findKey={findKey}
+          findKey={sidebarOpen ? findKey : null}
           onCloseFind={() => setFindKey(null)}
           onToggle={() => setSidebarOpen(false)}
           onTaskView={toggleGrid}
@@ -211,41 +262,44 @@ function App(): React.JSX.Element {
       </aside>
 
       <main className="main">
-        {!sidebarOpen && (
-          <div className="strip drag">
-            {window.api.platform !== 'darwin' && <WindowControls />}
-            <button
-              className="icon-btn no-drag"
-              onClick={() => setSidebarOpen(true)}
-              title="Show sidebar (Ctrl+B)"
-            >
-              <SidebarIcon />
-            </button>
-            <NavButtons active={active} />
-            <AddressBar
-              active={active}
-              focusTick={focusTick}
-              visible={true}
-              paneFocus={!!layout && leaves(layout).includes(activeId ?? -1)}
-              onWheel={swipe}
-            />
-            <button
-              className="icon-btn no-drag"
-              onClick={window.api.toggleSplit}
-              title="Split view (Ctrl+\)"
-            >
-              <SplitIcon />
-            </button>
-            <button
-              className="icon-btn no-drag"
-              onClick={toggleGrid}
-              title="All tabs (Ctrl+Shift+A)"
-            >
-              <GridIcon />
-            </button>
-          </div>
-        )}
-        <div className={'stage-wrap' + (sidebarOpen ? '' : ' with-strip')}>
+        <div className={'strip drag' + (stripHidden ? ' hidden' : '')} inert={stripHidden}>
+          {window.api.platform !== 'darwin' && <WindowControls />}
+          <button
+            className="icon-btn no-drag"
+            onClick={() => setSidebarOpen(true)}
+            title="Show sidebar (Ctrl+B)"
+          >
+            <SidebarIcon />
+          </button>
+          <NavButtons active={active} />
+          {!sidebarOpen && findKey !== null && (
+            <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
+          )}
+          <AddressBar
+            active={active}
+            onOpen={() => void openOverlay('search')}
+            urlDisplay={effective.urlDisplay}
+            paneFocus={!!layout && leaves(layout).includes(activeId ?? -1)}
+            onWheel={swipe}
+          />
+          <button
+            className="icon-btn no-drag"
+            onClick={window.api.toggleSplit}
+            title="Split view (Ctrl+\)"
+          >
+            <SplitIcon />
+          </button>
+          <button className="icon-btn no-drag" onClick={toggleGrid} title="All tabs (Ctrl+Shift+A)">
+            <GridIcon />
+          </button>
+        </div>
+        <div
+          className={
+            'stage-wrap' +
+            (sidebarOpen ? '' : ' with-strip') +
+            (stripHidden && !sidebarOpen ? ' no-bar' : '')
+          }
+        >
           <div className="stage">
             <Panes
               tabs={tabs}
@@ -255,6 +309,7 @@ function App(): React.JSX.Element {
               thumbs={thumbs}
               dragId={drag?.id ?? null}
               onHeaderPointerDown={(e, id) => startDrag(e, id, 'pane')}
+              onOpenSearch={() => void openOverlay('search')}
             />
             {drag && <DropIndicator drag={drag} />}
             <AnimatePresence
@@ -265,6 +320,7 @@ function App(): React.JSX.Element {
               {mode === 'grid' && (
                 <TaskView
                   key="grid"
+                  entries={stackEntries(tabs, layout, activeId)}
                   tabs={tabs}
                   activeId={activeId}
                   thumbs={thumbs}
@@ -279,10 +335,37 @@ function App(): React.JSX.Element {
                   onClose={closeOverlay}
                 />
               )}
+              {mode === 'search' && (
+                <SearchPalette
+                  key="search"
+                  tabs={tabs}
+                  active={active}
+                  engineName={SEARCH_ENGINES[settings.searchEngine].name}
+                  variant={settings.searchStyle}
+                  anchor={anchor}
+                  onClose={closeOverlay}
+                  onAction={(id) => {
+                    closeOverlay()
+                    if (id === 'new-space') window.api.createSpace()
+                    else if (id === 'split') window.api.toggleSplit()
+                    else if (id === 'sidebar') setSidebarOpen((o) => !o)
+                    else if (id === 'grid') void openOverlay('grid')
+                    else if (
+                      id === 'settings' ||
+                      id === 'history' ||
+                      id === 'bookmarks' ||
+                      id === 'downloads'
+                    ) {
+                      window.api.openInternal(id)
+                    }
+                  }}
+                />
+              )}
               {mode === 'stack' && (
                 <TabStack
                   key="stack"
-                  tabs={tabs}
+                  entries={stackEntries(tabs, layout, activeId)}
+                  activeId={activeId}
                   thumbs={thumbs}
                   target={stackPos}
                   onStep={(d) => nudgeStack(d, true)}

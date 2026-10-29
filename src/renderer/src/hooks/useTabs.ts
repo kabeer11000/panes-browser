@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react'
-import type { TabInfo, TabsState } from '../../../shared/types'
+import type { Space, TabInfo, TabsState } from '../../../shared/types'
 
 export interface TabsView extends TabsState {
   thumbs: Record<number, string>
   active: TabInfo | null
+  activeSpace: Space | null
 }
 
 export function useTabs(): TabsView {
-  const [state, setState] = useState<TabsState>({ tabs: [], activeId: null, layout: null })
+  const [state, setState] = useState<TabsState>({
+    tabs: [],
+    activeId: null,
+    layout: null,
+    spaces: [],
+    activeSpaceId: 0
+  })
   const [thumbs, setThumbs] = useState<Record<number, string>>({})
 
   useEffect(() => {
@@ -27,5 +34,6 @@ export function useTabs(): TabsView {
   }, [])
 
   const active = state.tabs.find((t) => t.id === state.activeId) ?? null
-  return { ...state, thumbs, active }
+  const activeSpace = state.spaces.find((sp) => sp.id === state.activeSpaceId) ?? null
+  return { ...state, thumbs, active, activeSpace }
 }

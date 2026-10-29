@@ -15,10 +15,15 @@ export const DEFAULT_SETTINGS: Settings = {
   uiScale: 1,
   density: 1,
   sidebarWidth: 252,
-  pageMargin: 8
+  pageMargin: 8,
+  addressSize: 1,
+  urlDisplay: 'full',
+  searchSuggestions: true,
+  autoHideTopBar: false,
+  searchStyle: 'dropdown'
 }
 
-export type AppearanceKey = 'uiScale' | 'density' | 'sidebarWidth' | 'pageMargin'
+export type AppearanceKey = 'uiScale' | 'density' | 'sidebarWidth' | 'pageMargin' | 'addressSize'
 
 /** Allowed range for each appearance slider; main clamps to these too. */
 export const APPEARANCE_LIMITS: Record<AppearanceKey, { min: number; max: number; step: number }> =
@@ -26,10 +31,14 @@ export const APPEARANCE_LIMITS: Record<AppearanceKey, { min: number; max: number
     uiScale: { min: 0.8, max: 1.3, step: 0.05 },
     density: { min: 0.6, max: 1.3, step: 0.05 },
     sidebarWidth: { min: 200, max: 380, step: 4 },
-    pageMargin: { min: 0, max: 16, step: 1 }
+    pageMargin: { min: 0, max: 16, step: 1 },
+    addressSize: { min: 0.8, max: 1.5, step: 0.05 }
   }
 
 export const INTERNAL_PAGES = ['history', 'bookmarks', 'downloads', 'settings'] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]
 
 export const internalUrl = (page: InternalPage): string => `panes://${page}`
+
+/** Colours offered for spaces; new spaces take the next one in turn. */
+export const SPACE_COLORS = ['#6e7bff', '#2bb3a3', '#e5754c', '#d65b9a', '#8a6df0', '#d0a33a']
