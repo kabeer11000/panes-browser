@@ -1,5 +1,6 @@
 import { release } from 'os'
 import type { Session, WebContents } from 'electron'
+import { CAPTURE_SCRIPT } from '../shared/capture'
 import { CHROME_OBJECT_SCRIPT, chromeMetadata, type Brand } from '../shared/identity'
 
 const header = (list: Brand[]): string =>
@@ -39,13 +40,17 @@ export function applyChromeIdentity(wc: WebContents, userAgent: string): void {
     void wc.debugger
       .sendCommand('Emulation.setUserAgentOverride', { userAgent, userAgentMetadata: metadata })
       .catch(() => {})
-    void wc.debugger
-      .sendCommand('Page.enable')
-      .then(() =>
-        wc.debugger
-          .sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: CHROME_OBJECT_SCRIPT })
-          .catch(() => {})
-      )
+    void wc.debugger.sendCommand('Page.enable').then(() =>
+      wc.debugger
+        .sendCommand('Page.addScriptToEvaluateOnNewDocument', { source: CHROME_OBJECT_SCRIPT })
+        .then(() =>
+          // which pages are using the camera, microphone or screen: shown on their tabs
+          wc.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', {
+            source: CAPTURE_SCRIPT
+          })
+        )
+        .catch(() => {})
+    )
   } catch {
     // another client holds the debugger (DevTools in an old build): the plain user agent still applies
   }

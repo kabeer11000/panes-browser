@@ -3300,5 +3300,34 @@ kbd {
     inset 0 -2px 0 var(--gc);
 }
 .htab {
-  height: calc(30px * var(--d)); /* the full height of the row, so a tab sits on the bar below like a folder tab */
+  height: calc(
+    30px * var(--d)
+  ); /* the full height of the row, so a tab sits on the bar below like a folder tab */
+}
+
+/* camera, microphone and screen sharing: red, and gently pulsing, so a live capture is hard to miss */
+.capture-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  color: #ff5a52;
+  background: color-mix(in srgb, #ff3b30 16%, transparent);
+  animation: capture-pulse 2s ease-in-out infinite;
+}
+.capture-badge svg {
+  width: 13px;
+  height: 13px;
+}
+@keyframes capture-pulse {
+  50% {
+    background: color-mix(in srgb, #ff3b30 30%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .capture-badge {
+    animation: none;
+  }
 }

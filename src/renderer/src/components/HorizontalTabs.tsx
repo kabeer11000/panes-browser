@@ -4,6 +4,7 @@ import type { TabGroup } from '../../../shared/tabgroups'
 import type { Space, TabInfo } from '../../../shared/types'
 import { tabTitle } from '../tabTitle'
 import { CloseIcon, PlusIcon, SpeakerIcon } from './icons'
+import { CaptureBadge } from './CaptureBadge'
 import { SpaceSwitcher } from './SpaceSwitcher'
 import { GroupAudio } from './TabGroupHeader'
 import { TabFavicon } from './TabFavicon'
@@ -200,6 +201,7 @@ export function HorizontalTabs({
             >
               <TabFavicon tab={t} />
               <span className="htab-title">{tabTitle(t)}</span>
+              <CaptureBadge capture={t.capture} />
               {(t.audible || t.muted) && (
                 <button
                   className={'htab-btn audio' + (t.muted ? ' muted' : '')}

@@ -142,6 +142,24 @@ export const SettingsIcon = (): React.JSX.Element => (
     <path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" />
   </Svg>
 )
+export const CameraIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="2" y="4.5" width="8" height="7" rx="1.6" />
+    <path d="M10 7.2 14 5v6l-4-2.2" />
+  </Svg>
+)
+export const MicIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="6" y="2" width="4" height="7" rx="2" />
+    <path d="M3.8 7.8a4.2 4.2 0 0 0 8.4 0M8 12v2" />
+  </Svg>
+)
+export const ScreenIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="2" y="3" width="12" height="8" rx="1.4" />
+    <path d="M6 14h4M8 11v3" />
+  </Svg>
+)
 export const MoreIcon = (): React.JSX.Element => (
   <Svg>
     <circle cx="3.5" cy="8" r="1" />

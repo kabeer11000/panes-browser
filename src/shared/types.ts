@@ -3,6 +3,7 @@ import type { UpdateState } from './update'
 import type { Edge, LayoutNode } from './layout'
 import type { PerformanceMode, RunningMode } from './performance'
 import type { PermDecision, PermKind, SiteGrant } from './permissions'
+import type { CaptureState } from './capture'
 import type { TabDump } from './dumps'
 import type { TorStatus } from './tor'
 import type { TabGroup } from './tabgroups'
@@ -20,6 +21,8 @@ export interface TabInfo {
   private: boolean
   /** A private tab that goes out through Tor. */
   tor: boolean
+  /** What the page is capturing right now: camera, microphone, screen. */
+  capture: CaptureState
   /** The sidebar group this tab belongs to, if any. */
   groupId: number | null
   /** This tab's page is out in a floating picture-in-picture window. */

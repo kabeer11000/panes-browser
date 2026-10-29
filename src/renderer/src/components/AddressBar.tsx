@@ -1,6 +1,7 @@
 import type { KeyboardEvent, WheelEvent } from 'react'
 import type { Settings, TabInfo } from '../../../shared/types'
 import { splitUrl } from '../../../shared/url'
+import { CaptureBadge } from './CaptureBadge'
 import { SiteIcon, SpeakerIcon, StarIcon } from './icons'
 import { TabFavicon } from './TabFavicon'
 
@@ -54,6 +55,7 @@ export function AddressBar({
       ) : (
         <div className="addr-display placeholder">Search or enter address</div>
       )}
+      {active && <CaptureBadge capture={active.capture} />}
       {active && (active.audible || active.muted) && (
         <button
           type="button"

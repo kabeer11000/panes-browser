@@ -246,7 +246,8 @@ function App(): React.JSX.Element {
   const spaceDir = useSpaceDir(spaces, activeSpaceId)
   const barAutoHidden = !showSidebar && !horizontal && settings.autoHideTopBar
   const stripHidden =
-    showSidebar || (barAutoHidden && !peekBar && mode !== 'search' && !passwordPrompt)
+    showSidebar ||
+    (barAutoHidden && !peekBar && mode !== 'search' && !passwordPrompt && findKey === null)
   const barPx = Math.round((6 + 26 * effective.addressSize) * effective.density * effective.uiScale)
   useEffect(() => {
     window.api.watchTopBar(barAutoHidden, barPx)

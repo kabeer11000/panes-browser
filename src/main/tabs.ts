@@ -26,6 +26,7 @@ import {
 } from '../shared/tabgroups'
 import { stageBackground } from '../shared/color'
 import { siteKey, siteThemeCss } from '../shared/sitetheme'
+import { CAPTURE_SCRIPT, NO_CAPTURE, parseCapture, type CaptureState } from '../shared/capture'
 import { dumpableTabs, type TabDump } from '../shared/dumps'
 import type { DumpStore } from './dumps'
 import type { TorManager } from './tor'
@@ -110,6 +111,8 @@ interface Tab {
   /** A private tab: kept out of history, the saved session and saved sessions, in its own in-memory session. */
   private: boolean
   tor: boolean
+  /** What the page reported it is capturing (see CAPTURE_SCRIPT). */
+  capture: CaptureState
   boostKey: string | null
   /** A style-sheet swap is under way, and whether another edit arrived during it. */
   boosting: boolean
@@ -232,6 +235,7 @@ export class TabManager {
         groupId: t.groupId,
         private: t.private,
         tor: t.tor,
+        capture: t.capture,
         pip: this.pip.tabId === id,
         unloaded: t.unloaded,
         audible: wc.isCurrentlyAudible(),
@@ -407,6 +411,7 @@ export class TabManager {
       view: unloaded ? this.inertView() : this.makeView(isPrivate, isTor),
       private: isPrivate || isTor,
       tor: isTor,
+      capture: NO_CAPTURE,
       favicon: null,
       thumb: null,
       thumbAt: 0,
@@ -1233,6 +1238,9 @@ export class TabManager {
     )
     wc.on('did-start-loading', refresh)
     wc.on('dom-ready', () => {
+      // The start-of-document script can miss the very first page of a tab (it is registered as that page
+      // loads); running it again is harmless, it only installs once.
+      void wc.executeJavaScript(CAPTURE_SCRIPT).catch(() => undefined)
       this.applyDarkening() // covers tabs created or restored after the theme last changed
       tab.boostKey = null // a new document starts without the old sheet
       void this.applyBoost(tab)
@@ -1308,6 +1316,7 @@ export class TabManager {
     wc.on('did-start-navigation', (details) => {
       if (!details.isMainFrame || details.isSameDocument) return
       tab.favicon = null
+      tab.capture = NO_CAPTURE // a new page starts with nothing captured
       // panes:// pages are separate documents, so the view shows its own background between
       // navigations. Match the page's stage colour so moving between them does not flash white.
       const space = this.deps.spaces.get(tab.spaceId)
@@ -1318,6 +1327,12 @@ export class TabManager {
           ? stageBackground(space.color, space.tint, dark)
           : '#ffffff'
       )
+    })
+    wc.on('console-message', (e) => {
+      const state = parseCapture(e.message)
+      if (!state) return
+      tab.capture = state
+      refresh()
     })
     wc.on('page-favicon-updated', (_e, favicons) => {
       tab.favicon = favicons[0] ?? null

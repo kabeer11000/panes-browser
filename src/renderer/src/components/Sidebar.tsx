@@ -20,6 +20,7 @@ import {
   SpeakerIcon,
   SplitIcon
 } from './icons'
+import { CaptureBadge } from './CaptureBadge'
 import { NavButtons } from './NavButtons'
 import { SpaceSwitcher } from './SpaceSwitcher'
 import { TabGroupHeader } from './TabGroupHeader'
@@ -236,6 +237,7 @@ export function Sidebar({
                     </button>
                   )
                 )}
+                <CaptureBadge capture={t.capture} />
                 {(t.audible || t.muted) && (
                   <button
                     className={'tab-action tab-audio' + (t.muted ? ' muted' : '')}
