@@ -2,6 +2,25 @@
 ; links and HTML or PDF files. Windows lets only the user choose the default, so this registers the
 ; capabilities and Panes asks the user to confirm in Settings. Per-user (HKCU) like the installer.
 
+; Wording for the setup wizard's own pages. Guarded, so a default the builder already set is left alone.
+!macro customHeader
+  !ifndef MUI_WELCOMEPAGE_TITLE
+    !define MUI_WELCOMEPAGE_TITLE "Welcome to Panes"
+  !endif
+  !ifndef MUI_WELCOMEPAGE_TEXT
+    !define MUI_WELCOMEPAGE_TEXT "Panes is a calm, fast browser built around the way you work.$\r$\n$\r$\nSetup installs it for your account in about a minute. Your tabs, spaces and settings stay on your computer."
+  !endif
+  !ifndef MUI_FINISHPAGE_TITLE
+    !define MUI_FINISHPAGE_TITLE "Panes is ready"
+  !endif
+  !ifndef MUI_FINISHPAGE_TEXT
+    !define MUI_FINISHPAGE_TEXT "Panes is installed. Start it to choose your look and layout."
+  !endif
+  !ifndef MUI_FINISHPAGE_RUN_TEXT
+    !define MUI_FINISHPAGE_RUN_TEXT "Start Panes"
+  !endif
+!macroend
+
 !macro customInstall
   ; ProgID for documents
   WriteRegStr SHCTX "Software\Classes\PanesHTML" "" "Panes Document"

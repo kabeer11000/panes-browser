@@ -1,5 +1,6 @@
 appId: pk.procheck.panes
 productName: Panes
+copyright: Copyright (c) Kabeers Network
 directories:
   buildResources: build
 files:
@@ -25,6 +26,15 @@ win:
   icon: build/icon.ico
 nsis:
   include: build/installer.nsh # registers Panes as a browser in Windows' default apps
+  # the setup wizard wears Panes' colours instead of the stock blue-on-grey
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/uninstallerSidebar.bmp
+  installerHeader: build/installerHeader.bmp
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
   # no version in the name, so releases/latest/download/Panes-setup.exe is a link that never changes
   artifactName: Panes-setup.${ext}
   oneClick: false
