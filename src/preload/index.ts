@@ -42,6 +42,7 @@ const api: PanesApi = {
   tabMenu: (id, picked) => ipcRenderer.send('tabs:tab-menu', id, picked),
   tabHover: (id, anchor) => ipcRenderer.send('tabs:hover', id, anchor),
   hideDock: (hide) => ipcRenderer.send('ui:dock-hide', hide),
+  sendFeedback: () => ipcRenderer.send('app:feedback'),
   toggleSitePanel: (anchor) => ipcRenderer.send('site:panel-toggle', anchor),
   addToGroup: (id, groupId) => ipcRenderer.send('tabs:add-to-group', id, groupId),
   siteInfo: () => ipcRenderer.invoke('site:info'),

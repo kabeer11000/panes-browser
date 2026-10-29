@@ -11,7 +11,7 @@ import { TabStack } from './components/TabStack'
 import { TaskView } from './components/TaskView'
 import { AddressBar } from './components/AddressBar'
 import { FindBar } from './components/FindBar'
-import { GridIcon, MoreIcon, SidebarIcon, SplitIcon } from './components/icons'
+import { FeedbackIcon, GridIcon, MoreIcon, SidebarIcon, SplitIcon } from './components/icons'
 import { NavButtons } from './components/NavButtons'
 import { HorizontalTabs } from './components/HorizontalTabs'
 import { SpaceSwitcher } from './components/SpaceSwitcher'
@@ -648,6 +648,14 @@ function App(): React.JSX.Element {
                 <GridIcon />
               </button>
             )}
+            <button
+              className="icon-btn no-drag"
+              title="Send feedback"
+              aria-label="Send feedback"
+              onClick={window.api.sendFeedback}
+            >
+              <FeedbackIcon />
+            </button>
             <button
               className="icon-btn no-drag"
               title="Menu: bookmarks, history, downloads, settings"

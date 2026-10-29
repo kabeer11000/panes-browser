@@ -80,6 +80,12 @@ export const SplitIcon = (): React.JSX.Element => (
     <rect x="8.8" y="3" width="5.2" height="10" rx="1.8" />
   </Svg>
 )
+export const FeedbackIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="2" y="3.5" width="12" height="9" rx="2" />
+    <path d="m2.6 5 5.4 4 5.4-4" />
+  </Svg>
+)
 export const SiteIcon = (): React.JSX.Element => (
   <Svg>
     <path d="M2 5h6M12 5h2M2 11h2M8 11h6" />

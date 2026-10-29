@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { FEEDBACK_EMAIL, feedbackUrl } from './feedback'
+import { FEEDBACK_EMAIL, feedbackUrl, feedbackWebUrl } from './feedback'
 
 const ctx = {
   version: '0.1.0-alpha.24',
@@ -27,5 +27,15 @@ describe('feedbackUrl', () => {
   test('leaves room to write above the details', () => {
     const body = new URL(feedbackUrl(ctx)).searchParams.get('body') ?? ''
     expect(body.startsWith('\r\n\r\n\r\n')).toBe(true)
+  })
+})
+
+describe('feedbackWebUrl', () => {
+  test('is a Gmail compose page to the same address with the same message', () => {
+    const url = new URL(feedbackWebUrl(ctx))
+    expect(url.hostname).toBe('mail.google.com')
+    expect(url.searchParams.get('to')).toBe(FEEDBACK_EMAIL)
+    expect(url.searchParams.get('su')).toBe('Panes feedback (0.1.0-alpha.24)')
+    expect(url.searchParams.get('body')).toContain('Chromium 140.0.1')
   })
 })

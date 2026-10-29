@@ -252,6 +252,7 @@ function createWindow(): void {
     },
     memory: { stats: () => tabs.memoryStats(), free: () => tabs.sweepMemory(true) },
     defaultBrowser: { status: isDefaultBrowser, request: requestDefaultBrowser },
+    feedback: () => tabs.sendFeedback(),
     onboardingDone: () => {
       settings.update({ onboarded: true })
       tabs.closeInternal('welcome')
@@ -433,6 +434,9 @@ function createWindow(): void {
   // the downloads bin, at the window's bottom-right corner
   const dock = registerDock(win, downloads, () => tabs.openInternal('downloads'))
   tabs.onRefresh = () => dock.raise() // page views made later would otherwise cover it
+  ipcMain.on('app:feedback', (e) => {
+    if (e.sender === win.webContents) tabs.sendFeedback()
+  })
   ipcMain.on('ui:dock-hide', (e, hide: unknown) => {
     if (e.sender === win.webContents) dock.setHidden(hide === true)
   })

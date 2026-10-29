@@ -10,10 +10,12 @@ export interface FeedbackContext {
   os: string
 }
 
-/** A mailto: link that opens the person's email app with a message ready to write, and what is needed to look into it. */
-export function feedbackUrl(c: FeedbackContext): string {
-  const subject = `Panes feedback (${c.version})`
-  const body = [
+function message(c: FeedbackContext): { subject: string; body: string } {
+  return { subject: `Panes feedback (${c.version})`, body: BODY(c) }
+}
+
+const BODY = (c: FeedbackContext): string =>
+  [
     '',
     '',
     '',
@@ -22,5 +24,15 @@ export function feedbackUrl(c: FeedbackContext): string {
     `Chromium ${c.chrome}`,
     `${c.platform} ${c.arch} ${c.os}`
   ].join('\r\n')
+
+/** A mailto: link that opens the person's email app with a message ready to write, and what is needed to look into it. */
+export function feedbackUrl(c: FeedbackContext): string {
+  const { subject, body } = message(c)
   return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+}
+
+/** The same message as a Gmail compose page, for a computer with no email app set up. */
+export function feedbackWebUrl(c: FeedbackContext): string {
+  const { subject, body } = message(c)
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(FEEDBACK_EMAIL)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }

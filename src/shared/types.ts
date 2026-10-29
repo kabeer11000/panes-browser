@@ -160,6 +160,8 @@ export interface PanesApi {
   tabMenu(id: number, picked?: number[]): void
   /** The pointer rests on a tab (with where it is) or has left it (null): show or hide its card. */
   tabHover(id: number | null, anchor?: TabHoverAnchor): void
+  /** Open the email app with a message to the developer. */
+  sendFeedback(): void
   /** Take the downloads bin off the window (the pane view is open over its edge), or let it back. */
   hideDock(hide: boolean): void
   /** Open or close the site panel under the address bar's site button. */

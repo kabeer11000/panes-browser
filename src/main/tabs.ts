@@ -2023,7 +2023,7 @@ export class TabManager {
       { type: 'separator' },
       { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => this.openInternal('settings') },
       page('About and updates', 'software'),
-      { label: 'Send feedback', click: () => sendFeedback() }
+      { label: 'Send feedback', click: () => this.sendFeedback() }
     ]).popup({ window: this.win, x, y })
   }
 
@@ -2122,6 +2122,11 @@ export class TabManager {
     tab.view = this.inertView()
     tab.unloaded = true
     tab.darkened = false
+  }
+
+  /** Feedback by email: the email app, or a Gmail page in a tab when there is no email app. */
+  sendFeedback(): void {
+    sendFeedback((url) => void this.create(url))
   }
 
   /** What a tab's hover card shows. The process list is read here, once, when a card opens. */

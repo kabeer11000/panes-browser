@@ -15,7 +15,6 @@ import type {
 import type { TabDump } from '../shared/dumps'
 import type { TorStatus } from '../shared/tor'
 import { currentChromeTheme } from './chromeTheme'
-import { sendFeedback } from './feedback'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
@@ -85,6 +84,7 @@ interface Deps {
   }
   memory: { stats: () => MemoryStats; free: () => number }
   onboardingDone: () => void
+  feedback: () => void
   defaultBrowser: { status: () => boolean; request: () => void }
   clearBrowsingData: (kinds: ClearKind[], sinceMs: number | null) => Promise<void>
 }
@@ -104,7 +104,7 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:update-state', () => d.updater.get())
   handle('int:update-check', () => d.updater.check())
   handle('int:update-install', () => d.updater.install())
-  handle('int:feedback', () => sendFeedback())
+  handle('int:feedback', () => d.feedback())
   handle('int:about', () => ({
     version: app.getVersion(),
     electron: process.versions.electron,

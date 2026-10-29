@@ -10,6 +10,7 @@ import { SavePrompt } from './SavePrompt'
 import {
   BookmarkIcon,
   CloseIcon,
+  FeedbackIcon,
   GridIcon,
   MoreIcon,
   PinIcon,
@@ -351,6 +352,14 @@ export function Sidebar({
             onClick={() => window.api.openInternal('settings')}
           >
             <SettingsIcon />
+          </button>
+          <button
+            className="icon-btn"
+            title="Send feedback"
+            aria-label="Send feedback"
+            onClick={window.api.sendFeedback}
+          >
+            <FeedbackIcon />
           </button>
           <button
             className="icon-btn"
