@@ -250,7 +250,7 @@ function App(): React.JSX.Element {
   // The pages are parked (shown as pictures) while the floating sidebar is over them, as for any overlay.
   useEffect(() => {
     if (!openedByHover) return
-    void holdOverlay('hover-sidebar')
+    void holdOverlay('hover-sidebar', true, true)
     return () => void releaseOverlay('hover-sidebar')
   }, [openedByHover])
   const barAutoHidden = !pushed && !horizontal && settings.autoHideTopBar

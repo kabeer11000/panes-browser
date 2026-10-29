@@ -92,6 +92,8 @@ interface Tab {
   thumb: string | null
   /** When `thumb` was captured (ms since epoch); 0 before the first capture. */
   thumbAt: number
+  /** The picture was taken at (nearly) the page's own size, not shrunk for the overview. */
+  thumbSharp: boolean
   thumbTimer: NodeJS.Timeout | null
   /** The page may look different from `thumb` (input, navigation, sound). Snapshots read the GPU back, so an unchanged page is not captured again. */
   dirty: boolean
@@ -416,6 +418,7 @@ export class TabManager {
       favicon: null,
       thumb: null,
       thumbAt: 0,
+      thumbSharp: false,
       thumbTimer: null,
       dirty: true,
       hasUrl: false,
@@ -1189,18 +1192,22 @@ export class TabManager {
     this.applyVisibility()
   }
 
-  async setOverlay(open: boolean, snapshot = true): Promise<void> {
+  /** `sharp`: the pictures stand in for the pages on screen, so they must match them pixel for pixel. */
+  async setOverlay(open: boolean, snapshot = true, sharp = false): Promise<void> {
     if (open && snapshot) {
       // Only views whose picture is old are worth waiting for; with a recent one the overlay opens at once.
       const now = Date.now()
       // An unchanged page keeps the picture it has; only a new or changed one is worth a GPU readback.
       const stale = this.visibleIds().filter((id) => {
         const t = this.tabs.get(id)
-        return !!t && (!t.thumb || (t.dirty && now - t.thumbAt > THUMB_FRESH_MS))
+        return (
+          !!t &&
+          (!t.thumb || (sharp && !t.thumbSharp) || (t.dirty && now - t.thumbAt > THUMB_FRESH_MS))
+        )
       })
       if (stale.length > 0) {
         await Promise.race([
-          Promise.all(stale.map((id) => this.snapshot(id))),
+          Promise.all(stale.map((id) => this.snapshot(id, sharp))),
           new Promise((resolve) => setTimeout(resolve, SNAPSHOT_TIMEOUT_MS))
         ])
       }
@@ -1540,15 +1547,24 @@ export class TabManager {
     tab.thumbTimer = setTimeout(() => void this.snapshot(id), 800)
   }
 
-  private async snapshot(id: number): Promise<void> {
+  /** Take the full-size pictures early (the pointer is nearly at the edge), so the overlay can open at once. */
+  warmSharp(): void {
+    if (this.overlay) return
+    for (const id of this.visibleIds()) void this.snapshot(id, true)
+  }
+
+  private async snapshot(id: number, sharp = false): Promise<void> {
     const tab = this.tabs.get(id)
     if (!tab || this.overlay || !this.visibleIds().includes(id) || this.isBlank(tab)) return
     try {
       tab.dirty = false // before the capture: a change that lands while it runs marks it again
       const img = await tab.view.webContents.capturePage()
       if (img.isEmpty() || !this.tabs.has(id)) return
-      const jpeg = img.resize({ width: THUMB_WIDTH, quality: 'good' }).toJPEG(72)
+      const width = sharp ? img.getSize().width : THUMB_WIDTH
+      const picture = sharp ? img : img.resize({ width, quality: 'good' })
+      const jpeg = picture.toJPEG(sharp ? 82 : 72)
       tab.thumb = 'data:image/jpeg;base64,' + jpeg.toString('base64')
+      tab.thumbSharp = sharp
       tab.thumbAt = Date.now()
       this.win.webContents.send('tabs:thumb', id, tab.thumb)
     } catch {

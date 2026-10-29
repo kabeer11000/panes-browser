@@ -192,7 +192,7 @@ export interface PanesApi {
   /** Move a tab to an insertion index (counted with the tab still in the list). */
   moveTab(id: number, index: number): void
   /** Hide the native page view (so renderer overlays can show); snapshots the active tab first. */
-  setOverlay(open: boolean, snapshot?: boolean): Promise<void>
+  setOverlay(open: boolean, snapshot?: boolean, sharp?: boolean): Promise<void>
   minimizeWindow(): void
   toggleMaximizeWindow(): void
   closeWindow(): void

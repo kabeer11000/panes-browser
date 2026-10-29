@@ -336,6 +336,8 @@ function createWindow(): void {
         if (!side.open) {
           outSince = 0
           if (inside && x <= SIDE_EDGE_PX) {
+            // a full-size picture of the page is taken while the pointer rests, so it is ready when the sidebar opens
+            if (!dwellSince) tabs.warmSharp()
             dwellSince ||= Date.now()
             if (Date.now() - dwellSince >= SIDE_DWELL_MS) {
               dwellSince = 0
@@ -422,8 +424,8 @@ function createWindow(): void {
     tabs.updateRatios(path, ratios)
   )
   ipcMain.on('tabs:move', (_e, id: number, index: number) => tabs.moveTab(id, index))
-  ipcMain.handle('ui:overlay', (_e, open: boolean, snapshot?: boolean) =>
-    tabs.setOverlay(open, snapshot)
+  ipcMain.handle('ui:overlay', (_e, open: boolean, snapshot?: boolean, sharp?: boolean) =>
+    tabs.setOverlay(open, snapshot, sharp === true)
   )
   ipcMain.handle('search:local', (_e, q: string) => suggester.local(String(q)))
   ipcMain.handle('search:remote', (_e, q: string) => suggester.remote(String(q)))

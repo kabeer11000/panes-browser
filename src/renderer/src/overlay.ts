@@ -9,10 +9,11 @@
 const holders = new Map<string, boolean>() // owner -> whether a fresh snapshot is wanted
 let state: Promise<void> = Promise.resolve()
 
-export function holdOverlay(owner: string, snapshot = true): Promise<void> {
+/** `sharp`: the pictures must match the pages exactly (an overlay that leaves most of the page in view). */
+export function holdOverlay(owner: string, snapshot = true, sharp = false): Promise<void> {
   const first = holders.size === 0
   holders.set(owner, snapshot)
-  if (first) state = window.api.setOverlay(true, snapshot)
+  if (first) state = window.api.setOverlay(true, snapshot, sharp)
   return state
 }
 

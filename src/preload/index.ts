@@ -71,7 +71,8 @@ const api: PanesApi = {
   popOutPane: (id) => ipcRenderer.send('tabs:pop-out', id),
   setRatios: (path, ratios) => ipcRenderer.send('tabs:ratios', path, ratios),
   moveTab: (id, index) => ipcRenderer.send('tabs:move', id, index),
-  setOverlay: (open, snapshot) => ipcRenderer.invoke('ui:overlay', open, snapshot) as Promise<void>,
+  setOverlay: (open, snapshot, sharp) =>
+    ipcRenderer.invoke('ui:overlay', open, snapshot, sharp) as Promise<void>,
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,
   onSettings: (cb) => subscribe<[Settings]>('settings:changed', cb),
   openInternal: (page) => ipcRenderer.send('tabs:open-internal', page),
