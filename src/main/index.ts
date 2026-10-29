@@ -16,6 +16,7 @@ import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
 import { BookmarkStore, HistoryStore } from './history'
 import { DumpStore } from './dumps'
+import { TorManager } from './tor'
 import { chromeVars } from '../shared/color'
 import { setChromeThemeSource } from './chromeTheme'
 import { PasswordStore, registerPasswordIpc } from './passwords'
@@ -118,6 +119,24 @@ function createWindow(): void {
     cb(permission === 'fullscreen' || permission === 'clipboard-sanitized-write')
   )
 
+  // Tor tabs: another in-memory session, whose only way out is Tor's local proxy. Until Tor is up (and after it
+  // stops) the proxy points nowhere, so a Tor tab can fail but can never go out directly.
+  const tor = new TorManager()
+  const torSession = session.fromPartition('tor')
+  torSession.setUserAgent(chromeUserAgent())
+  rewriteClientHints(torSession, chromeUserAgent())
+  serveInternalPages(torSession)
+  torSession.setPermissionRequestHandler((_wc, permission, cb) =>
+    cb(permission === 'fullscreen' || permission === 'clipboard-sanitized-write')
+  )
+  const DEAD_PROXY = 'socks5://127.0.0.1:1'
+  void torSession.setProxy({ proxyRules: DEAD_PROXY })
+  tor.onChange((st) => {
+    void torSession.setProxy({
+      proxyRules: st.state === 'ready' ? `socks5://127.0.0.1:${tor.socksPort}` : DEAD_PROXY
+    })
+  })
+
   const settings = new SettingsStore()
   const history = new HistoryStore()
   const bookmarks = new BookmarkStore()
@@ -144,7 +163,9 @@ function createWindow(): void {
     history,
     bookmarks,
     spaces,
-    dumps
+    dumps,
+    tor,
+    torSession
   })
   const permissions = new PermissionStore()
   // Popover views (site panel, permission and password cards) wear the window's colours too.
@@ -188,6 +209,12 @@ function createWindow(): void {
     permissions,
     history,
     bookmarks,
+    tor: {
+      status: () => tor.get(),
+      start: (snowflake) => tor.start(snowflake),
+      stop: () => tor.stop(),
+      newTab: () => tabs.newTorTab()
+    },
     dumps: {
       list: () => dumps.list(),
       save: (close) => tabs.dumpTabs(close),

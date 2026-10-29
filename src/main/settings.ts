@@ -24,6 +24,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
     out.adblockOffSites = normalizeSites(patch.adblockOffSites)
   if (patch.adblockCosmeticOffSites !== undefined)
     out.adblockCosmeticOffSites = normalizeSites(patch.adblockCosmeticOffSites)
+  if (typeof patch.torSnowflake === 'boolean') out.torSnowflake = patch.torSnowflake
   if (patch.startup === 'newtab' || patch.startup === 'restore') out.startup = patch.startup
   if (typeof patch.accent === 'string' && /^#[0-9a-f]{6}$/i.test(patch.accent))
     out.accent = patch.accent

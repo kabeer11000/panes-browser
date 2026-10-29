@@ -4,6 +4,7 @@ import type { Edge, LayoutNode } from './layout'
 import type { PerformanceMode, RunningMode } from './performance'
 import type { PermDecision, PermKind, SiteGrant } from './permissions'
 import type { TabDump } from './dumps'
+import type { TorStatus } from './tor'
 import type { TabGroup } from './tabgroups'
 import type { SpaceIcon } from './spaceicons'
 
@@ -17,6 +18,8 @@ export interface TabInfo {
   loading: boolean
   /** Opened as a private tab: no history, no saved session, its own in-memory cookies. */
   private: boolean
+  /** A private tab that goes out through Tor. */
+  tor: boolean
   /** The sidebar group this tab belongs to, if any. */
   groupId: number | null
   /** This tab's page is out in a floating picture-in-picture window. */
@@ -226,6 +229,8 @@ export interface Settings {
   adblockOffSites: string[]
   /** Sites where requests are still blocked but the blocker leaves the page's own elements alone. */
   adblockCosmeticOffSites: string[]
+  /** Reach Tor through Snowflake bridges (for networks that block Tor). */
+  torSnowflake: boolean
   startup: 'newtab' | 'restore'
   accent: string
   /** Scales text and icons in the sidebar and headers. */
@@ -406,6 +411,12 @@ export interface InternalApi {
   /** Saved sessions: sets of tabs to open again or send on. */
   /** Open the system's touchpad settings, where a gesture can be set to send a shortcut. */
   openTouchpadSettings(): Promise<void>
+  torStatus(): Promise<TorStatus>
+  /** Download if needed and start Tor; resolves when it is usable or has failed (see the status). */
+  torStart(snowflake: boolean): Promise<void>
+  torStop(): Promise<void>
+  /** A private tab through Tor, once Tor is ready. */
+  torNewTab(): Promise<void>
   dumpsList(): Promise<TabDump[]>
   /** Save this space's open tabs; `close` also closes them. Null when there was nothing to save. */
   dumpSave(close: boolean): Promise<TabDump | null>

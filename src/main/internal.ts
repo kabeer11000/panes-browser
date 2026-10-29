@@ -13,6 +13,7 @@ import type {
   SpacePatch
 } from '../shared/types'
 import type { TabDump } from '../shared/dumps'
+import type { TorStatus } from '../shared/tor'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
@@ -64,6 +65,12 @@ interface Deps {
     rename: (id: number, name: unknown) => void
     remove: (id: number) => void
   }
+  tor: {
+    status: () => TorStatus
+    start: (snowflake: boolean) => Promise<void>
+    stop: () => void
+    newTab: () => void
+  }
   downloads: DownloadManager
   passwords: PasswordStore
   spaces: {
@@ -111,6 +118,10 @@ export function registerInternalIpc(d: Deps): void {
   )
   handle('int:bookmarks-list', () => d.bookmarks.list())
   handle('int:bookmark-remove', (id: number) => d.bookmarks.remove(id))
+  handle('int:tor-status', () => d.tor.status())
+  handle('int:tor-start', (snowflake: unknown) => d.tor.start(snowflake === true))
+  handle('int:tor-stop', () => d.tor.stop())
+  handle('int:tor-new-tab', () => d.tor.newTab())
   handle('int:touchpad-settings', () => shell.openExternal('ms-settings:devices-touchpad'))
   handle('int:dumps-list', () => d.dumps.list())
   handle('int:dump-save', (close: unknown) => d.dumps.save(close === true))

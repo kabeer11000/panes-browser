@@ -19,7 +19,10 @@ function Plain({ tab, noSpinner }: { tab: TabInfo; noSpinner?: boolean }): React
 export function TabFavicon(props: { tab: TabInfo; noSpinner?: boolean }): React.JSX.Element {
   if (!props.tab.private) return <Plain {...props} />
   return (
-    <span className="fav-priv" title="Private tab">
+    <span
+      className={'fav-priv' + (props.tab.tor ? ' tor' : '')}
+      title={props.tab.tor ? 'Tor tab' : 'Private tab'}
+    >
       <Plain {...props} />
       <i aria-hidden="true" />
     </span>

@@ -1252,3 +1252,17 @@ a.int-btn {
   font-size: 13px;
   outline: 0;
 }
+
+.u-progress {
+  height: 3px;
+  margin: 0 16px 10px;
+  border-radius: 3px;
+  background: var(--surface-active);
+  overflow: hidden;
+}
+.u-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s var(--ease);
+}

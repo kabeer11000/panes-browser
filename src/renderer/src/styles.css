@@ -3261,3 +3261,7 @@ kbd {
 [data-fx='low'][data-scheme='light'] {
   --bg: rgb(238 238 244);
 }
+
+.fav-priv.tor > i {
+  background: #22c55e;
+}

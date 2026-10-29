@@ -28,6 +28,7 @@ import { stageBackground } from '../shared/color'
 import { siteKey, siteThemeCss } from '../shared/sitetheme'
 import { dumpableTabs, type TabDump } from '../shared/dumps'
 import type { DumpStore } from './dumps'
+import type { TorManager } from './tor'
 import { ZAP_PREFIX, ZAP_SCRIPT } from '../shared/zap'
 import { errorPageUrl } from '../shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
@@ -108,6 +109,7 @@ interface Tab {
   /** Key of the style sheet a boost put into the page, so it can be taken out again. */
   /** A private tab: kept out of history, the saved session and saved sessions, in its own in-memory session. */
   private: boolean
+  tor: boolean
   boostKey: string | null
   /** A style-sheet swap is under way, and whether another edit arrived during it. */
   boosting: boolean
@@ -178,6 +180,9 @@ export class TabManager {
       bookmarks: BookmarkStore
       spaces: SpaceStore
       dumps: DumpStore
+      tor: TorManager
+      /** In-memory session whose traffic goes through Tor's local proxy (and nowhere else). */
+      torSession: Session
     }
   ) {
     this.activeSpaceId = deps.spaces.activeId()
@@ -226,6 +231,7 @@ export class TabManager {
         loading: wc.isLoading(),
         groupId: t.groupId,
         private: t.private,
+        tor: t.tor,
         pip: this.pip.tabId === id,
         unloaded: t.unloaded,
         audible: wc.isCurrentlyAudible(),
@@ -352,10 +358,14 @@ export class TabManager {
 
   // ---- tab lifecycle ----
 
-  private makeView(isPrivate = false): WebContentsView {
+  private sessionFor(tab: { private: boolean; tor: boolean }): Session {
+    return tab.tor ? this.deps.torSession : tab.private ? this.privateSession : this.session
+  }
+
+  private makeView(isPrivate = false, isTor = false): WebContentsView {
     const view = new WebContentsView({
       webPreferences: {
-        session: isPrivate ? this.privateSession : this.session,
+        session: this.sessionFor({ private: isPrivate, tor: isTor }),
         sandbox: true,
         // like Chrome: a page may not start playing sound until you have interacted with it
         autoplayPolicy: 'document-user-activation-required',
@@ -386,15 +396,17 @@ export class TabManager {
     activate = true,
     spaceId = this.activeSpaceId,
     lazy?: { title: string; favicon: string | null },
-    isPrivate = false
+    isPrivate = false,
+    isTor = false
   ): number {
     const url = resolveInput(input, this.deps.settings.searchUrl())
     const unloaded = !!(url && lazy)
 
     const id = this.nextId++
     const tab: Tab = {
-      view: unloaded ? this.inertView() : this.makeView(isPrivate),
-      private: isPrivate,
+      view: unloaded ? this.inertView() : this.makeView(isPrivate, isTor),
+      private: isPrivate || isTor,
+      tor: isTor,
       favicon: null,
       thumb: null,
       thumbAt: 0,
@@ -477,8 +489,24 @@ export class TabManager {
     return this.create(input, true, this.activeSpaceId, undefined, true)
   }
 
+  /** A private tab through Tor: once Tor is up (it is started now if it is not), else nothing opens. */
+  newTorTab(input = ''): void {
+    const open = (): void => {
+      if (this.deps.tor.get().state === 'ready') {
+        this.create(input, true, this.activeSpaceId, undefined, true, true)
+      }
+    }
+    if (this.deps.tor.get().state === 'ready') return open()
+    this.openInternal('settings') // where the progress is shown
+    void this.deps.tor.start(this.deps.settings.get().torSnowflake).then(open)
+  }
+
   private forgetPrivateIfDone(): void {
     if ([...this.tabs.values()].some((t) => t.private)) return
+    void this.deps.torSession
+      .clearStorageData()
+      .then(() => this.deps.torSession.clearCache())
+      .catch(() => undefined)
     void this.privateSession
       .clearStorageData()
       .then(() => this.privateSession.clearCache())
@@ -509,7 +537,7 @@ export class TabManager {
     const { url } = tab.pending
     tab.pending = null
     if (tab.unloaded) {
-      tab.view = this.makeView(tab.private)
+      tab.view = this.makeView(tab.private, tab.tor)
       tab.flat = false
       tab.unloaded = false
       this.wire(id, tab)
@@ -625,6 +653,8 @@ export class TabManager {
   shutdown(): void {
     this.pip.stop()
     void this.privateSession.clearStorageData().catch(() => undefined)
+    void this.deps.torSession.clearStorageData().catch(() => undefined)
+    this.deps.tor.stop()
     if (this.sessionTimer) clearTimeout(this.sessionTimer)
     this.sessionTimer = null
     this.writeSession()
@@ -1194,7 +1224,9 @@ export class TabManager {
       wc.on('preload-error', (_e, path, err) => console.log('[tab preload-error]', path, err))
     }
     this.pdf.attach(wc)
-    const tabSession = tab.private ? this.privateSession : this.session
+    const tabSession = this.sessionFor(tab)
+    // Nothing about the real network address may leave through WebRTC in a Tor tab.
+    if (tab.tor) wc.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
     applyChromeIdentity(wc, tabSession.getUserAgent())
     wc.on('did-create-window', (child) =>
       applyChromeIdentity(child.webContents, tabSession.getUserAgent())
@@ -1241,7 +1273,12 @@ export class TabManager {
     })
     wc.on('context-menu', (_e, params) =>
       showContextMenu(this.win, wc, params, {
-        openTab: (u) => (tab.private ? this.newPrivateTab(u) : this.create(u)),
+        openTab: (u) =>
+          tab.tor
+            ? this.create(u, true, this.activeSpaceId, undefined, true, true)
+            : tab.private
+              ? this.newPrivateTab(u)
+              : this.create(u),
         openPrivate: (u) => this.newPrivateTab(u),
         openSplit: (u) => {
           const base = this.activeId
@@ -1341,7 +1378,11 @@ export class TabManager {
   private openLink(url: string, from?: number): void {
     if (this.externalScheme(url)) return void shell.openExternal(url)
     const opener = from === undefined ? undefined : this.tabs.get(from)
-    const id = opener?.private ? this.newPrivateTab(url) : this.create(url)
+    const id = opener?.tor
+      ? this.create(url, true, this.activeSpaceId, undefined, true, true)
+      : opener?.private
+        ? this.newPrivateTab(url)
+        : this.create(url)
     // A link opened from a tab in a group joins that group, at its bottom.
     const group = from === undefined ? null : (this.tabs.get(from)?.groupId ?? null)
     if (group !== null) this.addToGroup(id, group)
@@ -1639,6 +1680,7 @@ export class TabManager {
     })
     Menu.buildFromTemplate([
       { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => this.create() },
+      { label: 'New Tor tab', click: () => this.newTorTab() },
       {
         label: 'New private tab',
         accelerator: 'CmdOrCtrl+Shift+N',

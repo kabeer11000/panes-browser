@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
   performanceMode: 'auto',
   adblockOffSites: [],
   adblockCosmeticOffSites: [],
+  torSnowflake: false,
   startup: 'newtab',
   accent: '#8b8bff',
   uiScale: 1,

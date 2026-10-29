@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../../../shared/settings'
 import type { ClearKind, SearchEngineId, Settings as SettingsData } from '../../../../shared/types'
 
 import { SLIDERS } from '../sliders'
+import { TorSection } from './TorSection'
 import { Group, Row, Segmented, Select, SliderRow, Toggle } from '../ui'
 import { MemorySection } from './MemorySection'
 import { SitePermissions } from './SitePermissions'
@@ -343,6 +344,11 @@ export function Settings(): React.JSX.Element {
           </Row>
         </Group>
       )}
+
+      <TorSection
+        snowflake={s.torSnowflake}
+        onSnowflake={(v) => void update({ torSnowflake: v })}
+      />
 
       <Group title="Shortcuts">
         {[
