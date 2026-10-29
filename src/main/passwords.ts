@@ -206,6 +206,8 @@ async function loginAccepted(wc: WebContents, current: () => boolean): Promise<b
 function siteOf(e: IpcMainEvent | IpcMainInvokeEvent): string | null {
   const frame = e.senderFrame
   if (!frame || frame !== e.sender.mainFrame) return null
+  // Nothing is saved from, or offered to, a private tab.
+  if (e.sender.session.storagePath === null) return null
   return normalizeOrigin(frame.url)
 }
 

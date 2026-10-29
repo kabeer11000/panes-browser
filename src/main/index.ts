@@ -108,6 +108,16 @@ function createWindow(): void {
   if (tabSession.getSpellCheckerLanguages().length === 0)
     tabSession.setSpellCheckerLanguages(['en-US'])
 
+  // Private tabs: an in-memory session (no `persist:` prefix), set up like the main one but never saving anything.
+  const privateSession = session.fromPartition('private')
+  privateSession.setUserAgent(chromeUserAgent())
+  rewriteClientHints(privateSession, chromeUserAgent())
+  serveInternalPages(privateSession)
+  // No site is remembered as allowed in a private tab: anything beyond the harmless is declined.
+  privateSession.setPermissionRequestHandler((_wc, permission, cb) =>
+    cb(permission === 'fullscreen' || permission === 'clipboard-sanitized-write')
+  )
+
   const settings = new SettingsStore()
   const history = new HistoryStore()
   const bookmarks = new BookmarkStore()
@@ -115,6 +125,7 @@ function createWindow(): void {
   const passwords = new PasswordStore()
   registerPasswordIpc(win, passwords)
   const adblock = new Adblock(tabSession)
+  void adblock.attach(privateSession)
   void adblock.set(settings.get().adblock)
   adblock.setOffSites(settings.get().adblockOffSites, settings.get().adblockCosmeticOffSites)
   settings.onChange((s) => {
@@ -128,7 +139,13 @@ function createWindow(): void {
   const spaces = new SpaceStore()
   const suggester = new Suggester({ history, bookmarks, settings })
   const dumps = new DumpStore()
-  const tabs = new TabManager(win, tabSession, { settings, history, bookmarks, spaces, dumps })
+  const tabs = new TabManager(win, tabSession, privateSession, {
+    settings,
+    history,
+    bookmarks,
+    spaces,
+    dumps
+  })
   const permissions = new PermissionStore()
   // Popover views (site panel, permission and password cards) wear the window's colours too.
   setChromeThemeSource(() => {

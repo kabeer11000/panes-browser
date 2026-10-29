@@ -15,6 +15,8 @@ export interface TabInfo {
   title: string
   favicon: string | null
   loading: boolean
+  /** Opened as a private tab: no history, no saved session, its own in-memory cookies. */
+  private: boolean
   /** The sidebar group this tab belongs to, if any. */
   groupId: number | null
   /** This tab's page is out in a floating picture-in-picture window. */

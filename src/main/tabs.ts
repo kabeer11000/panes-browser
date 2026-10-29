@@ -106,6 +106,8 @@ interface Tab {
   /** Whether the page currently has Chromium's automatic dark mode forced on. */
   darkened: boolean
   /** Key of the style sheet a boost put into the page, so it can be taken out again. */
+  /** A private tab: kept out of history, the saved session and saved sessions, in its own in-memory session. */
+  private: boolean
   boostKey: string | null
   /** A style-sheet swap is under way, and whether another edit arrived during it. */
   boosting: boolean
@@ -168,6 +170,8 @@ export class TabManager {
   constructor(
     private win: BrowserWindow,
     private session: Session,
+    /** In-memory session for private tabs: nothing in it outlives them. */
+    private privateSession: Session,
     private deps: {
       settings: SettingsStore
       history: HistoryStore
@@ -221,6 +225,7 @@ export class TabManager {
         favicon: t.favicon,
         loading: wc.isLoading(),
         groupId: t.groupId,
+        private: t.private,
         pip: this.pip.tabId === id,
         unloaded: t.unloaded,
         audible: wc.isCurrentlyAudible(),
@@ -347,10 +352,10 @@ export class TabManager {
 
   // ---- tab lifecycle ----
 
-  private makeView(): WebContentsView {
+  private makeView(isPrivate = false): WebContentsView {
     const view = new WebContentsView({
       webPreferences: {
-        session: this.session,
+        session: isPrivate ? this.privateSession : this.session,
         sandbox: true,
         // like Chrome: a page may not start playing sound until you have interacted with it
         autoplayPolicy: 'document-user-activation-required',
@@ -380,14 +385,16 @@ export class TabManager {
     input = '',
     activate = true,
     spaceId = this.activeSpaceId,
-    lazy?: { title: string; favicon: string | null }
+    lazy?: { title: string; favicon: string | null },
+    isPrivate = false
   ): number {
     const url = resolveInput(input, this.deps.settings.searchUrl())
     const unloaded = !!(url && lazy)
 
     const id = this.nextId++
     const tab: Tab = {
-      view: unloaded ? this.inertView() : this.makeView(),
+      view: unloaded ? this.inertView() : this.makeView(isPrivate),
+      private: isPrivate,
       favicon: null,
       thumb: null,
       thumbAt: 0,
@@ -448,7 +455,7 @@ export class TabManager {
     if (!tab) return
     if (this.pip.tabId === id) this.pip.stop() // the page must be back in this window before it is closed
     const url = tab.pending?.url || liveContents(tab)?.getURL()
-    if (url) this.closedUrls.push(url)
+    if (url && !tab.private) this.closedUrls.push(url)
 
     if (this.layout) this.setLayout(removeTab(this.layout, id))
     const ids = this.own()
@@ -456,12 +463,26 @@ export class TabManager {
     if (tab.thumbTimer) clearTimeout(tab.thumbTimer)
     this.tabs.delete(id)
     this.destroyView(tab)
+    if (tab.private) this.forgetPrivateIfDone()
 
     if (this.activeId !== id) return this.refresh()
     this.activeId = null
     const next = ids[idx + 1] ?? ids[idx - 1]
     if (next !== undefined) this.activate(next)
     else this.create() // never leave the window tab-less
+  }
+
+  /** A tab that leaves no trace: its own cookies and storage, gone when the last private tab closes. */
+  newPrivateTab(input = ''): number {
+    return this.create(input, true, this.activeSpaceId, undefined, true)
+  }
+
+  private forgetPrivateIfDone(): void {
+    if ([...this.tabs.values()].some((t) => t.private)) return
+    void this.privateSession
+      .clearStorageData()
+      .then(() => this.privateSession.clearCache())
+      .catch(() => undefined)
   }
 
   reopenClosed(): void {
@@ -488,7 +509,7 @@ export class TabManager {
     const { url } = tab.pending
     tab.pending = null
     if (tab.unloaded) {
-      tab.view = this.makeView()
+      tab.view = this.makeView(tab.private)
       tab.flat = false
       tab.unloaded = false
       this.wire(id, tab)
@@ -581,6 +602,7 @@ export class TabManager {
     }> = []
     let active = 0
     for (const [id, t] of this.tabs) {
+      if (t.private) continue // private tabs are never written down
       const wc = liveContents(t)
       const url = t.pending?.url ?? wc?.getURL() ?? ''
       if (!/^(https?|file):/i.test(url)) continue
@@ -602,6 +624,7 @@ export class TabManager {
   /** The window is closing: bring a floating video back (so its window does not keep the app alive) and save the session now. */
   shutdown(): void {
     this.pip.stop()
+    void this.privateSession.clearStorageData().catch(() => undefined)
     if (this.sessionTimer) clearTimeout(this.sessionTimer)
     this.sessionTimer = null
     this.writeSession()
@@ -1171,9 +1194,10 @@ export class TabManager {
       wc.on('preload-error', (_e, path, err) => console.log('[tab preload-error]', path, err))
     }
     this.pdf.attach(wc)
-    applyChromeIdentity(wc, this.session.getUserAgent())
+    const tabSession = tab.private ? this.privateSession : this.session
+    applyChromeIdentity(wc, tabSession.getUserAgent())
     wc.on('did-create-window', (child) =>
-      applyChromeIdentity(child.webContents, this.session.getUserAgent())
+      applyChromeIdentity(child.webContents, tabSession.getUserAgent())
     )
     wc.on('did-start-loading', refresh)
     wc.on('dom-ready', () => {
@@ -1197,17 +1221,17 @@ export class TabManager {
     wc.on('did-navigate', () => {
       if (!wc.getURL().startsWith('panes://error')) tab.failed = null
       tab.keyLock = false
-      this.deps.history.add(wc.getURL(), wc.getTitle())
+      if (!tab.private) this.deps.history.add(wc.getURL(), wc.getTitle())
       this.lastFind = ''
       refresh()
     })
     wc.on('did-navigate-in-page', (_e, url, isMainFrame) => {
-      if (isMainFrame) this.deps.history.add(url, wc.getTitle())
+      if (isMainFrame && !tab.private) this.deps.history.add(url, wc.getTitle())
       refresh()
     })
     wc.on('page-title-updated', (_e, title) => {
       tab.dirty = true
-      this.deps.history.updateMeta(wc.getURL(), { title })
+      if (!tab.private) this.deps.history.updateMeta(wc.getURL(), { title })
       refresh()
     })
     wc.on('found-in-page', (_e, r) => {
@@ -1217,7 +1241,8 @@ export class TabManager {
     })
     wc.on('context-menu', (_e, params) =>
       showContextMenu(this.win, wc, params, {
-        openTab: (u) => this.create(u),
+        openTab: (u) => (tab.private ? this.newPrivateTab(u) : this.create(u)),
+        openPrivate: (u) => this.newPrivateTab(u),
         openSplit: (u) => {
           const base = this.activeId
           const nid = this.create(u, false)
@@ -1259,7 +1284,7 @@ export class TabManager {
     })
     wc.on('page-favicon-updated', (_e, favicons) => {
       tab.favicon = favicons[0] ?? null
-      this.deps.history.updateMeta(wc.getURL(), { favicon: tab.favicon })
+      if (!tab.private) this.deps.history.updateMeta(wc.getURL(), { favicon: tab.favicon })
       this.refresh()
     })
     wc.on('before-input-event', (e, input) => {
@@ -1289,7 +1314,7 @@ export class TabManager {
           overrideBrowserWindowOptions: {
             autoHideMenuBar: true,
             backgroundColor: '#ffffff',
-            webPreferences: { session: this.session, sandbox: true }
+            webPreferences: { session: tabSession, sandbox: true }
           }
         }
       }
@@ -1315,7 +1340,8 @@ export class TabManager {
   /** mailto:/tel: go to the OS; everything else becomes a tab. */
   private openLink(url: string, from?: number): void {
     if (this.externalScheme(url)) return void shell.openExternal(url)
-    const id = this.create(url)
+    const opener = from === undefined ? undefined : this.tabs.get(from)
+    const id = opener?.private ? this.newPrivateTab(url) : this.create(url)
     // A link opened from a tab in a group joins that group, at its bottom.
     const group = from === undefined ? null : (this.tabs.get(from)?.groupId ?? null)
     if (group !== null) this.addToGroup(id, group)
@@ -1364,6 +1390,7 @@ export class TabManager {
       else handled = false
     } else if (mod && input.shift && !input.alt) {
       if (k === 'r') this.reload(true)
+      else if (k === 'n') this.newPrivateTab()
       else if (k === 'delete')
         this.openInternal('settings') // clear browsing data lives there
       else if (k === 'b') this.openInternal('bookmarks')
@@ -1490,7 +1517,7 @@ export class TabManager {
 
   /** Save what is open in this space as a session; `close` also closes those tabs (a quick clear-out). */
   dumpTabs(close = false): TabDump | null {
-    const open = this.state().tabs
+    const open = this.state().tabs.filter((t) => !t.private)
     const dump = this.deps.dumps.add(dumpableTabs(open))
     if (dump && close) {
       const saved = new Set(dump.tabs.map((t) => t.url))
@@ -1611,6 +1638,11 @@ export class TabManager {
     })
     Menu.buildFromTemplate([
       { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => this.create() },
+      {
+        label: 'New private tab',
+        accelerator: 'CmdOrCtrl+Shift+N',
+        click: () => this.newPrivateTab()
+      },
       {
         label: 'Reopen closed tab',
         accelerator: 'CmdOrCtrl+Shift+T',

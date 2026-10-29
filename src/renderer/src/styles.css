@@ -3226,3 +3226,20 @@ kbd {
 .hgroup {
   transition: translate 0.2s var(--ease);
 }
+
+/* private tabs carry a violet dot on their icon */
+.fav-priv {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+}
+.fav-priv > i {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #a855f7;
+  box-shadow: 0 0 0 1.5px var(--popover-bg);
+}

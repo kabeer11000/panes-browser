@@ -9,6 +9,7 @@ import {
 
 interface Actions {
   openTab: (url: string) => void
+  openPrivate: (url: string) => void
   openSplit: (url: string) => void
   pip: () => void
   searchUrl: (text: string) => string
@@ -26,6 +27,7 @@ export function showContextMenu(
   if (p.linkURL) {
     items.push(
       { label: 'Open link in new tab', click: () => a.openTab(p.linkURL) },
+      { label: 'Open link in private tab', click: () => a.openPrivate(p.linkURL) },
       { label: 'Open link in split view', click: () => a.openSplit(p.linkURL) },
       { label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) },
       sep

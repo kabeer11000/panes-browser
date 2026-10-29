@@ -14,7 +14,10 @@ export class Adblock {
   /** Requests stopped per page, counted from the page's own address so a new page starts again at zero. */
   private blocked = new Map<number, { page: string; count: number }>()
 
-  constructor(private session: Session) {
+  private sessions: Session[]
+
+  constructor(session: Session) {
+    this.sessions = [session]
     this.ready = ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, {
       path: join(app.getPath('userData'), 'adblock-engine.bin'),
       read: fs.readFile,
@@ -90,11 +93,20 @@ export class Adblock {
     }
   }
 
+  /** Also block in another session (the private one), with the same engine and exceptions. */
+  async attach(session: Session): Promise<void> {
+    this.sessions.push(session)
+    const blocker = await this.ready
+    if (blocker && this.active) blocker.enableBlockingInSession(session)
+  }
+
   async set(enabled: boolean): Promise<void> {
     const blocker = await this.ready
     if (!blocker || enabled === this.active) return
     this.active = enabled
-    if (enabled) blocker.enableBlockingInSession(this.session)
-    else blocker.disableBlockingInSession(this.session)
+    for (const session of this.sessions) {
+      if (enabled) blocker.enableBlockingInSession(session)
+      else blocker.disableBlockingInSession(session)
+    }
   }
 }
