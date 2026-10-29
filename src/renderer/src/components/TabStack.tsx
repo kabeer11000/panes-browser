@@ -15,6 +15,7 @@ import { useGlow } from '../ambient'
 import { tabTitle } from '../tabTitle'
 import { CardThumb } from './CardThumb'
 import { entryTitle, pageAspect } from './cardUtils'
+import { CloseIcon } from './icons'
 import { TabFavicon } from './TabFavicon'
 
 // Depth feel. d = card index - scroll position: 0 is front. Upcoming cards (d>0) recede down and back
@@ -39,6 +40,8 @@ interface Props {
   onJump: (index: number) => void
   onCommit: () => void
   onCancel: () => void
+  /** Close the tab, or every tab of the split, that a card stands for. */
+  onCloseEntry: (entry: StackEntry) => void
 }
 
 const holds = (e: StackEntry, id: number | null): boolean => e.tabs.some((t) => t.id === id)
@@ -55,7 +58,8 @@ export function TabStack({
   onStep,
   onJump,
   onCommit,
-  onCancel
+  onCancel,
+  onCloseEntry
 }: Props): React.JSX.Element {
   const reduced = useReducedMotion()
   const spring = useSpring(target, { stiffness: 320, damping: 38, mass: 1 })
@@ -81,7 +85,10 @@ export function TabStack({
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onCancel()
       else if (e.key === 'Enter') onCommit()
-      else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') onStep(1)
+      else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const entry = entries[Math.min(index, last)]
+        if (entry) onCloseEntry(entry)
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') onStep(1)
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') onStep(-1)
       else if (e.key === 'PageDown') onStep(PAGE_JUMP)
       else if (e.key === 'PageUp') onStep(-PAGE_JUMP)
@@ -92,9 +99,13 @@ export function TabStack({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel, onCommit, onStep, onJump, last])
+  }, [onCancel, onCommit, onStep, onJump, onCloseEntry, entries, index, last])
 
   const current = entries[Math.min(index, last)]
+  // Closing the last card leaves the scroll position past the end: pull it back.
+  useEffect(() => {
+    if (last >= 0 && target.get() > last) target.set(last)
+  }, [last, target])
   const glow = useGlow(current ? thumbs[current.primaryId] : undefined)
 
   return (
@@ -123,6 +134,7 @@ export function TabStack({
               pos={pos}
               spread={spread}
               onClick={() => (i === index ? onCommit() : onJump(i))}
+              onClose={() => onCloseEntry(e)}
             />
           )
         )}
@@ -165,7 +177,8 @@ function StackCard({
   selected,
   pos,
   spread,
-  onClick
+  onClick,
+  onClose
 }: {
   entry: StackEntry
   current: boolean
@@ -175,6 +188,7 @@ function StackCard({
   pos: MotionValue<number>
   spread: MotionValue<number>
   onClick: () => void
+  onClose: () => void
 }): React.JSX.Element {
   const d = useTransform(pos, (p) => index - p)
   const z = useTransform([d, spread], ([v, s]: number[]) => -Math.abs(v) * STEP_Z * s)
@@ -207,6 +221,19 @@ function StackCard({
         <span className="tab-title">{entryTitle(entry)}</span>
         {isGroup && <span className="group-badge">Split {entry.tabs.length}</span>}
         {current && <span className="current-chip">Current</span>}
+        <button
+          type="button"
+          tabIndex={-1}
+          className="card-btn stack-close"
+          title={isGroup ? 'Close split (every tab in it)' : 'Close tab'}
+          aria-label={isGroup ? 'Close split' : 'Close tab'}
+          onClick={(e) => {
+            e.stopPropagation() // closing is not choosing
+            onClose()
+          }}
+        >
+          <CloseIcon />
+        </button>
       </div>
       <div className="card-thumb">
         <CardThumb entry={entry} thumbs={thumbs} />

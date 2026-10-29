@@ -3147,3 +3147,19 @@ kbd {
 .strip.full {
   grid-template-columns: auto minmax(160px, 1fr) auto;
 }
+
+/* a close button on every stack card (the front one most visible), and always findable on grid cards */
+.stack-close {
+  opacity: 0.55;
+}
+.stack-card.front .stack-close,
+.stack-card:hover .stack-close {
+  opacity: 1;
+}
+.grid-card .card-btn {
+  opacity: 0.5;
+}
+.grid-card:hover .card-btn,
+.grid-card.selected .card-btn {
+  opacity: 1;
+}

@@ -534,6 +534,7 @@ function App(): React.JSX.Element {
                   onJump={(i) => stackPos.set(i)}
                   onCommit={commitStack}
                   onCancel={closeOverlay}
+                  onCloseEntry={(entry) => entry.tabs.forEach((t) => window.api.closeTab(t.id))}
                 />
               )}
             </AnimatePresence>
