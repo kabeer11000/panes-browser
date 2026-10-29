@@ -40,6 +40,10 @@ export class UpdateManager {
     if (reason || this.fake) return
 
     autoUpdater.autoDownload = true
+    // The installer is fetched whole. Differential downloads read pieces of it over many range requests that
+    // GitHub answers with redirects; when one fails, or the asset changed while a release was still being
+    // uploaded, the update ends in a protocol or checksum error instead of simply downloading again.
+    autoUpdater.disableDifferentialDownload = true
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.on('checking-for-update', () => this.dispatch({ type: 'checking' }))
     autoUpdater.on('update-not-available', () => this.dispatch({ type: 'none', at: Date.now() }))
@@ -50,13 +54,14 @@ export class UpdateManager {
       this.dispatch({ type: 'progress', percent: p.percent, bytesPerSecond: p.bytesPerSecond })
     )
     autoUpdater.on('update-downloaded', () => this.dispatch({ type: 'downloaded' }))
-    autoUpdater.on('error', (err) =>
+    autoUpdater.on('error', (err) => {
       this.dispatch({
         type: 'error',
         message: friendlyUpdateError(String(err?.message ?? err)),
         at: Date.now()
       })
-    )
+      this.retrySoon()
+    })
   }
 
   get(): UpdateState {
@@ -98,6 +103,19 @@ export class UpdateManager {
         at: Date.now()
       })
     )
+  }
+
+  /** A failed check or download is tried once more shortly: most are a release still being uploaded. */
+  private retried = false
+  private retrySoon(): void {
+    if (this.retried) return
+    this.retried = true
+    const t = setTimeout(() => {
+      this.retried = false
+      if (this.state.kind === 'error') this.check()
+    }, 90_000)
+    t.unref()
+    this.timers.push(t)
   }
 
   /** Restart into the downloaded version. Does nothing unless one is ready. */

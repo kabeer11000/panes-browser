@@ -1886,6 +1886,9 @@ export class TabManager {
   }
 
   private command(cmd: UiCommand): void {
+    // The page view holds the keyboard when the shortcut is pressed; the find box can only take typing once the
+    // window's own page does.
+    if (cmd === 'find' && !this.win.isDestroyed()) this.win.webContents.focus()
     this.send('ui:command', cmd)
   }
 

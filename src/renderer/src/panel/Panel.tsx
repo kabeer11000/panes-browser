@@ -10,13 +10,12 @@ declare global {
   }
 }
 
-type Tab = 'color' | 'font' | 'zap' | 'code' | 'site'
+type Tab = 'color' | 'font' | 'zap' | 'code'
 const TABS: Array<[Tab, string]> = [
   ['color', 'Colour'],
   ['font', 'Font'],
   ['zap', 'Hide'],
-  ['code', 'CSS'],
-  ['site', 'Site']
+  ['code', 'CSS']
 ]
 
 const PERM_KINDS: PermKind[] = [
@@ -111,6 +110,8 @@ export function Panel(): React.JSX.Element | null {
   const [info, setInfo] = useState<SiteInfo | null>(null)
   const [draft, setDraft] = useState<SiteTheme>(DEFAULT_THEME)
   const [tab, setTab] = useState<Tab>('color')
+  // The first screen is the site at a glance; the boost editor is one step in.
+  const [view, setView] = useState<'home' | 'boost'>('home')
   const [css, setCss] = useState('')
   const [cleared, setCleared] = useState(false)
   const box = useRef<HTMLDivElement>(null)
@@ -121,6 +122,7 @@ export function Panel(): React.JSX.Element | null {
       setDraft(i?.boost ?? DEFAULT_THEME)
       setCss(i?.boost?.css ?? '')
       setCleared(false)
+      setView('home')
     })
   }, [api])
   useEffect(() => {
@@ -185,242 +187,258 @@ export function Panel(): React.JSX.Element | null {
     void api.update({ boost: null }).then(setInfo)
   }
 
+  const setCount = Object.keys(info.perms).length
   return (
     <div className="pn-root" ref={box}>
       <div className="pn" role="dialog" aria-label="Site settings">
-        <header className="pn-head">
-          <div>
-            <b>{info.key}</b>
-            <span>
-              <em>in {info.spaceName}</em>
-            </span>
-          </div>
-          {boosted && (
-            <button type="button" className="pn-reset" onClick={reset} title="Remove this boost">
-              Reset boost
-            </button>
-          )}
-        </header>
-
-        <section className={'pn-secure ' + (info.secure ? 'ok' : 'bad')} aria-label="Connection">
-          <span className="pn-secure-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              {info.secure ? (
-                <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 10 4.1-1.6 7-5.6 7-10V6l-7-3Zm-1.2 12.4-3-3 1.4-1.4 1.6 1.6 4-4 1.4 1.4-5.4 5.4Z" />
-              ) : (
-                <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 10 4.1-1.6 7-5.6 7-10V6l-7-3Zm-1 5h2v5h-2V8Zm0 6.5h2v2h-2v-2Z" />
-              )}
-            </svg>
-          </span>
-          <div>
-            <b>{info.secure ? 'Connection is secure' : 'Connection is not secure'}</b>
-            <span>
-              {info.secure
-                ? 'What you send to this site is encrypted on the way.'
-                : 'Others on the network could read or change what you send. Do not enter passwords or card numbers here.'}
-            </span>
-          </div>
-          <div className="pn-secure-foot">
-            <span>
-              {info.cookies === 0
-                ? 'No cookies'
-                : `${info.cookies} cookie${info.cookies === 1 ? '' : 's'}`}
-            </span>
-            <button
-              type="button"
-              disabled={cleared}
-              onClick={() => {
-                setCleared(true)
-                send({ clearData: true }, (i) => ({ ...i, cookies: 0 }))
-              }}
-              title="Forget this site's cookies and stored data. You may be signed out."
+        {view === 'home' ? (
+          <header className="pn-head">
+            <div>
+              <b>{info.key}</b>
+              <span>
+                <em>in {info.spaceName}</em>
+              </span>
+            </div>
+            <span
+              className={'pn-lock ' + (info.secure ? 'ok' : 'bad')}
+              title={
+                info.secure
+                  ? 'What you send to this site is encrypted on the way.'
+                  : 'Others on the network could read or change what you send.'
+              }
             >
-              {cleared ? 'Cleared' : 'Clear site data'}
-            </button>
-          </div>
-        </section>
-
-        <nav className="pn-tabs" role="tablist" aria-label="Site settings">
-          {TABS.map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={tab === id}
-              className={tab === id ? 'on' : ''}
-              onClick={() => setTab(id)}
-            >
-              {label}
-              {id === 'zap' && draft.zap.length > 0 && <i>{draft.zap.length}</i>}
-            </button>
-          ))}
-        </nav>
-
-        <div className="pn-body">
-          {tab === 'color' && (
-            <>
-              <div className="pn-row">
-                <span>
-                  Dark page
-                  <em>Inverts the page; pictures keep their colours</em>
-                </span>
-                <Switch label="Dark page" on={draft.dark} onChange={(v) => edit({ dark: v })} />
-              </div>
-
-              <div
-                className="pn-wheel"
-                style={{ ['--tpc' as string]: draft.tint ?? 'transparent' }}
-              >
-                <ColorWheel
-                  color={draft.tint ?? '#8b8bff'}
-                  size={176}
-                  onChange={(p) => p.color && edit({ tint: p.color })}
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="3.5" y="7" width="9" height="6.5" rx="1.6" />
+                <path
+                  d={
+                    info.secure
+                      ? 'M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7'
+                      : 'M5.5 7V5.2a2.5 2.5 0 0 1 4.6-1.4'
+                  }
                 />
-                <div className="pn-swatches" role="radiogroup" aria-label="Theme colour">
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={draft.tint === null}
-                    aria-label="No theme colour"
-                    className={'ss-tint none' + (draft.tint === null ? ' on' : '')}
-                    onClick={() => edit({ tint: null })}
+              </svg>
+              {info.secure ? 'Secure' : 'Not secure'}
+            </span>
+          </header>
+        ) : (
+          <header className="pn-head">
+            <button type="button" className="pn-back" onClick={() => setView('home')}>
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M10 3 5 8l5 5" />
+              </svg>
+              Boost
+            </button>
+            {boosted && (
+              <button type="button" className="pn-reset" onClick={reset} title="Remove this boost">
+                Reset boost
+              </button>
+            )}
+          </header>
+        )}
+
+        {view === 'home' && !info.secure && (
+          <p className="pn-warn">
+            This connection is not encrypted. Do not enter passwords or card numbers here.
+          </p>
+        )}
+
+        {view === 'boost' && (
+          <nav className="pn-tabs" role="tablist" aria-label="Boost">
+            {TABS.map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                className={tab === id ? 'on' : ''}
+                onClick={() => setTab(id)}
+              >
+                {label}
+                {id === 'zap' && draft.zap.length > 0 && <i>{draft.zap.length}</i>}
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {view === 'boost' && (
+          <div className="pn-body">
+            {tab === 'color' && (
+              <>
+                <div className="pn-row">
+                  <span>
+                    Dark page
+                    <em>Inverts the page; pictures keep their colours</em>
+                  </span>
+                  <Switch label="Dark page" on={draft.dark} onChange={(v) => edit({ dark: v })} />
+                </div>
+
+                <div
+                  className="pn-wheel"
+                  style={{ ['--tpc' as string]: draft.tint ?? 'transparent' }}
+                >
+                  <ColorWheel
+                    color={draft.tint ?? '#8b8bff'}
+                    size={176}
+                    onChange={(p) => p.color && edit({ tint: p.color })}
                   />
-                  {PRESETS.map((c) => (
+                  <div className="pn-swatches" role="radiogroup" aria-label="Theme colour">
                     <button
-                      key={c}
                       type="button"
                       role="radio"
-                      aria-checked={draft.tint === c}
-                      aria-label={c}
-                      className={'ss-tint' + (draft.tint === c ? ' on' : '')}
-                      style={{ background: c }}
-                      onClick={() => edit({ tint: c })}
+                      aria-checked={draft.tint === null}
+                      aria-label="No theme colour"
+                      className={'ss-tint none' + (draft.tint === null ? ' on' : '')}
+                      onClick={() => edit({ tint: null })}
                     />
-                  ))}
+                    {PRESETS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        role="radio"
+                        aria-checked={draft.tint === c}
+                        aria-label={c}
+                        className={'ss-tint' + (draft.tint === c ? ' on' : '')}
+                        style={{ background: c }}
+                        onClick={() => edit({ tint: c })}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {draft.tint && (
+                {draft.tint && (
+                  <Slider
+                    label="Strength"
+                    value={draft.strength}
+                    min={0.1}
+                    max={1}
+                    step={0.01}
+                    format={percent}
+                    onChange={(v) => edit({ strength: v })}
+                  />
+                )}
                 <Slider
-                  label="Strength"
-                  value={draft.strength}
-                  min={0.1}
-                  max={1}
+                  label="Brightness"
+                  value={draft.brightness}
+                  min={0.6}
+                  max={1.4}
                   step={0.01}
                   format={percent}
-                  onChange={(v) => edit({ strength: v })}
+                  onChange={(v) => edit({ brightness: v })}
                 />
-              )}
-              <Slider
-                label="Brightness"
-                value={draft.brightness}
-                min={0.6}
-                max={1.4}
-                step={0.01}
-                format={percent}
-                onChange={(v) => edit({ brightness: v })}
-              />
-              <Slider
-                label="Contrast"
-                value={draft.contrast}
-                min={0.6}
-                max={1.4}
-                step={0.01}
-                format={percent}
-                onChange={(v) => edit({ contrast: v })}
-              />
-              <Slider
-                label="Saturation"
-                value={draft.saturation}
-                min={0}
-                max={2}
-                step={0.01}
-                format={percent}
-                onChange={(v) => edit({ saturation: v })}
-              />
-            </>
-          )}
+                <Slider
+                  label="Contrast"
+                  value={draft.contrast}
+                  min={0.6}
+                  max={1.4}
+                  step={0.01}
+                  format={percent}
+                  onChange={(v) => edit({ contrast: v })}
+                />
+                <Slider
+                  label="Saturation"
+                  value={draft.saturation}
+                  min={0}
+                  max={2}
+                  step={0.01}
+                  format={percent}
+                  onChange={(v) => edit({ saturation: v })}
+                />
+              </>
+            )}
 
-          {tab === 'font' && (
-            <div className="pn-fonts" role="radiogroup" aria-label="Font">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={draft.font === null}
-                className={'pn-font' + (draft.font === null ? ' on' : '')}
-                onClick={() => edit({ font: null })}
-              >
-                <b>Aa</b>
-                <span>Site&apos;s own</span>
-              </button>
-              {Object.entries(BOOST_FONTS).map(([key, f]) => (
+            {tab === 'font' && (
+              <div className="pn-fonts" role="radiogroup" aria-label="Font">
                 <button
-                  key={key}
                   type="button"
                   role="radio"
-                  aria-checked={draft.font === key}
-                  className={'pn-font' + (draft.font === key ? ' on' : '')}
-                  onClick={() => edit({ font: key })}
+                  aria-checked={draft.font === null}
+                  className={'pn-font' + (draft.font === null ? ' on' : '')}
+                  onClick={() => edit({ font: null })}
                 >
-                  <b style={{ fontFamily: f.stack }}>Aa</b>
-                  <span>{f.label}</span>
+                  <b>Aa</b>
+                  <span>Site&apos;s own</span>
                 </button>
-              ))}
-            </div>
-          )}
+                {Object.entries(BOOST_FONTS).map(([key, f]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={draft.font === key}
+                    className={'pn-font' + (draft.font === key ? ' on' : '')}
+                    onClick={() => edit({ font: key })}
+                  >
+                    <b style={{ fontFamily: f.stack }}>Aa</b>
+                    <span>{f.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
-          {tab === 'zap' && (
-            <>
-              <p className="pn-note">
-                Hide parts of the page you do not want: banners, sidebars, popups. They stay hidden
-                every time you visit {info.key} in {info.spaceName}.
-              </p>
-              <button type="button" className="pn-go" onClick={() => api.pick()}>
-                Choose something to hide
-              </button>
-              {draft.zap.length === 0 ? (
-                <p className="pn-empty">Nothing hidden yet.</p>
-              ) : (
-                <ul className="pn-zaps">
-                  {draft.zap.map((sel) => (
-                    <li key={sel}>
-                      <code title={sel}>{sel}</code>
-                      <button
-                        type="button"
-                        aria-label={`Show ${sel} again`}
-                        title="Show it again"
-                        onClick={() => {
-                          setDraft(withTheme(draft, { zap: draft.zap.filter((z) => z !== sel) }))
-                          send({ zapRemove: sel })
-                        }}
-                      >
-                        Show
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
+            {tab === 'zap' && (
+              <>
+                <p className="pn-note">
+                  Hide parts of the page you do not want: banners, sidebars, popups. They stay
+                  hidden every time you visit {info.key} in {info.spaceName}.
+                </p>
+                <button type="button" className="pn-go" onClick={() => api.pick()}>
+                  Choose something to hide
+                </button>
+                {draft.zap.length === 0 ? (
+                  <p className="pn-empty">Nothing hidden yet.</p>
+                ) : (
+                  <ul className="pn-zaps">
+                    {draft.zap.map((sel) => (
+                      <li key={sel}>
+                        <code title={sel}>{sel}</code>
+                        <button
+                          type="button"
+                          aria-label={`Show ${sel} again`}
+                          title="Show it again"
+                          onClick={() => {
+                            setDraft(withTheme(draft, { zap: draft.zap.filter((z) => z !== sel) }))
+                            send({ zapRemove: sel })
+                          }}
+                        >
+                          Show
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
 
-          {tab === 'code' && (
-            <>
-              <p className="pn-note">
-                Your own CSS for {info.key}, applied last. Only styles: it cannot run scripts.
-              </p>
-              <textarea
-                className="pn-code"
-                spellCheck={false}
-                value={css}
-                placeholder={'body { max-width: 760px; margin: 0 auto; }'}
-                aria-label="Custom CSS"
-                onChange={(e) => setCss(e.target.value)}
-              />
-            </>
-          )}
+            {tab === 'code' && (
+              <>
+                <p className="pn-note">
+                  Your own CSS for {info.key}, applied last. Only styles: it cannot run scripts.
+                </p>
+                <textarea
+                  className="pn-code"
+                  spellCheck={false}
+                  value={css}
+                  placeholder={'body { max-width: 760px; margin: 0 auto; }'}
+                  aria-label="Custom CSS"
+                  onChange={(e) => setCss(e.target.value)}
+                />
+              </>
+            )}
+          </div>
+        )}
 
-          {tab === 'site' && (
-            <>
+        {view === 'home' && (
+          <div className="pn-body">
+            <button type="button" className="pn-link" onClick={() => setView('boost')}>
+              <span>
+                <b>Boost this site</b>
+                <em>{boosted ? 'On for this site' : 'Colour, font, hide parts of the page'}</em>
+              </span>
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="m6 3 5 5-5 5" />
+              </svg>
+            </button>
+
+            <div className="pn-group">
               <div className="pn-row">
                 <span>
                   Block ads and trackers
@@ -438,11 +456,11 @@ export function Panel(): React.JSX.Element | null {
               {info.adblock.global && !info.adblock.off && (
                 <div className="pn-row">
                   <span>
-                    Hide ad spaces on the page
+                    Hide ad spaces
                     <em>
                       {info.adblock.blocked > 0
-                        ? `${info.adblock.blocked} requests blocked here. Turn off if the page looks broken`
-                        : 'Turn off if the page looks broken; ads stay blocked'}
+                        ? `${info.adblock.blocked} blocked here. Off if the page looks broken`
+                        : 'Off if the page looks broken'}
                     </em>
                   </span>
                   <Switch
@@ -458,10 +476,7 @@ export function Panel(): React.JSX.Element | null {
                 </div>
               )}
               <div className="pn-row">
-                <span>
-                  Mute this site
-                  <em>Every tab of it, now and later</em>
-                </span>
+                <span>Mute site</span>
                 <Switch
                   label="Mute this site"
                   on={info.muted}
@@ -470,8 +485,8 @@ export function Panel(): React.JSX.Element | null {
               </div>
               <div className="pn-row">
                 <span>
-                  Keep this site loaded
-                  <em>The memory saver will not put its tab to sleep</em>
+                  Keep loaded
+                  <em>Never put its tab to sleep</em>
                 </span>
                 <Switch
                   label="Keep this site loaded"
@@ -479,7 +494,13 @@ export function Panel(): React.JSX.Element | null {
                   onChange={(v) => send({ keepLoaded: v }, (i) => ({ ...i, keepLoaded: v }))}
                 />
               </div>
-              <div className="pn-title">Permissions</div>
+            </div>
+
+            <details className="pn-perms">
+              <summary>
+                Permissions
+                <em>{setCount === 0 ? 'Ask each time' : `${setCount} set`}</em>
+              </summary>
               <button
                 type="button"
                 className="pn-allow-calls"
@@ -527,12 +548,31 @@ export function Panel(): React.JSX.Element | null {
                   </div>
                 )
               })}
-              <button type="button" className="ss-reset" onClick={() => send({ reset: true })}>
-                Reset everything for this site
+            </details>
+
+            <div className="pn-foot">
+              <span>
+                {info.cookies === 0
+                  ? 'No cookies'
+                  : `${info.cookies} cookie${info.cookies === 1 ? '' : 's'}`}
+              </span>
+              <button
+                type="button"
+                disabled={cleared}
+                onClick={() => {
+                  setCleared(true)
+                  send({ clearData: true }, (i) => ({ ...i, cookies: 0 }))
+                }}
+                title="Forget this site's cookies and stored data. You may be signed out."
+              >
+                {cleared ? 'Cleared' : 'Clear site data'}
               </button>
-            </>
-          )}
-        </div>
+              <button type="button" onClick={() => send({ reset: true })}>
+                Reset site
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
