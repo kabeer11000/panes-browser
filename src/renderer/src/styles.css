@@ -3516,3 +3516,54 @@ kbd {
 .hstrip .addr-pulse {
   display: none;
 }
+
+/* the sidebar the pointer opened floats over the page (which keeps its size) instead of pushing it */
+.hover-open .sidebar {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--sidebar-full);
+  border-radius: 0 14px 14px 0;
+  background: var(--card-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    8px 0 28px rgb(0 0 0 / 0.28);
+  animation: side-float 0.16s var(--ease) both;
+}
+@keyframes side-float {
+  from {
+    transform: translateX(-16px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hover-open .sidebar {
+    animation: none;
+  }
+}
+
+/* side tabs: the page sits on a plane of its own, and the active tab flows into it with tapered corners */
+.stage-wrap.plane {
+  background: var(--tab-surface);
+  border-radius: 14px 0 0 14px;
+}
+.tab-row.active {
+  overflow: visible;
+}
+.trow-foot {
+  position: absolute;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+.trow-foot.t {
+  top: -10px;
+  background: radial-gradient(circle at 0 0, transparent 9.5px, var(--tab-surface) 10px);
+}
+.trow-foot.b {
+  bottom: -10px;
+  background: radial-gradient(circle at 0 100%, transparent 9.5px, var(--tab-surface) 10px);
+}

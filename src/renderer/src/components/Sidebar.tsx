@@ -215,6 +215,12 @@ export function Sidebar({
                 }}
                 onAuxClick={(e) => e.button === 1 && window.api.closeTab(t.id)}
               >
+                {t.id === activeId && (
+                  <>
+                    <span className="trow-foot t" aria-hidden="true" />
+                    <span className="trow-foot b" aria-hidden="true" />
+                  </>
+                )}
                 <TabFavicon tab={t} />
                 <span className="tab-title">{tabTitle(t)}</span>
                 {inSplit ? (

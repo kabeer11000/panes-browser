@@ -243,10 +243,19 @@ function App(): React.JSX.Element {
   // Along the top there is no sidebar at all: the tab bar and the toolbar row are always there.
   const horizontal = effective.tabLayout === 'horizontal'
   const showSidebar = !horizontal && sidebarOpen
+  // A sidebar the pointer asked for floats over the page instead of pushing it: the page keeps its size, so
+  // nothing in it is laid out or repainted for what is a glance at the tab list.
+  const pushed = showSidebar && !openedByHover
   const spaceDir = useSpaceDir(spaces, activeSpaceId)
-  const barAutoHidden = !showSidebar && !horizontal && settings.autoHideTopBar
+  // The pages are parked (shown as pictures) while the floating sidebar is over them, as for any overlay.
+  useEffect(() => {
+    if (!openedByHover) return
+    void holdOverlay('hover-sidebar')
+    return () => void releaseOverlay('hover-sidebar')
+  }, [openedByHover])
+  const barAutoHidden = !pushed && !horizontal && settings.autoHideTopBar
   const stripHidden =
-    showSidebar ||
+    pushed ||
     (barAutoHidden && !peekBar && mode !== 'search' && !passwordPrompt && findKey === null)
   const barPx = Math.round((6 + 26 * effective.addressSize) * effective.density * effective.uiScale)
   useEffect(() => {
@@ -377,7 +386,7 @@ function App(): React.JSX.Element {
         (horizontal ? ' horizontal' : '') +
         (mode ? ' overlay-open' : '')
       }
-      style={{ '--sidebar-w': showSidebar ? 'var(--sidebar-full)' : '0px' } as React.CSSProperties}
+      style={{ '--sidebar-w': pushed ? 'var(--sidebar-full)' : '0px' } as React.CSSProperties}
     >
       <aside className="sidebar" inert={!showSidebar}>
         <Sidebar
@@ -505,14 +514,15 @@ function App(): React.JSX.Element {
         <div
           className={
             'stage-wrap' +
-            (showSidebar ? '' : ' with-strip') +
+            (pushed ? '' : ' with-strip') +
             (horizontal ? ' hlayout' : '') +
-            (stripHidden && !showSidebar ? ' no-bar' : '')
+            (pushed && !horizontal ? ' plane' : '') +
+            (stripHidden && !pushed ? ' no-bar' : '')
           }
         >
           {/* With the top bar tucked away, its loading bar is gone too: show progress on the window's top edge. */}
           <AnimatePresence>
-            {stripHidden && !showSidebar && active?.loading && (
+            {stripHidden && !pushed && active?.loading && (
               <motion.div
                 key="rim"
                 className="rim-load"

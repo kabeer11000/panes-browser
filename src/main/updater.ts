@@ -121,7 +121,8 @@ export class UpdateManager {
   /** Restart into the downloaded version. Does nothing unless one is ready. */
   install(): void {
     if (this.state.kind !== 'ready' || this.fake) return
-    autoUpdater.quitAndInstall(false, true)
+    // Silent: the new version is put in place without the installer wizard, and Panes starts again by itself.
+    autoUpdater.quitAndInstall(true, true)
   }
 
   private dispatch(e: UpdateEvent): void {
