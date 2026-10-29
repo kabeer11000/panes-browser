@@ -238,6 +238,8 @@ export interface Settings {
   torSnowflake: boolean
   /** Sites whose tabs are always muted, subdomains included. */
   mutedSites: string[]
+  /** Page zoom per site (host name to Chromium zoom level; 0 is 100%). */
+  siteZoom: Record<string, number>
   startup: 'newtab' | 'restore'
   accent: string
   /** Scales text and icons in the sidebar and headers. */
@@ -307,6 +309,8 @@ export interface SiteInfo {
   /** This site's boost in the current space, or null for none. */
   boost: SiteTheme | null
   keepLoaded: boolean
+  /** The site's page zoom as a Chromium level: 0 is 100%, each step is one 1.2 times. */
+  zoom: number
   /** The site is muted wherever it is open. */
   muted: boolean
   perms: Partial<Record<PermKind, PermDecision>>
@@ -329,6 +333,7 @@ export interface SitePatch {
   zapRemove?: string
   keepLoaded?: boolean
   muted?: boolean
+  zoom?: number
   /** A decision for one kind of access, or null to ask again. */
   perm?: { kind: PermKind; decision: PermDecision | null }
   reset?: boolean

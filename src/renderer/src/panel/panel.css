@@ -570,3 +570,33 @@ body {
 .pn-foot button:last-child:hover {
   color: #ff6b63;
 }
+
+.pn-zoom {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--surface-hover);
+}
+.pn-zoom button {
+  min-width: 28px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  color: var(--fg);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.pn-zoom button.val {
+  min-width: 52px;
+  font-size: 12.5px;
+}
+.pn-zoom button:hover:not(:disabled) {
+  background: var(--surface-active);
+}
+.pn-zoom button:disabled {
+  opacity: 0.35;
+}
+.pn-zoom button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

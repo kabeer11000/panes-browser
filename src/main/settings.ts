@@ -4,7 +4,12 @@ import {
   SEARCH_ENGINES,
   type AppearanceKey
 } from '../shared/settings'
-import { IDLE_CHOICES_MIN, MAX_LOADED_CHOICES, normalizeSites } from '../shared/memory'
+import {
+  IDLE_CHOICES_MIN,
+  MAX_LOADED_CHOICES,
+  normalizeSites,
+  normalizeZoom
+} from '../shared/memory'
 import { isPerformanceMode } from '../shared/performance'
 import type { Settings } from '../shared/types'
 import { JsonStore } from './store'
@@ -24,6 +29,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
     out.adblockOffSites = normalizeSites(patch.adblockOffSites)
   if (patch.adblockCosmeticOffSites !== undefined)
     out.adblockCosmeticOffSites = normalizeSites(patch.adblockCosmeticOffSites)
+  if (patch.siteZoom !== undefined) out.siteZoom = normalizeZoom(patch.siteZoom)
   if (patch.mutedSites !== undefined) out.mutedSites = normalizeSites(patch.mutedSites)
   if (typeof patch.torSnowflake === 'boolean') out.torSnowflake = patch.torSnowflake
   if (patch.startup === 'newtab' || patch.startup === 'restore') out.startup = patch.startup

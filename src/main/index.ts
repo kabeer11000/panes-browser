@@ -187,7 +187,10 @@ function createWindow(): void {
     active: () => tabs.activeSite(),
     blocked: (id) => adblock.blockedOn(id),
     muteSite: (key, muted) => tabs.setSiteMuted(key, muted),
-    changed: () => tabs.applyBoosts()
+    changed: () => {
+      tabs.applyBoosts()
+      tabs.applyZoom()
+    }
   })
   new PermissionManager(
     win,

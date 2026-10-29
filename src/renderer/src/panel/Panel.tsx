@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '../../../shared/memory'
 import { PERM_LABEL, type PermDecision, type PermKind } from '../../../shared/permissions'
 import { BOOST_FONTS, DEFAULT_THEME, withTheme } from '../../../shared/sitetheme'
 import type { SiteInfo, SitePanelApi, SitePatch, SiteTheme } from '../../../shared/types'
@@ -188,6 +189,11 @@ export function Panel(): React.JSX.Element | null {
   }
 
   const setCount = Object.keys(info.perms).length
+  const zoomTo = (level: number): void =>
+    send({ zoom: Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, level)) }, (i) => ({
+      ...i,
+      zoom: level
+    }))
   return (
     <div className="pn-root" ref={box}>
       <div className="pn" role="dialog" aria-label="Site settings">
@@ -439,6 +445,35 @@ export function Panel(): React.JSX.Element | null {
             </button>
 
             <div className="pn-group">
+              <div className="pn-row">
+                <span>Page zoom</span>
+                <span className="pn-zoom">
+                  <button
+                    type="button"
+                    aria-label="Zoom out"
+                    disabled={info.zoom <= ZOOM_LEVEL_MIN}
+                    onClick={() => zoomTo(info.zoom - 0.5)}
+                  >
+                    &minus;
+                  </button>
+                  <button
+                    type="button"
+                    className="val"
+                    title="Back to 100%"
+                    onClick={() => zoomTo(0)}
+                  >
+                    {Math.round(1.2 ** info.zoom * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Zoom in"
+                    disabled={info.zoom >= ZOOM_LEVEL_MAX}
+                    onClick={() => zoomTo(info.zoom + 0.5)}
+                  >
+                    +
+                  </button>
+                </span>
+              </div>
               <div className="pn-row">
                 <span>
                   Block ads and trackers

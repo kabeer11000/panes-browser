@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   adblockCosmeticOffSites: [],
   torSnowflake: false,
   mutedSites: [],
+  siteZoom: {},
   startup: 'newtab',
   accent: '#8b8bff',
   uiScale: 1,

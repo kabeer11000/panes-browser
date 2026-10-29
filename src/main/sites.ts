@@ -69,6 +69,7 @@ export class SiteSettings {
       theme: { color: space?.color ?? '#6e7bff', tint: space?.tint ?? 0 },
       keepLoaded: siteListed(key, settings.neverUnloadSites),
       muted: siteListed(key, settings.mutedSites),
+      zoom: settings.siteZoom[key] ?? 0,
       perms
     }
   }
@@ -99,6 +100,12 @@ export class SiteSettings {
       this.d.settings.update({
         adblockCosmeticOffSites: patch.adblockCosmetic ? rest : [...rest, key]
       })
+    }
+    if (typeof patch.zoom === 'number') {
+      const rest = { ...settings.siteZoom }
+      delete rest[key]
+      if (patch.zoom !== 0) rest[key] = patch.zoom
+      this.d.settings.update({ siteZoom: rest }) // the settings store keeps it within range
     }
     if (typeof patch.muted === 'boolean') this.d.muteSite(key, patch.muted)
     if (typeof patch.keepLoaded === 'boolean') {

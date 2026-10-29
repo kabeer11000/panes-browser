@@ -25,7 +25,7 @@ import {
   type TabGroup
 } from '../shared/tabgroups'
 import { stageBackground } from '../shared/color'
-import { siteListed } from '../shared/memory'
+import { siteListed, ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '../shared/memory'
 import { siteKey, siteThemeCss } from '../shared/sitetheme'
 import { CAPTURE_SCRIPT, NO_CAPTURE, parseCapture, type CaptureState } from '../shared/capture'
 import { dumpableTabs, type TabDump } from '../shared/dumps'
@@ -78,8 +78,8 @@ const FIRST_PAINT_MS = 90 // after dom-ready, before a freshly loaded page is re
 const AWAIT_PAINT_MAX_MS = 2500 // never keep a view hidden longer than this, whatever the page does
 const VIEW_RADIUS = 12
 const ZOOM_STEP = 0.5
-const ZOOM_MIN = -3
-const ZOOM_MAX = 5
+const ZOOM_MIN = ZOOM_LEVEL_MIN
+const ZOOM_MAX = ZOOM_LEVEL_MAX
 const PARKED_X = -20000 // where views wait, out of sight, while an overlay is open
 const MEMORY_SWEEP_MS = 30_000
 const ESC_HOLD_MS = 1000
@@ -860,7 +860,27 @@ export class TabManager {
     const wc = this.current()?.view.webContents
     if (!wc) return
     const next = delta === null ? 0 : wc.getZoomLevel() + delta
-    wc.setZoomLevel(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next)))
+    const level = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next))
+    wc.setZoomLevel(level)
+    // the zoom belongs to the site: it comes back whenever the site is opened
+    const key = siteKey(wc.getURL())
+    if (!key) return
+    const rest = { ...this.deps.settings.get().siteZoom }
+    if (level === 0) delete rest[key]
+    else rest[key] = level
+    this.deps.settings.update({ siteZoom: rest })
+  }
+
+  /** Put each page at the zoom saved for its site (100% where none is saved). */
+  applyZoom(): void {
+    const saved = this.deps.settings.get().siteZoom
+    for (const tab of this.tabs.values()) {
+      const wc = liveContents(tab)
+      if (!wc || tab.unloaded) continue
+      const key = siteKey(wc.getURL())
+      const level = (key && saved[key]) || 0
+      if (key && wc.getZoomLevel() !== level) wc.setZoomLevel(level)
+    }
   }
 
   private setFullscreen(id: number | null): void {
@@ -1254,6 +1274,7 @@ export class TabManager {
       // loads); running it again is harmless, it only installs once.
       void wc.executeJavaScript(CAPTURE_SCRIPT).catch(() => undefined)
       this.applyDarkening() // covers tabs created or restored after the theme last changed
+      this.applyZoom()
       tab.boostKey = null // a new document starts without the old sheet
       void this.applyBoost(tab)
     })

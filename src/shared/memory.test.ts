@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   normalizeSites,
+  normalizeZoom,
   pickUnloads,
   presetOf,
   siteListed,
@@ -112,5 +113,15 @@ describe('presetOf', () => {
     expect(presetOf({ unloadIdleMin: 30, maxLoadedTabs: 0 })).toBe('balanced')
     expect(presetOf({ unloadIdleMin: 5, maxLoadedTabs: 8 })).toBe('aggressive')
     expect(presetOf({ unloadIdleMin: 15, maxLoadedTabs: 0 })).toBe('custom')
+  })
+})
+
+describe('normalizeZoom', () => {
+  test('keeps sane levels in half steps, drops 100% and junk', () => {
+    expect(
+      normalizeZoom({ 'a.com': 2, 'b.com': 0, 'c.com': 99, 'd.com': 'x', 'e.com': 1.3, '': 1 })
+    ).toEqual({ 'a.com': 2, 'c.com': 8, 'e.com': 1.5 })
+    expect(normalizeZoom(null)).toEqual({})
+    expect(normalizeZoom([1, 2])).toEqual({})
   })
 })

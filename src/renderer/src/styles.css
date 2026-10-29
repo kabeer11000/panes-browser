@@ -3567,3 +3567,14 @@ kbd {
   bottom: -10px;
   background: radial-gradient(circle at 0 100%, transparent 9.5px, var(--tab-surface) 10px);
 }
+/* the page is inset from its plane on every side, the left one too, so the tab flows into a margin, not into the page */
+.stage-wrap.plane {
+  padding-left: var(--edge);
+}
+
+/* a tab beside the active one keeps its hover to text: its tint would run under the active tab's curved feet */
+.htab:has(+ .htab.active):hover,
+.htab.active + .htab:hover {
+  background: transparent;
+  color: var(--fg);
+}

@@ -26,6 +26,23 @@ export function presetOf(
 
 const MAX_SITES = 100
 
+/** Zoom levels the browser allows (Chromium's own range is 25% to 500%). */
+export const ZOOM_LEVEL_MIN = -7
+export const ZOOM_LEVEL_MAX = 8
+
+/** Untrusted map (host name to zoom level) to host names with a sane, non-default level. */
+export function normalizeZoom(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
+  for (const [host, level] of Object.entries(raw as Record<string, unknown>)) {
+    const key = normalizeSites([host])[0]
+    if (!key || typeof level !== 'number' || !Number.isFinite(level)) continue
+    const clamped = Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, Math.round(level * 2) / 2))
+    if (clamped !== 0) out[key] = clamped
+  }
+  return out
+}
+
 /** Untrusted list (it can come from a panes:// page) to bare, lowercase, de-duplicated host names. */
 export function normalizeSites(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
