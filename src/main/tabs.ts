@@ -862,16 +862,23 @@ export class TabManager {
   private zoom(delta: number | null): void {
     const wc = this.current()?.view.webContents
     if (!wc) return
-    const next = delta === null ? 0 : wc.getZoomLevel() + delta
+    const base = this.defaultZoom(this.current()?.spaceId)
+    const next = delta === null ? base : wc.getZoomLevel() + delta
     const level = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next))
     wc.setZoomLevel(level)
-    // the zoom belongs to the site: it comes back whenever the site is opened
+    // the zoom belongs to the site: it comes back whenever the site is opened (none kept when it is the default)
     const key = siteKey(wc.getURL())
     if (!key) return
     const rest = { ...this.deps.settings.get().siteZoom }
-    if (level === 0) delete rest[key]
+    if (level === base) delete rest[key]
     else rest[key] = level
     this.deps.settings.update({ siteZoom: rest })
+  }
+
+  /** How large pages start out in a space: its own setting, else the general one. */
+  defaultZoom(spaceId?: number): number {
+    const own = spaceId === undefined ? undefined : this.deps.spaces.get(spaceId)?.ui.pageZoom
+    return own ?? this.deps.settings.get().pageZoom
   }
 
   /** Put each page at the zoom saved for its site (100% where none is saved). */
@@ -881,7 +888,7 @@ export class TabManager {
       const wc = liveContents(tab)
       if (!wc || tab.unloaded) continue
       const key = siteKey(wc.getURL())
-      const level = (key && saved[key]) || 0
+      const level = key ? (saved[key] ?? this.defaultZoom(tab.spaceId)) : 0
       if (key && wc.getZoomLevel() !== level) wc.setZoomLevel(level)
     }
   }

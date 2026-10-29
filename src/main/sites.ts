@@ -27,6 +27,8 @@ interface Deps {
   active: () => { url: string; spaceId: number; contentsId: number } | null
   /** How many requests the ad blocker has stopped on the page shown in the given WebContents. */
   blocked: (contentsId: number) => number
+  /** How large pages start out in a space (a zoom level). */
+  defaultZoom: (spaceId: number) => number
   /** Mute or unmute a whole site. */
   muteSite: (key: string, muted: boolean) => void
   /** Re-apply boosts and the ad blocker's exceptions after a change. */
@@ -69,7 +71,8 @@ export class SiteSettings {
       theme: { color: space?.color ?? '#6e7bff', tint: space?.tint ?? 0 },
       keepLoaded: siteListed(key, settings.neverUnloadSites),
       muted: siteListed(key, settings.mutedSites),
-      zoom: settings.siteZoom[key] ?? 0,
+      zoom: settings.siteZoom[key] ?? this.d.defaultZoom(page.spaceId),
+      defaultZoom: this.d.defaultZoom(page.spaceId),
       perms
     }
   }
@@ -104,7 +107,7 @@ export class SiteSettings {
     if (typeof patch.zoom === 'number') {
       const rest = { ...settings.siteZoom }
       delete rest[key]
-      if (patch.zoom !== 0) rest[key] = patch.zoom
+      if (patch.zoom !== this.d.defaultZoom(page.spaceId)) rest[key] = patch.zoom
       this.d.settings.update({ siteZoom: rest }) // the settings store keeps it within range
     }
     if (typeof patch.muted === 'boolean') this.d.muteSite(key, patch.muted)

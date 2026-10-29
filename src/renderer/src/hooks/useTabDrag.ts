@@ -20,6 +20,8 @@ export type DropTarget =
 
 export interface DragState {
   id: number
+  /** Where the pointer was when the press began, so a dragged tab can follow it from there. */
+  startX: number
   source: DragSource
   x: number
   y: number
@@ -65,6 +67,19 @@ function boxFor(r: DOMRect, edge: Edge | 'center'): Box {
     default:
       return { x: x + w * 0.12, y: y + h * 0.12, w: w * 0.76, h: h * 0.76 }
   }
+}
+
+/**
+ * A row's box as the layout has it, without the sideways or vertical shift the slide animation gives it.
+ * Working out where a dragged tab would land from shifted boxes would feed back into itself.
+ */
+function layoutRect(el: HTMLElement): DOMRect {
+  const r = el.getBoundingClientRect()
+  const m = /^(-?[\d.]+)(?:px)?(?:\s+(-?[\d.]+)(?:px)?)?$/.exec(el.style.translate.trim())
+  if (!m) return r
+  const dx = Number(m[1])
+  const dy = m[2] === undefined ? 0 : Number(m[2])
+  return new DOMRect(r.x - dx, r.y - dy, r.width, r.height)
 }
 
 /** Resolve what the pointer is over: a pane edge, a sidebar insertion slot, or nothing. */
@@ -128,7 +143,7 @@ function targetAt(
   if (hlist && within(hlist, 10)) {
     const rows = [...document.querySelectorAll<HTMLElement>('.htab[data-tab-id]')]
     const hit = rows.findIndex((el) => {
-      const r = el.getBoundingClientRect()
+      const r = layoutRect(el)
       return x < r.left + r.width / 2
     })
     let index = hit === -1 ? ctx.order.length : ctx.order.indexOf(Number(rows[hit].dataset.tabId))
@@ -143,7 +158,7 @@ function targetAt(
   if (list && within(list, 8)) {
     const rows = [...document.querySelectorAll<HTMLElement>('.tab-row[data-tab-id]')]
     const hit = rows.findIndex((el) => {
-      const r = el.getBoundingClientRect()
+      const r = layoutRect(el)
       return y < r.top + r.height / 2
     })
     // Rows hidden inside a folded group are not in the DOM, so read the position from the tab, not the row.
@@ -198,6 +213,7 @@ export function useTabDrag(
         if (box) lastBox = box
         setDrag({
           id,
+          startX: sx,
           source,
           x: ev.clientX,
           y: ev.clientY,

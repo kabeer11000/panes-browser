@@ -117,10 +117,10 @@ describe('presetOf', () => {
 })
 
 describe('normalizeZoom', () => {
-  test('keeps sane levels in half steps, drops 100% and junk', () => {
+  test('keeps sane levels in half steps (100% too), drops junk', () => {
     expect(
       normalizeZoom({ 'a.com': 2, 'b.com': 0, 'c.com': 99, 'd.com': 'x', 'e.com': 1.3, '': 1 })
-    ).toEqual({ 'a.com': 2, 'c.com': 8, 'e.com': 1.5 })
+    ).toEqual({ 'a.com': 2, 'b.com': 0, 'c.com': 8, 'e.com': 1.5 })
     expect(normalizeZoom(null)).toEqual({})
     expect(normalizeZoom([1, 2])).toEqual({})
   })

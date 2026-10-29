@@ -19,6 +19,12 @@ export const SLIDERS: SliderSpec[] = [
     format: percent
   },
   {
+    key: 'pageZoom',
+    label: 'Page zoom',
+    hint: 'How large pages start out. A zoom set for one site wins.',
+    format: (v) => `${Math.round(1.2 ** v * 100)}%`
+  },
+  {
     key: 'density',
     label: 'Density',
     hint: 'Lower is thinner: smaller rows, buttons and spacing.',

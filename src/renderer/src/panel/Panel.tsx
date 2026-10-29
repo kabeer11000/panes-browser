@@ -459,8 +459,10 @@ export function Panel(): React.JSX.Element | null {
                   <button
                     type="button"
                     className="val"
-                    title="Back to 100%"
-                    onClick={() => zoomTo(0)}
+                    title="Back to the usual zoom for this space"
+                    onClick={() =>
+                      void api.update({ zoom: info.defaultZoom }).then((i) => i && setInfo(i))
+                    }
                   >
                     {Math.round(1.2 ** info.zoom * 100)}%
                   </button>

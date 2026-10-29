@@ -641,7 +641,9 @@ function App(): React.JSX.Element {
           </div>
         </div>
       </main>
-      {drag && <DragLayer drag={drag} tab={tabs.find((t) => t.id === drag.id)} />}
+      {drag && !(horizontal && drag.source === 'tab' && drag.target?.kind === 'list') && (
+        <DragLayer drag={drag} tab={tabs.find((t) => t.id === drag.id)} />
+      )}
       {installing && (
         <div className="installing-veil" role="status" aria-live="polite">
           <span className="installing-spin" aria-hidden="true" />

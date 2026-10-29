@@ -16,7 +16,9 @@ export function useTabSlide(drag: DragState | null, order: number[], group: numb
   const id = drag?.id
 
   useEffect(() => {
-    const rows = [...document.querySelectorAll<HTMLElement>(ROWS)]
+    // the list that is on screen: the top strip, or else the sidebar's (both exist in the page at once)
+    const listEl = document.querySelector('.htab-list') ?? document.querySelector('.tab-list')
+    const rows = [...(listEl?.querySelectorAll<HTMLElement>(ROWS) ?? [])]
     const clear = (): void => rows.forEach((el) => el.style.removeProperty('translate'))
     if (target === null || id === undefined || rows.length === 0) return clear()
 
@@ -37,9 +39,38 @@ export function useTabSlide(drag: DragState | null, order: number[], group: numb
     const offsets = slideOffsets(edges, from, count, to)
     rows.forEach((el, i) => {
       const o = offsets[i]
+      const dragged = i >= from && i < from + count
+      // along the top strip the dragged tab itself follows the pointer (below); the others slide aside
+      if (dragged && horizontal) {
+        el.classList.add('floating')
+        return
+      }
       if (o === 0) el.style.removeProperty('translate')
       else el.style.translate = horizontal ? `${o}px 0` : `0 ${o}px`
     })
-    return clear
+    return () => {
+      rows.forEach((el) => el.classList.remove('floating'))
+      clear()
+    }
   }, [target, id, order, group])
+
+  // The dragged tab of the top strip rides the pointer, kept inside the strip.
+  const x = drag?.x
+  const startX = drag?.startX
+  useEffect(() => {
+    if (target === null || id === undefined || x === undefined || startX === undefined) return
+    const moving = group.includes(id) ? group : [id]
+    const els = moving
+      .map((m) => document.querySelector<HTMLElement>(`.htab[data-tab-id="${m}"].floating`))
+      .filter((el): el is HTMLElement => !!el)
+    if (els.length === 0) return
+    const list = document.querySelector('.htab-list')?.getBoundingClientRect()
+    const first = els[0].offsetLeft
+    const last = els[els.length - 1].offsetLeft + els[els.length - 1].offsetWidth
+    const parent = els[0].offsetParent as HTMLElement | null
+    const listLeft = list && parent ? list.left - parent.getBoundingClientRect().left : first
+    const listRight = list && parent ? list.right - parent.getBoundingClientRect().left : last
+    const dx = Math.min(listRight - last, Math.max(listLeft - first, x - startX))
+    for (const el of els) el.style.translate = `${dx}px 0`
+  }, [x, startX, target, id, group])
 }

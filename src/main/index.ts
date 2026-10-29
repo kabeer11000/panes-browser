@@ -187,6 +187,7 @@ function createWindow(): void {
     active: () => tabs.activeSite(),
     blocked: (id) => adblock.blockedOn(id),
     muteSite: (key, muted) => tabs.setSiteMuted(key, muted),
+    defaultZoom: (spaceId) => tabs.defaultZoom(spaceId),
     changed: () => {
       tabs.applyBoosts()
       tabs.applyZoom()

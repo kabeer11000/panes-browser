@@ -30,7 +30,7 @@ const MAX_SITES = 100
 export const ZOOM_LEVEL_MIN = -7
 export const ZOOM_LEVEL_MAX = 8
 
-/** Untrusted map (host name to zoom level) to host names with a sane, non-default level. */
+/** Untrusted map (host name to zoom level) to host names with a sane level, 100% included (a site can opt out of a larger default). */
 export function normalizeZoom(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {}
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out
@@ -38,7 +38,7 @@ export function normalizeZoom(raw: unknown): Record<string, number> {
     const key = normalizeSites([host])[0]
     if (!key || typeof level !== 'number' || !Number.isFinite(level)) continue
     const clamped = Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, Math.round(level * 2) / 2))
-    if (clamped !== 0) out[key] = clamped
+    out[key] = clamped
   }
   return out
 }

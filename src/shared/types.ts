@@ -41,6 +41,7 @@ export interface TabInfo {
 /** Interface settings a space can override; anything unset falls back to the global setting. */
 export interface SpaceUi {
   uiScale?: number
+  pageZoom?: number
   density?: number
   sidebarWidth?: number
   pageMargin?: number
@@ -253,6 +254,8 @@ export interface Settings {
   pageMargin: number
   /** Scales the address bar's height and text. */
   addressSize: number
+  /** How large pages start out, as a zoom level (0 is 100%). A site's own zoom wins. */
+  pageZoom: number
   /** Show the full address, or just the site name, when the bar is not being edited. */
   urlDisplay: 'full' | 'host'
   /** Send what you type in the command bar to your search engine to get suggestions. */
@@ -313,6 +316,8 @@ export interface SiteInfo {
   keepLoaded: boolean
   /** The site's page zoom as a Chromium level: 0 is 100%, each step is one 1.2 times. */
   zoom: number
+  /** Where its space starts pages out, a level: what the reset button returns to. */
+  defaultZoom: number
   /** The site is muted wherever it is open. */
   muted: boolean
   perms: Partial<Record<PermKind, PermDecision>>

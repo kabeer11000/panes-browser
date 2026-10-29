@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   density: 1,
   sidebarWidth: 252,
   pageMargin: 8,
+  pageZoom: 0,
   addressSize: 1,
   urlDisplay: 'full',
   searchSuggestions: true,
@@ -40,7 +41,8 @@ export const DEFAULT_SETTINGS: Settings = {
   neverUnloadSites: []
 }
 
-export type AppearanceKey = 'uiScale' | 'density' | 'sidebarWidth' | 'pageMargin' | 'addressSize'
+export type AppearanceKey =
+  'uiScale' | 'density' | 'sidebarWidth' | 'pageMargin' | 'addressSize' | 'pageZoom'
 
 /** Allowed range for each appearance slider; main clamps to these too. */
 export const APPEARANCE_LIMITS: Record<AppearanceKey, { min: number; max: number; step: number }> =
@@ -49,7 +51,9 @@ export const APPEARANCE_LIMITS: Record<AppearanceKey, { min: number; max: number
     density: { min: 0.6, max: 1.3, step: 0.05 },
     sidebarWidth: { min: 200, max: 380, step: 4 },
     pageMargin: { min: 0, max: 16, step: 1 },
-    addressSize: { min: 0.8, max: 1.5, step: 0.05 }
+    addressSize: { min: 0.8, max: 1.5, step: 0.05 },
+    // a Chromium zoom level: 0 is 100%, each step is 1.2 times
+    pageZoom: { min: -3, max: 5, step: 0.5 }
   }
 
 export const INTERNAL_PAGES = [

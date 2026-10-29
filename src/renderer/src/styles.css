@@ -1491,8 +1491,9 @@ button {
   cursor: text;
 }
 .addr-display b {
-  font-weight: 500;
-  color: var(--fg);
+  font-weight: 400;
+  /* softer than body text, as in Chrome: the site name reads, it does not shout */
+  color: color-mix(in srgb, var(--fg) 82%, transparent);
 }
 .addr-display i {
   font-style: normal;
@@ -3671,4 +3672,17 @@ kbd {
   box-shadow:
     inset 1px 0 0 var(--border),
     inset 0 -2px 0 var(--gc);
+}
+
+/* a tab being dragged along the top strip: it is the tab itself that moves, lifted above the others */
+.htab.floating {
+  z-index: 6;
+  opacity: 1;
+  transition: none;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  background: var(--tab-surface-strong);
+  cursor: grabbing;
+}
+.htab-list:has(.htab.floating) {
+  overflow: visible;
 }
