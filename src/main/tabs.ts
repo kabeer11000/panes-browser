@@ -1600,12 +1600,6 @@ export class TabManager {
     return Math.abs(r.width - t.thumbSize.w) <= 3 && Math.abs(r.height - t.thumbSize.h) <= 3
   }
 
-  /** Take the full-size pictures early (the pointer is nearly at the edge), so the overlay can open at once. */
-  warmSharp(): void {
-    if (this.overlay) return
-    for (const id of this.visibleIds()) void this.snapshot(id, true)
-  }
-
   private async snapshot(id: number, sharp = false): Promise<void> {
     const tab = this.tabs.get(id)
     if (!tab || this.overlay || !this.visibleIds().includes(id) || this.isBlank(tab)) return

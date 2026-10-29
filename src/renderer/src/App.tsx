@@ -541,7 +541,7 @@ function App(): React.JSX.Element {
             'stage-wrap' +
             (pushed ? '' : ' with-strip') +
             (horizontal ? ' hlayout' : '') +
-            (pushed && !horizontal ? ' plane' : '') +
+            ((pushed || hoverShown) && !horizontal ? ' plane' : '') +
             (stripHidden && !pushed ? ' no-bar' : '')
           }
         >

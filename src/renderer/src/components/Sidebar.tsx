@@ -92,6 +92,14 @@ export function Sidebar({
   const [renamingGroup, setRenamingGroup] = useState<number | null>(null)
   useEffect(() => window.api.onRenameGroup(setRenamingGroup), [])
   const groupById = new Map(tabGroups.map((g) => [g.id, g]))
+  // Which tiles of the split are on screen: a folded group hides all of its tabs but the one you are on.
+  const drawnSplit = tabs
+    .filter((t) => {
+      const g = t.groupId === null ? undefined : groupById.get(t.groupId)
+      return !(g?.collapsed && t.id !== activeId) && group.includes(t.id)
+    })
+    .map((t) => t.id)
+  const pairHasActive = group.includes(activeId ?? -1)
   const countOf = (id: number): number => tabs.filter((t) => t.groupId === id).length
 
   const headerFor = (g: TabGroup): React.JSX.Element => (
@@ -186,6 +194,12 @@ export function Sidebar({
             const header = tg && tabs[i - 1]?.groupId !== t.groupId ? headerFor(tg) : null
             const gi = group.indexOf(t.id)
             const inSplit = gi !== -1
+            // The split as drawn (a folded group hides some tiles): its first and last tile carry the curved ends.
+            const firstDrawn = inSplit && drawnSplit[0] === t.id
+            const lastDrawn = inSplit && drawnSplit[drawnSplit.length - 1] === t.id
+            const lone = t.id === activeId && !inSplit
+            const footTop = lone || (pairHasActive && firstDrawn)
+            const footBottom = lone || (pairHasActive && lastDrawn)
             const row = (
               <motion.div
                 key={t.id}
@@ -196,6 +210,9 @@ export function Sidebar({
                   (t.id === activeId ? ' active' : '') +
                   (tg ? ' grouped' : '') +
                   (inSplit ? ' in-split' : '') +
+                  (inSplit && pairHasActive ? ' pair-active' : '') +
+                  (firstDrawn ? ' pair-first' : '') +
+                  (lastDrawn ? ' pair-last' : '') +
                   (t.unloaded ? ' unloaded' : '') +
                   (gi === 0 ? ' group-first' : '') +
                   (inSplit && gi === group.length - 1 ? ' group-last' : '') +
@@ -215,12 +232,8 @@ export function Sidebar({
                 }}
                 onAuxClick={(e) => e.button === 1 && window.api.closeTab(t.id)}
               >
-                {t.id === activeId && (
-                  <>
-                    <span className="trow-foot t" aria-hidden="true" />
-                    <span className="trow-foot b" aria-hidden="true" />
-                  </>
-                )}
+                {footTop && <span className="trow-foot t" aria-hidden="true" />}
+                {footBottom && <span className="trow-foot b" aria-hidden="true" />}
                 <TabFavicon tab={t} />
                 <span className="tab-title">{tabTitle(t)}</span>
                 {inSplit ? (

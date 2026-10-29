@@ -337,8 +337,6 @@ function createWindow(): void {
         if (!side.open) {
           outSince = 0
           if (inside && x <= SIDE_EDGE_PX) {
-            // a full-size picture of the page is taken while the pointer rests, so it is ready when the sidebar opens
-            if (!dwellSince) tabs.warmSharp()
             dwellSince ||= Date.now()
             if (Date.now() - dwellSince >= SIDE_DWELL_MS) {
               dwellSince = 0
