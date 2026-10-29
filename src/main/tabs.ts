@@ -1468,7 +1468,19 @@ export class TabManager {
     if (tab.groupId !== null) {
       items.push({ label: 'Remove from group', click: () => this.removeFromGroup(id) })
     }
-    items.push({ type: 'separator' }, { label: 'Close tab', click: () => this.close(id) })
+    items.push(
+      { type: 'separator' },
+      {
+        label: tab.unloaded ? 'Tab is unloaded' : 'Unload tab',
+        // the page on screen cannot be thrown away; pages that are not web pages have nothing to reload from
+        enabled: !tab.unloaded && id !== this.activeId,
+        click: () => {
+          this.unload(id)
+          this.refresh()
+        }
+      },
+      { label: 'Close tab', click: () => this.close(id) }
+    )
     Menu.buildFromTemplate(items).popup({ window: this.win })
   }
 
