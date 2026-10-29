@@ -3430,10 +3430,6 @@ kbd {
 .tab-row.active.grouped {
   border-radius: 3px 0 0 3px;
 }
-.tab-row.active .tab-close,
-.tab-row.active .tab-action {
-  margin-right: calc(2px * var(--d));
-}
 /* the list scrolls, so it clips: widen it into the sidebar's padding so the active tab can reach the page */
 .tab-list {
   margin-right: calc(-10px * var(--d));
