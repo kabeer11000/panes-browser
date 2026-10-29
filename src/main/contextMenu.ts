@@ -43,6 +43,21 @@ export function showContextMenu(
     items.push({ label: 'Picture in Picture', click: a.pip }, sep)
   }
   if (p.isEditable) {
+    if (p.misspelledWord) {
+      // Corrections first, as in every browser; the menu pops up exactly where the squiggle was clicked.
+      const fixes = p.dictionarySuggestions.slice(0, 5)
+      items.push(
+        ...(fixes.length > 0
+          ? fixes.map((w) => ({ label: w, click: () => wc.replaceMisspelling(w) }))
+          : [{ label: 'No suggestions', enabled: false }]),
+        sep,
+        {
+          label: `Add "${p.misspelledWord}" to dictionary`,
+          click: () => wc.session.addWordToSpellCheckerDictionary(p.misspelledWord)
+        },
+        sep
+      )
+    }
     items.push(
       { role: 'undo', enabled: p.editFlags.canUndo },
       { role: 'redo', enabled: p.editFlags.canRedo },

@@ -101,6 +101,9 @@ function createWindow(): void {
   tabSession.setUserAgent(chromeUserAgent())
   rewriteClientHints(tabSession, chromeUserAgent())
   serveInternalPages(tabSession)
+  // Spell check follows the system language; if that is not one it has a dictionary for, use English.
+  if (tabSession.getSpellCheckerLanguages().length === 0)
+    tabSession.setSpellCheckerLanguages(['en-US'])
 
   const settings = new SettingsStore()
   const history = new HistoryStore()
@@ -460,42 +463,60 @@ function createWindow(): void {
       const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
       const srv = createServer((_q, r) => {
         r.setHeader('content-type', 'text/html')
-        r.end('<title>Panel test</title><body style="margin:0;background:#fff;color:#111;font:26px sans-serif"><div style="padding:30px">Panel test page <a href="#">link</a></div><div id="banner" class="promo big" style="height:120px;background:#fde68a;margin:20px;padding:10px">Cookie banner</div><div style="height:200px;background:#e8e8e8;margin:20px;padding:10px">content</div></body>')
+        r.end(
+          '<title>Panel test</title><body style="margin:0;background:#fff;color:#111;font:26px sans-serif"><div style="padding:30px">Panel test page <a href="#">link</a></div><div id="banner" class="promo big" style="height:120px;background:#fde68a;margin:20px;padding:10px">Cookie banner</div><div style="height:200px;background:#e8e8e8;margin:20px;padding:10px">content</div></body>'
+        )
       })
-      srv.listen(0, '127.0.0.1', () => setTimeout(async () => {
-        const port = (srv.address() as { port: number }).port
-        await win.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`)
-        tabs.create(`http://127.0.0.1:${port}/`)
-        await sleep(2500)
-        await win.webContents.executeJavaScript(`window.api.toggleSitePanel({ x: 1300, y: 60, width: 26, height: 26 })`)
-        await sleep(1500)
-        const { webContents } = await import('electron')
-        const panel = webContents.getAllWebContents().find((w) => w.getURL().includes('panel.html'))
-        if (!panel) { console.log('[panel] no panel view'); app.quit(); return }
-        const shot = async (n: string): Promise<void> => {
-          const img = await panel.capturePage()
-          writeFileSync((process.env['PANES_SHOT'] ?? '.') + '-' + n + '.png', img.toPNG())
-        }
-        const click = (code: string): Promise<unknown> => panel.executeJavaScript(code)
-        await click(`[...document.querySelectorAll('.ss-tint')].find((b) => b.getAttribute('aria-label') === '#3b82f6')?.click()`)
-        await sleep(600)
-        await shot('1-colour')
-        const real = tabs.debugContents()!
-        const pageShot = async (n: string): Promise<void> => {
-          const img = await real.capturePage()
-          writeFileSync((process.env['PANES_SHOT'] ?? '.') + '-' + n + '.png', img.toPNG())
-        }
-        await pageShot('1-page')
-        for (const [i, name] of ['Font', 'Hide', 'CSS', 'Site'].entries()) {
-          await click(`[...document.querySelectorAll('.pn-tabs button')].find((b) => b.textContent.startsWith('${name}')).click()`)
-          await sleep(500)
-          if (name === 'Font') await click(`document.querySelectorAll('.pn-font')[2].click()`)
-          await sleep(300)
-          await shot(`${i + 2}-${name.toLowerCase()}`)
-        }
-        console.log('[panel] boost saved', JSON.stringify(spaces.list()[0].sites))
-        app.quit()
-      }, 2500))
+      srv.listen(0, '127.0.0.1', () =>
+        setTimeout(async () => {
+          const port = (srv.address() as { port: number }).port
+          await win.webContents.executeJavaScript(
+            `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`
+          )
+          tabs.create(`http://127.0.0.1:${port}/`)
+          await sleep(2500)
+          await win.webContents.executeJavaScript(
+            `window.api.toggleSitePanel({ x: 1300, y: 60, width: 26, height: 26 })`
+          )
+          await sleep(1500)
+          const { webContents } = await import('electron')
+          const panel = webContents
+            .getAllWebContents()
+            .find((w) => w.getURL().includes('panel.html'))
+          if (!panel) {
+            console.log('[panel] no panel view')
+            app.quit()
+            return
+          }
+          const shot = async (n: string): Promise<void> => {
+            const img = await panel.capturePage()
+            writeFileSync((process.env['PANES_SHOT'] ?? '.') + '-' + n + '.png', img.toPNG())
+          }
+          const click = (code: string): Promise<unknown> => panel.executeJavaScript(code)
+          await click(
+            `[...document.querySelectorAll('.ss-tint')].find((b) => b.getAttribute('aria-label') === '#3b82f6')?.click()`
+          )
+          await sleep(600)
+          await shot('1-colour')
+          const real = tabs.debugContents()!
+          const pageShot = async (n: string): Promise<void> => {
+            const img = await real.capturePage()
+            writeFileSync((process.env['PANES_SHOT'] ?? '.') + '-' + n + '.png', img.toPNG())
+          }
+          await pageShot('1-page')
+          for (const [i, name] of ['Font', 'Hide', 'CSS', 'Site'].entries()) {
+            await click(
+              `[...document.querySelectorAll('.pn-tabs button')].find((b) => b.textContent.startsWith('${name}')).click()`
+            )
+            await sleep(500)
+            if (name === 'Font') await click(`document.querySelectorAll('.pn-font')[2].click()`)
+            await sleep(300)
+            await shot(`${i + 2}-${name.toLowerCase()}`)
+          }
+          console.log('[panel] boost saved', JSON.stringify(spaces.list()[0].sites))
+          app.quit()
+        }, 2500)
+      )
     } else if (debugPage === 'pip') {
       const url = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm'
       setTimeout(() => tabs.create(url), 2500)
