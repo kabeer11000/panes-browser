@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { APPEARANCE_LIMITS, DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../../../shared/settings'
+import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../../../shared/settings'
 import type { ClearKind, SearchEngineId, Settings as SettingsData } from '../../../../shared/types'
 
 import { SLIDERS } from '../sliders'
+import { Group, Row, Segmented, Select, SliderRow, Toggle } from '../ui'
+import { MemorySection } from './MemorySection'
+import { SitePermissions } from './SitePermissions'
 import { SpacesSection } from './SpacesSection'
 
 const ACCENTS = ['#8b8bff', '#5eb6ff', '#4ade80', '#fbbf24', '#fb7185', '#e879f9']
@@ -20,25 +23,6 @@ const RANGES: Array<{ label: string; ms: number | null }> = [
   { label: 'Last 7 days', ms: 7 * 86_400_000 },
   { label: 'All time', ms: null }
 ]
-
-function Toggle({
-  on,
-  onChange
-}: {
-  on: boolean
-  onChange: (v: boolean) => void
-}): React.JSX.Element {
-  return (
-    <button
-      role="switch"
-      aria-checked={on}
-      className={'toggle' + (on ? ' on' : '')}
-      onClick={() => onChange(!on)}
-    >
-      <span />
-    </button>
-  )
-}
 
 export function Settings(): React.JSX.Element {
   const [s, setS] = useState<SettingsData>(DEFAULT_SETTINGS)
@@ -70,120 +54,79 @@ export function Settings(): React.JSX.Element {
 
   return (
     <>
-      <section className="int-section">
-        <h2>Search</h2>
-        <div className="int-field">
-          <div>
-            <div className="int-label">Search engine</div>
-            <div className="int-sub">Used when you type something that is not a web address.</div>
-          </div>
-          <select
+      <Group title="Search">
+        <Row label="Search engine" hint="Used when you type something that is not a web address.">
+          <Select
+            label="Search engine"
             value={s.searchEngine}
-            onChange={(e) => void update({ searchEngine: e.target.value as SearchEngineId })}
-          >
-            {Object.entries(SEARCH_ENGINES).map(([id, e]) => (
-              <option key={id} value={id}>
-                {e.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </section>
+            options={Object.entries(SEARCH_ENGINES).map(([id, e]) => ({
+              value: id as SearchEngineId,
+              label: e.name
+            }))}
+            onChange={(v) => void update({ searchEngine: v })}
+          />
+        </Row>
+        <Row
+          label="Search suggestions"
+          hint="Send what you type in the command bar to your search engine to get suggestions."
+        >
+          <Toggle
+            label="Search suggestions"
+            on={s.searchSuggestions}
+            onChange={(v) => void update({ searchSuggestions: v })}
+          />
+        </Row>
+        <Row label="Command bar style" hint="Grow out of the address bar, or open in the middle.">
+          <Segmented
+            label="Command bar style"
+            value={s.searchStyle}
+            options={[
+              { value: 'dropdown', label: 'Under bar' },
+              { value: 'center', label: 'Centered' }
+            ]}
+            onChange={(v) => void update({ searchStyle: v })}
+          />
+        </Row>
+      </Group>
 
-      <section className="int-section">
-        <h2>On startup</h2>
-        <div className="int-field">
-          <div>
-            <div className="int-label">When Panes opens</div>
-            <div className="int-sub">Restore brings back the tabs you had open.</div>
-          </div>
-          <select
+      <Group title="On startup" footer="Restore brings back the tabs you had open.">
+        <Row label="When Panes opens">
+          <Segmented
+            label="When Panes opens"
             value={s.startup}
-            onChange={(e) => void update({ startup: e.target.value as SettingsData['startup'] })}
-          >
-            <option value="newtab">Open a new tab</option>
-            <option value="restore">Restore previous tabs</option>
-          </select>
-        </div>
-      </section>
+            options={[
+              { value: 'newtab', label: 'New tab' },
+              { value: 'restore', label: 'Restore tabs' }
+            ]}
+            onChange={(v) => void update({ startup: v })}
+          />
+        </Row>
+      </Group>
 
       <SpacesSection />
 
-      <section className="int-section">
-        <h2>Top bar</h2>
-        <div className="int-field">
-          <div>
-            <div className="int-label">Hide the top bar when the sidebar is collapsed</div>
-            <div className="int-sub">
-              Gives the page the whole window. Move the pointer to the top edge to bring it back.
-            </div>
-          </div>
-          <Toggle on={s.autoHideTopBar} onChange={(v) => void update({ autoHideTopBar: v })} />
-        </div>
-      </section>
+      <Group
+        title="Tabs"
+        footer="Vertical keeps tabs, spaces and the address bar in a sidebar you can tuck away. Horizontal puts tabs in a row along the top, with spaces at the left end."
+      >
+        <Row label="Tab layout">
+          <Segmented
+            label="Tab layout"
+            value={s.tabLayout}
+            options={[
+              { value: 'vertical', label: 'Sidebar' },
+              { value: 'horizontal', label: 'Along the top' }
+            ]}
+            onChange={(v) => void update({ tabLayout: v })}
+          />
+        </Row>
+      </Group>
 
-      <section className="int-section">
-        <h2>Interface size</h2>
-        {SLIDERS.map((sl) => {
-          const { min, max, step } = APPEARANCE_LIMITS[sl.key]
-          return (
-            <div key={sl.key} className="int-field">
-              <div>
-                <div className="int-label">{sl.label}</div>
-                <div className="int-sub">{sl.hint}</div>
-              </div>
-              <div className="slider">
-                <input
-                  type="range"
-                  min={min}
-                  max={max}
-                  step={step}
-                  value={s[sl.key]}
-                  onChange={(e) => void update({ [sl.key]: Number(e.target.value) })}
-                />
-                <span className="slider-value">{sl.format(s[sl.key])}</span>
-              </div>
-            </div>
-          )
-        })}
-        <div className="int-field">
-          <div>
-            <div className="int-label">Address bar shows</div>
-            <div className="int-sub">What you see in the bar while you are not typing.</div>
-          </div>
-          <select
-            value={s.urlDisplay}
-            onChange={(e) =>
-              void update({ urlDisplay: e.target.value as SettingsData['urlDisplay'] })
-            }
-          >
-            <option value="full">Full address</option>
-            <option value="host">Site name only</option>
-          </select>
-        </div>
-        <button
-          className="int-btn small"
-          onClick={() =>
-            void update({
-              uiScale: DEFAULT_SETTINGS.uiScale,
-              density: DEFAULT_SETTINGS.density,
-              sidebarWidth: DEFAULT_SETTINGS.sidebarWidth,
-              pageMargin: DEFAULT_SETTINGS.pageMargin,
-              addressSize: DEFAULT_SETTINGS.addressSize
-            })
-          }
-        >
-          Reset interface size
-        </button>
-      </section>
-
-      <section className="int-section">
-        <h2>Appearance</h2>
-        <div className="int-field">
-          <div>
-            <div className="int-label">Accent colour</div>
-            <div className="int-sub">Highlights, focus rings and the split view glow.</div>
-          </div>
+      <Group
+        title="Appearance"
+        footer="Accent colour highlights controls, focus rings and the split view glow."
+      >
+        <Row label="Accent colour">
           <div className="swatches">
             {ACCENTS.map((c) => (
               <button
@@ -201,114 +144,156 @@ export function Settings(): React.JSX.Element {
               onChange={(e) => void update({ accent: e.target.value })}
             />
           </div>
-        </div>
-      </section>
+        </Row>
+        <Row
+          label="Hide the top bar when the sidebar is collapsed"
+          hint="Gives the page the whole window. Move the pointer to the top edge to bring it back."
+        >
+          <Toggle
+            label="Auto-hide top bar"
+            on={s.autoHideTopBar}
+            onChange={(v) => void update({ autoHideTopBar: v })}
+          />
+        </Row>
+        <Row
+          label="Open the sidebar from the left edge"
+          hint="With the sidebar collapsed, touching the left edge of the window brings it back, and it tucks away again when the pointer leaves."
+        >
+          <Toggle
+            label="Open the sidebar from the left edge"
+            on={s.sidebarHover}
+            onChange={(v) => void update({ sidebarHover: v })}
+          />
+        </Row>
+      </Group>
 
-      <section className="int-section" id="privacy">
-        <h2>Privacy</h2>
-        <div className="int-field">
-          <div>
-            <div className="int-label">Block ads and trackers</div>
-            <div className="int-sub">Filters requests at the network level on every site.</div>
-          </div>
-          <Toggle on={s.adblock} onChange={(v) => void update({ adblock: v })} />
-        </div>
+      <Group
+        title="Websites"
+        footer="Sites that already have a dark theme use it whenever the space is dark. This darkens the ones that do not."
+      >
+        <Row
+          label="Darken websites in dark spaces"
+          hint="Colours are inverted on pages without a dark theme. Pictures and video keep their colours."
+        >
+          <Toggle
+            label="Darken websites in dark spaces"
+            on={s.darkenSites}
+            onChange={(v) => void update({ darkenSites: v })}
+          />
+        </Row>
+      </Group>
 
-        <div className="int-field">
-          <div>
-            <div className="int-label">Command bar style</div>
-            <div className="int-sub">
-              Grow out of the address bar, or open in the middle of the page.
-            </div>
-          </div>
-          <select
-            value={s.searchStyle}
-            onChange={(e) =>
-              void update({ searchStyle: e.target.value as SettingsData['searchStyle'] })
+      <Group title="Interface size">
+        {SLIDERS.map((sl) => (
+          <SliderRow
+            key={sl.key}
+            spec={sl}
+            value={s[sl.key]}
+            onChange={(v) => void update({ [sl.key]: v })}
+          />
+        ))}
+        <Row label="Address bar shows" hint="What you see in the bar while you are not typing.">
+          <Segmented
+            label="Address bar shows"
+            value={s.urlDisplay}
+            options={[
+              { value: 'full', label: 'Full address' },
+              { value: 'host', label: 'Site name' }
+            ]}
+            onChange={(v) => void update({ urlDisplay: v })}
+          />
+        </Row>
+        <div className="u-row center">
+          <button
+            className="int-btn small"
+            onClick={() =>
+              void update({
+                uiScale: DEFAULT_SETTINGS.uiScale,
+                density: DEFAULT_SETTINGS.density,
+                sidebarWidth: DEFAULT_SETTINGS.sidebarWidth,
+                pageMargin: DEFAULT_SETTINGS.pageMargin,
+                addressSize: DEFAULT_SETTINGS.addressSize
+              })
             }
           >
-            <option value="dropdown">Under the address bar</option>
-            <option value="center">Centered</option>
-          </select>
+            Reset interface size
+          </button>
         </div>
+      </Group>
 
-        <div className="int-field">
-          <div>
-            <div className="int-label">Search suggestions</div>
-            <div className="int-sub">
-              Send what you type in the command bar to your search engine to get suggestions.
-            </div>
-          </div>
+      <MemorySection s={s} update={update} />
+
+      <SitePermissions />
+
+      <Group title="Privacy" id="privacy">
+        <Row
+          label="Block ads and trackers"
+          hint="Filters requests at the network level on every site."
+        >
           <Toggle
-            on={s.searchSuggestions}
-            onChange={(v) => void update({ searchSuggestions: v })}
+            label="Block ads and trackers"
+            on={s.adblock}
+            onChange={(v) => void update({ adblock: v })}
           />
-        </div>
+        </Row>
+      </Group>
 
-        <div className="int-field column">
-          <div>
-            <div className="int-label">Clear browsing data</div>
-            <div className="int-sub">
-              Choose what to remove. Cookies and cache are always cleared for all time.
-            </div>
-          </div>
-          <div className="checks">
-            {CLEAR_OPTIONS.map((o) => (
-              <label key={o.kind}>
-                <input
-                  type="checkbox"
-                  checked={kinds.has(o.kind)}
-                  onChange={() => toggleKind(o.kind)}
-                />
-                {o.label}
-              </label>
-            ))}
-          </div>
-          <div className="clear-row">
-            <select value={range} onChange={(e) => setRange(Number(e.target.value))}>
-              {RANGES.map((r, i) => (
-                <option key={r.label} value={i}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-            <button
-              className="int-btn danger"
-              disabled={kinds.size === 0}
-              onClick={() => void clear()}
-            >
-              Clear data
-            </button>
-            {cleared && <span className="int-sub">Done.</span>}
-          </div>
+      <Group
+        title="Clear browsing data"
+        footer="Cookies and cache are always cleared for all time."
+      >
+        {CLEAR_OPTIONS.map((o) => (
+          <label key={o.kind} className="u-row tap">
+            <span className="u-label">{o.label}</span>
+            <input
+              type="checkbox"
+              checked={kinds.has(o.kind)}
+              onChange={() => toggleKind(o.kind)}
+            />
+          </label>
+        ))}
+        <Row label="Time range">
+          <Select
+            label="Time range"
+            value={range}
+            options={RANGES.map((r, i) => ({ value: i, label: r.label }))}
+            onChange={setRange}
+          />
+        </Row>
+        <div className="u-row center">
+          <button
+            className="int-btn danger"
+            disabled={kinds.size === 0}
+            onClick={() => void clear()}
+          >
+            {cleared ? 'Cleared' : 'Clear data'}
+          </button>
         </div>
-      </section>
+      </Group>
 
-      <section className="int-section">
-        <h2>Shortcuts</h2>
-        <div className="shortcuts">
-          {[
-            ['Ctrl+T', 'New tab'],
-            ['Ctrl+L', 'Address bar'],
-            ['Ctrl+\\', 'Split view'],
-            ['Alt+Shift+Arrows', 'Move focused pane'],
-            ['Ctrl+Shift+A', 'All tabs'],
-            ['Ctrl+scroll', 'Fly through tabs'],
-            ['Ctrl+D', 'Bookmark'],
-            ['Ctrl+F', 'Find in page'],
-            ['Ctrl+H', 'History'],
-            ['Ctrl+J', 'Downloads'],
-            ['Ctrl+B', 'Toggle sidebar'],
-            ['Ctrl +/-/0', 'Zoom'],
-            ['F12', 'Developer tools']
-          ].map(([k, label]) => (
-            <div key={k}>
-              <kbd>{k}</kbd>
-              <span>{label}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+      <Group title="Shortcuts">
+        {[
+          ['Ctrl+T', 'New tab'],
+          ['Ctrl+L', 'Address bar'],
+          ['Ctrl+\\', 'Split view'],
+          ['Alt+Shift+Arrows', 'Move focused pane'],
+          ['Ctrl+Shift+A', 'All tabs'],
+          ['Ctrl+Tab', 'Fly through tabs, release to land'],
+          ['Ctrl+scroll', 'Fly through tabs (not in PDFs)'],
+          ['Ctrl+PageDown/Up', 'Next or previous tab'],
+          ['Ctrl+D', 'Bookmark'],
+          ['Ctrl+F', 'Find in page'],
+          ['Ctrl+H', 'History'],
+          ['Ctrl+J', 'Downloads'],
+          ['Ctrl+B', 'Toggle sidebar'],
+          ['Ctrl +/-/0', 'Zoom'],
+          ['F12', 'Developer tools']
+        ].map(([k, label]) => (
+          <Row key={k} label={label}>
+            <kbd>{k}</kbd>
+          </Row>
+        ))}
+      </Group>
     </>
   )
 }

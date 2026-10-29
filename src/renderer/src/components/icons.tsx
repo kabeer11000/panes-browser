@@ -80,6 +80,28 @@ export const SplitIcon = (): React.JSX.Element => (
     <rect x="8.8" y="3" width="5.2" height="10" rx="1.8" />
   </Svg>
 )
+export const SiteIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M2 5h6M12 5h2M2 11h2M8 11h6" />
+    <circle cx="10" cy="5" r="1.7" />
+    <circle cx="6" cy="11" r="1.7" />
+  </Svg>
+)
+export const ChevronIcon = (): React.JSX.Element => (
+  <Svg size={12}>
+    <path d="M5 6.5 8 9.5 11 6.5" />
+  </Svg>
+)
+export const SpeakerIcon = ({ muted = false }: { muted?: boolean }): React.JSX.Element => (
+  <Svg>
+    <path d="M2.5 6.2h2.3L8 3.5v9L4.8 9.8H2.5z" />
+    {muted ? (
+      <path d="M10.6 6.2l3 3.6M13.6 6.2l-3 3.6" />
+    ) : (
+      <path d="M10.6 6a3 3 0 0 1 0 4M12.2 4.3a5.4 5.4 0 0 1 0 7.4" />
+    )}
+  </Svg>
+)
 export const SwapIcon = (): React.JSX.Element => (
   <Svg>
     <path d="M3 5.8h9.5l-2.2-2.2M13 10.2H3.5l2.2 2.2" />
@@ -118,6 +140,28 @@ export const SettingsIcon = (): React.JSX.Element => (
   <Svg>
     <circle cx="8" cy="8" r="2.2" />
     <path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" />
+  </Svg>
+)
+export const KeyIcon = (): React.JSX.Element => (
+  <Svg>
+    <circle cx="5.5" cy="10.5" r="2.5" />
+    <path d="M7.3 8.7 13 3m-2 2 1.8 1.8M9.3 6.7l1.4 1.4" />
+  </Svg>
+)
+export const SoftwareIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M2.5 5.2 8 2.5l5.5 2.7v5.6L8 13.5l-5.5-2.7zM2.5 5.2 8 8l5.5-2.8M8 8v5.5" />
+  </Svg>
+)
+export const EyeIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M1.8 8S4 3.8 8 3.8 14.2 8 14.2 8 12 12.2 8 12.2 1.8 8 1.8 8Z" />
+    <circle cx="8" cy="8" r="1.9" />
+  </Svg>
+)
+export const EyeOffIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M2.6 2.6l10.8 10.8M6.5 4c.5-.1 1-.2 1.5-.2 4 0 6.2 4.2 6.2 4.2s-.6 1.1-1.7 2.2M4.6 5.2C2.9 6.4 1.8 8 1.8 8s2.2 4.2 6.2 4.2c1 0 1.9-.3 2.6-.7" />
   </Svg>
 )
 export const ChevronUpIcon = (): React.JSX.Element => (

@@ -15,6 +15,7 @@ export type DropTarget =
   | { kind: 'pane'; tabId: number; edge: Edge | 'center' }
   | { kind: 'list'; index: number }
   | { kind: 'space'; spaceId: number }
+  | { kind: 'group'; groupId: number }
 
 export interface DragState {
   id: number
@@ -82,6 +83,13 @@ function targetAt(
     }
   }
 
+  // A group's header or chip under the pointer: dropping a tab there puts it in that group.
+  for (const head of document.querySelectorAll<HTMLElement>('[data-group-drop]')) {
+    if (within(head.getBoundingClientRect(), 2)) {
+      return { target: { kind: 'group', groupId: Number(head.dataset.groupDrop) }, box: null }
+    }
+  }
+
   const stage = document.querySelector('.stage')?.getBoundingClientRect()
   if (ctx.tiled && stage && within(stage)) {
     const gaps: Array<[Edge, number]> = [
@@ -114,6 +122,22 @@ function targetAt(
     return { target: { kind: 'pane', tabId, edge }, box: boxFor(r, edge) }
   }
 
+  // Tabs along the top: the insertion slot is found by sideways position, against each tab's middle.
+  const hlist = document.querySelector('.htab-list')?.getBoundingClientRect()
+  if (hlist && within(hlist, 10)) {
+    const rows = [...document.querySelectorAll<HTMLElement>('.htab[data-tab-id]')]
+    const hit = rows.findIndex((el) => {
+      const r = el.getBoundingClientRect()
+      return x < r.left + r.width / 2
+    })
+    let index = hit === -1 ? ctx.order.length : ctx.order.indexOf(Number(rows[hit].dataset.tabId))
+    const start = ctx.group.length > 1 ? ctx.order.indexOf(ctx.group[0]) : -1
+    const end = start + ctx.group.length
+    if (start !== -1 && index > start && index < end)
+      index = index - start <= end - index ? start : end
+    return { target: { kind: 'list', index }, box: null }
+  }
+
   const list = document.querySelector('.tab-list')?.getBoundingClientRect()
   if (list && within(list, 8)) {
     const rows = [...document.querySelectorAll<HTMLElement>('.tab-row[data-tab-id]')]
@@ -121,7 +145,8 @@ function targetAt(
       const r = el.getBoundingClientRect()
       return y < r.top + r.height / 2
     })
-    let index = hit === -1 ? rows.length : hit
+    // Rows hidden inside a folded group are not in the DOM, so read the position from the tab, not the row.
+    let index = hit === -1 ? ctx.order.length : ctx.order.indexOf(Number(rows[hit].dataset.tabId))
     // A tiled group is one unit in the list: never drop into the middle of it.
     const start = ctx.group.length > 1 ? ctx.order.indexOf(ctx.group[0]) : -1
     const end = start + ctx.group.length
@@ -190,7 +215,9 @@ export function useTabDrag(
         setDrag(null)
         if (ev.type === 'pointerup' && target) {
           if (target.kind === 'space') window.api.moveTabToSpace(id, target.spaceId)
-          else if (target.kind === 'pane') window.api.dropTab(id, target.tabId, target.edge)
+          else if (target.kind === 'group') {
+            if (source === 'tab') window.api.addToGroup(id, target.groupId)
+          } else if (target.kind === 'pane') window.api.dropTab(id, target.tabId, target.edge)
           else if (source === 'tab') window.api.moveTab(id, target.index)
           else window.api.closePane(id) // a pane dragged back onto the sidebar leaves the group
         }

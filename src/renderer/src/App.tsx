@@ -2,6 +2,7 @@ import { AnimatePresence, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyDrop, leaves } from '../../shared/layout'
 import { stackEntries } from '../../shared/stack'
+import type { UpdateState } from '../../shared/update'
 import { Panes } from './components/Panes'
 import { SearchPalette, type Anchor } from './components/SearchPalette'
 import { Sidebar } from './components/Sidebar'
@@ -11,12 +12,16 @@ import { AddressBar } from './components/AddressBar'
 import { FindBar } from './components/FindBar'
 import { GridIcon, SidebarIcon, SplitIcon } from './components/icons'
 import { NavButtons } from './components/NavButtons'
+import { HorizontalTabs } from './components/HorizontalTabs'
+import { SpaceSwitcher } from './components/SpaceSwitcher'
 import { WindowControls } from './components/WindowControls'
+import { useSpaceDir } from './hooks/useSpaceDir'
+import { useScheme } from './useScheme'
 import { useSwipe } from './hooks/useSwipe'
 import { useTabDrag } from './hooks/useTabDrag'
 import { useTabs } from './hooks/useTabs'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../shared/settings'
-import type { Settings } from '../../shared/types'
+import type { PasswordPrompt, Settings } from '../../shared/types'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 
 type Mode = 'grid' | 'stack' | 'search' | null
@@ -29,11 +34,41 @@ const SNAP_MS = 160 // idle time before the stack settles on the nearest card
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 
 function App(): React.JSX.Element {
-  const { tabs, activeId, layout, thumbs, active, spaces, activeSpaceId, activeSpace } = useTabs()
+  const { tabs, tabGroups, activeId, layout, thumbs, active, spaces, activeSpaceId, activeSpace } =
+    useTabs()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Opened by the pointer touching the left edge (a setting): it closes itself when the pointer leaves.
+  const [openedByHover, setOpenedByHover] = useState(false)
+  const openedByHoverRef = useRef(false)
+  useEffect(() => {
+    openedByHoverRef.current = openedByHover
+  }, [openedByHover])
+  // Any deliberate open or close (button, shortcut) takes the sidebar out of that automatic mode.
+  const setSidebar = useCallback((next: boolean | ((open: boolean) => boolean)) => {
+    setOpenedByHover(false)
+    setSidebarOpen(next)
+  }, [])
+  // The toggle (button, Ctrl+B) on a sidebar the pointer brought out keeps it open instead of closing it.
+  const toggleSidebar = useCallback(() => {
+    if (openedByHoverRef.current) setOpenedByHover(false)
+    else setSidebar((o) => !o)
+  }, [setSidebar])
   const [mode, setModeState] = useState<Mode>(null)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [findKey, setFindKey] = useState<number | null>(null)
+  const [passwordPrompt, setPasswordPrompt] = useState<PasswordPrompt | null>(null)
+  useEffect(() => window.api.onPasswordPrompt(setPasswordPrompt), [])
+  const answerPassword = (answer: 'save' | 'never' | 'dismiss'): void => {
+    window.api.answerPassword(answer)
+    setPasswordPrompt(null)
+  }
+  // The version waiting to be installed, if any: the sidebar shows a pill for it.
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null)
+  useEffect(() => {
+    const apply = (s: UpdateState): void => setUpdateVersion(s.kind === 'ready' ? s.version : null)
+    void window.api.getUpdateState().then(apply)
+    return window.api.onUpdateState(apply)
+  }, [])
   const [anchor, setAnchor] = useState<Anchor | null>(null) // where the command bar grows out of
   const [peekBar, setPeekBar] = useState(false) // pointer at the top edge brings an auto-hidden top bar back
 
@@ -144,7 +179,7 @@ function App(): React.JSX.Element {
       } else if (cmd === 'find') {
         setFindKey((k) => (k ?? 0) + 1)
       } else if (cmd === 'toggle-sidebar') {
-        setSidebarOpen((o) => !o)
+        toggleSidebar()
       } else if (cmd === 'toggle-taskview') {
         if (modeRef.current === 'grid') closeOverlay()
         else void openOverlay('grid')
@@ -168,7 +203,7 @@ function App(): React.JSX.Element {
       offRelease()
       window.removeEventListener('wheel', onDomWheel)
     }
-  }, [closeOverlay, openOverlay, onStackWheel, commitStack])
+  }, [closeOverlay, openOverlay, onStackWheel, commitStack, toggleSidebar])
 
   // Global settings, overridden per space; everything visual hangs off CSS variables on the root.
   useEffect(() => {
@@ -178,15 +213,40 @@ function App(): React.JSX.Element {
   }, [])
   const effective = { ...settings, ...activeSpace?.ui }
   const rowH = Math.round(BASE_ROW_H * effective.density)
-  const barAutoHidden = !sidebarOpen && settings.autoHideTopBar
-  const stripHidden = sidebarOpen || (barAutoHidden && !peekBar && mode !== 'search')
+  // Along the top there is no sidebar at all: the tab bar and the toolbar row are always there.
+  const horizontal = effective.tabLayout === 'horizontal'
+  const showSidebar = !horizontal && sidebarOpen
+  const spaceDir = useSpaceDir(spaces, activeSpaceId)
+  const barAutoHidden = !showSidebar && !horizontal && settings.autoHideTopBar
+  const stripHidden =
+    showSidebar || (barAutoHidden && !peekBar && mode !== 'search' && !passwordPrompt)
   const barPx = Math.round((6 + 26 * effective.addressSize) * effective.density * effective.uiScale)
   useEffect(() => {
     window.api.watchTopBar(barAutoHidden, barPx)
   }, [barAutoHidden, barPx])
   useEffect(() => window.api.onPeekBar(setPeekBar), [])
+  useEffect(() => {
+    window.api.watchSidebar(
+      settings.sidebarHover && !horizontal,
+      sidebarOpen,
+      openedByHover,
+      effective.sidebarWidth
+    )
+  }, [settings.sidebarHover, horizontal, sidebarOpen, openedByHover, effective.sidebarWidth])
+  useEffect(
+    () =>
+      window.api.onSideHover((action) => {
+        // The search popover hangs off the address bar, which moves when the sidebar does; leave the
+        // layout alone until it is dismissed (the pointer keeps asking, so a close still follows).
+        if (modeRef.current !== null) return
+        setSidebarOpen(action === 'open')
+        setOpenedByHover(action === 'open')
+      }),
+    []
+  )
 
   const { accent, uiScale, density, addressSize, pageMargin, sidebarWidth } = effective
+  const scheme = useScheme(activeSpace?.mode)
   const theme = activeSpace ?? { color: accent, color2: null, tint: 0, grain: 0 }
   useEffect(() => {
     const root = document.documentElement.style
@@ -200,7 +260,7 @@ function App(): React.JSX.Element {
     root.setProperty('--space2', theme.color2 ?? theme.color)
     root.setProperty('--tint', `${Math.round(theme.tint * 100)}%`)
     root.setProperty('--grain', String(theme.grain))
-    document.documentElement.dataset.scheme = activeSpace?.mode ?? 'dark'
+    document.documentElement.dataset.scheme = scheme
   }, [
     accent,
     uiScale,
@@ -212,8 +272,34 @@ function App(): React.JSX.Element {
     theme.color2,
     theme.tint,
     theme.grain,
-    activeSpace?.mode
+    scheme
   ])
+
+  // With the sidebar closed the save prompt is a popover view over the page; tell it where the address bar is.
+  const promptOpen = passwordPrompt !== null
+  useEffect(() => {
+    if (showSidebar || !promptOpen) return
+    const send = (): void => {
+      const r = document.querySelector('.strip .address')?.getBoundingClientRect()
+      if (!r) return
+      window.api.setPromptAnchor({
+        x: r.left,
+        y: r.top,
+        width: r.width,
+        height: r.height,
+        theme: { scheme, color: theme.color, color2: theme.color2 ?? theme.color }
+      })
+    }
+    send()
+    // The top bar may still be sliding in when the prompt arrives; measure again once it has settled.
+    const settled = window.setTimeout(send, 400)
+    window.addEventListener('resize', send)
+    return () => {
+      window.clearTimeout(settled)
+      window.removeEventListener('resize', send)
+      window.api.setPromptAnchor(null)
+    }
+  }, [showSidebar, promptOpen, scheme, theme.color, theme.color2])
 
   const toggleGrid = (): void => (mode === 'grid' ? closeOverlay() : void openOverlay('grid'))
 
@@ -240,12 +326,18 @@ function App(): React.JSX.Element {
 
   return (
     <div
-      className={'app themed' + (sidebarOpen ? '' : ' sidebar-closed')}
-      style={{ '--sidebar-w': sidebarOpen ? 'var(--sidebar-full)' : '0px' } as React.CSSProperties}
+      className={
+        'app themed' +
+        (showSidebar ? '' : ' sidebar-closed') +
+        (horizontal ? ' horizontal' : '') +
+        (mode ? ' overlay-open' : '')
+      }
+      style={{ '--sidebar-w': showSidebar ? 'var(--sidebar-full)' : '0px' } as React.CSSProperties}
     >
-      <aside className="sidebar" inert={!sidebarOpen}>
+      <aside className="sidebar" inert={!showSidebar}>
         <Sidebar
           tabs={tabs}
+          tabGroups={tabGroups}
           activeId={activeId}
           active={active}
           layout={layout}
@@ -256,31 +348,66 @@ function App(): React.JSX.Element {
           dropIndex={
             drag?.source === 'tab' && drag.target?.kind === 'list' ? drag.target.index : null
           }
+          dropGroupId={drag?.target?.kind === 'group' ? drag.target.groupId : null}
+          dir={spaceDir}
           onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
           onOpenSearch={() => void openOverlay('search')}
           rowH={rowH}
-          findKey={sidebarOpen ? findKey : null}
+          findKey={showSidebar ? findKey : null}
           onCloseFind={() => setFindKey(null)}
-          onToggle={() => setSidebarOpen(false)}
+          passwordPrompt={passwordPrompt}
+          onAnswerPassword={answerPassword}
+          updateVersion={updateVersion}
+          peeking={openedByHover}
+          onToggle={toggleSidebar}
           onTaskView={toggleGrid}
           onWheel={swipe}
         />
       </aside>
 
       <main className="main">
+        {horizontal && (
+          <HorizontalTabs
+            tabs={tabs}
+            tabGroups={tabGroups}
+            activeId={activeId}
+            layout={layout}
+            spaces={spaces}
+            activeSpaceId={activeSpaceId}
+            dir={spaceDir}
+            dropGroupId={drag?.target?.kind === 'group' ? drag.target.groupId : null}
+            dragId={drag?.id ?? null}
+            dropIndex={
+              drag?.source === 'tab' && drag.target?.kind === 'list' ? drag.target.index : null
+            }
+            onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
+          />
+        )}
         <div className={'strip drag' + (stripHidden ? ' hidden' : '')} inert={stripHidden}>
-          {window.api.platform !== 'darwin' && <WindowControls />}
-          <button
-            className="icon-btn no-drag"
-            onClick={() => setSidebarOpen(true)}
-            title="Show sidebar (Ctrl+B)"
-          >
-            <SidebarIcon />
-          </button>
-          <NavButtons active={active} />
-          {!sidebarOpen && findKey !== null && (
-            <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
-          )}
+          {/* controls on the left, buttons on the right, and the address bar in the true middle of the window */}
+          <div className="strip-side start">
+            {!horizontal && window.api.platform !== 'darwin' && <WindowControls />}
+            {!horizontal && (
+              <button
+                className="icon-btn no-drag"
+                onClick={() => setSidebar(true)}
+                title="Show sidebar (Ctrl+B)"
+              >
+                <SidebarIcon />
+              </button>
+            )}
+            {!horizontal && <span className="tabbar-sep" aria-hidden="true" />}
+            {!horizontal && (
+              <SpaceSwitcher
+                spaces={spaces}
+                activeSpaceId={activeSpaceId}
+                placement="down"
+                dir={spaceDir}
+                size={22}
+              />
+            )}
+            <NavButtons active={active} />
+          </div>
           <AddressBar
             active={active}
             onOpen={() => void openOverlay('search')}
@@ -288,22 +415,31 @@ function App(): React.JSX.Element {
             paneFocus={!!layout && leaves(layout).includes(activeId ?? -1)}
             onWheel={swipe}
           />
-          <button
-            className="icon-btn no-drag"
-            onClick={window.api.toggleSplit}
-            title="Split view (Ctrl+\)"
-          >
-            <SplitIcon />
-          </button>
-          <button className="icon-btn no-drag" onClick={toggleGrid} title="All tabs (Ctrl+Shift+A)">
-            <GridIcon />
-          </button>
+          <div className="strip-side end">
+            {!showSidebar && findKey !== null && (
+              <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
+            )}
+            <button
+              className="icon-btn no-drag"
+              onClick={window.api.toggleSplit}
+              title="Split view (Ctrl+\)"
+            >
+              <SplitIcon />
+            </button>
+            <button
+              className="icon-btn no-drag"
+              onClick={toggleGrid}
+              title="All tabs (Ctrl+Shift+A)"
+            >
+              <GridIcon />
+            </button>
+          </div>
         </div>
         <div
           className={
             'stage-wrap' +
-            (sidebarOpen ? '' : ' with-strip') +
-            (stripHidden && !sidebarOpen ? ' no-bar' : '')
+            (showSidebar ? '' : ' with-strip') +
+            (stripHidden && !showSidebar ? ' no-bar' : '')
           }
         >
           <div className="stage">
@@ -354,7 +490,7 @@ function App(): React.JSX.Element {
                     closeOverlay()
                     if (id === 'new-space') window.api.createSpace()
                     else if (id === 'split') window.api.toggleSplit()
-                    else if (id === 'sidebar') setSidebarOpen((o) => !o)
+                    else if (id === 'sidebar') toggleSidebar()
                     else if (id === 'pip') window.api.togglePip()
                     else if (id === 'grid') void openOverlay('grid')
                     else if (

@@ -13,7 +13,8 @@ export function useTabs(): TabsView {
     activeId: null,
     layout: null,
     spaces: [],
-    activeSpaceId: 0
+    activeSpaceId: 0,
+    tabGroups: []
   })
   const [thumbs, setThumbs] = useState<Record<number, string>>({})
 

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { DownloadAction, DownloadInfo } from '../../../../shared/types'
+import { DownloadIcon } from '../../components/icons'
 import { formatBytes, formatTime, host } from '../format'
+import { EmptyState } from '../ui'
 
 const POLL_MS = 700
 
@@ -37,53 +39,62 @@ export function Downloads(): React.JSX.Element {
 
   return (
     <>
-      {items.length === 0 && <p className="int-empty">No downloads yet.</p>}
-      {items.map((d) => (
-        <div key={d.id} className="int-row download">
-          <span className="int-time">{formatTime(d.time)}</span>
-          <div className="int-link static">
-            <span className="int-title">{d.filename}</span>
-            <span className="int-sub">{stateLabel(d)}</span>
-            {(d.state === 'progressing' || d.state === 'paused') && (
-              <div className="progress">
-                <span style={{ width: d.total > 0 ? `${(d.received / d.total) * 100}%` : '30%' }} />
-              </div>
-            )}
-          </div>
-          <div className="int-actions">
-            {d.state === 'completed' && (
-              <>
-                <button className="int-btn small" onClick={() => act(d.id, 'open')}>
-                  Open
+      {items.length === 0 && (
+        <EmptyState icon={<DownloadIcon />} title="No downloads yet">
+          Files you download show up here, with their progress and a way to open them.
+        </EmptyState>
+      )}
+      <div className="u-group" hidden={items.length === 0}>
+        {items.map((d) => (
+          <div key={d.id} className="u-row int-item download">
+            <div className="int-link static">
+              <span className="int-title">{d.filename}</span>
+              <span className="int-sub">
+                {formatTime(d.time)} - {stateLabel(d)}
+              </span>
+              {(d.state === 'progressing' || d.state === 'paused') && (
+                <div className="progress">
+                  <span
+                    style={{ width: d.total > 0 ? `${(d.received / d.total) * 100}%` : '30%' }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="int-actions">
+              {d.state === 'completed' && (
+                <>
+                  <button className="int-btn small" onClick={() => act(d.id, 'open')}>
+                    Open
+                  </button>
+                  <button className="int-btn small" onClick={() => act(d.id, 'show')}>
+                    Show in folder
+                  </button>
+                </>
+              )}
+              {d.state === 'progressing' && (
+                <button className="int-btn small" onClick={() => act(d.id, 'pause')}>
+                  Pause
                 </button>
-                <button className="int-btn small" onClick={() => act(d.id, 'show')}>
-                  Show in folder
+              )}
+              {d.state === 'paused' && (
+                <button className="int-btn small" onClick={() => act(d.id, 'resume')}>
+                  Resume
                 </button>
-              </>
-            )}
-            {d.state === 'progressing' && (
-              <button className="int-btn small" onClick={() => act(d.id, 'pause')}>
-                Pause
-              </button>
-            )}
-            {d.state === 'paused' && (
-              <button className="int-btn small" onClick={() => act(d.id, 'resume')}>
-                Resume
-              </button>
-            )}
-            {(d.state === 'progressing' || d.state === 'paused') && (
-              <button className="int-btn small" onClick={() => act(d.id, 'cancel')}>
-                Cancel
-              </button>
-            )}
-            {d.state !== 'progressing' && d.state !== 'paused' && (
-              <button className="int-btn small" onClick={() => act(d.id, 'remove')}>
-                Remove
-              </button>
-            )}
+              )}
+              {(d.state === 'progressing' || d.state === 'paused') && (
+                <button className="int-btn small" onClick={() => act(d.id, 'cancel')}>
+                  Cancel
+                </button>
+              )}
+              {d.state !== 'progressing' && d.state !== 'paused' && (
+                <button className="int-btn small" onClick={() => act(d.id, 'remove')}>
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </>
   )
 }

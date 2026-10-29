@@ -1,0 +1,36 @@
+/* The save-password popover: a transparent window holding one opaque card. Builds on styles.css tokens. */
+html,
+body {
+  background: transparent;
+}
+.pop-root {
+  padding: 14px;
+  animation: pop-in 0.22s var(--ease) both;
+  transform-origin: top left;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+/* the sidebar card grows open; here the whole view is sized to the card, so it just appears */
+.pop-root .sp-wrap {
+  margin: 0;
+  animation: none;
+}
+.pop-root .sp-clip {
+  overflow: visible;
+}
+/* an opaque body: the tinted fill the sidebar uses would show the page through it */
+.pop-root .sp-card {
+  background: var(--popover-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    0 12px 36px rgb(0 0 0 / 0.4);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-root {
+    animation: none;
+  }
+}

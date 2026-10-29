@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Bookmark } from '../../../../shared/types'
-import { CloseIcon, SearchIcon } from '../../components/icons'
+import { BookmarkIcon, CloseIcon, SearchIcon } from '../../components/icons'
 import { host } from '../format'
 import { Site } from '../Site'
+import { EmptyState } from '../ui'
 
 export function Bookmarks(): React.JSX.Element {
   const [items, setItems] = useState<Bookmark[]>([])
@@ -37,11 +38,18 @@ export function Bookmarks(): React.JSX.Element {
       </div>
 
       {shown.length === 0 && (
-        <p className="int-empty">
-          {query
-            ? 'No matching bookmarks.'
-            : 'No bookmarks yet. Press Ctrl+D on any page to add one.'}
-        </p>
+        <EmptyState
+          icon={<BookmarkIcon />}
+          title={query ? `No bookmarks match "${query.trim()}"` : 'No bookmarks yet'}
+        >
+          {query ? (
+            'Try another word, or part of the address.'
+          ) : (
+            <>
+              Press <kbd>Ctrl</kbd> <kbd>D</kbd> on any page to keep it here.
+            </>
+          )}
+        </EmptyState>
       )}
 
       <div className="int-cards">

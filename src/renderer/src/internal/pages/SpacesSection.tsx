@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { APPEARANCE_LIMITS, DEFAULT_SETTINGS } from '../../../../shared/settings'
+import { DEFAULT_SETTINGS } from '../../../../shared/settings'
 import type { Settings, Space, SpacePatch, SpaceUi } from '../../../../shared/types'
+import { SpaceAvatar } from '../../components/SpaceAvatar'
+import { SpaceIdentity } from '../../components/SpaceIdentity'
 import { ThemePicker } from '../../components/ThemePicker'
 import { SLIDERS } from '../sliders'
+import { Group, Row, Segmented, SliderRow, Toggle } from '../ui'
 
 /** Create, theme, rename and delete spaces, and give each one its own interface settings. */
 export function SpacesSection(): React.JSX.Element {
@@ -29,103 +32,91 @@ export function SpacesSection(): React.JSX.Element {
     void window.panesInternal.spaceUpdate(space.id, p)
   }
 
-  const customUi = !!space && Object.keys(space.ui).length > 0
-  const setUi = (ui: SpaceUi): void => patch({ ui })
-
   if (!space) return <></>
 
-  return (
-    <section className="int-section" id="spaces">
-      <h2>Spaces</h2>
+  const customUi = Object.keys(space.ui).length > 0
+  const setUi = (ui: SpaceUi): void => patch({ ui })
 
-      <div className="space-tabs" role="tablist" aria-label="Spaces">
-        {spaces.map((s) => (
+  return (
+    <>
+      <Group
+        title="Spaces"
+        id="spaces"
+        footer="Each space keeps its own tabs, colours and, if you like, its own interface settings."
+      >
+        <div className="space-cards" role="tablist" aria-label="Spaces">
+          {spaces.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              role="tab"
+              aria-selected={s.id === space.id}
+              className={'space-card' + (s.id === space.id ? ' active' : '')}
+              style={{ ['--sc' as string]: s.color }}
+              onClick={() => {
+                setSelectedId(s.id)
+                setConfirming(false)
+              }}
+            >
+              <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={40} />
+              <span>{s.name}</span>
+            </button>
+          ))}
           <button
-            key={s.id}
             type="button"
-            role="tab"
-            aria-selected={s.id === space.id}
-            className={'space-tab' + (s.id === space.id ? ' active' : '')}
-            onClick={() => {
-              setSelectedId(s.id)
-              setConfirming(false)
+            className="space-card add"
+            onClick={async () => {
+              const created = await window.panesInternal.spaceCreate()
+              await reload()
+              setSelectedId(created.id)
             }}
           >
-            <span
-              className="dot"
-              style={{
-                background: s.color2 ? `linear-gradient(135deg, ${s.color}, ${s.color2})` : s.color
-              }}
-            />
-            {s.name}
+            <span className="space-card-plus" aria-hidden="true">
+              +
+            </span>
+            <span>New space</span>
           </button>
-        ))}
-        <button
-          type="button"
-          className="space-tab add"
-          onClick={async () => {
-            const created = await window.panesInternal.spaceCreate()
-            await reload()
-            setSelectedId(created.id)
-          }}
+        </div>
+      </Group>
+
+      <Group
+        title={space.name}
+        footer="Colours the sidebar and window while you are in this space."
+      >
+        <Row label="Name and icon" stacked>
+          <SpaceIdentity
+            space={space}
+            onName={(name) => patch({ name })}
+            onIcon={(icon) => patch({ icon })}
+          />
+        </Row>
+        <Row label="Theme" stacked>
+          <ThemePicker
+            color={space.color}
+            color2={space.color2}
+            tint={space.tint}
+            grain={space.grain}
+            mode={space.mode}
+            onChange={patch}
+          />
+        </Row>
+      </Group>
+
+      <Group
+        title="Interface for this space"
+        footer="Off uses the global interface settings above."
+      >
+        <Row
+          label="Own interface settings"
+          hint="Give this space its own sidebar width, density and address bar."
         >
-          New space
-        </button>
-      </div>
-
-      <div className="int-field column">
-        <div>
-          <div className="int-label">Name</div>
-        </div>
-        <input
-          className="int-text"
-          value={space.name}
-          maxLength={24}
-          spellCheck={false}
-          aria-label="Space name"
-          onChange={(e) =>
-            setSpaces((all) =>
-              all.map((s) => (s.id === space.id ? { ...s, name: e.target.value } : s))
-            )
-          }
-          onBlur={(e) => e.target.value.trim() && patch({ name: e.target.value })}
-        />
-      </div>
-
-      <div className="int-field column">
-        <div>
-          <div className="int-label">Theme</div>
-          <div className="int-sub">Colours the sidebar and window while you are in this space.</div>
-        </div>
-        <ThemePicker
-          color={space.color}
-          color2={space.color2}
-          tint={space.tint}
-          grain={space.grain}
-          mode={space.mode}
-          onChange={patch}
-        />
-      </div>
-
-      <div className="int-field column">
-        <div className="int-field-head">
-          <div>
-            <div className="int-label">Own interface settings</div>
-            <div className="int-sub">
-              Give this space its own sidebar width, density and address bar. Off uses the global
-              settings.
-            </div>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={customUi}
-            className={'toggle' + (customUi ? ' on' : '')}
-            onClick={() =>
+          <Toggle
+            label="Own interface settings"
+            on={customUi}
+            onChange={(on) =>
               setUi(
-                customUi
-                  ? {}
-                  : {
+                on
+                  ? {
                       uiScale: global.uiScale,
                       density: global.density,
                       sidebarWidth: global.sidebarWidth,
@@ -133,69 +124,55 @@ export function SpacesSection(): React.JSX.Element {
                       pageMargin: global.pageMargin,
                       urlDisplay: global.urlDisplay
                     }
+                  : {}
               )
             }
-          >
-            <span />
-          </button>
-        </div>
-
+          />
+        </Row>
         {customUi &&
-          SLIDERS.map((sl) => {
-            const { min, max, step } = APPEARANCE_LIMITS[sl.key]
-            const value = space.ui[sl.key] ?? global[sl.key]
-            return (
-              <div key={sl.key} className="int-field inner">
-                <div>
-                  <div className="int-label">{sl.label}</div>
-                </div>
-                <div className="slider">
-                  <input
-                    type="range"
-                    min={min}
-                    max={max}
-                    step={step}
-                    value={value}
-                    onChange={(e) => setUi({ ...space.ui, [sl.key]: Number(e.target.value) })}
-                  />
-                  <span className="slider-value">{sl.format(value)}</span>
-                </div>
-              </div>
-            )
-          })}
+          SLIDERS.map((sl) => (
+            <SliderRow
+              key={sl.key}
+              spec={sl}
+              showHint={false}
+              value={space.ui[sl.key] ?? global[sl.key]}
+              onChange={(v) => setUi({ ...space.ui, [sl.key]: v })}
+            />
+          ))}
         {customUi && (
-          <div className="int-field inner">
-            <div>
-              <div className="int-label">Address bar shows</div>
-            </div>
-            <select
+          <Row label="Address bar shows">
+            <Segmented
+              label="Address bar shows"
               value={space.ui.urlDisplay ?? global.urlDisplay}
-              onChange={(e) =>
-                setUi({ ...space.ui, urlDisplay: e.target.value as Settings['urlDisplay'] })
-              }
-            >
-              <option value="full">Full address</option>
-              <option value="host">Site name only</option>
-            </select>
-          </div>
+              options={[
+                { value: 'full', label: 'Full address' },
+                { value: 'host', label: 'Site name' }
+              ]}
+              onChange={(v) => setUi({ ...space.ui, urlDisplay: v })}
+            />
+          </Row>
         )}
-      </div>
+      </Group>
 
       {spaces.length > 1 && (
-        <button
-          type="button"
-          className="int-btn danger"
-          onClick={async () => {
-            if (!confirming) return setConfirming(true)
-            await window.panesInternal.spaceDelete(space.id)
-            setConfirming(false)
-            setSelectedId(null)
-            await reload()
-          }}
-        >
-          {confirming ? 'Close its tabs and delete this space' : 'Delete space'}
-        </button>
+        <Group>
+          <div className="u-row center">
+            <button
+              type="button"
+              className="int-btn danger"
+              onClick={async () => {
+                if (!confirming) return setConfirming(true)
+                await window.panesInternal.spaceDelete(space.id)
+                setConfirming(false)
+                setSelectedId(null)
+                await reload()
+              }}
+            >
+              {confirming ? 'Close its tabs and delete this space' : 'Delete space'}
+            </button>
+          </div>
+        </Group>
       )}
-    </section>
+    </>
   )
 }

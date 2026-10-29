@@ -7,15 +7,7 @@ import {
   type SearchResult
 } from '../../../shared/search'
 import type { Settings, TabInfo } from '../../../shared/types'
-import {
-  BookmarkIcon,
-  GlobeIcon,
-  GridIcon,
-  HistoryIcon,
-  SearchIcon,
-  SettingsIcon,
-  SplitIcon
-} from './icons'
+import { GlobeIcon, SearchIcon, SettingsIcon, SplitIcon } from './icons'
 
 export interface Anchor {
   left: number
@@ -54,21 +46,31 @@ function Highlight({ text, query }: { text: string; query: string }): React.JSX.
 }
 
 function ResultIcon({ r }: { r: SearchResult }): React.JSX.Element {
-  if (r.favicon) return <img className="pal-fav" src={r.favicon} alt="" />
+  // A favicon that fails to load would show the browser's broken-image mark; remember it and fall back instead.
+  const [failed, setFailed] = useState<string | null>(null)
+  if (r.favicon && failed !== r.favicon) {
+    return (
+      <img
+        className="pal-fav"
+        src={r.favicon}
+        alt=""
+        onError={() => setFailed(r.favicon ?? null)}
+      />
+    )
+  }
   switch (r.kind) {
     case 'search':
     case 'suggestion':
       return <SearchIcon />
-    case 'bookmark':
-      return <BookmarkIcon />
-    case 'history':
-      return <HistoryIcon />
-    case 'tab':
-      return <GridIcon />
     case 'action':
       return r.actionId === 'settings' ? <SettingsIcon /> : <SplitIcon />
     default:
-      return <GlobeIcon />
+      // a page with no icon of its own: a quiet, greyed-out globe, like any browser's
+      return (
+        <span className="pal-noicon">
+          <GlobeIcon />
+        </span>
+      )
   }
 }
 

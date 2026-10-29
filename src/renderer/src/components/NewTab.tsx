@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { LocalSuggestion } from '../../../shared/search'
 import { displayHost } from '../../../shared/url'
-import { GlobeIcon, SearchIcon } from './icons'
+import { SearchIcon } from './icons'
 
 const MAX_SITES = 8
 
-/** The most-used sites, one per host, so the same site never fills several tiles. */
+/** The most-used sites, one per host, so the same site never fills several chips. */
 function pickSites(all: LocalSuggestion[]): LocalSuggestion[] {
   const seen = new Set<string>()
   const out: LocalSuggestion[] = []
@@ -19,7 +19,14 @@ function pickSites(all: LocalSuggestion[]): LocalSuggestion[] {
   return out
 }
 
-/** A blank tab: the search box, and the sites you go to most. Nothing else. */
+/** A stable hue per site, so chips without a favicon still look distinct. */
+const hueOf = (host: string): number => {
+  let h = 0
+  for (const c of host) h = (h * 31 + c.charCodeAt(0)) % 360
+  return h
+}
+
+/** A blank tab: one big input that opens the command bar, and the sites you go to most. Nothing else. */
 export function NewTab({ onOpenSearch }: { onOpenSearch: () => void }): React.JSX.Element {
   const [sites, setSites] = useState<LocalSuggestion[]>([])
 
@@ -42,20 +49,26 @@ export function NewTab({ onOpenSearch }: { onOpenSearch: () => void }): React.JS
 
         {sites.length > 0 && (
           <div className="newtab-sites">
-            {sites.map((s) => (
-              <button
-                key={s.url}
-                type="button"
-                className="newtab-site"
-                title={s.title}
-                onClick={() => window.api.navigate(s.url)}
-              >
-                <span className="newtab-site-icon">
-                  {s.favicon ? <img src={s.favicon} alt="" /> : <GlobeIcon />}
-                </span>
-                <span className="newtab-site-name">{displayHost(s.url)}</span>
-              </button>
-            ))}
+            {sites.map((s) => {
+              const host = displayHost(s.url)
+              return (
+                <button
+                  key={s.url}
+                  type="button"
+                  className="newtab-site"
+                  title={s.title}
+                  style={{ '--hue': hueOf(host) } as React.CSSProperties}
+                  onClick={() => window.api.navigate(s.url)}
+                >
+                  {s.favicon ? (
+                    <img src={s.favicon} alt="" />
+                  ) : (
+                    <b>{host.charAt(0).toUpperCase()}</b>
+                  )}
+                  <span>{host}</span>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>

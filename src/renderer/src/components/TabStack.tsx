@@ -22,9 +22,10 @@ import { TabFavicon } from './TabFavicon'
 const STEP_Z = 220
 const STEP_Y = 78
 const FADE = 0.26
-const BLUR_PER_STEP = 1.5 // depth of field: px of blur per card of distance
-const BLUR_MAX = 5
 const DIM_PER_STEP = 0.16
+const DIM_MAX = 0.55
+// Cards are fully faded (opacity 0) about 4 cards from the front, so those further out are not rendered at all.
+const VISIBLE = Math.ceil(1 / FADE)
 const RAIL_ITEM_H = 44
 const PAGE_JUMP = 4
 
@@ -63,6 +64,10 @@ export function TabStack({
   const [index, setIndex] = useState(() => Math.round(target.get()))
   const [aspect] = useState(pageAspect)
   useMotionValueEvent(target, 'change', (v) => setIndex(Math.min(last, Math.max(0, Math.round(v)))))
+  // Which card the spring is passing, as a whole number: state only changes when it crosses one, so scrolling
+  // re-renders once per card, and only the cards around it exist.
+  const [near, setNear] = useState(() => Math.round(pos.get()))
+  useMotionValueEvent(pos, 'change', (v) => setNear(Math.round(v)))
 
   // The deck fans open from a single pile when the view appears.
   const spread = useMotionValue(reduced ? 1 : 0)
@@ -106,19 +111,21 @@ export function TabStack({
       <div className="stack-ambient" aria-hidden="true" />
       <TimelineRail entries={entries} activeId={activeId} pos={pos} index={index} onJump={onJump} />
       <div className="stack-scene">
-        {entries.map((e, i) => (
-          <StackCard
-            key={e.key}
-            entry={e}
-            current={holds(e, activeId)}
-            thumbs={thumbs}
-            index={i}
-            selected={i === index}
-            pos={pos}
-            spread={spread}
-            onClick={() => (i === index ? onCommit() : onJump(i))}
-          />
-        ))}
+        {entries.map((e, i) =>
+          Math.abs(i - near) > VISIBLE ? null : (
+            <StackCard
+              key={e.key}
+              entry={e}
+              current={holds(e, activeId)}
+              thumbs={thumbs}
+              index={i}
+              selected={i === index}
+              pos={pos}
+              spread={spread}
+              onClick={() => (i === index ? onCommit() : onJump(i))}
+            />
+          )
+        )}
       </div>
       {current && (
         <div className="stack-label">
@@ -173,11 +180,8 @@ function StackCard({
   const z = useTransform([d, spread], ([v, s]: number[]) => -Math.abs(v) * STEP_Z * s)
   const y = useTransform([d, spread], ([v, s]: number[]) => v * STEP_Y * s)
   const opacity = useTransform(d, (v) => Math.max(0, 1 - Math.abs(v) * FADE))
-  // Depth of field: things further from the front soften and darken.
-  const filter = useTransform(d, (v) => {
-    const a = Math.abs(v)
-    return `blur(${Math.min(BLUR_MAX, a * BLUR_PER_STEP).toFixed(2)}px) brightness(${(1 - Math.min(0.55, a * DIM_PER_STEP)).toFixed(3)})`
-  })
+  // Things further from the front darken. A dim layer fades on the compositor; a per-frame blur filter did not.
+  const dim = useTransform(d, (v) => Math.min(DIM_MAX, Math.abs(v) * DIM_PER_STEP))
   const isGroup = entry.tabs.length > 1
   const first = entry.tabs[0]
 
@@ -187,7 +191,7 @@ function StackCard({
       role="option"
       aria-selected={selected}
       aria-label={entryTitle(entry)}
-      style={{ z, y, opacity, filter }}
+      style={{ z, y, opacity }}
       onClick={onClick}
     >
       <div className="card-head">
@@ -207,6 +211,7 @@ function StackCard({
       <div className="card-thumb">
         <CardThumb entry={entry} thumbs={thumbs} />
       </div>
+      <motion.div className="card-dim" style={{ opacity: dim }} aria-hidden="true" />
     </motion.div>
   )
 }

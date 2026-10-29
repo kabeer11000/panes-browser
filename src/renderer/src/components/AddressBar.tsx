@@ -1,7 +1,8 @@
-import type { KeyboardEvent, WheelEvent } from 'react'
+import { useState, type KeyboardEvent, type WheelEvent } from 'react'
 import type { Settings, TabInfo } from '../../../shared/types'
 import { splitUrl } from '../../../shared/url'
-import { StarIcon } from './icons'
+import { SiteIcon, SpeakerIcon, StarIcon } from './icons'
+import { SiteSettings } from './SiteSettings'
 import { TabFavicon } from './TabFavicon'
 
 interface Props {
@@ -23,6 +24,8 @@ export function AddressBar({
   onWheel
 }: Props): React.JSX.Element {
   const url = active?.url ?? ''
+  // Where the site settings button is while its panel is open (the panel hangs under it); null when closed.
+  const [siteAnchor, setSiteAnchor] = useState<DOMRect | null>(null)
   const { host, rest } = splitUrl(url)
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -54,6 +57,37 @@ export function AddressBar({
       ) : (
         <div className="addr-display placeholder">Search or enter address</div>
       )}
+      {active && (active.audible || active.muted) && (
+        <button
+          type="button"
+          className={'addr-star' + (active.muted ? '' : ' on-audio')}
+          title={active.muted ? 'Unmute tab' : 'Mute tab'}
+          aria-label={active.muted ? 'Unmute tab' : 'Mute tab'}
+          onClick={(e) => {
+            e.stopPropagation()
+            window.api.toggleMute(active.id)
+          }}
+        >
+          <SpeakerIcon muted={active.muted} />
+        </button>
+      )}
+      {active && /^https?:/i.test(url) && (
+        <button
+          type="button"
+          className={'addr-star addr-site' + (siteAnchor ? ' open' : '')}
+          title="Site settings: boosts, ad blocking, permissions"
+          aria-label="Site settings"
+          aria-expanded={siteAnchor !== null}
+          onClick={(e) => {
+            e.stopPropagation()
+            const rect = e.currentTarget.getBoundingClientRect()
+            setSiteAnchor((open) => (open ? null : rect))
+          }}
+        >
+          <SiteIcon />
+        </button>
+      )}
+      {siteAnchor && <SiteSettings anchor={siteAnchor} onClose={() => setSiteAnchor(null)} />}
       {active && /^https?:/i.test(url) && (
         <button
           type="button"

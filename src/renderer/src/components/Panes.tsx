@@ -10,6 +10,7 @@ import {
   type LayoutNode
 } from '../../../shared/layout'
 import type { Rect, TabInfo } from '../../../shared/types'
+import { displayHost } from '../../../shared/url'
 import { tabTitle } from '../tabTitle'
 import { CloseIcon, GripIcon, PipIcon } from './icons'
 import { NewTab } from './NewTab'
@@ -304,6 +305,13 @@ function Pane({
           </div>
         )}
         {thumb && tab.url && <img className="pane-frozen" src={thumb} alt="" draggable={false} />}
+        {/* A tab that has never been on screen has no snapshot: show who it is while its page loads. */}
+        {!thumb && tab.url && !tab.pip && (
+          <div className="pane-wait" aria-hidden="true">
+            <TabFavicon tab={tab} noSpinner />
+            <span>{displayHost(tab.url)}</span>
+          </div>
+        )}
       </div>
     </motion.div>
   )
