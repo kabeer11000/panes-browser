@@ -3607,3 +3607,68 @@ kbd {
   border-top-color: var(--accent);
   animation: spin 0.8s linear infinite;
 }
+
+/* ---- split tabs, joined: one surface for the whole split, a hairline between tiles, feet on its outer ends ---- */
+.htab.foot-left,
+.htab.foot-right {
+  overflow: visible;
+}
+.htab.in-split.pair-active,
+.htab.in-split.pair-active:not(.active) {
+  background: var(--tab-surface);
+}
+.htab.in-split.pair-active.active {
+  background: color-mix(in srgb, var(--fg) 7%, var(--tab-surface));
+}
+.htab.in-split:not(.pair-active) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.htab.in-split.split-first {
+  border-radius: 9px 0 0 0;
+}
+.htab.in-split.split-last {
+  border-radius: 0 9px 0 0;
+}
+.htab.in-split.split-first.split-last {
+  border-radius: 9px 9px 0 0;
+}
+.htab.in-split:not(.split-first) {
+  box-shadow: inset 1px 0 0 var(--border);
+}
+.htab.in-split:not(.split-first).grouped {
+  box-shadow:
+    inset 1px 0 0 var(--border),
+    inset 0 -2px 0 var(--gc);
+}
+.htab:has(+ .htab.foot-left):hover,
+.htab.foot-right + .htab:hover {
+  background: transparent;
+  color: var(--fg);
+}
+
+/* ---- finishing the top strip: the + sits right after the last tab, group labels are centred in the row,
+   the active tile of a split is the brightest, and every tile of a grouped split carries the group line ---- */
+:root {
+  --tab-surface-strong: rgba(255, 255, 255, 0.17);
+}
+[data-scheme='light'] {
+  --tab-surface-strong: rgba(255, 255, 255, 0.9);
+}
+.tabbar .htab-plus {
+  margin-left: -9px; /* the list keeps 10px for the last tab's foot */
+}
+.htab-list .hgroup {
+  align-self: center;
+}
+.htab-list .htab.in-split.pair-active.active {
+  background: var(--tab-surface-strong);
+}
+.htab-list .htab.in-split:not(.split-first).grouped,
+.htab-list .htab.in-split.grouped {
+  box-shadow: inset 0 -2px 0 var(--gc);
+}
+.htab-list .htab.in-split:not(.split-first).grouped {
+  box-shadow:
+    inset 1px 0 0 var(--border),
+    inset 0 -2px 0 var(--gc);
+}

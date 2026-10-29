@@ -144,6 +144,17 @@ export function HorizontalTabs({
     el.scrollLeft += e.deltaY
   }
 
+  // What is drawn: a folded group shows only the tab you are on. Tiles of a split are one joined unit when they
+  // sit next to each other as drawn and share a group (a group's label never sits inside a pair).
+  const isHidden = (t: TabInfo): boolean => {
+    const g = t.groupId === null ? undefined : groupById.get(t.groupId)
+    return !!g?.collapsed && t.id !== activeId
+  }
+  const drawn = tabs.filter((t) => !isHidden(t))
+  const joins = (a: TabInfo | undefined, b: TabInfo | undefined): boolean =>
+    !!a && !!b && split.includes(a.id) && split.includes(b.id) && a.groupId === b.groupId
+  const pairHasActive = split.includes(activeId ?? -1)
+
   return (
     <div className="tabbar drag">
       {window.api.platform !== 'darwin' && <WindowControls />}
@@ -174,6 +185,13 @@ export function HorizontalTabs({
           // A folded group shows only its chip (and the tab you are on).
           if (tg?.collapsed && t.id !== activeId) return chip ? [chip] : []
           const inSplit = split.includes(t.id)
+          const at = drawn.indexOf(t)
+          const splitFirst = inSplit && !joins(drawn[at - 1], t)
+          const splitLast = inSplit && !joins(t, drawn[at + 1])
+          const lone = t.id === activeId && !inSplit
+          // the toolbar's surface curves up into the active tab, or into both ends of the split it belongs to
+          const footLeft = lone || (inSplit && pairHasActive && splitFirst)
+          const footRight = lone || (inSplit && pairHasActive && splitLast)
           const row = (
             <div
               key={t.id}
@@ -187,8 +205,11 @@ export function HorizontalTabs({
                 (t.id === activeId ? ' active' : '') +
                 (tg ? ' grouped' : '') +
                 (inSplit ? ' in-split' : '') +
-                (inSplit && !split.includes(tabs[i - 1]?.id ?? -1) ? ' split-first' : '') +
-                (inSplit && !split.includes(tabs[i + 1]?.id ?? -1) ? ' split-last' : '') +
+                (inSplit && pairHasActive ? ' pair-active' : '') +
+                (splitFirst ? ' split-first' : '') +
+                (splitLast ? ' split-last' : '') +
+                (footLeft ? ' foot-left' : '') +
+                (footRight ? ' foot-right' : '') +
                 (t.unloaded ? ' unloaded' : '') +
                 (t.id === dragId ? ' dragging' : '') +
                 (dropIndex === i ? ' drop-before' : '') +
@@ -201,12 +222,8 @@ export function HorizontalTabs({
               }}
               onAuxClick={(e) => e.button === 1 && window.api.closeTab(t.id)}
             >
-              {t.id === activeId && (
-                <>
-                  <span className="htab-foot l" aria-hidden="true" />
-                  <span className="htab-foot r" aria-hidden="true" />
-                </>
-              )}
+              {footLeft && <span className="htab-foot l" aria-hidden="true" />}
+              {footRight && <span className="htab-foot r" aria-hidden="true" />}
               <TabFavicon tab={t} />
               <span className="htab-title">{tabTitle(t)}</span>
               <CaptureBadge capture={t.capture} />
@@ -236,7 +253,7 @@ export function HorizontalTabs({
         })}
       </div>
       <button
-        className="icon-btn no-drag"
+        className="icon-btn no-drag htab-plus"
         title="New tab (Ctrl+T)"
         aria-label="New tab"
         onClick={() => window.api.createTab()}
