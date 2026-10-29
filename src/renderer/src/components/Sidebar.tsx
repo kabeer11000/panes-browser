@@ -96,6 +96,7 @@ export function Sidebar({
       key={`g${g.id}`}
       group={g}
       count={countOf(g.id)}
+      members={tabs.filter((t) => t.groupId === g.id)}
       height={Math.round(rowH * 0.78)}
       renaming={renamingGroup === g.id}
       dropTarget={dropGroupId === g.id}

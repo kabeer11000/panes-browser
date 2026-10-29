@@ -1,11 +1,38 @@
 import { motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import type { TabGroup } from '../../../shared/tabgroups'
-import { ChevronIcon } from './icons'
+import type { TabInfo } from '../../../shared/types'
+import { ChevronIcon, SpeakerIcon } from './icons'
+
+/**
+ * Sound from a group's tabs, on its header so a folded group still shows it. Click mutes whatever is
+ * playing; when everything that was playing is muted it unmutes them instead.
+ */
+export function GroupAudio({ members }: { members: TabInfo[] }): React.JSX.Element | null {
+  const playing = members.filter((t) => t.audible && !t.muted)
+  const muted = members.filter((t) => t.muted)
+  if (playing.length === 0 && muted.length === 0) return null
+  const mute = playing.length > 0
+  return (
+    <button
+      type="button"
+      className={'tab-action tab-audio group-audio' + (mute ? '' : ' muted')}
+      title={mute ? 'Mute this group' : 'Unmute this group'}
+      aria-label={mute ? 'Mute this group' : 'Unmute this group'}
+      onClick={(e) => {
+        e.stopPropagation() // not a fold click
+        for (const t of mute ? playing : muted) window.api.toggleMute(t.id)
+      }}
+    >
+      <SpeakerIcon muted={!mute} />
+    </button>
+  )
+}
 
 interface Props {
   group: TabGroup
   count: number
+  members: TabInfo[]
   height: number
   renaming: boolean
   /** A tab is being dragged over this header: dropping puts it in the group. */
@@ -56,6 +83,7 @@ function NameInput({ group, onDone }: { group: TabGroup; onDone: () => void }): 
 export function TabGroupHeader({
   group,
   count,
+  members,
   height,
   renaming,
   dropTarget = false,
@@ -104,6 +132,7 @@ export function TabGroupHeader({
         <span className="group-name">{group.name || 'Unnamed group'}</span>
       )}
       <span className="group-count">{count}</span>
+      <GroupAudio members={members} />
     </motion.div>
   )
 }

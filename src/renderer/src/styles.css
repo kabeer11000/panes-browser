@@ -3163,3 +3163,14 @@ kbd {
 .grid-card.selected .card-btn {
   opacity: 1;
 }
+
+/* sound on a group's header: pushed to the end of the row, small enough not to grow it */
+.group-audio {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+}
+.hgroup .group-audio {
+  margin-left: 0;
+  height: 18px;
+}

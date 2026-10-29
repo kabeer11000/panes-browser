@@ -5,6 +5,7 @@ import type { Space, TabInfo } from '../../../shared/types'
 import { tabTitle } from '../tabTitle'
 import { CloseIcon, PlusIcon, SpeakerIcon } from './icons'
 import { SpaceSwitcher } from './SpaceSwitcher'
+import { GroupAudio } from './TabGroupHeader'
 import { TabFavicon } from './TabFavicon'
 import { WindowControls } from './WindowControls'
 
@@ -27,6 +28,7 @@ interface Props {
 function GroupChip({
   group,
   count,
+  members,
   renaming,
   dropTarget,
   onRename,
@@ -34,6 +36,7 @@ function GroupChip({
 }: {
   group: TabGroup
   count: number
+  members: TabInfo[]
   renaming: boolean
   dropTarget: boolean
   onRename: () => void
@@ -97,6 +100,7 @@ function GroupChip({
         <span className="hgroup-name">{group.name || 'Group'}</span>
       )}
       <span className="hgroup-count">{count}</span>
+      <GroupAudio members={members} />
     </div>
   )
 }
@@ -159,6 +163,7 @@ export function HorizontalTabs({
               key={`g${tg.id}`}
               group={tg}
               count={countOf(tg.id)}
+              members={tabs.filter((m) => m.groupId === tg.id)}
               renaming={renaming === tg.id}
               dropTarget={dropGroupId === tg.id}
               onRename={() => setRenaming(tg.id)}
