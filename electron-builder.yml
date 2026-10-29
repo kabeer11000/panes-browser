@@ -8,7 +8,9 @@ files:
   - '!scripts/**'
   - '!tasks/**'
   - '!.debug-*'
-  - '!{Logos.zip,No Background.png}'
+  - '!{Logos.zip,No Background.png,Transparent.png,Light.png}'
+  - '!.preview-profile/**'
+  - '!.remember/**'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
@@ -22,7 +24,8 @@ win:
       arch: x64
   icon: build/icon.ico
 nsis:
-  artifactName: Panes-${version}-setup.${ext}
+  # no version in the name, so releases/latest/download/Panes-setup.exe is a link that never changes
+  artifactName: Panes-setup.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   shortcutName: ${productName}
@@ -48,4 +51,8 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-publish: null
+publish:
+  - provider: github
+    owner: kabeer11000
+    repo: panes-browser
+    releaseType: release # a plain release, so /releases/latest finds it (prereleases are skipped)

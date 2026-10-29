@@ -1,6 +1,6 @@
 {
   "name": "panes",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Panes browser",
   "main": "./out/main/index.js",
   "author": "Rafay",
@@ -16,6 +16,7 @@
     "postinstall": "bun node_modules/electron/install.js",
     "build:unpack": "bun run build && electron-builder --dir",
     "build:win": "bun run build && electron-builder --win",
+    "release:win": "bun run build && electron-builder --win --publish always",
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux"
   },
@@ -23,6 +24,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@ghostery/adblocker-electron": "^2.20.3",
+    "electron-updater": "^6.8.11",
     "motion": "^14.7.1"
   },
   "devDependencies": {
