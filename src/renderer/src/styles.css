@@ -3409,3 +3409,33 @@ kbd {
   height: 2px;
   border-radius: 0;
 }
+
+/* ---- the active tab and the page it shows are one plane ---- */
+/* top tabs: the toolbar is the same surface as the active tab, and the page card sits inside it */
+.stage-wrap.with-strip.hlayout {
+  padding-top: 0;
+}
+.strip.hstrip {
+  padding-bottom: calc(6px * var(--d));
+  height: calc(var(--strip-h) + 6px * var(--d));
+}
+/* side tabs: the active tab runs out to the page, square on that side */
+.tab-row.active {
+  background: var(--tab-surface);
+  box-shadow: none;
+  margin-right: calc(-10px * var(--d));
+  padding-right: calc(18px * var(--d));
+  border-radius: 8px 0 0 8px;
+}
+.tab-row.active.grouped {
+  border-radius: 3px 0 0 3px;
+}
+.tab-row.active .tab-close,
+.tab-row.active .tab-action {
+  margin-right: calc(2px * var(--d));
+}
+/* the list scrolls, so it clips: widen it into the sidebar's padding so the active tab can reach the page */
+.tab-list {
+  margin-right: calc(-10px * var(--d));
+  padding-right: calc(10px * var(--d));
+}

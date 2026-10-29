@@ -505,6 +505,7 @@ function App(): React.JSX.Element {
           className={
             'stage-wrap' +
             (showSidebar ? '' : ' with-strip') +
+            (horizontal ? ' hlayout' : '') +
             (stripHidden && !showSidebar ? ' no-bar' : '')
           }
         >
