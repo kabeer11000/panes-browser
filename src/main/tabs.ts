@@ -163,6 +163,8 @@ interface Tab {
   tor: boolean
   /** A Tor tab opened before Tor was ready: what to load once it is ('' for a blank tab); null when it is not waiting. */
   torTarget: string | null
+  /** The address being loaded, from the moment it is entered until its page commits (see state). */
+  navUrl: string | null
   /** What the tab shows the page capturing: what its frames report (see CAPTURE_SCRIPT), held through short gaps. */
   capture: CaptureState
   /** The last report of each frame that has one, by frame tree node id. */
@@ -347,13 +349,23 @@ export class TabManager {
       const wc = liveContents(t)
       if (!wc) continue
       // The error page stands in for the page that failed, so the address bar keeps showing that one.
-      const url = t.failed ? t.failed.url : wc.getURL() || t.pending?.url || t.firstUrl
+      // What was entered shows from the moment it is entered, as in Chrome, not the page being left or about:blank,
+      // until the new page commits (then it is the address the page really has, after redirects).
+      const going = t.navUrl && wc.isLoading() && !t.failed ? t.navUrl : null
+      const url =
+        t.torTarget ||
+        going ||
+        (t.failed ? t.failed.url : wc.getURL() || t.pending?.url || t.firstUrl)
+      const here = wc.getURL()
       tabs.push({
         id,
         url,
-        title: wc.getTitle() || t.pending?.title || '',
+        title:
+          (going && (here === '' || here === 'about:blank') ? displayHost(going) : wc.getTitle()) ||
+          t.pending?.title ||
+          '',
         favicon: t.favicon,
-        loading: wc.isLoading(),
+        loading: !!t.torTarget || wc.isLoading(),
         groupId: t.groupId,
         private: t.private,
         tor: t.tor,
@@ -567,6 +579,7 @@ export class TabManager {
       private: isPrivate || isTor,
       tor: isTor,
       torTarget: null,
+      navUrl: null,
       capture: NO_CAPTURE,
       captureFrames: new Map(),
       captureHold: NO_HOLD,
@@ -658,6 +671,17 @@ export class TabManager {
   }
 
   private go(tab: Tab, url: string): void {
+    // A Tor tab with Tor not up yet holds what it was asked to load until Tor is, so a search or address typed while
+    // Tor connects neither fails nor has to be typed again. (Tor is started if nothing has started it.)
+    if (tab.tor && this.deps.tor.get().state !== 'ready') {
+      tab.torTarget = url
+      tab.hasUrl = true
+      void this.deps.tor.start(this.deps.settings.get().torSnowflake)
+      this.refresh()
+      return
+    }
+    tab.navUrl = url
+    this.refresh()
     const ready = (tab.identity ??= applyIdentity(tab.view.webContents, this.identities(tab), url))
     void ready.then(() => {
       const wc = tab.view.webContents
@@ -1291,7 +1315,14 @@ export class TabManager {
     if (!canceled && filePaths[0]) this.create(pathToFileURL(filePaths[0]).href)
   }
   stop(): void {
-    this.current()?.view.webContents.stop()
+    const tab = this.current()
+    if (tab?.torTarget) {
+      // cancel what a Tor tab is holding for Tor: back to the blank tab it was
+      tab.torTarget = null
+      tab.hasUrl = false
+      this.refresh()
+    }
+    tab?.view.webContents.stop()
   }
 
   // ---- split view (tiling layout) ----
@@ -1726,7 +1757,8 @@ export class TabManager {
           : placed && this.fullscreenId === null
             ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
             : placed
-      const show = rect !== null && !this.isBlank(tab) && !tab.awaiting && !this.settling
+      const show =
+        rect !== null && !this.isBlank(tab) && !tab.awaiting && !tab.torTarget && !this.settling
       // A full-screen page has no window edge to be rounded against.
       const flat = this.fullscreenId === id
       if (flat !== tab.flat && !tab.unloaded) {
@@ -1743,6 +1775,10 @@ export class TabManager {
   private wire(id: number, tab: Tab): void {
     const wc = tab.view.webContents
     const refresh = (): void => this.refresh()
+    wc.on('did-navigate', (_e, url) => {
+      // a new view commits about:blank first: that is not the page that was asked for
+      if (url !== 'about:blank') tab.navUrl = null
+    })
 
     if (process.env['PANES_DEBUG']) {
       wc.on('console-message', (e) =>

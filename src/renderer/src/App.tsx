@@ -743,7 +743,7 @@ function App(): React.JSX.Element {
               frozenBlur={settings.frozenBlur}
               newTabPhoto={settings.newTabPhoto}
               newTabPhotoId={settings.newTabPhotoId}
-              tor={tor}
+              dither={settings.newTabDither ? { color: theme.color, color2: theme.color2 } : null}
               tabs={tabs}
               activeId={activeId}
               layout={layout}

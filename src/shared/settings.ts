@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   searchSuggestions: true,
   newTabPhoto: true,
   newTabPhotoId: null,
+  newTabDither: true,
   autoHideTopBar: false,
   sidebarHover: false,
   tabLayout: 'vertical',

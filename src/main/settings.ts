@@ -52,12 +52,17 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
     out.tabLayout = patch.tabLayout
   }
   if (typeof patch.newTabPhoto === 'boolean') out.newTabPhoto = patch.newTabPhoto
+  if (typeof patch.newTabDither === 'boolean') out.newTabDither = patch.newTabDither
   if (patch.newTabPhotoId === null || PHOTO_IDS.includes(patch.newTabPhotoId as number)) {
     out.newTabPhotoId = patch.newTabPhotoId as number | null
   }
   if (typeof patch.searchSuggestions === 'boolean') out.searchSuggestions = patch.searchSuggestions
   if (patch.urlDisplay === 'full' || patch.urlDisplay === 'host') out.urlDisplay = patch.urlDisplay
-  if (patch.frozenBlur === 'off' || patch.frozenBlur === 'slight' || patch.frozenBlur === 'strong') {
+  if (
+    patch.frozenBlur === 'off' ||
+    patch.frozenBlur === 'slight' ||
+    patch.frozenBlur === 'strong'
+  ) {
     out.frozenBlur = patch.frozenBlur
   }
   if (typeof patch.darkenSites === 'boolean') out.darkenSites = patch.darkenSites

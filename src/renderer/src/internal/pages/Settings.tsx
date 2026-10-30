@@ -247,6 +247,18 @@ export function Settings(): React.JSX.Element {
             </div>
           </div>
         )}
+        {s.newTabPhoto && (
+          <Row
+            label="Dithered look"
+            hint="The photo as two tones in your space's colours, in a print-like pattern. Off shows it as it is."
+          >
+            <Toggle
+              label="Dithered look"
+              on={s.newTabDither}
+              onChange={(v) => void update({ newTabDither: v })}
+            />
+          </Row>
+        )}
         <Row
           label="Address bar spans the whole row"
           hint="With tabs along the top: the address bar stretches from side to side. Off keeps it in the middle."
@@ -340,7 +352,10 @@ export function Settings(): React.JSX.Element {
             onChange={(v) => void update({ urlDisplay: v })}
           />
         </Row>
-        <Row label="Page blur behind overlays" hint="How soft a page looks while the command bar or another overlay is open over it.">
+        <Row
+          label="Page blur behind overlays"
+          hint="How soft a page looks while the command bar or another overlay is open over it."
+        >
           <Segmented
             label="Page blur behind overlays"
             value={s.frozenBlur}

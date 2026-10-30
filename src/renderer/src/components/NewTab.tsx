@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { LocalSuggestion } from '../../../shared/search'
 import { dailyPhotoId, nextPhotoId, photoUrl } from '../../../shared/photos'
 import { displayHost } from '../../../shared/url'
-import type { TabsState } from '../../../shared/types'
 import { ImageIcon, SearchIcon, ShieldIcon } from './icons'
+import { useDitheredPhoto } from './useDitheredPhoto'
 
 const MAX_SITES = 8
 
@@ -50,8 +50,9 @@ const PARALLAX_PX = 16 // how far the photo drifts at the window's edge
  */
 function useParallax(
   root: RefObject<HTMLDivElement | null>,
-  photo: RefObject<HTMLImageElement | null>,
-  on: boolean
+  photo: RefObject<HTMLElement | null>,
+  on: boolean,
+  scale = 1.1
 ): void {
   useEffect(() => {
     const el = root.current
@@ -70,9 +71,14 @@ function useParallax(
     const step = (): void => {
       x += (tx - x) * 0.07
       y += (ty - y) * 0.07
-      const img = photo.current
-      if (img)
-        img.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) scale(1.1)`
+      const el2 = photo.current
+      if (el2) {
+        // a dithered picture (scale 1) moves by whole device pixels, or its cells would shimmer as it drifts
+        const dpr = window.devicePixelRatio || 1
+        const dx = scale === 1 ? Math.round(x * dpr) / dpr : x
+        const dy = scale === 1 ? Math.round(y * dpr) / dpr : y
+        el2.style.transform = `translate3d(${dx.toFixed(2)}px, ${dy.toFixed(2)}px, 0) scale(${scale})`
+      }
       raf = Math.abs(tx - x) + Math.abs(ty - y) > 0.05 ? requestAnimationFrame(step) : 0
     }
     const onMove = (e: PointerEvent): void => {
@@ -86,7 +92,7 @@ function useParallax(
       el.removeEventListener('pointermove', onMove)
       cancelAnimationFrame(raf)
     }
-  }, [root, photo, on])
+  }, [root, photo, on, scale])
 }
 
 const greetingAt = (h: number): string =>
@@ -103,54 +109,18 @@ function useNow(): Date {
 }
 
 /** A blank tab: the time, one big input that opens the command bar, and the sites you go to most as tiles. */
-/** Says how far Tor has got, in a Tor tab opened before Tor was up (the page asked for loads when it is). */
-function TorWait({ tor }: { tor: TabsState['tor'] }): React.JSX.Element {
-  const working = tor.state === 'downloading' || tor.state === 'starting'
-  return (
-    <div className="newtab-tor" role="status">
-      <ShieldIcon />
-      <div>
-        <b>
-          {working
-            ? 'Connecting to Tor'
-            : tor.state === 'error'
-              ? 'Could not connect to Tor'
-              : 'Tor is not running'}
-        </b>
-        <span>
-          {working
-            ? tor.message || 'Starting'
-            : tor.state === 'error'
-              ? tor.message
-              : 'Connect to use this tab'}
-        </span>
-        {working && (
-          <span className="newtab-tor-bar" aria-hidden="true">
-            <i style={{ transform: `scaleX(${Math.max(0.04, tor.progress / 100)})` }} />
-          </span>
-        )}
-      </div>
-      {!working && (
-        <button type="button" onClick={() => window.api.torReconnect()}>
-          {tor.state === 'error' ? 'Try again' : 'Connect'}
-        </button>
-      )}
-    </div>
-  )
-}
-
 export function NewTab({
   onOpenSearch,
   photo,
   photoId,
-  tor
+  dither
 }: {
   onOpenSearch: () => void
   photo: boolean
   /** The photo kept in the settings, or null for the daily one. */
   photoId: number | null
-  /** Tor's state, in a Tor tab: while Tor is not connected the tab says so. */
-  tor?: TabsState['tor']
+  /** The space's colours, when the photo is to be dithered in them; null for the photo as it is. */
+  dither: { color: string; color2: string | null } | null
 }): React.JSX.Element {
   const [sites, setSites] = useState<LocalSuggestion[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -158,8 +128,13 @@ export function NewTab({
   const now = useNow()
   const rootRef = useRef<HTMLDivElement>(null)
   const photoRef = useRef<HTMLImageElement>(null)
-  useParallax(rootRef, photoRef, photo)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const shownId = photoId ?? dailyPhotoId(now)
+  const dithered = useDitheredPhoto(photo && dither !== null, shownId, dither, rootRef, canvasRef)
+  // the dithered picture, unless it cannot be made (then the photo as it is)
+  const asDither = photo && dither !== null && !dithered.failed
+  const picUp = asDither ? dithered.ready : loaded
+  useParallax(rootRef, asDither ? canvasRef : photoRef, photo, asDither ? 1 : 1.1)
 
   useEffect(() => {
     let alive = true
@@ -170,8 +145,20 @@ export function NewTab({
   }, [])
 
   return (
-    <div ref={rootRef} className={'newtab' + (photo && loaded ? ' has-photo' : '')}>
-      {photo && !broken && (
+    <div ref={rootRef} className={'newtab' + (photo && picUp ? ' has-photo' : '')}>
+      {asDither && (
+        <canvas
+          ref={canvasRef}
+          className="newtab-photo dithered"
+          aria-hidden="true"
+          width={dithered.grid?.cols}
+          height={dithered.grid?.rows}
+          style={
+            dithered.grid ? { width: dithered.grid.width, height: dithered.grid.height } : undefined
+          }
+        />
+      )}
+      {photo && !asDither && !broken && (
         <img
           ref={photoRef}
           key={shownId}
@@ -183,7 +170,7 @@ export function NewTab({
           onError={() => setBroken(true)}
         />
       )}
-      {photo && loaded && (
+      {photo && picUp && (
         <button
           type="button"
           className="newtab-bg"
@@ -206,8 +193,6 @@ export function NewTab({
             </span>
           </p>
         </header>
-
-        {tor && tor.state !== 'ready' && <TorWait tor={tor} />}
 
         <button type="button" className="newtab-search" onClick={onOpenSearch}>
           <SearchIcon />

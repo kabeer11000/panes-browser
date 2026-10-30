@@ -305,6 +305,8 @@ export interface Settings {
   newTabPhoto: boolean
   /** The photo kept on the new tab page (an id from shared/photos); null follows the daily one. */
   newTabPhotoId: number | null
+  /** The new tab photo as a two-tone dither in the space's colours (off: the photo as it is). */
+  newTabDither: boolean
   /** Send what you type in the command bar to your search engine to get suggestions. */
   searchSuggestions: boolean
   /** With the sidebar collapsed, hide the top bar until the pointer touches the top edge. */

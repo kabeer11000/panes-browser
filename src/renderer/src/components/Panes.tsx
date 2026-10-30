@@ -9,7 +9,7 @@ import {
   type Frame,
   type LayoutNode
 } from '../../../shared/layout'
-import type { Rect, Settings, TabInfo, TabsState } from '../../../shared/types'
+import type { Rect, Settings, TabInfo } from '../../../shared/types'
 import { displayHost } from '../../../shared/url'
 import { tabTitle } from '../tabTitle'
 import { CloseIcon, GripIcon, PipIcon } from './icons'
@@ -33,8 +33,8 @@ interface Props {
   /** Show the daily photo on blank tabs (the newTabPhoto setting). */
   newTabPhoto?: boolean
   newTabPhotoId?: number | null
-  /** Tor's state, for Tor tabs that are waiting on it. */
-  tor?: TabsState['tor']
+  /** The space's colours when the new tab photo is to be dithered in them; null for the photo as it is. */
+  dither?: { color: string; color2: string | null } | null
 }
 
 const GAP = 5 // the gap between tiled panes; the divider's grab area extends past it (see .divider::before)
@@ -73,7 +73,7 @@ export function Panes({
   frozenBlur = 'off',
   newTabPhoto = false,
   newTabPhotoId = null,
-  tor
+  dither = null
 }: Props): React.JSX.Element {
   const byId = new Map(tabs.map((t) => [t.id, t]))
   const singleRoot: LayoutNode | null =
@@ -217,7 +217,7 @@ export function Panes({
                   onOpenSearch={onOpenSearch}
                   newTabPhoto={newTabPhoto}
                   newTabPhotoId={newTabPhotoId}
-                  tor={tor}
+                  dither={dither}
                 />
               )
             )
@@ -266,7 +266,7 @@ interface PaneProps {
   onOpenSearch: () => void
   newTabPhoto: boolean
   newTabPhotoId: number | null
-  tor?: TabsState['tor']
+  dither: { color: string; color2: string | null } | null
 }
 
 function Pane({
@@ -280,7 +280,7 @@ function Pane({
   onOpenSearch,
   newTabPhoto,
   newTabPhotoId,
-  tor
+  dither
 }: PaneProps): React.JSX.Element {
   return (
     <motion.div
@@ -318,7 +318,7 @@ function Pane({
             onOpenSearch={onOpenSearch}
             photo={newTabPhoto && !tab.private && !tab.tor}
             photoId={newTabPhotoId}
-            tor={tab.tor ? tor : undefined}
+            dither={dither}
           />
         )}
         {tab.pip && (

@@ -1,3 +1,4 @@
+import { gotLock } from './singleInstance' // first: see there
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, session, shell } from 'electron'
 import type { CaptureKind } from '../shared/capture'
 import { createServer } from 'http'
@@ -41,8 +42,6 @@ import { UpdateManager } from './updater'
 import { Suggester } from './suggest'
 import { flushAllStores } from './store'
 import { TabManager } from './tabs'
-
-if (process.env['PANES_USERDATA']) app.setPath('userData', process.env['PANES_USERDATA'])
 
 applyPerformance() // Chromium's switches only count before the app is ready
 
@@ -783,8 +782,6 @@ function createWindow(): void {
   }
 }
 
-const gotLock = app.requestSingleInstanceLock()
-if (!gotLock) app.quit()
 app.on('second-instance', (_e, argv) => {
   const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
   if (!win) return
