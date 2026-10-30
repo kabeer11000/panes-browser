@@ -1,4 +1,5 @@
 import { gotLock } from './singleInstance' // first: see there
+import { flushTrace, mark } from './startupTrace'
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, session, shell } from 'electron'
 import type { CaptureKind } from '../shared/capture'
 import { createServer } from 'http'
@@ -43,6 +44,7 @@ import { Suggester } from './suggest'
 import { flushAllStores } from './store'
 import { TabManager } from './tabs'
 
+mark('modules') // every import above has run
 applyPerformance() // Chromium's switches only count before the app is ready
 
 /** Where links and files handed to Panes go once its window exists; until then they wait in `pending`. */
@@ -103,6 +105,7 @@ function chromeUserAgent(): string {
 // Camera/mic are allowed so video calls work; location, notifications etc. are denied until there is a prompt UI.
 function createWindow(): void {
   const isMac = process.platform === 'darwin'
+  mark('window-start')
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -121,6 +124,15 @@ function createWindow(): void {
       : { frame: false }),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true }
   })
+  // The interface page is asked for now, not after everything below has been set up: its own process starts, loads
+  // and runs React while this one goes on setting up. Safe because nothing the page sends (IPC) or the window emits
+  // (ready-to-show, did-finish-load) is handled before this function returns, by which time every handler exists.
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    win.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+  mark('page-requested')
 
   const tabSession = session.fromPartition('persist:panes')
   tabSession.setUserAgent(plainUserAgent(), 'en-US,en;q=0.9')
@@ -518,21 +530,25 @@ function createWindow(): void {
   ipcMain.on('tabs:open-in-split', (_e, input: string) => tabs.openInSplit(String(input)))
 
   win.on('close', () => tabs.shutdown())
-  win.on('ready-to-show', () => win.show())
+  win.on('ready-to-show', () => {
+    mark('ready-to-show')
+    win.show()
+  })
 
   // On a machine running in efficient mode the interface stops animating its layout: sliding the sidebar or
   // the top bar in resizes every page view on every frame, which low-end hardware shows as a shift.
   win.webContents.on('did-finish-load', () => {
+    mark('page-loaded')
+    flushTrace()
     const fx = runningMode() === 'efficient' ? 'low' : 'full'
     void win.webContents
-      .executeJavaScript(`document.documentElement.dataset.fx = '${fx}'`)
+      // remembered too, so the next start has it before its first paint (public/boot.js)
+      .executeJavaScript(
+        `document.documentElement.dataset.fx = '${fx}'; try { localStorage.setItem('panes:fx', '${fx}') } catch (e) {}`
+      )
       .catch(() => undefined)
   })
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  mark('setup-done')
   tabs.restoreOrNew()
   // First run: open the welcome page before anything else is shown.
   if (!settings.get().onboarded && !process.env['PANES_DEBUG']) tabs.create('panes://welcome')
@@ -801,6 +817,7 @@ app.on('open-file', (e, path) => {
 
 if (gotLock)
   app.whenReady().then(() => {
+    mark('ready')
     electronApp.setAppUserModelId('pk.procheck.panes')
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
     createWindow()

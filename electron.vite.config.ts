@@ -29,6 +29,10 @@ export default defineConfig({
     },
     plugins: [react()],
     build: {
+      // The interface's own code is shipped minified (it was whole, with its comments, about 1.4 MB read and parsed by
+      // every one of its windows). Not the main process or the preloads: the YouTube defences build the code they inject
+      // into pages from their own functions' source text, which renaming would break.
+      minify: true,
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),

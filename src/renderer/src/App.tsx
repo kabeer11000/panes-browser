@@ -410,22 +410,35 @@ function App(): React.JSX.Element {
       : (activeSpace ?? { color: accent, color2: null, tint: 0, grain: 0 })
   useEffect(() => {
     const root = document.documentElement.style
-    root.setProperty('--s', String(uiScale))
-    root.setProperty('--d', String(density))
-    root.setProperty('--addr', String(addressSize))
-    root.setProperty('--edge', `${pageMargin}px`)
-    root.setProperty('--sidebar-full', `${sidebarWidth}px`)
     // colours, readable tint and the highlight, worked out once for the window and its popover views alike
-    const vars = chromeVars(
-      { color: theme.color, color2: theme.color2, tint: theme.tint },
-      scheme === 'dark',
-      accent,
-      DEFAULT_SETTINGS.accent
-    )
+    const vars: Record<string, string> = {
+      '--s': String(uiScale),
+      '--d': String(density),
+      '--addr': String(addressSize),
+      '--edge': `${pageMargin}px`,
+      '--sidebar-full': `${sidebarWidth}px`,
+      ...chromeVars(
+        { color: theme.color, color2: theme.color2, tint: theme.tint },
+        scheme === 'dark',
+        accent,
+        DEFAULT_SETTINGS.accent
+      ),
+      '--grain': String(theme.grain)
+    }
     for (const [k, v] of Object.entries(vars)) root.setProperty(k, v)
-    root.setProperty('--grain', String(theme.grain))
     document.documentElement.dataset.scheme = scheme
+    // Kept for the next start, which puts it back before its first paint (public/boot.js). Only the everyday theme: a
+    // private or Tor tab's dark one, or the welcome page's, would otherwise be what the next start opens in.
+    if (kind === 'normal' && !immersive) {
+      try {
+        localStorage.setItem('panes:boot', JSON.stringify({ scheme, vars }))
+      } catch {
+        // storage full or off: the next start just has the default for a moment
+      }
+    }
   }, [
+    kind,
+    immersive,
     accent,
     uiScale,
     density,

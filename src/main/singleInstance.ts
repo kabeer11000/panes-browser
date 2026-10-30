@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { mark } from './startupTrace'
 
 /**
  * Only one Panes runs. This is the first import of index.ts so that a second one, started by a link or file handed to
@@ -11,4 +12,5 @@ import { app } from 'electron'
 if (process.env['PANES_USERDATA']) app.setPath('userData', process.env['PANES_USERDATA'])
 
 export const gotLock = app.requestSingleInstanceLock()
+mark('lock')
 if (!gotLock) app.exit(0)
