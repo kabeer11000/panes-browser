@@ -2,7 +2,14 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState, type PointerEvent, type WheelEvent } from 'react'
 import { leaves, type LayoutNode } from '../../../shared/layout'
 import type { TabGroup } from '../../../shared/tabgroups'
-import type { LoginEdits, PasswordPrompt, Settings, Space, TabInfo } from '../../../shared/types'
+import type {
+  LoginEdits,
+  PasswordPrompt,
+  Settings,
+  Space,
+  TabInfo,
+  TabsState
+} from '../../../shared/types'
 import { tabTitle } from '../tabTitle'
 import { AddressBar } from './AddressBar'
 import { FindBar } from './FindBar'
@@ -26,6 +33,7 @@ import {
 import { CaptureBadge } from './CaptureBadge'
 import { CallBadge } from './CallBadge'
 import { NavButtons } from './NavButtons'
+import { StatusChips } from './StatusChips'
 import { SpaceSwitcher } from './SpaceSwitcher'
 import { TabGroupHeader } from './TabGroupHeader'
 import { TabFavicon } from './TabFavicon'
@@ -34,6 +42,8 @@ import { WindowControls } from './WindowControls'
 interface Props {
   tabs: TabInfo[]
   tabGroups: TabGroup[]
+  tor: TabsState['tor']
+  notice: TabsState['notice']
   activeId: number | null
   active: TabInfo | null
   layout: LayoutNode | null
@@ -66,9 +76,14 @@ interface Props {
   onWheel: (e: WheelEvent) => void
 }
 
+/** How fast a row leaves and the rest close up: a tenth of a second, eased out, with no spring to settle. */
+const CLOSE_MOTION = { duration: 0.1, ease: [0.2, 0, 0, 1] } as const
+
 export function Sidebar({
   tabs,
   tabGroups,
+  tor,
+  notice,
   activeId,
   active,
   layout,
@@ -175,6 +190,7 @@ export function Sidebar({
         paneFocus={group.includes(activeId ?? -1)}
         onWheel={onWheel}
       />
+      <StatusChips tor={tor} notice={notice} />
       <SharingBar tabs={tabs} activeId={activeId} />
       {passwordPrompt && (
         <SavePrompt
@@ -235,8 +251,17 @@ export function Sidebar({
                 }
                 initial={{ opacity: 0, height: 0, scale: 0.96 }}
                 animate={{ opacity: 1, height: rowH, scale: 1 }}
-                exit={{ opacity: 0, height: 0, scale: 0.96 }}
-                transition={{ type: 'spring', stiffness: 520, damping: 38, mass: 0.7 }}
+                // Closing is quick and does not bounce: the rows below slide up into place in about a tenth of a
+                // second, so the next close button is under the pointer again before the next click, however fast
+                // tabs are closed one after another. A spring there was still settling when the click came.
+                exit={{ opacity: 0, height: 0, scale: 0.96, transition: CLOSE_MOTION }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 520,
+                  damping: 38,
+                  mass: 0.7,
+                  layout: CLOSE_MOTION
+                }}
                 style={tg ? ({ ['--gc' as string]: tg.color } as React.CSSProperties) : undefined}
                 onPointerDown={(e) => onTabPointerDown(e, t.id)}
                 onContextMenu={(e) => {

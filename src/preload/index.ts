@@ -51,6 +51,7 @@ const api: PanesApi = {
   muteSpace: (id) => ipcRenderer.send('tabs:mute-space', id),
   newPrivateTab: () => ipcRenderer.send('tabs:new-private'),
   newTorTab: () => ipcRenderer.send('tabs:new-tor'),
+  torReconnect: () => ipcRenderer.send('tor:reconnect'),
   appMenu: (x, y) => ipcRenderer.send('tabs:app-menu', x, y),
   updateGroup: (id, patch) => ipcRenderer.send('tabs:group-update', id, patch),
   onRenameGroup: (cb) => subscribe<[number]>('ui:rename-group', cb),

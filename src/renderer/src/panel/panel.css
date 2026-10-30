@@ -8,8 +8,15 @@ body {
   background: transparent;
   user-select: none;
 }
+html,
+body,
+#root {
+  height: 100%;
+}
 .pn-root {
   padding: 36px; /* keep in step with PAD in main/sitePanel.ts */
+  box-sizing: border-box;
+  min-height: 100%; /* the view is taller than the card: the rest of it is still this element, for click-away */
 }
 .pn {
   display: flex;

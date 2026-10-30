@@ -9,7 +9,7 @@ import {
   type Frame,
   type LayoutNode
 } from '../../../shared/layout'
-import type { Rect, Settings, TabInfo } from '../../../shared/types'
+import type { Rect, Settings, TabInfo, TabsState } from '../../../shared/types'
 import { displayHost } from '../../../shared/url'
 import { tabTitle } from '../tabTitle'
 import { CloseIcon, GripIcon, PipIcon } from './icons'
@@ -33,6 +33,8 @@ interface Props {
   /** Show the daily photo on blank tabs (the newTabPhoto setting). */
   newTabPhoto?: boolean
   newTabPhotoId?: number | null
+  /** Tor's state, for Tor tabs that are waiting on it. */
+  tor?: TabsState['tor']
 }
 
 const GAP = 5 // the gap between tiled panes; the divider's grab area extends past it (see .divider::before)
@@ -70,7 +72,8 @@ export function Panes({
   onOpenSearch,
   frozenBlur = 'off',
   newTabPhoto = false,
-  newTabPhotoId = null
+  newTabPhotoId = null,
+  tor
 }: Props): React.JSX.Element {
   const byId = new Map(tabs.map((t) => [t.id, t]))
   const singleRoot: LayoutNode | null =
@@ -214,6 +217,7 @@ export function Panes({
                   onOpenSearch={onOpenSearch}
                   newTabPhoto={newTabPhoto}
                   newTabPhotoId={newTabPhotoId}
+                  tor={tor}
                 />
               )
             )
@@ -262,6 +266,7 @@ interface PaneProps {
   onOpenSearch: () => void
   newTabPhoto: boolean
   newTabPhotoId: number | null
+  tor?: TabsState['tor']
 }
 
 function Pane({
@@ -274,7 +279,8 @@ function Pane({
   onHeaderPointerDown,
   onOpenSearch,
   newTabPhoto,
-  newTabPhotoId
+  newTabPhotoId,
+  tor
 }: PaneProps): React.JSX.Element {
   return (
     <motion.div
@@ -308,7 +314,12 @@ function Pane({
       )}
       <div className="pane-body" data-tab-id={tab.id}>
         {!tab.url && (
-          <NewTab onOpenSearch={onOpenSearch} photo={newTabPhoto && !tab.private && !tab.tor} photoId={newTabPhotoId} />
+          <NewTab
+            onOpenSearch={onOpenSearch}
+            photo={newTabPhoto && !tab.private && !tab.tor}
+            photoId={newTabPhotoId}
+            tor={tab.tor ? tor : undefined}
+          />
         )}
         {tab.pip && (
           <div className="pip-note">

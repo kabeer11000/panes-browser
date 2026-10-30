@@ -31,7 +31,6 @@ interface Deps {
 export class SitePanel {
   private view: WebContentsView | null = null
   private anchor: Rect | null = null
-  private height = 420
   private picking = false
   private blurredAt = 0
   private pushTimer: NodeJS.Timeout | null = null
@@ -43,11 +42,6 @@ export class SitePanel {
     ipcMain.handle('panel:update', (e, patch: unknown) =>
       fromPanel(e) ? this.d.sites.update(patch) : null
     )
-    ipcMain.on('panel:resize', (e, h: unknown) => {
-      if (!fromPanel(e) || typeof h !== 'number' || !Number.isFinite(h) || h < 0) return
-      this.height = Math.ceil(Math.min(h, 800))
-      this.place()
-    })
     ipcMain.on('panel:close', (e) => fromPanel(e) && this.hide())
     ipcMain.on('panel:pick', (e) => {
       if (!fromPanel(e)) return
@@ -88,7 +82,6 @@ export class SitePanel {
     // The click that closed it by taking focus away is this same click: it means "close", not "reopen".
     if (Date.now() - this.blurredAt < 300) return
     this.anchor = anchor
-    this.height = 420
     const view = this.ensureView()
     this.place() // after the view exists: it has no size until placed
     this.d.win.contentView.addChildView(view) // on top of the page views
@@ -101,6 +94,8 @@ export class SitePanel {
   hide(): void {
     this.picking = false
     this.view?.setVisible(false)
+    const wc = this.view?.webContents
+    if (wc && !wc.isDestroyed() && !wc.isLoading()) wc.send('panel:hide')
   }
 
   private ensureView(): WebContentsView {
@@ -129,8 +124,10 @@ export class SitePanel {
       0,
       Math.min(Math.round(this.anchor.x + this.anchor.width) - WIDTH - PAD, winW - width)
     )
-    const y = Math.round(this.anchor.y + this.anchor.height + GAP) - PAD
-    const height = Math.max(120, Math.min(this.height + PAD * 2, winH - y))
-    this.view.setBounds({ x, y: Math.max(0, y), width, height })
+    const y = Math.max(0, Math.round(this.anchor.y + this.anchor.height + GAP) - PAD)
+    // Down to the window's bottom, once, and never resized after: a native view that changes size shows its old frame
+    // until the page has drawn the new one, which clipped the card and broke its transitions as its content changed.
+    // The card grows inside the view; a press on the view outside the card closes the panel (see Panel.tsx).
+    this.view.setBounds({ x, y, width, height: Math.max(120, winH - y) })
   }
 }

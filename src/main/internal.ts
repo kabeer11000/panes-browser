@@ -22,6 +22,7 @@ import type {
   SpacePatch
 } from '../shared/types'
 import type { TabDump } from '../shared/dumps'
+import type { OpenItem } from '../shared/types'
 import type { TorStatus } from '../shared/tor'
 import { currentChromeTheme } from './chromeTheme'
 import type { DownloadManager } from './downloads'
@@ -68,6 +69,7 @@ interface Deps {
   permissions: PermissionStore
   history: HistoryStore
   bookmarks: BookmarkStore
+  openMany: (items: OpenItem[]) => number
   dumps: {
     list: () => TabDump[]
     save: (close: boolean) => TabDump | null
@@ -135,6 +137,9 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:history-remove', (id: number) => d.history.remove(id))
   handle('int:history-remove-many', (ids: number[]) =>
     d.history.removeMany(Array.isArray(ids) ? ids.filter((i) => Number.isInteger(i)) : [])
+  )
+  handle('int:open-many', (items: unknown) =>
+    d.openMany(Array.isArray(items) ? (items as OpenItem[]) : [])
   )
   handle('int:bookmarks-list', () => d.bookmarks.list())
   handle('int:bookmark-remove', (id: number) => d.bookmarks.remove(id))

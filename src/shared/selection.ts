@@ -39,3 +39,27 @@ export const all = (order: readonly number[]): Selection => ({
   ids: new Set(order),
   anchor: order[0] ?? null
 })
+
+/** The most pages one "open in new tabs" opens: each is a tab, and a mistaken select-all should not bury the window. */
+export const BULK_OPEN_MAX = 100
+
+/**
+ * The pages to open from a selection: web addresses only (never a panes: or file: page, or a script), each once, in
+ * the order given, and no more than `max`. Main uses it as well as the page, so it never trusts the page's list.
+ */
+export function bulkOpenList<T extends { url: string }>(
+  items: readonly T[],
+  max = BULK_OPEN_MAX
+): T[] {
+  const seen = new Set<string>()
+  const out: T[] = []
+  for (const item of items) {
+    if (out.length >= max) break
+    if (typeof item?.url !== 'string' || !/^https?:\/\//i.test(item.url) || seen.has(item.url)) {
+      continue
+    }
+    seen.add(item.url)
+    out.push(item)
+  }
+  return out
+}

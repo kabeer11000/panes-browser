@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { NONE, all, between, click } from './selection'
+import { BULK_OPEN_MAX, NONE, all, between, bulkOpenList, click } from './selection'
 
 const order = [10, 11, 12, 13, 14]
 const none = { shift: false, ctrl: false }
@@ -56,5 +56,48 @@ describe('all', () => {
   test('selects every row', () => {
     expect(all(order).ids.size).toBe(5)
     expect(all([]).anchor).toBeNull()
+  })
+})
+
+describe('bulkOpenList', () => {
+  const page = (url: string): { url: string } => ({ url })
+
+  test('keeps web pages in the order given', () => {
+    const list = [page('https://a.test/'), page('http://b.test/'), page('https://c.test/')]
+    expect(bulkOpenList(list)).toEqual(list)
+  })
+
+  test('drops everything that is not a web address', () => {
+    const list = [
+      page('panes://settings'),
+      page('file:///C:/secret.txt'),
+      page('javascript:alert(1)'),
+      page('data:text/html,hi'),
+      page(''),
+      page('https://ok.test/')
+    ]
+    expect(bulkOpenList(list)).toEqual([page('https://ok.test/')])
+  })
+
+  test('opens each address once, the first time it appears', () => {
+    const a = { url: 'https://a.test/', title: 'first' }
+    const dup = { url: 'https://a.test/', title: 'second' }
+    expect(bulkOpenList([a, dup, page('https://b.test/')])).toEqual([a, page('https://b.test/')])
+  })
+
+  test('stops at the limit', () => {
+    const many = Array.from({ length: BULK_OPEN_MAX + 20 }, (_, i) => page(`https://h${i}.test/`))
+    expect(bulkOpenList(many)).toHaveLength(BULK_OPEN_MAX)
+    expect(bulkOpenList(many, 3).map((p) => p.url)).toEqual([
+      'https://h0.test/',
+      'https://h1.test/',
+      'https://h2.test/'
+    ])
+  })
+
+  test('matches the scheme whatever its case, and survives junk entries', () => {
+    expect(bulkOpenList([page('HTTPS://A.TEST/')])).toHaveLength(1)
+    const junk = [null, undefined, {}, { url: 5 }] as unknown as Array<{ url: string }>
+    expect(bulkOpenList(junk)).toEqual([])
   })
 })

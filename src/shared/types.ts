@@ -7,7 +7,7 @@ import type { TabKind } from './tabkind'
 import type { CaptureKind, CaptureState } from './capture'
 import type { SpaceAttention, TabAttention } from './attention'
 import type { TabDump } from './dumps'
-import type { TorStatus } from './tor'
+import type { TorState, TorStatus } from './tor'
 import type { YouTubeCodec, YouTubeQuality } from './youtube'
 import type { TabGroup } from './tabgroups'
 import type { SpaceIcon } from './spaceicons'
@@ -123,6 +123,10 @@ export interface TabsState {
   spaceAudio: Record<number, { playing: boolean; muted: boolean }>
   /** What is waiting in every space (only spaces with something): unread, unseen, a call and the tab it is in. */
   spaceAttention: Record<number, SpaceAttention>
+  /** Tor, for Tor tabs that wait on it and for the chip that says how it is doing. */
+  tor: { state: TorState; progress: number; message: string; tabs: number }
+  /** Something that just happened, said for a few seconds (a saved session). `id` tells one saying from the next. */
+  notice: { id: number; text: string } | null
 }
 
 export interface Rect {
@@ -180,6 +184,8 @@ export interface PanesApi {
   /** Mute what is playing in a space, or (when nothing is) unmute what was muted. */
   muteSpace(id: number): void
   newPrivateTab(): void
+  /** Start Tor again (it dropped, or could not connect). */
+  torReconnect(): void
   newTorTab(): void
   /** The browser menu (pages, sessions, settings) at a point, for when there is no sidebar to hold those buttons. */
   appMenu(x: number, y: number): void
@@ -249,6 +255,13 @@ export interface PanesApi {
   stopFind(): void
   onFindResult(cb: (result: FindResult) => void): () => void
   platform: NodeJS.Platform
+}
+
+/** A page to open from a list: its address, and the title and icon its tab shows until it is visited. */
+export interface OpenItem {
+  url: string
+  title: string
+  favicon: string | null
 }
 
 export interface InitialData {
@@ -528,6 +541,8 @@ export interface InternalApi {
   historyList(query: string, limit: number, offset: number): Promise<HistoryEntry[]>
   historyRemove(id: number): Promise<void>
   historyRemoveMany(ids: number[]): Promise<void>
+  /** Open pages in new tabs (web addresses only, at most BULK_OPEN_MAX): the first shown, the rest waiting. Resolves with how many opened. */
+  openMany(items: OpenItem[]): Promise<number>
   bookmarksList(): Promise<Bookmark[]>
   bookmarkRemove(id: number): Promise<void>
   /** Saved sessions: sets of tabs to open again or send on. */
@@ -733,13 +748,13 @@ export interface PermissionApi {
 export interface SitePanelApi {
   info(): Promise<SiteInfo | null>
   update(patch: SitePatch): Promise<SiteInfo | null>
-  /** Content height, so the main process can size the view to fit the card. */
-  resize(height: number): void
   close(): void
   /** Let the user choose an element on the page to hide. */
   pick(): void
   /** The panel was opened (or a pick finished): start from its first screen. */
   onShow(cb: () => void): () => void
+  /** The panel has been closed: throw the card away, so the next opening starts fresh. */
+  onHide(cb: () => void): () => void
   /** Fresh state while the panel is open: the tab navigated or loaded, a setting changed elsewhere. */
   onInfo(cb: (info: SiteInfo | null) => void): () => void
 }

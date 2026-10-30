@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState, type MouseEvent } from 'react'
-import { NONE, all, click, type Selection } from '../../../../shared/selection'
+import {
+  BULK_OPEN_MAX,
+  NONE,
+  all,
+  bulkOpenList,
+  click,
+  type Selection
+} from '../../../../shared/selection'
 import type { HistoryEntry } from '../../../../shared/types'
 import { CloseIcon, HistoryIcon, SearchIcon } from '../../components/icons'
 import { dayLabel, formatTime, host } from '../format'
@@ -41,6 +48,16 @@ export function History(): React.JSX.Element {
     setSel(NONE)
   }, [sel.ids])
 
+  // What opening the selection opens: the selected rows as listed, web pages only, each once, up to the limit.
+  const openable = bulkOpenList(entries.filter((e) => sel.ids.has(e.id)))
+  const openSelected = useCallback(async (): Promise<void> => {
+    if (openable.length === 0) return
+    await window.panesInternal.openMany(
+      openable.map(({ url, title, favicon }) => ({ url, title, favicon }))
+    )
+    setSel(NONE)
+  }, [openable])
+
   // Select with the keyboard like a file manager: Ctrl+A for everything shown, Esc to let go, Delete to remove.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -53,11 +70,14 @@ export function History(): React.JSX.Element {
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && sel.ids.size > 0) {
         e.preventDefault()
         void removeSelected()
+      } else if (e.key === 'Enter' && !typing && openable.length > 0) {
+        e.preventDefault()
+        void openSelected()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [entries, sel.ids.size, removeSelected])
+  }, [entries, sel.ids.size, removeSelected, openable.length, openSelected])
 
   const pick = (e: MouseEvent, id: number): void => {
     e.preventDefault()
@@ -103,6 +123,18 @@ export function History(): React.JSX.Element {
           <span className="sel-actions">
             <button className="int-btn small" onClick={() => setSel(NONE)}>
               Clear selection
+            </button>
+            <button
+              className="int-btn small"
+              disabled={openable.length === 0}
+              title={
+                openable.length < sel.ids.size
+                  ? `Opens ${openable.length} of the ${sel.ids.size} selected: web pages only, each once, at most ${BULK_OPEN_MAX}`
+                  : 'Open the selected pages in new tabs (Enter)'
+              }
+              onClick={() => void openSelected()}
+            >
+              {openable.length === 1 ? 'Open in a new tab' : `Open ${openable.length} in new tabs`}
             </button>
             <button className="int-btn small danger" onClick={() => void removeSelected()}>
               Delete

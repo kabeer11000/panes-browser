@@ -15,6 +15,7 @@ import { SharingBar } from './components/SharingBar'
 import { FindBar } from './components/FindBar'
 import { FeedbackIcon, GridIcon, MoreIcon, SidebarIcon, SplitIcon } from './components/icons'
 import { NavButtons } from './components/NavButtons'
+import { StatusChips } from './components/StatusChips'
 import { HorizontalTabs } from './components/HorizontalTabs'
 import { SpaceSwitcher } from './components/SpaceSwitcher'
 import { WindowControls } from './components/WindowControls'
@@ -45,8 +46,19 @@ const SNAP_MS = 160 // idle time before the stack settles on the nearest card
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 
 function App(): React.JSX.Element {
-  const { tabs, tabGroups, activeId, layout, thumbs, active, spaces, activeSpaceId, activeSpace } =
-    useTabs()
+  const {
+    tabs,
+    tabGroups,
+    activeId,
+    layout,
+    thumbs,
+    active,
+    spaces,
+    activeSpaceId,
+    activeSpace,
+    tor,
+    notice
+  } = useTabs()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   // Opened by the pointer touching the left edge (a setting): it closes itself when the pointer leaves.
   const [openedByHover, setOpenedByHover] = useState(false)
@@ -562,6 +574,8 @@ function App(): React.JSX.Element {
     >
       <aside className="sidebar" inert={!showSidebar}>
         <Sidebar
+          tor={tor}
+          notice={notice}
           tabs={tabs}
           tabGroups={tabGroups}
           activeId={activeId}
@@ -655,6 +669,7 @@ function App(): React.JSX.Element {
             onWheel={swipe}
           />
           <div className="strip-side end">
+            {!showSidebar && <StatusChips tor={tor} notice={notice} />}
             {!showSidebar && <SharingBar tabs={tabs} activeId={activeId} />}
             {!showSidebar && findKey !== null && (
               <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
@@ -728,6 +743,7 @@ function App(): React.JSX.Element {
               frozenBlur={settings.frozenBlur}
               newTabPhoto={settings.newTabPhoto}
               newTabPhotoId={settings.newTabPhotoId}
+              tor={tor}
               tabs={tabs}
               activeId={activeId}
               layout={layout}

@@ -12,6 +12,7 @@ if (location.protocol === 'panes:') {
     historyList: (q, limit, offset) => ipcRenderer.invoke('int:history-list', q, limit, offset),
     historyRemove: (id) => ipcRenderer.invoke('int:history-remove', id),
     historyRemoveMany: (ids) => ipcRenderer.invoke('int:history-remove-many', ids),
+    openMany: (items) => ipcRenderer.invoke('int:open-many', items),
     bookmarksList: () => ipcRenderer.invoke('int:bookmarks-list'),
     bookmarkRemove: (id) => ipcRenderer.invoke('int:bookmark-remove', id),
     torStatus: () => ipcRenderer.invoke('int:tor-status'),

@@ -21,7 +21,6 @@ export function Panel(): React.JSX.Element {
   const [info, setInfo] = useState<SiteInfo | null | undefined>(undefined)
   const [view, setView] = useState<'home' | 'boost'>('home')
   const [opened, setOpened] = useState(0)
-  const box = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -46,14 +45,16 @@ export function Panel(): React.JSX.Element {
     if (opened > 0) dialog.current?.focus()
   }, [opened])
 
-  // The view is only as tall as the card, so it never covers page area it has no business covering.
-  useEffect(() => {
-    const el = box.current
-    if (!el) return
-    const ro = new ResizeObserver(() => api.resize(el.getBoundingClientRect().height - 72))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [api])
+  // The card is thrown away when the panel closes, so the next opening starts from nothing: it fades in fresh, and
+  // never shows the last site's settings for a frame first.
+  useEffect(
+    () =>
+      api.onHide(() => {
+        setInfo(undefined)
+        setView('home')
+      }),
+    [api]
+  )
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -74,7 +75,13 @@ export function Panel(): React.JSX.Element {
   )
 
   return (
-    <div className="pn-root" ref={box}>
+    // the view reaches the window's bottom (see place in main/sitePanel.ts): a press outside the card is a click away
+    <div
+      className="pn-root"
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) api.close()
+      }}
+    >
       {info !== undefined && (
         <div className="pn" role="dialog" aria-label="Site settings" tabIndex={-1} ref={dialog}>
           {info === null ? (

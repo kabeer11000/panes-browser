@@ -83,9 +83,11 @@ import {
   type Edge,
   type LayoutNode
 } from '../shared/layout'
+import { bulkOpenList } from '../shared/selection'
 import type {
   InitialData,
   MemoryStats,
+  OpenItem,
   Rect,
   SpacePatch,
   TabCardInfo,
@@ -121,6 +123,10 @@ const ESC_HOLD_MS = 1000
 const SOUND_HOLD_MS = 20_000 // how long a quiet stretch of playing media keeps its speaker
 const STACK_STEP = 160 // one card of the tab stack, in the renderer's wheel units
 const OPEN_EXTERNALLY = new Set(['mailto:', 'tel:'])
+/** Tor is left running this long after the last Tor tab closes. */
+const TOR_IDLE_MS = 5 * 60_000
+/** How long a message about something that just happened stays in the window. */
+const NOTICE_MS = 4000
 
 interface Tab {
   view: WebContentsView
@@ -155,6 +161,8 @@ interface Tab {
   /** A private tab: kept out of history, the saved session and saved sessions, in its own in-memory session. */
   private: boolean
   tor: boolean
+  /** A Tor tab opened before Tor was ready: what to load once it is ('' for a blank tab); null when it is not waiting. */
+  torTarget: string | null
   /** What the tab shows the page capturing: what its frames report (see CAPTURE_SCRIPT), held through short gaps. */
   capture: CaptureState
   /** The last report of each frame that has one, by frame tree node id. */
@@ -259,6 +267,10 @@ export class TabManager {
     groups?: Array<TabGroup & { spaceId: number }>
   }>('session-v2', { tabs: [], active: 0 })
   private sessionTimer: NodeJS.Timeout | null = null
+  private message: { id: number; text: string } | null = null
+  private messageId = 0
+  private messageTimer: NodeJS.Timeout | undefined
+  private torIdleTimer: NodeJS.Timeout | undefined
 
   constructor(
     private win: BrowserWindow,
@@ -372,6 +384,13 @@ export class TabManager {
       spaces: this.deps.spaces.list(),
       spaceAudio,
       spaceAttention: spaceAttention(waiting),
+      tor: {
+        state: this.deps.tor.get().state,
+        progress: this.deps.tor.get().progress,
+        message: this.deps.tor.get().message,
+        tabs: [...this.tabs.values()].filter((t) => t.tor).length
+      },
+      notice: this.message,
       activeSpaceId: this.activeSpaceId,
       tabGroups: [...this.groups.values()]
         .filter((g) => g.spaceId === this.activeSpaceId)
@@ -547,6 +566,7 @@ export class TabManager {
       view: unloaded ? this.inertView() : this.makeView(isPrivate, isTor),
       private: isPrivate || isTor,
       tor: isTor,
+      torTarget: null,
       capture: NO_CAPTURE,
       captureFrames: new Map(),
       captureHold: NO_HOLD,
@@ -675,6 +695,7 @@ export class TabManager {
     if (tab.thumbTimer) clearTimeout(tab.thumbTimer)
     this.tabs.delete(id)
     this.destroyView(tab)
+    if (tab.tor) this.torTabsChanged()
     if (tab.private) this.forgetPrivateIfDone()
 
     if (this.activeId !== id) return this.refresh()
@@ -689,16 +710,62 @@ export class TabManager {
     return this.create(input, true, this.activeSpaceId, undefined, true)
   }
 
-  /** A private tab through Tor: once Tor is up (it is started now if it is not), else nothing opens. */
+  /**
+   * A Tor tab opens at once. If Tor is not up yet the tab waits, saying how far Tor has got, while Tor starts in the
+   * background, and loads what was asked for the moment it is up. Until then Tor's session has no way out (its proxy
+   * points at nothing), so nothing can load outside Tor.
+   */
   newTorTab(input = ''): void {
-    const open = (): void => {
-      if (this.deps.tor.get().state === 'ready') {
-        this.create(input, true, this.activeSpaceId, undefined, true, true)
+    clearTimeout(this.torIdleTimer)
+    if (this.deps.tor.get().state === 'ready') {
+      this.create(input, true, this.activeSpaceId, undefined, true, true)
+      return
+    }
+    const id = this.create('', true, this.activeSpaceId, undefined, true, true)
+    const tab = this.tabs.get(id)
+    if (tab) tab.torTarget = input
+    void this.deps.tor.start(this.deps.settings.get().torSnowflake) // already starting: the same attempt
+  }
+
+  /** Tor's state changed and its proxy matches it: Tor tabs that were waiting load, and the window is told. */
+  torChanged(): void {
+    if (this.deps.tor.get().state === 'ready') {
+      for (const tab of this.tabs.values()) {
+        if (tab.torTarget === null) continue
+        const target = tab.torTarget
+        tab.torTarget = null
+        const url = resolveInput(target, this.deps.settings.searchUrl())
+        if (!url) continue
+        tab.hasUrl = true
+        this.go(tab, url)
       }
     }
-    if (this.deps.tor.get().state === 'ready') return open()
-    this.openInternal('settings') // where the progress is shown
-    void this.deps.tor.start(this.deps.settings.get().torSnowflake).then(open)
+    this.refresh()
+  }
+
+  /**
+   * With the last Tor tab closed Tor is left running a while (another may be opened at once), then stopped, so it is
+   * not left connected, using the network, with nothing to serve.
+   */
+  private torTabsChanged(): void {
+    clearTimeout(this.torIdleTimer)
+    if ([...this.tabs.values()].some((t) => t.tor)) return
+    this.torIdleTimer = setTimeout(() => {
+      if (![...this.tabs.values()].some((t) => t.tor)) this.deps.tor.stop()
+    }, TOR_IDLE_MS)
+    this.torIdleTimer.unref()
+  }
+
+  /** Say something short in the window for a few seconds. */
+  private say(text: string): void {
+    this.message = { id: ++this.messageId, text }
+    clearTimeout(this.messageTimer)
+    this.messageTimer = setTimeout(() => {
+      this.message = null
+      this.refresh()
+    }, NOTICE_MS)
+    this.messageTimer.unref()
+    this.refresh()
   }
 
   private forgetPrivateIfDone(): void {
@@ -1335,7 +1402,8 @@ export class TabManager {
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
     if (!wc) return
-    for (const f of wc.mainFrame.framesInSubtree) void f.executeJavaScript(stopCaptureScript(kinds)).catch(() => {})
+    for (const f of wc.mainFrame.framesInSubtree)
+      void f.executeJavaScript(stopCaptureScript(kinds)).catch(() => {})
   }
 
   toggleMute(id: number): void {
@@ -2134,7 +2202,33 @@ export class TabManager {
       const saved = new Set(dump.tabs.map((t) => t.url))
       for (const t of open) if (saved.has(t.url)) this.close(t.id)
     }
+    const n = dump?.tabs.length ?? 0
+    this.say(
+      dump
+        ? `Saved ${n} ${n === 1 ? 'tab' : 'tabs'} as "${dump.name}"${close ? ' and closed them' : ''}`
+        : 'There are no web pages open to save'
+    )
     return dump
+  }
+
+  /**
+   * Open pages from a list (the history page's selection): the first becomes the tab you are on, and the rest wait
+   * unloaded, with their title and icon, until they are visited, so opening fifty pages does not start fifty
+   * processes. The page is not trusted: only web addresses, once each, and a capped number get through.
+   */
+  openMany(items: OpenItem[]): number {
+    const list = bulkOpenList(items)
+    list.forEach((it, i) => {
+      const lazy =
+        i === 0
+          ? undefined
+          : {
+              title: typeof it.title === 'string' ? it.title.slice(0, 500) : '',
+              favicon: typeof it.favicon === 'string' ? it.favicon : null
+            }
+      this.create(it.url, i === 0, this.activeSpaceId, lazy)
+    })
+    return list.length
   }
 
   /** Open a saved session as a new group of tabs, named after it. */

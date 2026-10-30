@@ -147,9 +147,12 @@ function createWindow(): void {
   const DEAD_PROXY = 'socks5://127.0.0.1:1'
   void torSession.setProxy({ proxyRules: DEAD_PROXY })
   tor.onChange((st) => {
-    void torSession.setProxy({
-      proxyRules: st.state === 'ready' ? `socks5://127.0.0.1:${tor.socksPort}` : DEAD_PROXY
-    })
+    // Tor tabs waiting on Tor load only once the proxy is pointing at it.
+    void torSession
+      .setProxy({
+        proxyRules: st.state === 'ready' ? `socks5://127.0.0.1:${tor.socksPort}` : DEAD_PROXY
+      })
+      .then(() => tabs.torChanged())
   })
 
   const settings = new SettingsStore()
@@ -247,6 +250,7 @@ function createWindow(): void {
     permissions,
     history,
     bookmarks,
+    openMany: (items) => tabs.openMany(items),
     tor: {
       status: () => tor.get(),
       start: (snowflake) => tor.start(snowflake),
@@ -408,6 +412,9 @@ function createWindow(): void {
   ipcMain.on('tabs:stop', () => tabs.stop())
   ipcMain.on('tabs:new-private', () => void tabs.newPrivateTab())
   ipcMain.on('tabs:new-tor', () => tabs.newTorTab())
+  ipcMain.on('tor:reconnect', (e) => {
+    if (e.sender === win.webContents) void tor.start(settings.get().torSnowflake)
+  })
   ipcMain.on('tabs:open-internal', (_e, page: InternalPage) => tabs.openInternal(page))
   ipcMain.on('tabs:toggle-bookmark', () => tabs.toggleBookmark())
   ipcMain.on('find:run', (_e, text: string, forward?: boolean) => tabs.find(text, forward))
@@ -481,7 +488,9 @@ function createWindow(): void {
     if (typeof x === 'number' && typeof y === 'number') tabs.appMenu(Math.round(x), Math.round(y))
   })
   ipcMain.on('tabs:group-update', (_e, id: number, patch: unknown) => tabs.updateGroup(id, patch))
-  ipcMain.on('tabs:stop-capture', (_e, id: number, kinds: CaptureKind[]) => tabs.stopCapture(id, kinds))
+  ipcMain.on('tabs:stop-capture', (_e, id: number, kinds: CaptureKind[]) =>
+    tabs.stopCapture(id, kinds)
+  )
   ipcMain.on('tabs:toggle-mute', (_e, id: number) => tabs.toggleMute(id))
   ipcMain.on('tabs:ratios', (_e, path: number[], ratios: number[]) =>
     tabs.updateRatios(path, ratios)

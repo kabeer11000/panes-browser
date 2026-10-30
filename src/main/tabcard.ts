@@ -64,7 +64,6 @@ class TabCard {
 
   hide(): void {
     if (!this.info) return
-    console.log('[tabcard] hide', new Error().stack?.split('\n').slice(2, 5).join(' | '))
     this.info = null
     this.anchor = null
     this.view?.setVisible(false)

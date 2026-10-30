@@ -4,13 +4,17 @@ import type { SiteInfo, SitePanelApi } from '../shared/types'
 const api: SitePanelApi = {
   info: () => ipcRenderer.invoke('panel:info'),
   update: (patch) => ipcRenderer.invoke('panel:update', patch),
-  resize: (height) => ipcRenderer.send('panel:resize', height),
   close: () => ipcRenderer.send('panel:close'),
   pick: () => ipcRenderer.send('panel:pick'),
   onShow: (cb) => {
     const listener = (): void => cb()
     ipcRenderer.on('panel:show', listener)
     return () => ipcRenderer.removeListener('panel:show', listener)
+  },
+  onHide: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('panel:hide', listener)
+    return () => ipcRenderer.removeListener('panel:hide', listener)
   },
   onInfo: (cb) => {
     const listener = (_e: unknown, info: SiteInfo | null): void => cb(info)

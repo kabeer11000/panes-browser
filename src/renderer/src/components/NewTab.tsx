@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { LocalSuggestion } from '../../../shared/search'
 import { dailyPhotoId, nextPhotoId, photoUrl } from '../../../shared/photos'
 import { displayHost } from '../../../shared/url'
+import type { TabsState } from '../../../shared/types'
 import { ImageIcon, SearchIcon, ShieldIcon } from './icons'
 
 const MAX_SITES = 8
@@ -102,15 +103,54 @@ function useNow(): Date {
 }
 
 /** A blank tab: the time, one big input that opens the command bar, and the sites you go to most as tiles. */
+/** Says how far Tor has got, in a Tor tab opened before Tor was up (the page asked for loads when it is). */
+function TorWait({ tor }: { tor: TabsState['tor'] }): React.JSX.Element {
+  const working = tor.state === 'downloading' || tor.state === 'starting'
+  return (
+    <div className="newtab-tor" role="status">
+      <ShieldIcon />
+      <div>
+        <b>
+          {working
+            ? 'Connecting to Tor'
+            : tor.state === 'error'
+              ? 'Could not connect to Tor'
+              : 'Tor is not running'}
+        </b>
+        <span>
+          {working
+            ? tor.message || 'Starting'
+            : tor.state === 'error'
+              ? tor.message
+              : 'Connect to use this tab'}
+        </span>
+        {working && (
+          <span className="newtab-tor-bar" aria-hidden="true">
+            <i style={{ transform: `scaleX(${Math.max(0.04, tor.progress / 100)})` }} />
+          </span>
+        )}
+      </div>
+      {!working && (
+        <button type="button" onClick={() => window.api.torReconnect()}>
+          {tor.state === 'error' ? 'Try again' : 'Connect'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 export function NewTab({
   onOpenSearch,
   photo,
-  photoId
+  photoId,
+  tor
 }: {
   onOpenSearch: () => void
   photo: boolean
   /** The photo kept in the settings, or null for the daily one. */
   photoId: number | null
+  /** Tor's state, in a Tor tab: while Tor is not connected the tab says so. */
+  tor?: TabsState['tor']
 }): React.JSX.Element {
   const [sites, setSites] = useState<LocalSuggestion[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -166,6 +206,8 @@ export function NewTab({
             </span>
           </p>
         </header>
+
+        {tor && tor.state !== 'ready' && <TorWait tor={tor} />}
 
         <button type="button" className="newtab-search" onClick={onOpenSearch}>
           <SearchIcon />
