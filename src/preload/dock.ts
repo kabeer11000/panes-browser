@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { DockApi, DownloadInfo, DownloadStart } from '../shared/types'
+import type { DockApi, DockOverlayState, DownloadInfo, DownloadStart } from '../shared/types'
 
 function subscribe<A extends unknown[]>(channel: string, cb: (...args: A) => void): () => void {
   const listener = (_e: unknown, ...args: unknown[]): void => cb(...(args as A))
@@ -15,6 +15,12 @@ const api: DockApi = {
   act: (id, action) => ipcRenderer.send('downloads:act', id, action),
   openDownloads: () => ipcRenderer.send('dock:open-downloads'),
   setMode: (mode) => ipcRenderer.send('dock:mode', mode),
+  toggle: () => ipcRenderer.send('dock:toggle'),
+  onOverlay: (cb) => subscribe<[DockOverlayState]>('dock:overlay', cb),
+  onLanded: (cb) => subscribe<[]>('dock:landed', cb),
+  onToggle: (cb) => subscribe<[]>('dock:toggle', cb),
+  report: (state) => ipcRenderer.send('dock:report', state),
+  landed: () => ipcRenderer.send('dock:landed'),
   onSlide: (cb) => subscribe<['sink' | 'tuck' | 'rise']>('dock:slide', cb)
 }
 

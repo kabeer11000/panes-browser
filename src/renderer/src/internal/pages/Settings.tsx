@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { MAIL_HANDLERS } from '../../../../shared/mailto'
+import { PHOTO_IDS, photoUrl } from '../../../../shared/photos'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '../../../../shared/settings'
 import type { ClearKind, SearchEngineId, Settings as SettingsData } from '../../../../shared/types'
 
@@ -205,6 +206,47 @@ export function Settings(): React.JSX.Element {
             onChange={(v) => void update({ mailHandler: v })}
           />
         </Row>
+        <Row
+          label="Photo on the new tab page"
+          hint="A new landscape photo each day, fetched from picsum.photos (photos from Unsplash). Never shown or fetched in private or Tor tabs."
+        >
+          <Toggle
+            label="Photo on the new tab page"
+            on={s.newTabPhoto}
+            onChange={(v) => void update({ newTabPhoto: v })}
+          />
+        </Row>
+        {s.newTabPhoto && (
+          <div className="u-row">
+            <div className="u-text">
+              <div className="u-label">Background</div>
+              <div className="u-hint">Daily changes it every day. Or keep one.</div>
+              <div className="bg-picker" role="listbox" aria-label="New tab background">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={s.newTabPhotoId === null}
+                  className={'bg-daily' + (s.newTabPhotoId === null ? ' on' : '')}
+                  onClick={() => void update({ newTabPhotoId: null })}
+                >
+                  Daily
+                </button>
+                {PHOTO_IDS.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="option"
+                    aria-selected={s.newTabPhotoId === id}
+                    className={'bg-thumb' + (s.newTabPhotoId === id ? ' on' : '')}
+                    onClick={() => void update({ newTabPhotoId: id })}
+                  >
+                    <img src={photoUrl(id, 160, 90)} alt="" loading="lazy" draggable={false} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         <Row
           label="Address bar spans the whole row"
           hint="With tabs along the top: the address bar stretches from side to side. Off keeps it in the middle."

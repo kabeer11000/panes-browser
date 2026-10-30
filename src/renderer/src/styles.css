@@ -2005,57 +2005,93 @@ kbd {
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* ---- new tab: one big input and your most used sites, on a soft wash of the space colour ---- */
+/* ---- new tab: the time, one big input and your most used sites as tiles, on a wash of the space colour ---- */
 .newtab {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
-  padding-bottom: 8vh; /* a little above centre, where the eye lands */
+  padding-bottom: 4vh;
   background:
     radial-gradient(
-      900px 520px at 50% -8%,
-      color-mix(in srgb, var(--space) 16%, transparent),
+      1100px 620px at 50% -10%,
+      color-mix(in srgb, var(--space) 22%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      700px 420px at 85% 110%,
+      color-mix(in srgb, var(--space) 10%, transparent),
       transparent
     ),
     var(--stage-bg);
 }
 .newtab-body {
-  width: min(640px, 90%);
+  width: min(680px, 90%);
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 26px;
-  animation: nt-in 0.35s var(--ease) both;
+  gap: 30px;
+  animation: nt-in 0.4s var(--ease) both;
 }
 @keyframes nt-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
 }
+.newtab-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.newtab-clock {
+  font-size: 76px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.newtab-hello {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 15px;
+  color: var(--fg-dim);
+}
+.newtab-hello span {
+  opacity: 0.7;
+}
+.newtab-hello span::before {
+  content: '\00b7';
+  margin-right: 10px;
+}
 .newtab-search {
-  height: 58px;
+  height: 56px;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 0 20px;
-  border-radius: 20px;
+  border-radius: 28px;
   background: var(--surface-hover);
   color: var(--fg-dim);
   font-size: 16px;
   text-align: left;
   box-shadow:
     inset 0 0 0 1px var(--border),
-    0 10px 30px -14px rgb(0 0 0 / 0.35);
+    0 14px 40px -18px color-mix(in srgb, var(--space) 60%, black);
   transition:
     background 0.15s,
     color 0.15s,
+    transform 0.2s var(--ease),
     box-shadow 0.2s var(--ease);
 }
 .newtab-search:hover {
   background: var(--surface-active);
   color: var(--fg);
+  transform: translateY(-1px);
 }
 .newtab-search:focus-visible,
 .newtab-site:focus-visible {
@@ -2076,60 +2112,231 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: 18px 12px;
 }
 .newtab-site {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 9px;
-  max-width: 200px;
-  height: 38px;
-  padding: 0 14px 0 10px;
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--border);
+  gap: 8px;
+  width: 104px;
+  padding: 4px;
+  border-radius: 16px;
   color: var(--fg-dim);
-  font-size: 13px;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    transform 0.15s var(--ease);
+  font-size: 12.5px;
+  animation: nt-in 0.4s var(--ease) both;
+  animation-delay: calc(var(--i) * 30ms + 80ms);
+  transition: color 0.15s;
 }
 .newtab-site:hover {
-  background: var(--surface-hover);
   color: var(--fg);
 }
-.newtab-site:active {
-  transform: scale(0.97);
+.newtab-tile {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  transition:
+    background 0.15s,
+    transform 0.2s var(--ease),
+    box-shadow 0.2s var(--ease);
 }
-.newtab-site img,
-.newtab-site b {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+.newtab-site:hover .newtab-tile {
+  background: var(--surface-hover);
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    0 12px 24px -12px rgb(0 0 0 / 0.5);
 }
-.newtab-site img {
+.newtab-site:active .newtab-tile {
+  transform: scale(0.95);
+}
+.newtab-tile img,
+.newtab-tile b {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+.newtab-tile img {
   object-fit: contain;
 }
-.newtab-site b {
+.newtab-tile b {
   display: grid;
   place-items: center;
   background: hsl(var(--hue) 60% 50% / 0.22);
   color: hsl(var(--hue) 70% 72%);
-  font-size: 11px;
+  font-size: 16px;
   font-weight: 600;
 }
-.newtab-site span {
-  min-width: 0;
+.newtab-label {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.newtab-private {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.newtab-private button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: var(--fg-dim);
+  font-size: 12.5px;
+  opacity: 0.75;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    opacity 0.15s;
+}
+.newtab-private button:hover {
+  background: var(--surface-hover);
+  color: var(--fg);
+  opacity: 1;
+}
+@media (max-width: 560px) {
+  .newtab-clock {
+    font-size: 56px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .newtab-body {
+  .newtab-body,
+  .newtab-site {
     animation: none;
   }
+}
+
+/* the daily photo: under everything, with a scrim so the text stays readable, and the page turns to light-on-dark */
+.newtab-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.1); /* room to drift (see useParallax) */
+  transition: opacity 0.8s var(--ease);
+  will-change: transform;
+}
+.newtab.has-photo .newtab-photo {
+  opacity: 1;
+}
+.newtab.has-photo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  /* a vignette: the corners darker than the middle, over an even dim */
+  background:
+    radial-gradient(ellipse at 50% 45%, transparent 38%, rgb(0 0 0 / 0.55) 100%), rgb(0 0 0 / 0.26);
+  pointer-events: none;
+}
+.newtab.has-photo {
+  --fg: #fff;
+  --fg-dim: rgb(255 255 255 / 0.82);
+  --surface: rgb(255 255 255 / 0.16);
+  --surface-hover: rgb(255 255 255 / 0.24);
+  --surface-active: rgb(255 255 255 / 0.3);
+  --border: rgb(255 255 255 / 0.2);
+  color: #fff;
+}
+.newtab.has-photo .newtab-search,
+.newtab.has-photo .newtab-tile {
+  backdrop-filter: blur(14px);
+}
+.newtab.has-photo .newtab-clock {
+  text-shadow: 0 2px 24px rgb(0 0 0 / 0.35);
+}
+[data-fx='low'] .newtab.has-photo .newtab-search,
+[data-fx='low'] .newtab.has-photo .newtab-tile {
+  backdrop-filter: none;
+}
+.newtab-body {
+  position: relative;
+  z-index: 2;
+}
+
+/* frosted glass: everything clickable on the new tab is one even, heavily frosted pane tinted with the space colour, with no outline */
+.newtab {
+  --glass: color-mix(in srgb, var(--space) 52%, transparent);
+  --glass-hover: color-mix(in srgb, var(--space) 68%, transparent);
+  --glass-rim: 0 8px 24px -10px rgb(0 0 0 / 0.45);
+}
+.newtab-search,
+.newtab-tile,
+.newtab-private button {
+  background: var(--glass);
+  backdrop-filter: blur(34px) saturate(1.5);
+  box-shadow: var(--glass-rim);
+  color: var(--fg);
+}
+.newtab-private button {
+  opacity: 1;
+}
+.newtab-search:hover,
+.newtab-site:hover .newtab-tile,
+.newtab-private button:hover {
+  background: var(--glass-hover);
+  box-shadow: var(--glass-rim);
+}
+.newtab-site .newtab-label,
+.newtab-hello,
+.newtab-clock {
+  text-shadow: 0 1px 12px rgb(0 0 0 / 0.45);
+}
+.newtab:not(.has-photo) .newtab-site .newtab-label,
+.newtab:not(.has-photo) .newtab-hello,
+.newtab:not(.has-photo) .newtab-clock {
+  text-shadow: none;
+}
+[data-fx='low'] .newtab-search,
+[data-fx='low'] .newtab-tile,
+[data-fx='low'] .newtab-private button {
+  backdrop-filter: none;
+  background: color-mix(in srgb, var(--space) 70%, rgb(24 24 32));
+}
+
+.newtab-bg {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: var(--glass);
+  backdrop-filter: blur(34px) saturate(1.5);
+  box-shadow: var(--glass-rim);
+  color: var(--fg);
+  opacity: 0.85;
+  transition:
+    background 0.15s,
+    opacity 0.15s,
+    transform 0.2s var(--ease);
+}
+.newtab-bg:hover {
+  background: var(--glass-hover);
+  opacity: 1;
+}
+.newtab-bg:active {
+  transform: scale(0.94);
+}
+.newtab-bg svg {
+  width: 18px;
+  height: 18px;
+}
+[data-fx='low'] .newtab-bg {
+  backdrop-filter: none;
+  background: color-mix(in srgb, var(--space) 70%, rgb(24 24 32));
 }
 
 /* ---- command bar ---- */
@@ -3177,29 +3384,6 @@ kbd {
   .capture-badge::before {
     animation: none;
   }
-}
-
-.newtab-private {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-.newtab-private button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--fg-dim);
-  font-size: 12.5px;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-.newtab-private button:hover {
-  background: var(--surface-active);
-  color: var(--fg);
 }
 
 /* ---- top tabs: one surface from the active tab down into the toolbar, fixed tab width, split tabs joined ---- */

@@ -1,4 +1,5 @@
 import { MAIL_HANDLERS } from '../shared/mailto'
+import { PHOTO_IDS } from '../shared/photos'
 import {
   APPEARANCE_LIMITS,
   DEFAULT_SETTINGS,
@@ -49,6 +50,10 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (typeof patch.fullWidthAddress === 'boolean') out.fullWidthAddress = patch.fullWidthAddress
   if (patch.tabLayout === 'vertical' || patch.tabLayout === 'horizontal') {
     out.tabLayout = patch.tabLayout
+  }
+  if (typeof patch.newTabPhoto === 'boolean') out.newTabPhoto = patch.newTabPhoto
+  if (patch.newTabPhotoId === null || PHOTO_IDS.includes(patch.newTabPhotoId as number)) {
+    out.newTabPhotoId = patch.newTabPhotoId as number | null
   }
   if (typeof patch.searchSuggestions === 'boolean') out.searchSuggestions = patch.searchSuggestions
   if (patch.urlDisplay === 'full' || patch.urlDisplay === 'host') out.urlDisplay = patch.urlDisplay

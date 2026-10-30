@@ -412,6 +412,9 @@ function createWindow(): void {
   ipcMain.on('tabs:toggle-bookmark', () => tabs.toggleBookmark())
   ipcMain.on('find:run', (_e, text: string, forward?: boolean) => tabs.find(text, forward))
   ipcMain.on('find:stop', () => tabs.stopFind())
+  ipcMain.on('settings:newtab-photo', (_e, id: unknown) =>
+    settings.update({ newTabPhotoId: typeof id === 'number' ? id : null })
+  )
   ipcMain.handle('settings:get', () => settings.get())
   ipcMain.on('win:minimize', () => win.minimize())
   ipcMain.on('win:maximize', () => (win.isMaximized() ? win.unmaximize() : win.maximize()))

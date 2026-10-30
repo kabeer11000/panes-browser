@@ -1,34 +1,51 @@
 import { is } from '@electron-toolkit/utils'
-import { ipcMain, screen, type BrowserWindow, WebContentsView, type WebContents } from 'electron'
+import {
+  ipcMain,
+  screen,
+  type BrowserWindow,
+  type IpcMainEvent,
+  type IpcMainInvokeEvent,
+  WebContentsView,
+  type WebContents
+} from 'electron'
 import { join } from 'path'
-import type { DockMode, DownloadAction } from '../shared/types'
+import type { DockMode, DockOverlayState, DownloadAction } from '../shared/types'
 import { paintView } from './chromeTheme'
 import type { DownloadManager } from './downloads'
 
-// The view is only as big as the bin and a little room round it, and stops short of the window's right edge, so the
+// The bin's view is only as big as the bin and a little room round it, and stops short of the window's right edge, so the
 // page's scrollbar and anything at its extreme right can still be reached.
 const WIDTH = 100
 const HEIGHT = 96
 const INSET = 8 // the window's right edge left free
 const SLIVER = 12 // how much of it shows, at the window's bottom edge, while the bin is tucked away: also the strip of page it covers
-const CORNER_PX = 48 // the pointer this near the corner brings the bin out
-const REACH_PX = 150 // and keeps it out until the pointer is this far away
-const DWELL_MS = 110
-const LEAVE_MS = 450
+const OVERLAY_HIDE_MS = 260 // the fan's exit animation, before its view goes
+// The pointer has to rest in a small slot at the very corner to bring the bin out, so passing through (to the page's
+// scrollbar, say) does not. Once out it stays until the pointer is well away.
+const CORNER_X = 64
+const CORNER_Y = 28
+const REACH_X = 130
+const REACH_Y = 120
+const DWELL_MS = 320
+const LEAVE_MS = 350
 const ACTIONS = ['open', 'show', 'cancel', 'pause', 'resume', 'remove']
 
 /**
- * The downloads bin: a small transparent view at the window's bottom-right corner, above the page. Tucked away it
- * is only a sliver of the bin's top at the very edge; out, it is the whole bin; while a fan is open or a file is
- * flying to it, it covers the whole window (the bin itself stays where it is). Page views are native and paint
- * over the window's own UI, so this one has to be a view of its own.
+ * The downloads bin: two transparent views above the page. The bin is a small view at the window's bottom-right corner;
+ * tucked away it is only a sliver of its top at the very edge, out it is the whole bin. It is only ever moved, never
+ * resized: a resized view shows its old frame at its new top-left until the page has drawn the new one. The fan (and
+ * the file flying to the bin) is a second view that is always window-sized and is only shown and hidden, so it never
+ * resizes either. Page views are native and paint over the window's own UI, so these have to be views of their own.
  */
 class Dock {
   private view: WebContentsView | null = null
+  private overlay: WebContentsView | null = null
   private mode: DockMode = 'peek'
-  private loaded = false
+  private loaded = new WeakSet<WebContentsView>()
   private hidden = false
+  private wanted = false // the fan view is wanted: a fan is open or a file is flying
   private slideTimer: ReturnType<typeof setTimeout> | undefined
+  private overlayTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(private win: BrowserWindow) {
     win.on('resize', () => this.place())
@@ -36,25 +53,40 @@ class Dock {
     win.on('leave-full-screen', () => this.show())
   }
 
+  /** The bin's page. */
   get contents(): WebContents | null {
     return this.view?.webContents ?? null
   }
 
+  /** Whether a page is one of the two this owns. */
+  owns(wc: WebContents): boolean {
+    return wc === this.view?.webContents || wc === this.overlay?.webContents
+  }
+
   start(): void {
+    this.view = this.make('')
+    this.overlay = this.make('#overlay')
+    this.overlay.setVisible(false)
+    this.place()
+    this.raise()
+  }
+
+  private make(hash: string): WebContentsView {
     const view = new WebContentsView({
       webPreferences: { sandbox: true, preload: join(__dirname, '../preload/dock.js') }
     })
     view.setBackgroundColor('#00000000')
     const devUrl = process.env['ELECTRON_RENDERER_URL']
-    if (is.dev && devUrl) void view.webContents.loadURL(`${devUrl}/dock.html`)
-    else void view.webContents.loadFile(join(__dirname, '../renderer/dock.html'))
+    if (is.dev && devUrl) void view.webContents.loadURL(`${devUrl}/dock.html${hash}`)
+    else
+      void view.webContents.loadFile(join(__dirname, '../renderer/dock.html'), {
+        hash: hash.slice(1)
+      })
     view.webContents.once('did-finish-load', () => {
-      this.loaded = true
+      this.loaded.add(view)
       paintView(view.webContents)
     })
-    this.view = view
-    this.place()
-    this.raise()
+    return view
   }
 
   /** Off the window altogether (the pane view is open over that edge), or back to its place. */
@@ -77,39 +109,76 @@ class Dock {
     }
   }
 
+  get isHidden(): boolean {
+    return this.hidden
+  }
+
   private show(): void {
-    this.view?.setVisible(!this.hidden && !this.win.isFullScreen())
+    const away = this.hidden || this.win.isFullScreen()
+    this.view?.setVisible(!away)
+    this.overlay?.setVisible(!away && this.wanted)
   }
 
   /** Back on top of the page views, which are added later than this view and would otherwise cover it. */
   raise(): void {
-    if (!this.view || this.win.isDestroyed()) return
+    if (!this.view || !this.overlay || this.win.isDestroyed()) return
     this.win.contentView.addChildView(this.view)
+    this.win.contentView.addChildView(this.overlay) // the fan covers the bin, so it goes on top of it
   }
 
   setMode(mode: DockMode): void {
     if (mode === this.mode) return
     this.mode = mode
-    if (mode !== 'peek' && this.view && this.loaded) paintView(this.view.webContents)
+    if (mode !== 'peek' && this.view && this.loaded.has(this.view)) paintView(this.view.webContents)
     this.place()
     this.raise()
   }
 
-  send(channel: string, ...args: unknown[]): void {
-    if (this.view && this.loaded && !this.view.webContents.isDestroyed()) {
-      this.view.webContents.send(channel, ...args)
+  /** The fan view reports what it is doing: it is shown while it is needed, and a moment after, for its exit. */
+  setOverlay(state: DockOverlayState): void {
+    clearTimeout(this.overlayTimer)
+    this.send('dock:overlay', state)
+    if (state.active) {
+      this.wanted = true
+      this.show()
+      if (state.open && this.overlay && !this.overlay.webContents.isDestroyed()) {
+        this.overlay.webContents.focus() // so Escape closes the fan
+      }
+    } else {
+      this.overlayTimer = setTimeout(() => {
+        this.wanted = false
+        this.show()
+      }, OVERLAY_HIDE_MS)
     }
   }
 
-  private place(): void {
-    if (!this.view || this.win.isDestroyed()) return
-    const [w, h] = this.win.getContentSize()
-    if (this.mode === 'full') this.view.setBounds({ x: 0, y: 0, width: w, height: h })
-    else {
-      // tucked away, the view sits mostly below the window's edge and only its top shows
-      const y = this.mode === 'peek' ? h - SLIVER : h - HEIGHT
-      this.view.setBounds({ x: w - INSET - WIDTH, y, width: WIDTH, height: HEIGHT })
+  /** To the bin's page. */
+  send(channel: string, ...args: unknown[]): void {
+    this.sendTo(this.view, channel, ...args)
+  }
+
+  private sendTo(view: WebContentsView | null, channel: string, ...args: unknown[]): void {
+    if (view && this.loaded.has(view) && !view.webContents.isDestroyed()) {
+      view.webContents.send(channel, ...args)
     }
+  }
+
+  sendOverlay(channel: string, ...args: unknown[]): void {
+    this.sendTo(this.overlay, channel, ...args)
+  }
+
+  sendBoth(channel: string, ...args: unknown[]): void {
+    this.sendTo(this.view, channel, ...args)
+    this.sendTo(this.overlay, channel, ...args)
+  }
+
+  private place(): void {
+    if (!this.view || !this.overlay || this.win.isDestroyed()) return
+    const [w, h] = this.win.getContentSize()
+    // tucked away, the bin's view sits mostly below the window's edge and only its top shows
+    const y = this.mode === 'peek' ? h - SLIVER : h - HEIGHT
+    this.view.setBounds({ x: w - INSET - WIDTH, y, width: WIDTH, height: HEIGHT })
+    this.overlay.setBounds({ x: 0, y: 0, width: w, height: h })
   }
 }
 
@@ -124,33 +193,46 @@ export function registerDock(
 ): { raise: () => void; setHidden: (hidden: boolean) => void } {
   const dock = new Dock(win)
   dock.start()
-  downloads.onChange(() => dock.send('downloads:state', downloads.view()))
+  const fromDock = (e: IpcMainEvent | IpcMainInvokeEvent): boolean => dock.owns(e.sender)
+  const fromBin = (e: IpcMainEvent): boolean => e.sender === dock.contents
+  downloads.onChange(() => dock.sendBoth('downloads:state', downloads.view()))
   downloads.onStart((info) => {
-    if (win.isDestroyed()) return
+    if (win.isDestroyed() || dock.isHidden) return // hidden pages run no animation frames, so a flight would never land
     const p = screen.getCursorScreenPoint()
     const b = win.getContentBounds()
     const x = p.x - b.x
     const y = p.y - b.y
     const inside = x >= 0 && x <= b.width && y >= 0 && y <= b.height
-    dock.send('downloads:start', { download: info, at: inside ? { x, y } : null })
+    dock.sendOverlay('downloads:start', { download: info, at: inside ? { x, y } : null })
   })
-  ipcMain.handle('downloads:list', (e) => (e.sender === dock.contents ? downloads.view() : []))
+  ipcMain.handle('downloads:list', (e) => (fromDock(e) ? downloads.view() : []))
   ipcMain.on('downloads:act', (e, id: unknown, action: unknown) => {
-    if (
-      e.sender === dock.contents &&
-      typeof id === 'number' &&
-      ACTIONS.includes(action as string)
-    ) {
+    if (fromDock(e) && typeof id === 'number' && ACTIONS.includes(action as string)) {
       downloads.act(id, action as DownloadAction)
     }
   })
   ipcMain.on('dock:mode', (e, mode: unknown) => {
-    if (e.sender === dock.contents && (mode === 'peek' || mode === 'out' || mode === 'full')) {
-      dock.setMode(mode)
+    if (fromBin(e) && (mode === 'peek' || mode === 'out')) dock.setMode(mode)
+  })
+  ipcMain.on('dock:toggle', (e) => {
+    if (fromBin(e)) dock.sendOverlay('dock:toggle')
+  })
+  ipcMain.on('dock:report', (e, state: unknown) => {
+    const s = state as Partial<DockOverlayState> | null
+    if (
+      dock.owns(e.sender) &&
+      !fromBin(e) &&
+      typeof s?.open === 'boolean' &&
+      typeof s.active === 'boolean'
+    ) {
+      dock.setOverlay({ open: s.open, active: s.active })
     }
   })
+  ipcMain.on('dock:landed', (e) => {
+    if (dock.owns(e.sender) && !fromBin(e)) dock.send('dock:landed')
+  })
   ipcMain.on('dock:open-downloads', (e) => {
-    if (e.sender === dock.contents) openDownloadsPage()
+    if (fromDock(e)) openDownloadsPage()
   })
 
   let near = false
@@ -169,8 +251,10 @@ export function registerDock(
     const x = p.x - b.x
     const y = p.y - b.y
     const inside = x >= 0 && x <= b.width && y >= 0 && y <= b.height
-    const reach = near ? REACH_PX : CORNER_PX
-    const wanted = inside && x >= b.width - reach && y >= b.height - reach
+    const wanted =
+      inside &&
+      x >= b.width - (near ? REACH_X : CORNER_X) &&
+      y >= b.height - (near ? REACH_Y : CORNER_Y)
     if (wanted !== near) {
       since ||= Date.now()
       if (Date.now() - since >= (wanted ? DWELL_MS : LEAVE_MS)) {

@@ -32,7 +32,6 @@ interface Props {
 
 const REMOTE_DEBOUNCE_MS = 110
 const POPOVER_MIN_WIDTH = 560
-const POPOVER_MAX_WIDTH = 1200 // a full-width top bar is matched edge to edge, up to this
 const EDGE = 8
 
 function ResultIcon({ r }: { r: SearchResult }): React.JSX.Element {
@@ -202,7 +201,7 @@ export function SearchPalette({
   const panelStyle = popover
     ? (() => {
         const room = window.innerWidth - EDGE * 2
-        const width = Math.min(Math.max(anchor.width, POPOVER_MIN_WIDTH), POPOVER_MAX_WIDTH, room)
+        const width = Math.min(Math.max(anchor.width, POPOVER_MIN_WIDTH), room) // a full-width top bar is matched edge to edge
         // a bar wider than the popover is centred under, a narrow one (the sidebar's) is grown out of
         const left = anchor.width > width ? anchor.left + (anchor.width - width) / 2 : anchor.left
         return {

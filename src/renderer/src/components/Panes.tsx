@@ -30,6 +30,9 @@ interface Props {
   onOpenSearch: () => void
   /** How soft the saved page image is while it stands in for the live page (the frozenBlur setting). */
   frozenBlur?: Settings['frozenBlur']
+  /** Show the daily photo on blank tabs (the newTabPhoto setting). */
+  newTabPhoto?: boolean
+  newTabPhotoId?: number | null
 }
 
 const GAP = 5 // the gap between tiled panes; the divider's grab area extends past it (see .divider::before)
@@ -65,7 +68,9 @@ export function Panes({
   dragId,
   onHeaderPointerDown,
   onOpenSearch,
-  frozenBlur = 'off'
+  frozenBlur = 'off',
+  newTabPhoto = false,
+  newTabPhotoId = null
 }: Props): React.JSX.Element {
   const byId = new Map(tabs.map((t) => [t.id, t]))
   const singleRoot: LayoutNode | null =
@@ -185,7 +190,9 @@ export function Panes({
   return (
     <div
       className={
-        'panes' + (resizing || windowResizing ? ' resizing' : '') + (frozenBlur === 'off' ? '' : ` fb-${frozenBlur}`)
+        'panes' +
+        (resizing || windowResizing ? ' resizing' : '') +
+        (frozenBlur === 'off' ? '' : ` fb-${frozenBlur}`)
       }
       ref={containerRef}
     >
@@ -205,6 +212,8 @@ export function Panes({
                   thumb={thumbs[id]}
                   onHeaderPointerDown={onHeaderPointerDown}
                   onOpenSearch={onOpenSearch}
+                  newTabPhoto={newTabPhoto}
+                  newTabPhotoId={newTabPhotoId}
                 />
               )
             )
@@ -251,6 +260,8 @@ interface PaneProps {
   thumb: string | undefined
   onHeaderPointerDown: (e: PointerEvent, id: number) => void
   onOpenSearch: () => void
+  newTabPhoto: boolean
+  newTabPhotoId: number | null
 }
 
 function Pane({
@@ -261,7 +272,9 @@ function Pane({
   dragging,
   thumb,
   onHeaderPointerDown,
-  onOpenSearch
+  onOpenSearch,
+  newTabPhoto,
+  newTabPhotoId
 }: PaneProps): React.JSX.Element {
   return (
     <motion.div
@@ -294,7 +307,9 @@ function Pane({
         </div>
       )}
       <div className="pane-body" data-tab-id={tab.id}>
-        {!tab.url && <NewTab onOpenSearch={onOpenSearch} />}
+        {!tab.url && (
+          <NewTab onOpenSearch={onOpenSearch} photo={newTabPhoto && !tab.private && !tab.tor} photoId={newTabPhotoId} />
+        )}
         {tab.pip && (
           <div className="pip-note">
             <span className="pip-note-icon">

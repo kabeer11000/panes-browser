@@ -188,6 +188,8 @@ export interface PanesApi {
   /** End what a tab is capturing (camera, microphone or screen). */
   stopCapture(id: number, kinds: CaptureKind[]): void
   toggleMute(id: number): void
+  /** Keep this photo on the new tab page (null goes back to the daily one). */
+  setNewTabPhoto(id: number | null): void
   /** Float the current tab's video in a small window (or bring it back). */
   togglePip(): void
   exitPip(): void
@@ -286,6 +288,10 @@ export interface Settings {
   urlDisplay: 'full' | 'host'
   /** How much a page's stored picture is softened while it stands in for the live page (an overlay is open). */
   frozenBlur: 'off' | 'slight' | 'strong'
+  /** A daily landscape photo behind the new tab page (fetched from picsum.photos; never in private or Tor tabs). */
+  newTabPhoto: boolean
+  /** The photo kept on the new tab page (an id from shared/photos); null follows the daily one. */
+  newTabPhotoId: number | null
   /** Send what you type in the command bar to your search engine to get suggestions. */
   searchSuggestions: boolean
   /** With the sidebar collapsed, hide the top bar until the pointer touches the top edge. */
@@ -616,10 +622,21 @@ export interface TabCardInfo {
   tor: boolean
 }
 
-/** How much of the downloads bin is showing: a sliver at the window's edge, the bin out, or the whole window (a fan or flight). */
-export type DockMode = 'peek' | 'out' | 'full'
+/** How much of the downloads bin is showing: a sliver at the window's edge, or the bin out. */
+export type DockMode = 'peek' | 'out'
 
-/** What the downloads bin (a transparent view at the window's bottom-right corner, above the page) can do. */
+/** What the fan view (a window-sized transparent view, shown only for a fan or a flight) tells the bin. */
+export interface DockOverlayState {
+  /** The fan is open. */
+  open: boolean
+  /** The fan is open or a file is on its way to the bin: the bin stays out and the fan view covers the window. */
+  active: boolean
+}
+
+/**
+ * What the downloads bin can do. Two transparent views above the page share it: the bin (a small view at the window's
+ * bottom-right corner, only ever moved, never resized) and the fan (window-sized, shown only while it is needed).
+ */
 export interface DockApi {
   downloads(): Promise<DownloadInfo[]>
   onDownloads(cb: (list: DownloadInfo[]) => void): () => void
@@ -629,8 +646,20 @@ export interface DockApi {
   act(id: number, action: DownloadAction): void
   /** Open the downloads page. */
   openDownloads(): void
-  /** Say how much of the window the view should cover. */
+  /** Bin: say how much of it should show. */
   setMode(mode: DockMode): void
+  /** Bin: it was clicked, so the fan opens or closes. */
+  toggle(): void
+  /** Bin: told what the fan is doing. */
+  onOverlay(cb: (state: DockOverlayState) => void): () => void
+  /** Bin: a file has landed in it. */
+  onLanded(cb: () => void): () => void
+  /** Fan: told the bin was clicked. */
+  onToggle(cb: () => void): () => void
+  /** Fan: say what it is doing, so the view is shown while it is needed. */
+  report(state: DockOverlayState): void
+  /** Fan: a file has landed in the bin. */
+  landed(): void
   /** The bin is told to sink below the window's edge (before it goes), to wait there unseen, or to rise from it. */
   onSlide(cb: (kind: 'sink' | 'tuck' | 'rise') => void): () => void
 }

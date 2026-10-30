@@ -726,6 +726,8 @@ function App(): React.JSX.Element {
           <div className="stage">
             <Panes
               frozenBlur={settings.frozenBlur}
+              newTabPhoto={settings.newTabPhoto}
+              newTabPhotoId={settings.newTabPhotoId}
               tabs={tabs}
               activeId={activeId}
               layout={layout}

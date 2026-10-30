@@ -33,6 +33,16 @@ body {
   transition: transform 0.3s var(--ease);
   transform-origin: 50% 90%;
 }
+/* the bin is out above the corner the pointer rests in: its hit area reaches down and right to the window's edge (the
+   view's margins, in step with MARGIN_R and MARGIN_B in Dock.tsx), so the pointer is already on it */
+.dk-bin::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: -24px;
+  bottom: -16px;
+}
 .dk-bin:hover,
 .dk-bin.open {
   transform: rotate(-3deg) scale(1.05);
@@ -46,27 +56,39 @@ body {
   height: 100%;
   overflow: visible;
 }
+/* cardboard */
 .dk-mouth {
-  fill: rgb(0 0 0 / 0.4);
+  fill: #6f5130;
+}
+.dk-flap-back {
+  fill: #9a7446;
+}
+.dk-flap-side {
+  fill: #b58a55;
+  stroke: #8a6538;
+  stroke-width: 0.8;
+  stroke-linejoin: round;
 }
 .dk-wall-top {
-  stop-color: color-mix(in srgb, var(--accent) 58%, white);
+  stop-color: #d2a76f;
 }
 .dk-wall-bottom {
-  stop-color: color-mix(in srgb, var(--accent) 82%, black);
+  stop-color: #b98d57;
 }
-.dk-rim {
-  stroke: rgb(255 255 255 / 0.6);
-  stroke-width: 1.4;
+.dk-flap-front {
+  fill: #dcb47c;
+}
+.dk-crease {
+  stroke: #96703f;
+  stroke-width: 1;
   stroke-linecap: round;
 }
-.dk-shine {
-  stroke: rgb(255 255 255 / 0.3);
-  stroke-width: 2.6;
-  stroke-linecap: round;
+.dk-hole {
+  fill: #5f4326;
 }
 .dk-level {
-  fill: rgb(255 255 255 / 0.3);
+  fill: var(--accent);
+  opacity: 0.55;
   transition: y 0.3s var(--ease);
 }
 .dk-cards {

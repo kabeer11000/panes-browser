@@ -1,6 +1,12 @@
 import { AnimatePresence, animate, motion, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { DockApi, DockMode, DownloadInfo, DownloadStart } from '../../../shared/types'
+import type {
+  DockApi,
+  DockMode,
+  DockOverlayState,
+  DownloadInfo,
+  DownloadStart
+} from '../../../shared/types'
 import { formatBytes } from '../internal/format'
 import { CloseIcon } from '../components/icons'
 
@@ -10,12 +16,13 @@ declare global {
   }
 }
 
-// Geometry, in step with the main process (see dock.ts): the view is WIDTH by HEIGHT at the window's corner (8px short of
+// Geometry, in step with the main process (see dock.ts): the bin's view is WIDTH by HEIGHT at the window's corner (INSET short of
 // its right edge); the bin sits MARGIN_R from that edge and MARGIN_B from the bottom; tucked away only the top SLIVER
 // of the view shows.
 const HEIGHT = 96
 const SLIVER = 12
 const BIN = 68
+const INSET = 8 // the window's right edge left free by the bin's view
 const MARGIN_R = 24
 const MARGIN_B = 16
 const BASE_ROW = HEIGHT - MARGIN_B - BIN // the bin's top, in the view, when it is out
@@ -96,37 +103,62 @@ function path(f: Flight): {
   return out
 }
 
+const FAN_HASH = '#overlay'
+
+/** The bin's centre, in the fan view (window-sized): the bin's view stops INSET short of the window's right edge. */
+function binCentre(): { x: number; y: number } {
+  return {
+    x: window.innerWidth - INSET - MARGIN_R - BIN / 2,
+    y: window.innerHeight - MARGIN_B - BIN / 2
+  }
+}
+
 /**
- * The downloads bin. It lives off the window's bottom-right edge with a sliver of itself showing, so it is known to be
- * there. It comes out when the pointer rests in the corner, and when something starts downloading: the new file flies
- * to it from where the pointer was, the bin squashes round it and tucks away again. Clicking it fans the recent
- * downloads out above it, as the Downloads stack on a Mac does.
+ * The downloads bin lives in two views (see dock.ts), and this is both: the bin, and the fan. The bin lives off the
+ * window's bottom-right edge with a sliver of itself showing, so it is known to be there, and comes out when the pointer
+ * rests in the corner, and when something starts downloading. Clicking it fans the recent downloads out above it, as
+ * the Downloads stack on a Mac does, and a new file flies to it from where the pointer was; both happen in the fan
+ * view, a window-sized view that is only shown while it is needed.
  */
 export function Dock(): React.JSX.Element {
+  return location.hash === FAN_HASH ? <Fan /> : <Bin />
+}
+
+/** The bin: a small view that is only ever moved, never resized, so there is no frame of it in the wrong place. */
+function Bin(): React.JSX.Element {
   const list = useDownloads()
-  const [open, setOpen] = useState(false)
+  const [overlay, setOverlay] = useState<DockOverlayState>({ open: false, active: false })
   const [pointer, setPointer] = useState(false)
   const [corner, setCorner] = useState(false)
   const [linger, setLinger] = useState(false)
-  const [flights, setFlights] = useState<Flight[]>([])
-  const [pending, setPending] = useState<DownloadStart[]>([])
-  const [win, setWin] = useState({ w: window.innerWidth, h: window.innerHeight })
   const ty = useMotionValue(PEEK_Y)
   const shown = useRef<DockMode>('peek') // what the main process has been told
   const leave = useRef<number | undefined>(undefined)
   const lingerTimer = useRef<number | undefined>(undefined)
-  const nextKey = useRef(0)
   const squash = useRef<HTMLDivElement>(null)
+  // The fan was closed with the pointer still near the corner: the bin goes away and stays away until the pointer has
+  // left the corner (otherwise the pointer, still over where it was, would bring it straight back).
+  const [dismissed, setDismissed] = useState(false)
+  const cornerNow = useRef(false)
+  const wasActive = useRef(false)
 
-  const busy = open || flights.length > 0 || pending.length > 0
-  const mode: DockMode = busy ? 'full' : pointer || corner || linger ? 'out' : 'peek'
+  const mode: DockMode =
+    overlay.active || (!dismissed && (pointer || corner || linger)) ? 'out' : 'peek'
 
+  useEffect(
+    () =>
+      window.dock.onCorner((here) => {
+        cornerNow.current = here
+        setCorner(here)
+        if (!here) setDismissed(false)
+      }),
+    []
+  )
+  useEffect(() => window.dock.onOverlay(setOverlay), [])
   useEffect(() => {
-    const onResize = (): void => setWin({ w: window.innerWidth, h: window.innerHeight })
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-  useEffect(() => window.dock.onCorner(setCorner), [])
+    if (wasActive.current && !overlay.active && cornerNow.current) setDismissed(true)
+    wasActive.current = overlay.active
+  }, [overlay.active])
   // sunk below the edge before the pane view covers it, and raised again a beat after it has gone
   useEffect(
     () =>
@@ -140,75 +172,61 @@ export function Dock(): React.JSX.Element {
     [ty]
   )
 
-  // how much of the window the view covers, and the bin's slide in step with it
+  // the bin's slide, in step with the view's move to the edge or away from it
   useEffect(() => {
     let cancelled = false
     let controls: { stop: () => void } | null = null
-    const was = shown.current
+    let riseTimer: number | undefined
     if (mode === 'peek') {
-      if (was === 'peek') return
-      // slide down to the edge, then let the view drop to it too (the bin keeps its place on screen)
-      controls = animate(ty, HIDE_Y, { type: 'spring', stiffness: 380, damping: 34 })
-      void (controls as unknown as Promise<void>).then(() => {
+      if (shown.current === 'peek') return
+      const settle = (): void => {
         if (cancelled) return
         window.dock.setMode('peek')
         ty.set(PEEK_Y)
         shown.current = 'peek'
-      })
-    } else if (was === 'peek') {
+        setPointer(false) // the view has moved from under the pointer, and says nothing of it
+      }
+      // slide down to the edge, then let the view drop to it too (the bin keeps its place on screen)
+      if (Math.abs(ty.get() - HIDE_Y) < 0.5)
+        settle() // already there (the rise never started): nothing to wait for
+      else {
+        controls = animate(ty, HIDE_Y, { type: 'spring', stiffness: 380, damping: 34 })
+        void (controls as unknown as Promise<void>).then(settle)
+      }
+    } else {
       // the view rises to the bin's place; the bin starts where it was, at the edge, and slides up
       window.dock.setMode(mode)
       ty.set(HIDE_Y)
       shown.current = mode
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          if (!cancelled) {
-            controls = animate(ty, 0, { type: 'spring', stiffness: 340, damping: 24 })
-          }
-        })
-      )
-    } else {
-      window.dock.setMode(mode)
-      shown.current = mode
-      controls = animate(ty, 0, { type: 'spring', stiffness: 340, damping: 24 })
+      // a moment for the view to take its new place before the bin slides up (a timer: frames do not run while hidden)
+      riseTimer = window.setTimeout(() => {
+        if (!cancelled) controls = animate(ty, 0, { type: 'spring', stiffness: 340, damping: 24 })
+      }, 50)
     }
     return () => {
       cancelled = true
+      window.clearTimeout(riseTimer)
       controls?.stop()
     }
   }, [mode, ty])
 
-  // a new download: out comes the whole window's view, then the file flies from where the pointer was
-  useEffect(() => window.dock.onStart((s) => setPending((p) => [...p, s])), [])
-  useEffect(() => {
-    if (pending.length === 0 || win.w < 300) return
-    const to = { x: win.w - MARGIN_R - BIN / 2, y: win.h - MARGIN_B - BIN / 2 }
-    setFlights((f) => [
-      ...f,
-      ...pending.map((s) => ({
-        key: nextKey.current++,
-        from: s.at ?? { x: win.w / 2, y: win.h / 2 },
-        to,
-        name: s.download.filename
-      }))
-    ])
-    setPending([])
-  }, [pending, win])
-
-  const landed = useCallback((key: number) => {
-    setFlights((f) => f.filter((x) => x.key !== key))
-    // the bin takes it in: a squash and a bounce, and it stays out a little before tucking away
-    if (squash.current) {
-      void animate(
-        squash.current,
-        { scale: [1, 1.2, 0.92, 1.04, 1] },
-        { duration: 0.5, ease: 'easeOut' }
-      )
-    }
-    setLinger(true)
-    window.clearTimeout(lingerTimer.current)
-    lingerTimer.current = window.setTimeout(() => setLinger(false), LINGER_MS)
-  }, [])
+  // the bin takes a file in: a squash and a bounce, and it stays out a little before tucking away
+  useEffect(
+    () =>
+      window.dock.onLanded(() => {
+        if (squash.current) {
+          void animate(
+            squash.current,
+            { scale: [1, 1.2, 0.92, 1.04, 1] },
+            { duration: 0.5, ease: 'easeOut' }
+          )
+        }
+        setLinger(true)
+        window.clearTimeout(lingerTimer.current)
+        lingerTimer.current = window.setTimeout(() => setLinger(false), LINGER_MS)
+      }),
+    []
+  )
   useEffect(
     () => () => {
       window.clearTimeout(lingerTimer.current)
@@ -217,21 +235,11 @@ export function Dock(): React.JSX.Element {
     []
   )
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open])
-
   const running = list.filter(active)
   const total = running.reduce((n, d) => n + d.total, 0)
   const got = running.reduce((n, d) => n + d.received, 0)
   const fill = running.length > 0 ? (total > 0 ? Math.max(0.12, got / total) : 0.3) : 0
   const peeking = list.filter((d) => d.state !== 'cancelled').slice(0, 3)
-  const rows = list.slice(0, FAN_MAX)
 
   return (
     <div
@@ -245,7 +253,6 @@ export function Dock(): React.JSX.Element {
         leave.current = window.setTimeout(() => setPointer(false), 500)
       }}
     >
-      {open && <div className="dk-scrim" onClick={() => setOpen(false)} />}
       <motion.div
         className="dk-tile"
         style={{ y: ty, right: MARGIN_R, bottom: MARGIN_B, width: BIN, height: BIN }}
@@ -253,17 +260,71 @@ export function Dock(): React.JSX.Element {
         <div ref={squash} className="dk-squash">
           <button
             type="button"
-            className={'dk-bin' + (running.length > 0 ? ' busy' : '') + (open ? ' open' : '')}
+            className={
+              'dk-bin' + (running.length > 0 ? ' busy' : '') + (overlay.open ? ' open' : '')
+            }
             title="Downloads (Ctrl+J)"
             aria-label="Downloads"
             aria-haspopup="dialog"
-            aria-expanded={open}
-            onClick={() => setOpen(!open)}
+            aria-expanded={overlay.open}
+            onClick={() => window.dock.toggle()}
           >
             <Bucket peeking={peeking} fill={fill} />
           </button>
         </div>
       </motion.div>
+    </div>
+  )
+}
+
+/** The fan, and the file flying to the bin: a window-sized view, shown only while there is one or the other. */
+function Fan(): React.JSX.Element {
+  const list = useDownloads()
+  const [open, setOpen] = useState(false)
+  const [flights, setFlights] = useState<Flight[]>([])
+  const [pending, setPending] = useState<DownloadStart[]>([])
+  const nextKey = useRef(0)
+
+  const busy = open || flights.length > 0 || pending.length > 0
+  useEffect(() => window.dock.report({ open, active: busy }), [open, busy])
+  useEffect(() => window.dock.onToggle(() => setOpen((o) => !o)), [])
+
+  // a new download: the file flies from where the pointer was to the bin
+  useEffect(() => window.dock.onStart((s) => setPending((p) => [...p, s])), [])
+  useEffect(() => {
+    if (pending.length === 0) return
+    const to = binCentre()
+    setFlights((f) => [
+      ...f,
+      ...pending.map((s) => ({
+        key: nextKey.current++,
+        from: s.at ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+        to,
+        name: s.download.filename
+      }))
+    ])
+    setPending([])
+  }, [pending])
+
+  const landed = useCallback((key: number) => {
+    setFlights((f) => f.filter((x) => x.key !== key))
+    window.dock.landed()
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  const rows = list.slice(0, FAN_MAX)
+
+  return (
+    <div className="dk-root">
+      {open && <div className="dk-scrim" onClick={() => setOpen(false)} />}
 
       {flights.map((f) => (
         <motion.div
@@ -283,7 +344,7 @@ export function Dock(): React.JSX.Element {
           <div
             key="fan"
             className="dk-fan"
-            style={{ left: win.w - MARGIN_R - BIN / 2, top: win.h - MARGIN_B - BIN / 2 }}
+            style={{ right: INSET + MARGIN_R + BIN / 2, bottom: MARGIN_B + BIN / 2 }}
             role="dialog"
             aria-label="Recent downloads"
           >
@@ -304,15 +365,21 @@ export function Dock(): React.JSX.Element {
   )
 }
 
+const BOX_FRONT = 'M6 22 H46 L43 46.5 Q42.8 48.5 40.8 48.5 H11.2 Q9.2 48.5 9 46.5 Z'
+
 /**
- * The bucket: a back wall, the last downloads standing up out of it (so the sliver that shows while it is tucked away
- * shows them), and a front wall that rises with the progress of whatever is downloading.
+ * The box: an open cardboard box. The back flaps and the dark inside sit behind the last downloads standing up in it (so
+ * the sliver that shows while it is tucked away shows them); the front face and its folded-down flap sit in front, and
+ * a band of the accent colour rises up the face with the progress of whatever is downloading.
  */
 function Bucket({ peeking, fill }: { peeking: DownloadInfo[]; fill: number }): React.JSX.Element {
   return (
     <>
       <svg className="dk-back" viewBox="0 0 52 52" aria-hidden="true">
-        <ellipse cx="26" cy="17" rx="20" ry="6" className="dk-mouth" />
+        <path d="M10 14 L6 22 L1 19 L4 11 Z" className="dk-flap-side" />
+        <path d="M42 14 L46 22 L51 19 L48 11 Z" className="dk-flap-side" />
+        <path d="M11 14 H41 L39 6 H13 Z" className="dk-flap-back" />
+        <path d="M10 14 H42 L46 22 H6 Z" className="dk-mouth" />
       </svg>
       <span className="dk-cards" aria-hidden="true">
         {peeking.map((d, i) => (
@@ -332,23 +399,21 @@ function Bucket({ peeking, fill }: { peeking: DownloadInfo[]; fill: number }): R
             <stop offset="1" className="dk-wall-bottom" />
           </linearGradient>
           <clipPath id="dk-clip">
-            <path d="M6 17 A20 6 0 0 0 46 17 L42 45.5 Q41.4 49 37.5 49 H14.5 Q10.6 49 10 45.5 Z" />
+            <path d={BOX_FRONT} />
           </clipPath>
         </defs>
-        <path
-          d="M6 17 A20 6 0 0 0 46 17 L42 45.5 Q41.4 49 37.5 49 H14.5 Q10.6 49 10 45.5 Z"
-          fill="url(#dk-wall)"
-        />
+        <path d={BOX_FRONT} fill="url(#dk-wall)" />
         <rect
           x="4"
           width="44"
-          height="34"
-          y={49 - 30 * fill}
+          height="30"
+          y={48.5 - 26 * fill}
           clipPath="url(#dk-clip)"
           className="dk-level"
         />
-        <path d="M6 17 A20 6 0 0 0 46 17" className="dk-rim" fill="none" />
-        <path d="M14 24 L16.4 43" className="dk-shine" fill="none" />
+        <rect x="19" y="35" width="14" height="3.6" rx="1.8" className="dk-hole" />
+        <path d="M4.5 22 H47.5 L45.6 30.5 H6.4 Z" className="dk-flap-front" />
+        <path d="M6.4 30.5 H45.6" className="dk-crease" fill="none" />
       </svg>
     </>
   )

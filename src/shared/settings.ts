@@ -30,6 +30,8 @@ export const DEFAULT_SETTINGS: Settings = {
   urlDisplay: 'full',
   frozenBlur: 'slight',
   searchSuggestions: true,
+  newTabPhoto: true,
+  newTabPhotoId: null,
   autoHideTopBar: false,
   sidebarHover: false,
   tabLayout: 'vertical',

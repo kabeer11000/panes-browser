@@ -175,6 +175,13 @@ export const CameraIcon = (): React.JSX.Element => (
     <path d="M10 7.2 14 5v6l-4-2.2" />
   </Svg>
 )
+export const ImageIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="2" y="3" width="12" height="10" rx="1.6" />
+    <circle cx="5.8" cy="6.6" r="1.1" />
+    <path d="m2.6 12 3.6-3.4 2.4 2.2 2.2-2 2.6 2.6" />
+  </Svg>
+)
 export const MicIcon = (): React.JSX.Element => (
   <Svg>
     <rect x="6" y="2" width="4" height="7" rx="2" />
