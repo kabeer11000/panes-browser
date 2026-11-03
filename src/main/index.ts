@@ -834,6 +834,10 @@ app.on('before-quit', () => {
 
 // While the app quits (an update restarting it, say) late callbacks can touch windows and pages that are
 // already gone. That is harmless, so it must not become an error popup. Anything else still is one.
+// Panes started with its output pipe closed (a launcher or script that exits) throws EPIPE on the first console
+// line, e.g. from the updater. Nothing is lost by dropping log lines nobody can read.
+for (const stream of [process.stdout, process.stderr]) stream?.on('error', () => {})
+
 process.on('uncaughtException', (err) => {
   console.error('[main] uncaught:', err)
   const message = String((err as Error)?.message ?? err)
