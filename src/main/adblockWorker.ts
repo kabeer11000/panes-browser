@@ -1,52 +1,30 @@
 import { parentPort, workerData } from 'node:worker_threads'
 import { Engine, FilterSet } from 'adblock-rs'
-import {
-  CATALOG_URL,
-  RESOURCES_URL,
-  pickLists,
-  preprocess,
-  type CatalogEntry
-} from '@shared/adblock'
+import { preprocess, type FilterList } from '@shared/adblock'
 
 /**
- * Builds the two ad blocking engines in a worker thread and posts them back serialized (or an error message).
+ * Builds the two ad blocking engines in a worker thread from lists already downloaded by the main process
+ * (src/main/adblock.ts), and posts them back serialized (or an error message).
  *
  * `all` holds every list; `firstParty` only the lists that also apply to a page's own requests in Standard
- * mode (see `decide` in src/shared/adblock.ts). Parsing some 150,000 rules takes seconds of CPU and a few
- * hundred MB of short-lived strings; doing it here keeps every window responsive, and that memory goes away
- * with the thread.
- *
- * workerData.fallbackResources: the resources.json bundled with the app, used when the published one cannot
- * be fetched.
+ * mode (see `decide` in src/shared/adblock.ts). Parsing some 150,000 rules takes CPU and a lot of short-lived
+ * strings; doing it here keeps every window responsive, and that memory goes away with the thread.
  */
+
+export interface BuildInput {
+  lists: FilterList[]
+  /** Each list's text, in the same order. */
+  texts: string[]
+  /** resources.json */
+  resources: string
+}
 
 export interface BuiltEngines {
   all: ArrayBuffer
   firstParty: ArrayBuffer
-  /** The resources the engines were built with, so the main process can give them to the loaded engines. */
-  resources: string
 }
 
-const TIMEOUT_MS = 60_000
-
-async function text(url: string): Promise<string> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) })
-  // without this a missing list would be read as rules made of an error page
-  if (!res.ok) throw new Error(`${res.status} ${url}`)
-  return res.text()
-}
-
-async function build(fallbackResources: string): Promise<BuiltEngines> {
-  const lists = pickLists(JSON.parse(await text(CATALOG_URL)) as CatalogEntry[])
-  const [texts, resources] = await Promise.all([
-    Promise.all(lists.map((l) => text(l.url))),
-    text(RESOURCES_URL).catch((err: unknown) => {
-      console.warn('[adblock] using bundled resources:', err)
-      return fallbackResources
-    })
-  ])
-  const parsed = JSON.parse(resources) as unknown[]
-
+function build({ lists, texts, resources }: BuildInput): BuiltEngines {
   const all = new FilterSet()
   const firstParty = new FilterSet()
   lists.forEach((list, i) => {
@@ -55,18 +33,18 @@ async function build(fallbackResources: string): Promise<BuiltEngines> {
     all.addFilters(rules, opts)
     if (list.firstParty) firstParty.addFilters(rules, opts)
   })
-
+  const parsed = JSON.parse(resources) as unknown[]
   const serialize = (set: FilterSet): ArrayBuffer => {
     const engine = new Engine(set)
     engine.useResources(parsed)
     return engine.serialize()
   }
-  return { all: serialize(all), firstParty: serialize(firstParty), resources }
+  return { all: serialize(all), firstParty: serialize(firstParty) }
 }
 
-build(
-  String((workerData as { fallbackResources?: string } | null)?.fallbackResources ?? '[]')
-).then(
-  (built) => parentPort?.postMessage(built, [built.all, built.firstParty]),
-  (err: unknown) => parentPort?.postMessage(String(err))
-)
+try {
+  const built = build(workerData as BuildInput)
+  parentPort?.postMessage(built, [built.all, built.firstParty])
+} catch (err) {
+  parentPort?.postMessage(String(err))
+}

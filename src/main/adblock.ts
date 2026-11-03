@@ -1,6 +1,7 @@
 import {
   app,
   ipcMain,
+  net,
   webContents,
   type OnBeforeRequestListenerDetails,
   type Session,
@@ -12,14 +13,18 @@ import { getDomain, getHostname } from 'tldts'
 import { Engine, FilterSet } from 'adblock-rs'
 import bundledResources from '../../resources/adblock-resources.json?asset'
 import buildEngine from './adblockWorker?nodeWorker'
-import type { BuiltEngines } from './adblockWorker'
+import type { BuildInput, BuiltEngines } from './adblockWorker'
 import {
   CANARY,
+  CATALOG_URL,
+  RESOURCES_URL,
   decide,
   packEngines,
+  pickLists,
   requestType,
   sameSite,
   unpackEngines,
+  type CatalogEntry,
   type CosmeticStart
 } from '@shared/adblock'
 import { siteListed } from '@shared/memory'
@@ -148,14 +153,26 @@ export class Adblock {
     if (age > ENGINE_MAX_AGE_MS) await this.refresh()
   }
 
-  /** Fetch the lists and build the engines off the main thread (see adblockWorker.ts), then save and use them. */
+  /**
+   * Download Brave's catalog, its lists and the scriptlet resources, build the engines off the main thread
+   * (see adblockWorker.ts), then save and use them. Downloads go through Chromium's network stack (net.fetch),
+   * like every other request the browser makes, so they follow the system's proxy and certificates.
+   */
   private async refresh(): Promise<void> {
     if (this.building) return
     this.building = true
     try {
-      const fallbackResources = await fs.readFile(bundledResources, 'utf8')
+      const lists = pickLists(JSON.parse(await download(CATALOG_URL)) as CatalogEntry[])
+      const [texts, resources] = await Promise.all([
+        Promise.all(lists.map((l) => download(l.url))),
+        download(RESOURCES_URL).catch(async (err: unknown) => {
+          console.warn('[adblock] using bundled resources:', err)
+          return fs.readFile(bundledResources, 'utf8')
+        })
+      ])
+      const input: BuildInput = { lists, texts, resources }
       const built = await new Promise<BuiltEngines>((resolve, reject) => {
-        const worker = buildEngine({ workerData: { fallbackResources } })
+        const worker = buildEngine({ workerData: input })
         worker.once('message', (msg: BuiltEngines | string) => {
           void worker.terminate()
           if (typeof msg === 'string') reject(new Error(msg))
@@ -164,7 +181,7 @@ export class Adblock {
         worker.once('error', reject)
         worker.once('exit', (code) => reject(new Error(`engine worker exited (${code})`)))
       })
-      const data = packEngines([built.all, built.firstParty, built.resources])
+      const data = packEngines([built.all, built.firstParty, resources])
       // Load and check it before saving, so a bad build never replaces a good file.
       this.use(unpackEngines(data))
       const tmp = this.file + '.tmp'
@@ -272,6 +289,18 @@ export class Adblock {
     const key = siteKey(pageUrl)
     return !!key && siteListed(key, sites)
   }
+}
+
+const DOWNLOAD_TIMEOUT_MS = 60_000
+
+/** A list or file as text; a failed response throws (else a missing list would be read as rules). */
+async function download(url: string): Promise<string> {
+  const res = await net.fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) })
+  if (!res.ok) {
+    await res.body?.cancel()
+    throw new Error(`${res.status} ${url}`)
+  }
+  return res.text()
 }
 
 /** A page can be gone by the time its last requests arrive, and a destroyed WebContents throws when asked. */
