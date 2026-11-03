@@ -54,7 +54,7 @@ const processes = async (): Promise<ProcessInfo[]> =>
 function memoryKb(pids: number[]): Map<number, number> {
   const out = new Map<number, number>()
   if (process.platform === 'win32') {
-    const ps = `Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) $($_.PrivateMemorySize64)" }`
+    const ps = `Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Id) $($_.PrivateMemorySize64)" }; exit 0`
     const text = execFileSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf8' })
     for (const line of text.trim().split(/\r?\n/)) {
       const [pid, bytes] = line.trim().split(/\s+/).map(Number)
