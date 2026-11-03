@@ -1,25 +1,15 @@
-import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { AnimatePresence, MotionConfig, motion } from 'motion/react'
+import { useCallback, useEffect, useState } from 'react'
+import { chromeVars } from '@shared/color'
 import { resolveMode, type PerformanceMode } from '@shared/performance'
-import { SEARCH_ENGINES } from '@shared/settings'
+import { DEFAULT_SETTINGS, SEARCH_ENGINES, SPACE_LOOKS } from '@shared/settings'
 import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '@shared/types'
 import { Segmented, Toggle } from '@renderer/internal/ui'
 import { ImportSection } from '@renderer/internal/pages/ImportSection'
+import { preloadImportSources } from '@renderer/internal/pages/importSources'
 
 const STEPS = ['welcome', 'import', 'look', 'layout', 'speed', 'finish'] as const
 type Step = (typeof STEPS)[number]
-
-/** Colour pairs offered on the look step: the same ones the space editor has as presets. */
-const LOOKS: Array<{ name: string; color: string; color2: string | null }> = [
-  { name: 'Indigo', color: '#6e7bff', color2: '#a46bff' },
-  { name: 'Lagoon', color: '#2bb3a3', color2: '#4ea0ff' },
-  { name: 'Sunset', color: '#e5754c', color2: '#f2b24c' },
-  { name: 'Orchid', color: '#d65b9a', color2: '#7a5cff' },
-  { name: 'Mint', color: '#34d399', color2: '#06b6d4' },
-  { name: 'Coral', color: '#f87171', color2: '#fb923c' },
-  { name: 'Violet', color: '#8a6df0', color2: null },
-  { name: 'Sky', color: '#3b82f6', color2: null }
-]
 
 const KEYS: Array<[string, string]> = [
   ['Ctrl T', 'New tab'],
@@ -28,6 +18,16 @@ const KEYS: Array<[string, string]> = [
   ['Ctrl \\', 'Split the page in two'],
   ['Ctrl B', 'Hide or show the sidebar']
 ]
+
+/** The tour is always dark (it fills the window on its own), in the colours of the space being set up. */
+function wear(space: Space, accentSetting: string): void {
+  const root = document.documentElement.style
+  for (const [k, v] of Object.entries(
+    chromeVars(space, true, accentSetting, DEFAULT_SETTINGS.accent)
+  ))
+    root.setProperty(k, v)
+  root.removeProperty('--stage-bg')
+}
 
 function Panes(): React.JSX.Element {
   return (
@@ -79,15 +79,45 @@ function BinArt(): React.JSX.Element {
   )
 }
 
-/** Tiny drawings of the two layouts, so the choice shows what it does. */
-function LayoutArt({ kind }: { kind: 'vertical' | 'horizontal' }): React.JSX.Element {
+const ROW_OPACITY = [1, 0.6, 0.6]
+const SETTLE = { type: 'spring', stiffness: 480, damping: 24 } as const
+
+/**
+ * A tiny drawing of a layout. Choosing it plays it: the tabs drop into place one after another (down the side, or
+ * along the top) and the page settles in beside them, so the choice shows what it does.
+ */
+function LayoutArt({
+  kind,
+  on
+}: {
+  kind: 'vertical' | 'horizontal'
+  on: boolean
+}): React.JSX.Element {
+  const vertical = kind === 'vertical'
+  const axis = vertical ? 'x' : 'y' // the way the tabs run: down the side, or along the top
+  const from = vertical ? -16 : -12
   return (
     <div className={'wl-art ' + kind} aria-hidden="true">
-      <i className="bar" />
-      <i className="row r1" />
-      <i className="row r2" />
-      <i className="row r3" />
-      <i className="page" />
+      {!vertical && (
+        <motion.i
+          className="bar"
+          animate={on ? { scaleX: [0.3, 1], opacity: [0, 0.4] } : { scaleX: 1, opacity: 0.4 }}
+          transition={{ ...SETTLE, delay: on ? 0.2 : 0 }}
+        />
+      )}
+      {ROW_OPACITY.map((opacity, i) => (
+        <motion.i
+          key={i}
+          className={`row r${i + 1}`}
+          animate={on ? { [axis]: [from, 0], opacity: [0, opacity] } : { [axis]: 0, opacity }}
+          transition={{ ...SETTLE, delay: on ? i * 0.07 : 0 }}
+        />
+      ))}
+      <motion.i
+        className="page"
+        animate={on ? { scale: [0.92, 1], opacity: [0.3, 0.9] } : { scale: 1, opacity: 0.9 }}
+        transition={{ ...SETTLE, delay: on ? 0.12 : 0 }}
+      />
     </div>
   )
 }
@@ -102,20 +132,21 @@ export function Welcome(): React.JSX.Element {
   const [isDefault, setIsDefault] = useState(false)
 
   useEffect(() => {
-    void api.getSettings().then((v) => {
-      setS(v)
-      const { chromeVars } = v as unknown as { chromeVars?: Record<string, string> }
-      const root = document.documentElement.style
-      for (const [k, val] of Object.entries(chromeVars ?? {})) root.setProperty(k, val)
-      root.removeProperty('--stage-bg')
-    })
+    void api.getSettings().then(setS)
     void api.spacesList().then((list) => setSpace(list[0] ?? null))
     void api.memoryStats().then(setStats)
+    preloadImportSources() // the next step lists them: look while this one is read
     const check = (): void => void api.defaultBrowserStatus().then(setIsDefault)
     check()
     window.addEventListener('focus', check)
     return () => window.removeEventListener('focus', check)
   }, [api])
+
+  // the page wears the space's colours, and changes with them as they are picked
+  const accentSetting = s?.accent
+  useEffect(() => {
+    if (space && accentSetting) wear(space, accentSetting)
+  }, [space, accentSetting])
 
   const index = STEPS.indexOf(step)
   const go = (to: Step): void => {
@@ -130,8 +161,6 @@ export function Welcome(): React.JSX.Element {
     if (!space) return
     setSpace({ ...space, ...patch })
     void api.spaceUpdate(space.id, patch)
-    // the page wears the space's colour too, straight away
-    if (patch.color) document.documentElement.style.setProperty('--space', patch.color)
   }
 
   const needsRestart =
@@ -142,256 +171,291 @@ export function Welcome(): React.JSX.Element {
     await api.onboardingDone()
     if (needsRestart) void api.restart()
   }
+  const forward = (): void => {
+    if (step === 'finish') void finish()
+    else go(STEPS[index + 1])
+  }
+
+  // Enter or the arrow keys move through the steps, unless a control on the step has the keyboard.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const t = e.target as HTMLElement
+      if (t !== document.body && !t.classList.contains('wl-step')) return
+      if (e.key === 'Enter' || e.key === 'ArrowRight') forward()
+      else if (e.key === 'ArrowLeft' && index > 0) go(STEPS[index - 1])
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // Each step takes the keyboard as it arrives (Tab goes on into it) and starts scrolled to its top.
+  const arrive = useCallback((el: HTMLElement | null) => {
+    if (!el) return
+    el.focus({ preventScroll: true })
+    el.parentElement?.scrollTo({ top: 0 })
+  }, [])
 
   if (!s || !space) return <></>
   const recommended = stats ? resolveMode('auto', stats.totalGb * 1024 ** 3) : 'balanced'
 
   return (
-    <main className="wl">
-      <header className="wl-top">
-        <div className="wl-dots" aria-label={`Step ${index + 1} of ${STEPS.length}`}>
-          {STEPS.map((st, i) => (
-            <button
-              key={st}
-              type="button"
-              className={'wl-dot' + (i === index ? ' on' : i < index ? ' done' : '')}
-              aria-label={`Go to step ${i + 1}`}
-              onClick={() => go(st)}
-            />
-          ))}
-        </div>
-        {step !== 'finish' && (
-          <button type="button" className="wl-skip" onClick={() => void finish()}>
-            Skip
-          </button>
-        )}
-      </header>
+    <MotionConfig reducedMotion="user">
+      <main className="wl">
+        <header className="wl-top">
+          <div className="wl-dots" aria-label={`Step ${index + 1} of ${STEPS.length}`}>
+            {STEPS.map((st, i) => (
+              <button
+                key={st}
+                type="button"
+                className={'wl-dot' + (i === index ? ' on' : i < index ? ' done' : '')}
+                aria-label={`Go to step ${i + 1}`}
+                aria-current={i === index ? 'step' : undefined}
+                onClick={() => go(st)}
+              />
+            ))}
+          </div>
+          {step !== 'finish' && (
+            <button type="button" className="wl-skip" onClick={() => void finish()}>
+              Skip
+            </button>
+          )}
+        </header>
 
-      <div className="wl-stage">
-        <AnimatePresence mode="wait" custom={dir} initial={false}>
-          <motion.section
-            key={step}
-            className="wl-step"
-            initial={{ opacity: 0, x: 36 * dir }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -36 * dir }}
-            transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-          >
-            {step === 'welcome' && (
-              <>
-                <Panes />
-                <h1>Welcome to Panes</h1>
-                <p className="wl-lede">
-                  A calm, fast browser built around the way you work: tabs you can see, pages side
-                  by side, and nothing in your way.
-                </p>
-                <button type="button" className="wl-go" onClick={() => go('import')}>
-                  Get started
-                </button>
-              </>
-            )}
-
-            {step === 'import' && (
-              <>
-                <h1>Bring your things along</h1>
-                <p className="wl-lede">
-                  Bookmarks, history and passwords from the browser you use now. Or skip this and do
-                  it later in Settings.
-                </p>
-                <div className="wl-import">
-                  <ImportSection />
-                </div>
-              </>
-            )}
-
-            {step === 'look' && (
-              <>
-                <h1>Make it yours</h1>
-                <p className="wl-lede">
-                  Pick a colour and a mood. The window behind this page changes with you.
-                </p>
-                <div className="wl-swatches" role="radiogroup" aria-label="Colour">
-                  {LOOKS.map((l) => (
-                    <button
-                      key={l.name}
-                      type="button"
-                      role="radio"
-                      aria-checked={space.color === l.color}
-                      aria-label={l.name}
-                      title={l.name}
-                      className={'wl-swatch' + (space.color === l.color ? ' on' : '')}
-                      style={{
-                        background: l.color2
-                          ? `linear-gradient(135deg, ${l.color}, ${l.color2})`
-                          : l.color
-                      }}
-                      onClick={() => updateSpace({ color: l.color, color2: l.color2 })}
-                    />
-                  ))}
-                </div>
-                <Segmented<SpaceMode>
-                  label="Appearance"
-                  value={space.mode}
-                  options={[
-                    { value: 'system', label: 'Match my system' },
-                    { value: 'light', label: 'Light' },
-                    { value: 'dark', label: 'Dark' }
-                  ]}
-                  onChange={(mode) => updateSpace({ mode })}
-                />
-                <p className="wl-note">You can make more spaces later, each with its own look.</p>
-              </>
-            )}
-
-            {step === 'layout' && (
-              <>
-                <h1>Where do your tabs go?</h1>
-                <p className="wl-lede">Change this any time in Settings.</p>
-                <div className="wl-cards" role="radiogroup" aria-label="Tab layout">
-                  {(
-                    [
-                      ['vertical', 'In a sidebar', 'Titles you can read, spaces at the bottom'],
-                      ['horizontal', 'Along the top', 'The classic row, with spaces at the left']
-                    ] as const
-                  ).map(([value, title, hint]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      role="radio"
-                      aria-checked={s.tabLayout === value}
-                      className={'wl-card' + (s.tabLayout === value ? ' on' : '')}
-                      onClick={() => update({ tabLayout: value })}
-                    >
-                      <LayoutArt kind={value} />
-                      <b>{title}</b>
-                      <span>{hint}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {step === 'speed' && (
-              <>
-                <h1>Fast and private</h1>
-                <p className="wl-lede">Good defaults, ready to change.</p>
-                <div className="wl-list">
-                  <div className="wl-row">
-                    <span>
-                      Block ads and trackers
-                      <em>
-                        Built in, on every site. Switch it off for one site from the address bar.
-                      </em>
-                    </span>
-                    <Toggle
-                      label="Block ads and trackers"
-                      on={s.adblock}
-                      onChange={(v) => update({ adblock: v })}
-                    />
-                  </div>
-                  <div className="wl-row">
-                    <span>
-                      Memory saver
-                      <em>Puts tabs you are not using to sleep, and wakes them when you return.</em>
-                    </span>
-                    <Toggle
-                      label="Memory saver"
-                      on={s.memorySaver}
-                      onChange={(v) => update({ memorySaver: v })}
-                    />
-                  </div>
-                  <div className="wl-row col">
-                    <span>
-                      Performance
-                      <em>
-                        {stats
-                          ? `This computer has ${stats.totalGb} GB of memory, so Auto picks ${recommended === 'efficient' ? 'Efficient' : 'Balanced'}.`
-                          : 'Efficient shares one process between tabs of a site.'}
-                      </em>
-                    </span>
-                    <Segmented<PerformanceMode>
-                      label="Performance"
-                      value={s.performanceMode}
-                      options={[
-                        { value: 'auto', label: 'Auto' },
-                        { value: 'balanced', label: 'Balanced' },
-                        { value: 'efficient', label: 'Efficient' }
-                      ]}
-                      onChange={(v) => update({ performanceMode: v })}
-                    />
-                  </div>
-                  <div className="wl-row col">
-                    <span>Search with</span>
-                    <Segmented<SearchEngineId>
-                      label="Search engine"
-                      value={s.searchEngine}
-                      options={(Object.keys(SEARCH_ENGINES) as SearchEngineId[]).map((id) => ({
-                        value: id,
-                        label: SEARCH_ENGINES[id].name
-                      }))}
-                      onChange={(v) => update({ searchEngine: v })}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {step === 'finish' && (
-              <>
-                <Panes />
-                <h1>You are all set</h1>
-                <div className="wl-default">
-                  {isDefault ? (
-                    <span className="wl-ok">Panes is your default browser</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="wl-ghost"
-                      onClick={() => void api.defaultBrowserRequest()}
-                    >
-                      Make Panes my default browser
-                    </button>
-                  )}
-                </div>
-                <div className="wl-dock">
-                  <BinArt />
-                  <p>
-                    <b>Your downloads wait in the corner.</b> A bucket peeks out of the bottom-right
-                    edge of the window: point there to bring it out, and click it to see what you
-                    have downloaded.
+        <div className="wl-stage">
+          <AnimatePresence mode="wait" custom={dir} initial={false}>
+            <motion.section
+              key={step}
+              ref={arrive}
+              tabIndex={-1}
+              className="wl-step"
+              initial={{ opacity: 0, x: 36 * dir }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -36 * dir }}
+              transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+            >
+              {step === 'welcome' && (
+                <>
+                  <Panes />
+                  <h1>Welcome to Panes</h1>
+                  <p className="wl-lede">
+                    A calm, fast browser built around the way you work: tabs you can see, pages side
+                    by side, and nothing in your way.
                   </p>
-                </div>
-                <dl className="wl-keys">
-                  {KEYS.map(([k, label]) => (
-                    <div key={k}>
-                      <dt>
-                        {k.split(' ').map((part) => (
-                          <kbd key={part}>{part}</kbd>
-                        ))}
-                      </dt>
-                      <dd>{label}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <button type="button" className="wl-go" onClick={() => void finish()}>
-                  {needsRestart ? 'Start browsing (restarts once)' : 'Start browsing'}
-                </button>
-              </>
-            )}
-          </motion.section>
-        </AnimatePresence>
-      </div>
+                  <button type="button" className="wl-go" onClick={forward}>
+                    Get started
+                  </button>
+                </>
+              )}
 
-      {step !== 'welcome' && step !== 'finish' && (
-        <footer className="wl-nav">
-          <button type="button" className="wl-back" onClick={() => go(STEPS[index - 1])}>
-            Back
-          </button>
-          <button type="button" className="wl-next" onClick={() => go(STEPS[index + 1])}>
-            Continue
-          </button>
-        </footer>
-      )}
-    </main>
+              {step === 'import' && (
+                <>
+                  <h1>Bring your things along</h1>
+                  <p className="wl-lede">
+                    Bookmarks, history and passwords from the browser you use now. Or skip this and
+                    do it later in Settings.
+                  </p>
+                  <div className="wl-import">
+                    <ImportSection />
+                  </div>
+                </>
+              )}
+
+              {step === 'look' && (
+                <>
+                  <h1>Make it yours</h1>
+                  <p className="wl-lede">Pick a colour and a mood.</p>
+                  <div className="wl-swatches" role="radiogroup" aria-label="Colour">
+                    {SPACE_LOOKS.map((l) => (
+                      <button
+                        key={l.name}
+                        type="button"
+                        role="radio"
+                        aria-checked={space.color === l.color}
+                        aria-label={l.name}
+                        title={l.name}
+                        className={'wl-swatch' + (space.color === l.color ? ' on' : '')}
+                        style={{
+                          background: l.color2
+                            ? `linear-gradient(135deg, ${l.color}, ${l.color2})`
+                            : l.color
+                        }}
+                        onClick={() => updateSpace({ color: l.color, color2: l.color2 })}
+                      />
+                    ))}
+                  </div>
+                  <Segmented<SpaceMode>
+                    label="Appearance"
+                    value={space.mode}
+                    options={[
+                      { value: 'system', label: 'Match my system' },
+                      { value: 'light', label: 'Light' },
+                      { value: 'dark', label: 'Dark' }
+                    ]}
+                    onChange={(mode) => updateSpace({ mode })}
+                  />
+                  <p className="wl-note">
+                    Light or dark takes over once you start browsing. You can make more spaces
+                    later, each with its own look.
+                  </p>
+                </>
+              )}
+
+              {step === 'layout' && (
+                <>
+                  <h1>Where do your tabs go?</h1>
+                  <p className="wl-lede">Change this any time in Settings.</p>
+                  <div className="wl-cards" role="radiogroup" aria-label="Tab layout">
+                    {(
+                      [
+                        ['vertical', 'In a sidebar', 'Titles you can read, spaces at the bottom'],
+                        ['horizontal', 'Along the top', 'The classic row, with spaces at the left']
+                      ] as const
+                    ).map(([value, title, hint]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={s.tabLayout === value}
+                        className={'wl-card' + (s.tabLayout === value ? ' on' : '')}
+                        onClick={() => update({ tabLayout: value })}
+                      >
+                        <LayoutArt kind={value} on={s.tabLayout === value} />
+                        <b>{title}</b>
+                        <span>{hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {step === 'speed' && (
+                <>
+                  <h1>Fast and private</h1>
+                  <p className="wl-lede">Good defaults, ready to change.</p>
+                  <div className="wl-list">
+                    <div className="wl-row">
+                      <span>
+                        Block ads and trackers
+                        <em>
+                          Built in, on every site. Switch it off for one site from the address bar.
+                        </em>
+                      </span>
+                      <Toggle
+                        label="Block ads and trackers"
+                        on={s.adblock}
+                        onChange={(v) => update({ adblock: v })}
+                      />
+                    </div>
+                    <div className="wl-row">
+                      <span>
+                        Memory saver
+                        <em>
+                          Puts tabs you are not using to sleep, and wakes them when you return.
+                        </em>
+                      </span>
+                      <Toggle
+                        label="Memory saver"
+                        on={s.memorySaver}
+                        onChange={(v) => update({ memorySaver: v })}
+                      />
+                    </div>
+                    <div className="wl-row col">
+                      <span>
+                        Performance
+                        <em>
+                          {stats
+                            ? `This computer has ${stats.totalGb} GB of memory, so Auto picks ${recommended === 'efficient' ? 'Efficient' : 'Balanced'}.`
+                            : 'Efficient shares one process between tabs of a site.'}
+                        </em>
+                      </span>
+                      <Segmented<PerformanceMode>
+                        label="Performance"
+                        value={s.performanceMode}
+                        options={[
+                          { value: 'auto', label: 'Auto' },
+                          { value: 'balanced', label: 'Balanced' },
+                          { value: 'efficient', label: 'Efficient' }
+                        ]}
+                        onChange={(v) => update({ performanceMode: v })}
+                      />
+                    </div>
+                    <div className="wl-row col">
+                      <span>Search with</span>
+                      <Segmented<SearchEngineId>
+                        label="Search engine"
+                        value={s.searchEngine}
+                        options={(Object.keys(SEARCH_ENGINES) as SearchEngineId[]).map((id) => ({
+                          value: id,
+                          label: SEARCH_ENGINES[id].name
+                        }))}
+                        onChange={(v) => update({ searchEngine: v })}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {step === 'finish' && (
+                <>
+                  <Panes />
+                  <h1>You are all set</h1>
+                  <div className="wl-default">
+                    {isDefault ? (
+                      <span className="wl-ok">Panes is your default browser</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="wl-ghost"
+                        onClick={() => void api.defaultBrowserRequest()}
+                      >
+                        Make Panes my default browser
+                      </button>
+                    )}
+                  </div>
+                  <div className="wl-dock">
+                    <BinArt />
+                    <p>
+                      <b>Your downloads wait in the corner.</b> A bucket peeks out of the
+                      bottom-right edge of the window: point there to bring it out, and click it to
+                      see what you have downloaded.
+                    </p>
+                  </div>
+                  <dl className="wl-keys">
+                    {KEYS.map(([k, label]) => (
+                      <div key={k}>
+                        <dt>
+                          {k.split(' ').map((part) => (
+                            <kbd key={part}>{part}</kbd>
+                          ))}
+                        </dt>
+                        <dd>{label}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </>
+              )}
+            </motion.section>
+          </AnimatePresence>
+        </div>
+
+        {/* the way on stays in one place on every step, so it is on screen however short the window */}
+        {step !== 'welcome' && (
+          <footer className="wl-nav">
+            <button type="button" className="wl-back" onClick={() => go(STEPS[index - 1])}>
+              Back
+            </button>
+            <button type="button" className="wl-next" onClick={forward}>
+              {step !== 'finish'
+                ? 'Continue'
+                : needsRestart
+                  ? 'Start browsing (restarts once)'
+                  : 'Start browsing'}
+            </button>
+          </footer>
+        )}
+      </main>
+    </MotionConfig>
   )
 }

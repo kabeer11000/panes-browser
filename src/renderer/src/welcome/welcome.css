@@ -1,4 +1,21 @@
 /* The first-run welcome: one centred step at a time over the space's own colours. Builds on the shared tokens. */
+
+/* registered, so picking a colour glides the whole page to it instead of snapping */
+@property --accent {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #8b8bff;
+}
+@property --space {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #6e7bff;
+}
+:root {
+  transition:
+    --accent 0.5s var(--ease),
+    --space 0.5s var(--ease);
+}
 html,
 body {
   height: 100%;
@@ -18,6 +35,7 @@ body {
 .wl-top {
   width: 100%;
   max-width: 720px;
+  min-height: 32px; /* the same with or without Skip, so the dots never jump */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -52,13 +70,21 @@ body {
   color: var(--fg);
   background: var(--surface-hover);
 }
+/* A step taller than the window scrolls instead of spilling under the bars: centred when it fits, top-aligned when
+   it does not (safe), so its first and last lines can always be reached. */
 .wl-stage {
   flex: 1;
   width: 100%;
   max-width: 720px;
-  display: grid;
-  place-items: center;
   min-height: 0;
+  display: grid;
+  align-items: safe center;
+  justify-items: center;
+  overflow: hidden auto;
+  padding: 24px 8px;
+  /* no bar: the edges fade instead, so a step that runs on shows it does (wheel, keys and touch still scroll) */
+  scrollbar-width: none;
+  mask-image: linear-gradient(transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 .wl-step {
   width: 100%;
@@ -67,6 +93,7 @@ body {
   align-items: center;
   gap: 16px;
   text-align: center;
+  outline: none;
 }
 .wl-step h1 {
   margin: 4px 0 0;
@@ -83,7 +110,9 @@ body {
   line-height: 1.5;
 }
 .wl-note {
+  max-width: 400px;
   margin: 4px 0 0;
+  line-height: 1.45;
   color: var(--fg-dim);
   font-size: 13px;
 }
@@ -127,6 +156,11 @@ body {
 .wl-next {
   background: var(--accent);
   color: #fff;
+  box-shadow: 0 10px 24px -12px var(--accent);
+  transition: filter 0.2s;
+}
+.wl-next:hover {
+  filter: brightness(1.08);
 }
 .wl-go:focus-visible,
 .wl-ghost:focus-visible,
@@ -270,12 +304,15 @@ body {
   background: var(--stage-bg, #fff);
   opacity: 0.9;
 }
+/* the tabs and bar wear the accent on the chosen layout, grey on the other (their motion is in LayoutArt) */
 .wl-art .row,
 .wl-art .bar {
-  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--surface-active);
+  transition: background 0.3s var(--ease);
 }
-.wl-art.vertical .bar {
-  display: none;
+.wl-card.on .wl-art .row,
+.wl-card.on .wl-art .bar {
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .wl-art.vertical .row {
   left: 6%;
@@ -287,11 +324,9 @@ body {
 }
 .wl-art.vertical .r2 {
   top: 26%;
-  opacity: 0.6;
 }
 .wl-art.vertical .r3 {
   top: 40%;
-  opacity: 0.6;
 }
 .wl-art.vertical .page {
   left: 32%;
@@ -309,18 +344,16 @@ body {
 }
 .wl-art.horizontal .r2 {
   left: 29%;
-  opacity: 0.6;
 }
 .wl-art.horizontal .r3 {
   left: 52%;
-  opacity: 0.6;
 }
 .wl-art.horizontal .bar {
   left: 8%;
   right: 8%;
   top: 26%;
   height: 8%;
-  opacity: 0.4;
+  transform-origin: left;
 }
 .wl-art.horizontal .page {
   left: 5%;
@@ -410,6 +443,36 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .wl-mark {
     animation: none;
+  }
+}
+
+/* short windows (a laptop at 125%): the big pieces shrink so a step still fits, or nearly */
+@media (max-height: 640px) {
+  .wl-step {
+    gap: 12px;
+  }
+  .wl-mark {
+    width: 92px;
+    height: 82px;
+  }
+  .wl-mark span {
+    border-radius: 14px;
+  }
+  .wl-mark .p1,
+  .wl-mark .p2 {
+    height: 44px;
+  }
+  .wl-mark .p2 {
+    top: 10px;
+  }
+  .wl-mark .p3 {
+    top: 21px;
+  }
+  .wl-step h1 {
+    font-size: 30px;
+  }
+  .wl-dock {
+    margin-bottom: 8px;
   }
 }
 

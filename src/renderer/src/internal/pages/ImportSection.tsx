@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { SEARCH_ENGINES } from '@shared/settings'
 import type { ImportItem, ImportResult, ImportSource } from '@shared/types'
 import { Group, Row, Select } from '@renderer/internal/ui'
+import { takeImportSources } from './importSources'
 
 const ITEMS: Array<{ item: ImportItem; label: string }> = [
   { item: 'bookmarks', label: 'Bookmarks' },
@@ -40,7 +41,7 @@ export function ImportSection(): React.JSX.Element {
   const [fileNote, setFileNote] = useState('')
 
   useEffect(() => {
-    void api.importSources().then((list) => {
+    void takeImportSources().then((list) => {
       setSources(list)
       setSourceId(list[0]?.id ?? '')
       setProfile(list[0]?.profiles[0]?.dir ?? '')
