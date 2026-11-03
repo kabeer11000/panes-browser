@@ -198,7 +198,9 @@ export class UpdateManager {
     if (this.via === 'layer') {
       // The new code is already on disk: this is an ordinary restart. Electron starts the new process once this
       // one has exited, so it gets the single-instance lock.
-      app.relaunch()
+      // Only the switches carry over: without `args` Electron reuses the whole command line, and a Panes started by a
+      // link handed to it as the default browser would open that link again on top of the restored tabs.
+      app.relaunch({ args: process.argv.slice(1).filter((a) => a.startsWith('-')) })
       app.quit()
       return
     }
