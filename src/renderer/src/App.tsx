@@ -310,6 +310,10 @@ function App(): React.JSX.Element {
   // the welcome tour is shown on its own: dark, with no sidebar or bars, so the whole window is the page
   const immersive = isWelcome(active?.url)
   const showSidebar = !horizontal && sidebarOpen && !immersive
+  // The search popover hangs off the address bar, which moves when the sidebar opens or closes: it ends with it.
+  useEffect(() => {
+    if (modeRef.current === 'search') closeOverlay()
+  }, [showSidebar, closeOverlay])
   // A sidebar the pointer asked for floats over the page instead of pushing it: the page keeps its size, so
   // nothing in it is laid out or repainted for what is a glance at the tab list.
   const pushed = showSidebar && !openedByHover
