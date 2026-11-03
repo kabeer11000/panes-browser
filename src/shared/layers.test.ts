@@ -13,6 +13,7 @@ import {
   parseManifest,
   pickDelta,
   planLayerUpdate,
+  rolledBackFrom,
   shellId,
   stageLayer,
   type LayerEntry,
@@ -154,6 +155,24 @@ describe('boots and health', () => {
     for (let b = 1; b <= 30; b++) many = markBad(many, b)
     expect(many.bad.length).toBe(20)
     expect(many.bad.at(-1)).toBe(30)
+  })
+})
+
+describe('rolledBackFrom', () => {
+  test('names the staged version that failed while an older one runs', () => {
+    const s: LayerState = { current: entry(30), previous: entry(20), boots: 0, bad: [30] }
+    expect(rolledBackFrom(s, 'app-20.asar')).toEqual(entry(30))
+    expect(rolledBackFrom(s, null)).toEqual(entry(30)) // back on the installed app
+  })
+
+  test('nothing to say when nothing failed, or a newer layer replaced the failed one', () => {
+    expect(rolledBackFrom({ ...EMPTY_LAYER_STATE, current: entry(30) }, 'app-30.asar')).toBeNull()
+    const replaced = stageLayer(
+      { current: entry(30), previous: entry(20), boots: 0, bad: [30] },
+      entry(40),
+      'app-20.asar'
+    )
+    expect(rolledBackFrom(replaced, 'app-20.asar')).toBeNull()
   })
 })
 

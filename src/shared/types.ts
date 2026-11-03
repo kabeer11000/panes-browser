@@ -526,6 +526,8 @@ export interface LoginInput {
 /** What the Software page shows about this build. */
 export interface AboutInfo {
   version: string
+  /** A newer version that failed to start, so Panes went back to `version`; null when nothing was rolled back. */
+  rolledBackFrom: string | null
   electron: string
   chrome: string
   node: string

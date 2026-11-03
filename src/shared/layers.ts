@@ -150,6 +150,15 @@ export function chooseLayer(
   return { run: usable(state.previous) ? state.previous : null, crashed }
 }
 
+/**
+ * The staged version that failed and was given up on, while Panes runs something older: worth telling the user, since
+ * the version they see went backwards. Null once a newer layer is staged or the failed one is running.
+ */
+export function rolledBackFrom(state: LayerState, running: string | null): LayerEntry | null {
+  const failed = state.current
+  return failed && state.bad.includes(failed.build) && failed.file !== running ? failed : null
+}
+
 /** A build that failed: never started or downloaded again. */
 export function markBad(state: LayerState, build: number): LayerState {
   if (state.bad.includes(build)) return { ...state, boots: 0 }

@@ -213,6 +213,12 @@ export function Software(): React.JSX.Element {
         <img className="sw-logo" src={logo} alt="" width={76} height={76} />
         <div className="sw-name">Panes</div>
         <div className="sw-version">Version {about?.version ?? ''}</div>
+        {about?.rolledBackFrom && (
+          <div className="sw-sub" role="status">
+            Panes {about.rolledBackFrom} didn&apos;t start properly here, so Panes went back to{' '}
+            {about.version}. The next update replaces it.
+          </div>
+        )}
         <div className="sw-status" aria-live="polite">
           <Headline state={state} />
           <Actions state={state} onCheck={check} onInstall={() => void api.updateInstall()} />

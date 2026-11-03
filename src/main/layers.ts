@@ -17,6 +17,7 @@ import {
   parseLayerState,
   parseManifest,
   pickDelta,
+  rolledBackFrom,
   shellId,
   stageLayer,
   STATE_NAME,
@@ -98,6 +99,11 @@ function update(change: (s: LayerState) => LayerState): void {
   } catch (err) {
     console.error('[layers] state write failed:', err)
   }
+}
+
+/** The version that failed to start and was rolled back from, for the Software page; null when nothing was. */
+export function rolledBackVersion(): string | null {
+  return rolledBackFrom(readLayerState(), runningLayer())?.version ?? null
 }
 
 /** Panes got past its single-instance lock: one more start of the running layer to account for. */

@@ -792,6 +792,13 @@ export class TabManager {
     this.refresh()
   }
 
+  /** Open private tabs, Tor tabs included: never saved, so a restart closes them for good. */
+  privateTabCount(): number {
+    let n = 0
+    for (const t of this.tabs.values()) if (t.private) n++
+    return n
+  }
+
   private forgetPrivateIfDone(): void {
     if ([...this.tabs.values()].some((t) => t.private)) return
     void this.deps.torSession

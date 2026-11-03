@@ -55,7 +55,11 @@ export class UpdateManager {
   /** How the update that is ready gets used: start the staged layer, or run the installer. */
   private via: 'layer' | 'installer' | null = null
 
-  constructor() {
+  /**
+   * `confirmRestart` is asked before Restart to update closes anything that cannot come back (private and Tor tabs);
+   * false keeps Panes open with the update still ready.
+   */
+  constructor(private confirmRestart: () => Promise<boolean> = async () => true) {
     const reason = this.fake ? null : whyDisabled()
     this.state = reason ? { kind: 'disabled', reason } : { kind: 'idle', checkedAt: null }
     if (reason || this.fake) return
@@ -186,9 +190,15 @@ export class UpdateManager {
     return true
   }
 
-  /** Restart into the downloaded version. Does nothing unless one is ready. */
-  install(): void {
-    if (this.state.kind !== 'ready' || this.fake) return
+  private confirming = false
+
+  /** Restart into the downloaded version, once the user is fine losing what cannot come back. Does nothing unless one is ready. */
+  async install(): Promise<void> {
+    if (this.state.kind !== 'ready' || this.fake || this.confirming) return
+    this.confirming = true
+    const go = await this.confirmRestart().catch(() => false)
+    this.confirming = false
+    if (!go || this.state.kind !== 'ready') return
     this.dispatch({ type: 'installing' }) // the window says so at once
     try {
       writeFileSync(join(app.getPath('userData'), RESTORE_FLAG), '')

@@ -249,13 +249,27 @@ function createWindow(): void {
     }
   })
 
-  const updater = new UpdateManager()
+  // Private and Tor tabs are never saved, so Restart to update would close them for good: ask first.
+  const updater = new UpdateManager(async () => {
+    const n = tabs.privateTabCount()
+    if (n === 0) return true
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'question',
+      buttons: ['Restart', 'Later'],
+      defaultId: 1,
+      cancelId: 1,
+      message: n === 1 ? '1 private tab will close' : `${n} private tabs will close`,
+      detail:
+        'Private and Tor tabs are never saved, so they do not come back after the restart. The update waits if you choose Later.'
+    })
+    return response === 0
+  })
   updater.onChange((s) => {
     if (!win.isDestroyed()) win.webContents.send('ui:update', s)
   })
   updater.start()
   ipcMain.handle('update:state', () => updater.get())
-  ipcMain.on('update:install', () => updater.install())
+  ipcMain.on('update:install', () => void updater.install())
 
   registerInternalIpc({
     updater,

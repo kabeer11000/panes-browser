@@ -25,7 +25,7 @@ import type { TabDump } from '@shared/dumps'
 import type { OpenItem } from '@shared/types'
 import type { TorStatus } from '@shared/tor'
 import { currentChromeTheme } from './chromeTheme'
-import { appVersion } from './layers'
+import { appVersion, rolledBackVersion } from './layers'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
@@ -122,10 +122,11 @@ export function registerInternalIpc(d: Deps): void {
 
   handle('int:update-state', () => d.updater.get())
   handle('int:update-check', () => d.updater.check())
-  handle('int:update-install', () => d.updater.install())
+  handle('int:update-install', () => void d.updater.install())
   handle('int:feedback', () => d.feedback())
   handle('int:about', () => ({
     version: appVersion(),
+    rolledBackFrom: rolledBackVersion(),
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     node: process.versions.node,
