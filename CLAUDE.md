@@ -48,6 +48,17 @@ Key mechanics that span files:
 - Use `agent-browser` only where `agent-desktop` is a poor fit: reading or scripting web content over the DevTools port, or the `panes://` / renderer pages as plain web pages.
 - Resource numbers still come from `scripts/perf-*.ts` over `--remote-debugging-port`.
 
+How it works in practice (Windows, PowerShell):
+
+- **Check focus before every input.** The user's terminal often takes the foreground, and a click or key then lands in it. Run `focus-window --window-id <Panes id>` (id from `list-windows`: `app_name` electron.exe, title `Panes`), then confirm the focused window is electron.exe before sending anything; stop if it is not.
+- **Input needs `--headed`**: `--headed press ctrl+l --app electron.exe`, `--headed mouse-click --xy=X,Y [--button right]`, `--headed mouse-move --xy=X,Y`. Write negative coordinates as `--xy=-1,5`. Coordinates are screen pixels, so read them off a `screenshot --screen 0` taken just before.
+- **Screenshots**: `--screen 0` also catches native menus and popups (the right-click menu is not inside the window shot); `--window-id` gives the window only. A shot takes about 0.4 s, too slow to catch a 0.4 s transition.
+- **The web UI is thin in the accessibility tree** (the chrome shows as one document), so work from screenshots and click coordinates, not refs.
+- **The auto-hidden top bar has no buttons until it is out.** Move the pointer to y=1 first, then click.
+- **Page internals and fast timing**: start with `REMOTE_DEBUGGING_PORT=9333 bun run dev` and talk CDP from a bun script (computed styles, DOM). For a flash or glide, sample the screen with .NET `CopyFromScreen` in a loop (about 19 fps) and count pixels.
+- **Dev server**: renderer edits hot-reload; main-process edits and `electron.vite.config.ts` need a restart of `bun run dev`.
+- **Leave it as found.** The user may be using Panes at the same time: put the sidebar, tab and search state back, and do not touch their page (selections, forms).
+
 ## Conventions
 
 - Prettier + ESLint (`@electron-toolkit` configs, react-hooks and react-refresh plugins); `.editorconfig` and `.prettierrc.yaml` apply.
