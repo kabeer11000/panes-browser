@@ -77,9 +77,9 @@ Built 2026-11-04 (commits from `feat: rules for updating Panes' own code` on):
 Tested end to end on a scratch `electron-builder --dir` build (`PANES_USERDATA` and `PANES_LAYER_FEED` in scratch, installed Panes untouched): Panes fetched the 3 KB delta (not the 5.2 MB layer), Restart to update to the new window loaded in 1.04 s, the open tab came back, the Software page showed the new version, the start count cleared. A layer file that is not an archive, and a layer at 2 failed starts, were both marked bad and Panes came up on the previous layer. After the two fixes (relaunch keeps only switches; shell includes platform and processor): started from a link, the restart restored one copy of the tab (0.91 s); with no delta it fetched the 5.2 MB layer and updated; a damaged delta fell back to the whole layer and updated; the ad-block worker rebuilt its engine running from a layer. The test builds included another session's in-progress import refactor.
 
 Still to do:
-- [ ] Private or Tor tabs open on Restart to update: one line first ("2 private tabs will close"), Restart or Later. Today they close without asking.
-- [ ] Say on the Software page when a new version was rolled back.
-- [ ] Installer path (new Electron only): launch guard before the single-instance lock, progress window closes only once the new Panes is up, `customCheckAppRunning` without PowerShell probes and fixed sleeps.
+- [x] Private or Tor tabs open on Restart to update: asks first ("2 private tabs will close"), Restart or Later.
+- [x] The Software page says when a new version failed to start and Panes went back.
+- [ ] Left for later (owner, 2026-11-04; rare now that only Electron upgrades use it). Installer path (new Electron only): launch guard before the single-instance lock, progress window closes only once the new Panes is up, `customCheckAppRunning` without PowerShell probes and fixed sleeps.
 - [ ] Signing the manifest (ed25519, key outside the repo) when wanted.
 - [ ] First real release with layers: the release after it is the first one existing users get as a delta.
 
