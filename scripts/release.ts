@@ -2,28 +2,38 @@
  * Releases Panes for Windows: the installer (for new installs and new Electron versions) and the app layer that every
  * existing Panes on the same Electron updates from (scripts/release-layer.ts).
  *
- *   bun run release:win [--notes "<text>"] [--dry-run]
+ *   bun run release:win [<bump>] [--preid beta] [--notes "<text>"] [--dry-run]
+ *
+ * <bump>    patch | minor | major | prerelease | an exact version: bumps package.json, commits `chore(release):
+ *           <version>` and pushes it before building. Left out, the version in package.json is released as it is
+ *           (how a failed run is repeated).
+ * --notes   the release notes, required for a new release; Panes shows them next to the update
+ * --dry-run build into dist/ and dist/layer with the current version, then stop before anything is changed or uploaded
  *
  * The GitHub release is a draft until every file is on it, then published and marked latest in one step. Until then
  * /releases/latest still points at the previous release, and a failed run leaves only a draft that a rerun reuses.
- * One run is one build: the installer, latest.yml and the layer all come from the same bytes. The build is stamped with
- * a build number, the release time in seconds: it only goes up, and it is what Panes compares to decide that a layer
- * is newer (never the version string, where "beta.10" sorts before "beta.9").
+ * The tag is made by GitHub when the draft is published, on the commit that was released. One run is one build: the
+ * installer, latest.yml and the layer all come from the same bytes. The build is stamped with a build number, the
+ * release time in seconds: it only goes up, and it is what Panes compares to decide that a layer is newer (never the
+ * version string, where "beta.10" sorts before "beta.9").
  *
- * --notes   the release notes, required for a new release; Panes shows them next to the update
- * --dry-run build everything into dist/ and dist/layer, then stop before anything is created or uploaded
- *
- * Needs a `gh auth login`, a clean working tree and HEAD pushed. A version that is already published is refused:
- * bump package.json first.
+ * Needs a `gh auth login`, a clean working tree and HEAD pushed. A version that is already published is refused.
  */
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
+import { parseArgs } from 'util'
 import { $ } from 'bun'
-import pkg from '../package.json'
 
-const tag = `v${pkg.version}`
-const dryRun = process.argv.includes('--dry-run')
-const notesAt = process.argv.indexOf('--notes')
-const notes = notesAt >= 0 ? process.argv[notesAt + 1] : undefined
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
+  options: {
+    notes: { type: 'string' },
+    preid: { type: 'string', default: 'beta' },
+    'dry-run': { type: 'boolean', default: false }
+  }
+})
+const [bump] = positionals
+const dryRun = values['dry-run']
+const notes = values.notes
 
 function fail(message: string): never {
   console.error(`release: ${message}`)
@@ -32,27 +42,47 @@ function fail(message: string): never {
 
 const ok = async (cmd: Promise<{ exitCode: number }>): Promise<boolean> =>
   (await cmd).exitCode === 0
+const currentVersion = (): string => JSON.parse(readFileSync('package.json', 'utf8')).version
+
+async function releaseState(tag: string): Promise<'new' | 'draft' | 'published'> {
+  const releases = JSON.parse(
+    await $`gh release list --limit 100 --json tagName,isDraft`.text()
+  ) as { tagName: string; isDraft: boolean }[]
+  const existing = releases.find((r) => r.tagName === tag)
+  return !existing ? 'new' : existing.isDraft ? 'draft' : 'published'
+}
 
 /** Everything that can be known before the long build, so a mistake costs a second and not the whole build. */
-async function preflight(): Promise<'new' | 'draft'> {
-  if (dryRun) return 'new'
+async function preflight(): Promise<void> {
   if (!(await ok($`gh auth status`.quiet().nothrow()))) fail('not logged in. Run `gh auth login`.')
   if ((await $`git status --porcelain`.text()).trim()) fail('the working tree is not clean.')
   if (!(await ok($`git merge-base --is-ancestor HEAD ${'@{u}'}`.quiet().nothrow())))
     fail('HEAD is not pushed: the release tag would point at a commit nobody can fetch.')
-  const releases = JSON.parse(
-    await $`gh release list --limit 100 --json tagName,isDraft`.text()
-  ) as {
-    tagName: string
-    isDraft: boolean
-  }[]
-  const existing = releases.find((r) => r.tagName === tag)
-  if (existing && !existing.isDraft) fail(`${tag} is already published. Bump the version first.`)
-  if (!existing && !notes) fail('pass --notes "<text>": users read them next to the update.')
-  return existing ? 'draft' : 'new'
 }
 
-const state = await preflight()
+/** package.json to the next version, committed and pushed. Returns the version. */
+async function bumpVersion(increment: string): Promise<string> {
+  await $`bun pm version ${increment} --preid ${values.preid} --no-git-tag-version`.quiet()
+  const version = currentVersion()
+  if ((await releaseState(`v${version}`)) === 'published') {
+    await $`git checkout -- package.json`
+    fail(`v${version} is already published.`)
+  }
+  await $`git add package.json`
+  await $`git commit -m ${`chore(release): ${version}`}`.quiet()
+  await $`git push`
+  return version
+}
+
+if (!dryRun) await preflight()
+const version = !dryRun && bump ? await bumpVersion(bump) : currentVersion()
+const tag = `v${version}`
+const state = dryRun ? 'new' : await releaseState(tag)
+if (state === 'published')
+  fail(`${tag} is already published. Pass a bump (patch, prerelease, ...).`)
+if (!dryRun && state === 'new' && !notes)
+  fail('pass --notes "<text>": users read them next to the update.')
+
 const build = Math.floor(Date.now() / 1000)
 
 await $`bun run build`
@@ -75,6 +105,9 @@ if (state === 'new') {
   // --target: a draft has no tag yet, and the tag is made at publish time on whatever the default branch is then.
   const head = (await $`git rev-parse HEAD`.text()).trim()
   await $`gh release create ${tag} --draft --target ${head} --title ${tag} --notes ${notes!}`
+} else if (notes) {
+  // before the layer step: its manifest carries the release body
+  await $`gh release edit ${tag} --notes ${notes}`
 }
 await $`gh release upload ${tag} --clobber ${installer}`
 await $`bun scripts/release-layer.ts --publish`
@@ -83,10 +116,20 @@ await $`bun scripts/release-layer.ts --publish`
 const assets = (
   JSON.parse(await $`gh release view ${tag} --json assets`.text()) as { assets: { name: string }[] }
 ).assets.map((a) => a.name)
-const expected = [...installer.map((f) => f.slice('dist/'.length)), 'app-layer.json']
+const manifest = JSON.parse(readFileSync('dist/layer/app-layer.json', 'utf8')) as {
+  full: { file: string }
+  deltas: { file: string }[]
+}
+const layerFiles = [manifest.full.file, ...manifest.deltas.map((d) => d.file)]
+const expected = [...installer.map((f) => f.slice('dist/'.length)), 'app-layer.json', ...layerFiles]
 const absent = expected.filter((name) => !assets.includes(name))
-if (absent.length || !assets.some((n) => n.endsWith('.asar.gz')))
-  fail(`${tag} stays a draft: missing ${absent.join(', ') || 'the layer'}.`)
+if (absent.length) fail(`${tag} stays a draft: missing ${absent.join(', ')}.`)
+
+// A reused draft still holds the layer files of the earlier attempt, which this manifest does not name.
+const stale = assets.filter(
+  (n) => /^app-.*(\.asar\.gz|\.delta\.zst)$/.test(n) && !layerFiles.includes(n)
+)
+for (const name of stale) await $`gh release delete-asset ${tag} ${name} --yes`
 
 await $`gh release edit ${tag} --draft=false --latest`
 console.log(`release: ${tag} is live.`)
