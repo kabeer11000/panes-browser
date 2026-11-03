@@ -218,13 +218,27 @@ Looked at: Ghostery's `adblocker-electron` (current), Brave's `brave-core` (Shie
 
 ## Steps
 
-- [ ] 1. Spike, nothing merged: install Rust and `adblock-rs` under bun; load it in main from a packed asar (`build:unpack`, needs ask) and inside a worker thread; serialize round trip; a data-URL redirect through `webRequest`; confirm Brave's Standard rule in `brave-core` source. Baseline on the current blocker with `scripts/perf-*.ts`: time to engine ready, main process memory, load of three heavy news sites.
-- [ ] 2. Resources script, workflow with self re-enable, bundled `resources.json` and catalog snapshot.
-- [ ] 3. `src/shared`: catalog picking, preprocessor, resource type map, request decision; tests.
-- [ ] 4. Worker build and main engine swap, network blocking, canary.
-- [ ] 5. Page preload (scriptlets, styles, generic hiding, procedural); delete the YouTube scriptlet path.
-- [ ] 6. Aggressive setting: settings schema, Settings page, site panel.
-- [ ] 7. Remove `@ghostery/*` and delete the old `adblock-engine.bin` on first run.
-- [ ] 8. Verify against the baseline: YouTube (watch page, embed), news sites, the sites that break today, private window, site off and hiding off toggles, first start offline (bundled fallback), a corrupt `.dat` (canary rebuilds).
+- [x] 1. Spike: Rust and `adblock-rs` installed, loads from a packed asar and in a worker, round trip, data-URL redirects. Brave's Standard rule came from its catalog (`first_party_protections`), not confirmed in `brave-core` source. Baseline was an engine benchmark, not an app perf run (below).
+- [x] 2. Resources script, workflow with self re-enable, bundled `resources.json`. No catalog snapshot: the lists need the network anyway, so it would not help an offline start.
+- [x] 3. `src/shared`: catalog picking, preprocessor, resource type map, request decision, engine file; tests.
+- [x] 4. Engine build and swap, network blocking, canary. Downloads moved to the main process (`net.fetch`) after Node's fetch in the worker failed on most packed cold starts.
+- [x] 5. Page preload (scriptlets, styles, generic hiding with Standard sparing, procedural); YouTube scriptlet path deleted.
+- [x] 6. Aggressive setting: settings schema, Settings page, site panel.
+- [x] 7. `@ghostery/*` removed, old `adblock-engine.bin` deleted on start.
+- [x] 8. Verified, see review. Not checked: a YouTube embed, the "hide ad spaces" off toggle, the Aggressive switch in the app (only its decision logic, in tests), and the workflow (needs a push).
+
+## Review (2026-11-04)
+
+In the dev app (scratch data folder): adblock-tester.com 100/100; ad and tracker fetches fail on The Verge and BBC while a CDN and the site's own requests load; YouTube watch page has no ad placements or ad slots and the video plays; site exception and the global switch apply live; a tab opened with New Private Tab blocks too (not confirmed from outside that it was the private one).
+
+Packed app (`build:unpack`): nothing beside app.asar (22.5 MB), engine ready 2-3 s after a cold start, a restart reuses the saved engine, a truncated file and a file with corrupted engine bytes are both refused and rebuilt (the canary catches the second).
+
+Engine, same lists, same machine: build 0.62 s (Ghostery) vs 0.26 s (Brave); a request check 43 vs 14 µs; load 8 ms both; file 7.4 vs 9.1 MB (two engines). Memory not comparable from that run.
+
+First start with no network: no blocking until the next hourly check finds the network. Same as before.
+
+Known gap: `$csp` rules (the JS binding has no call for them).
+
+Before release: push, run the workflow once by hand, and check `/releases/latest` still points at Panes.
 
 Step 8 sites (owner had none in mind, 2026-11-04): YouTube plus three heavy news sites, picked during the step 1 baseline so the same pages are measured before and after.
