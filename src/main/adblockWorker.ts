@@ -1,6 +1,6 @@
 import { parentPort } from 'node:worker_threads'
 import { FiltersEngine } from '@ghostery/adblocker'
-import { ADBLOCK_ENV, RESOURCES_URL, filterLists } from '../shared/adblock'
+import { ADBLOCK_ENV, RESOURCES_URL, filterLists } from '@shared/adblock'
 
 /**
  * Builds the ad blocking engine in a worker thread and posts it back serialized (or an error message).
