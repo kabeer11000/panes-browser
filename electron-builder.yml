@@ -17,8 +17,8 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-asarUnpack:
-  - resources/**
+# Nothing is unpacked from app.asar: an app layer update (src/shared/layers.ts) replaces app.asar alone, so a file kept
+# beside it would stay the old one. Electron reads the window icon from inside the archive.
 win:
   executableName: Panes
   target:

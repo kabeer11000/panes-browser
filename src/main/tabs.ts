@@ -867,13 +867,13 @@ export class TabManager {
   }
 
   /**
-   * Open saved tabs when the user chose to restore, otherwise a fresh blank tab. Only the active tab
-   * loads; the rest wait until they are shown, so a pile of tabs never all start playing at once.
+   * Open saved tabs when the user chose to restore (or `always`: a restart to update), otherwise a fresh blank tab.
+   * Only the active tab loads; the rest wait until they are shown, so a pile of tabs never all start playing at once.
    */
-  restoreOrNew(): void {
+  restoreOrNew(always = false): void {
     const saved = this.sessionStore.value
     const known = new Set(this.deps.spaces.list().map((sp) => sp.id))
-    if (this.deps.settings.get().startup === 'restore' && saved.tabs.length > 0) {
+    if ((always || this.deps.settings.get().startup === 'restore') && saved.tabs.length > 0) {
       for (const g of TAB_GROUPS ? (saved.groups ?? []) : []) {
         if (!known.has(g.spaceId)) continue
         this.groups.set(g.id, { ...g })

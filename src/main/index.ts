@@ -40,6 +40,7 @@ import { SiteSettings, watchCertificates } from './sites'
 import { SettingsStore } from './settings'
 import { SpaceStore } from './spaces'
 import { UpdateManager } from './updater'
+import { noteLayerHealthy } from './layers'
 import { Suggester } from './suggest'
 import { flushAllStores } from './store'
 import { TabManager } from './tabs'
@@ -540,6 +541,7 @@ function createWindow(): void {
   win.webContents.on('did-finish-load', () => {
     mark('page-loaded')
     flushTrace()
+    noteLayerHealthy() // the code running now works: a new app layer is not rolled back
     const fx = runningMode() === 'efficient' ? 'low' : 'full'
     void win.webContents
       // remembered too, so the next start has it before its first paint (public/boot.js)
@@ -549,7 +551,7 @@ function createWindow(): void {
       .catch(() => undefined)
   })
   mark('setup-done')
-  tabs.restoreOrNew()
+  tabs.restoreOrNew(UpdateManager.takeRestoreFlag())
   // First run: open the welcome page before anything else is shown.
   if (!settings.get().onboarded && !process.env['PANES_DEBUG']) tabs.create('panes://welcome')
   openLinks = (urls) => {

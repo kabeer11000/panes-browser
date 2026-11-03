@@ -3,7 +3,17 @@ import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  main: {},
+  main: {
+    build: {
+      rolldownOptions: {
+        // loader.ts is what package.json starts: it picks the app layer to run (see shared/layers.ts), then loads index.
+        input: { index: resolve('src/main/index.ts'), loader: resolve('src/main/loader.ts') },
+        // Electron's fs without archive support, for reading and writing .asar files as files. Not a Node built-in, so
+        // electron-vite does not leave it out of the bundle by itself.
+        external: ['original-fs']
+      }
+    }
+  },
   preload: {
     build: {
       rollupOptions: {

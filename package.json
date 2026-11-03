@@ -2,7 +2,7 @@
   "name": "panes",
   "version": "0.1.0-beta.5",
   "description": "Panes browser",
-  "main": "./out/main/index.js",
+  "main": "./out/main/loader.js",
   "author": "Panes Authors",
   "scripts": {
     "format": "prettier --write .",
