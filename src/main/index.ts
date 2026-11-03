@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { DEFAULT_SETTINGS, type InternalPage } from '@shared/settings'
+import { privateTabsWarning } from '@shared/update'
 import { linksFromArgv } from '@shared/launch'
 import type { Edge } from '@shared/layout'
 import type { ClearKind, Rect, SpacePatch } from '@shared/types'
@@ -251,16 +252,14 @@ function createWindow(): void {
 
   // Private and Tor tabs are never saved, so Restart to update would close them for good: ask first.
   const updater = new UpdateManager(async () => {
-    const n = tabs.privateTabCount()
-    if (n === 0) return true
+    const warning = privateTabsWarning(tabs.privateTabCount())
+    if (!warning) return true
     const { response } = await dialog.showMessageBox(win, {
       type: 'question',
       buttons: ['Restart', 'Later'],
       defaultId: 1,
       cancelId: 1,
-      message: n === 1 ? '1 private tab will close' : `${n} private tabs will close`,
-      detail:
-        'Private and Tor tabs are never saved, so they do not come back after the restart. The update waits if you choose Later.'
+      ...warning
     })
     return response === 0
   })

@@ -109,6 +109,19 @@ export function notesText(raw: unknown): string {
     .trim()
 }
 
+/**
+ * What to ask before Restart to update when private or Tor tabs are open: they are never saved, so they would not
+ * come back. Null when there are none and the restart can go ahead without asking.
+ */
+export function privateTabsWarning(count: number): { message: string; detail: string } | null {
+  if (!Number.isInteger(count) || count <= 0) return null
+  return {
+    message: count === 1 ? '1 private tab will close' : `${count} private tabs will close`,
+    detail:
+      'Private and Tor tabs are never saved, so they do not come back after the restart. The update waits if you choose Later.'
+  }
+}
+
 /** "1.2 MB/s" for the download readout. */
 export function formatSpeed(bytesPerSecond: number): string {
   if (bytesPerSecond < 1024) return `${Math.round(bytesPerSecond)} B/s`

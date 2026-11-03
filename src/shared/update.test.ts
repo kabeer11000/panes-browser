@@ -4,8 +4,23 @@ import {
   friendlyUpdateError,
   nextUpdateState,
   notesText,
+  privateTabsWarning,
   type UpdateState
 } from './update'
+
+describe('privateTabsWarning', () => {
+  test('no private tabs: restart without asking', () => {
+    expect(privateTabsWarning(0)).toBeNull()
+    expect(privateTabsWarning(-1)).toBeNull()
+    expect(privateTabsWarning(Number.NaN)).toBeNull()
+  })
+
+  test('counts them, singular and plural, and says why they will not come back', () => {
+    expect(privateTabsWarning(1)?.message).toBe('1 private tab will close')
+    expect(privateTabsWarning(3)?.message).toBe('3 private tabs will close')
+    expect(privateTabsWarning(2)?.detail).toContain('never saved')
+  })
+})
 
 const idle: UpdateState = { kind: 'idle', checkedAt: 100 }
 const found = (s: UpdateState): UpdateState =>
