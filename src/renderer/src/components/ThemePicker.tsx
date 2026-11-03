@@ -1,4 +1,5 @@
 import { harmonize, maxSafeTint } from '@shared/color'
+import { SPACE_LOOKS } from '@shared/settings'
 import type { SpaceMode } from '@shared/types'
 import { ColorWheel } from './ColorWheel'
 import { type Theme } from './themeVars'
@@ -19,14 +20,7 @@ const NEUTRAL = '#8b8b95'
 const PRESETS: Preset[] = [
   { color: NEUTRAL, color2: null, tint: 0, mode: 'dark', label: 'Neutral dark' },
   { color: NEUTRAL, color2: null, tint: 0, mode: 'light', label: 'Neutral light' },
-  { color: '#6e7bff', color2: '#a46bff' },
-  { color: '#2bb3a3', color2: '#4ea0ff' },
-  { color: '#e5754c', color2: '#f2b24c' },
-  { color: '#d65b9a', color2: '#7a5cff' },
-  { color: '#34d399', color2: '#06b6d4' },
-  { color: '#f87171', color2: '#fb923c' },
-  { color: '#8a6df0', color2: null },
-  { color: '#3b82f6', color2: null }
+  ...SPACE_LOOKS.map(({ name, color, color2 }) => ({ color, color2, label: name }))
 ]
 
 const MODES: Array<{ id: SpaceMode; label: string; path: string }> = [

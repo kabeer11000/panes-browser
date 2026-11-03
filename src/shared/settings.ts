@@ -82,3 +82,15 @@ export const internalUrl = (page: InternalPage): string => `panes://${page}`
 
 /** Colours offered for spaces; new spaces take the next one in turn. */
 export const SPACE_COLORS = ['#6e7bff', '#2bb3a3', '#e5754c', '#d65b9a', '#8a6df0', '#d0a33a']
+
+/** Ready-made colour pairs for a space: the space editor's presets and the welcome tour's swatches. */
+export const SPACE_LOOKS: ReadonlyArray<{ name: string; color: string; color2: string | null }> = [
+  { name: 'Indigo', color: '#6e7bff', color2: '#a46bff' },
+  { name: 'Lagoon', color: '#2bb3a3', color2: '#4ea0ff' },
+  { name: 'Sunset', color: '#e5754c', color2: '#f2b24c' },
+  { name: 'Orchid', color: '#d65b9a', color2: '#7a5cff' },
+  { name: 'Mint', color: '#34d399', color2: '#06b6d4' },
+  { name: 'Coral', color: '#f87171', color2: '#fb923c' },
+  { name: 'Violet', color: '#8a6df0', color2: null },
+  { name: 'Sky', color: '#3b82f6', color2: null }
+]
