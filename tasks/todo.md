@@ -138,3 +138,48 @@ content); every nudge can be snoozed, and the user is never locked out unless th
 ## 5. Sleep
 - [ ] Bedtime and wake time. From 30 min before bed: pages warm and dim (a boost-style filter on every page, off by a click), a one-line wind-down note. During bedtime: late-night minutes counted and shown, optional lock on chosen sites, snooze 15 min.
 - [ ] Morning summary: when the first browser use after wake time was.
+
+# Import from another browser (plan, awaiting go-ahead)
+
+## Why
+
+A Brave or Chrome user who tries Panes today arrives with nothing: no bookmarks, no history, so the address bar suggests nothing, and the wrong search engine. Only passwords can come over, and only if they find the CSV import in Passwords on their own. Things people move when they switch, as listed in Zen's profile-migration guide and Firefox's migrator resource types: bookmarks, history, passwords, signed-in sessions, open tabs, extensions, search engine.
+
+Checked on this machine 2026-11-04: Brave's `Local State` has five profiles and only `os_crypt.encrypted_key`. Edge also has `app_bound_encrypted_key` (Chrome's app-bound encryption, which only the browser's own elevation service can open). `node:sqlite` works in Electron 44 (Node 24.22.1, SQLite 3.53.4, no warning), so the SQLite files need no new dependency. Spaces share one session (`persist:panes`) and bookmarks and history are global, so one source profile goes in per import.
+
+## Design
+
+One import flow, two ways in: a step on the Welcome screen (between `welcome` and `look`) and a section in Settings. Pick a browser (your current default browser is preselected), pick a profile, tick what to bring, Import, then a result line per item ("1,204 bookmarks, 18,400 visits, search engine set to Brave Search").
+
+Sources are data, not per-browser branches: a registry `{ id, name, family: 'chromium' | 'firefox', roots per platform }` covering Chrome, Brave, Edge, Vivaldi, Opera (Chromium) and Firefox, Zen, LibreWolf (Firefox). One reader per family. Chromium profile names come from `Local State` `profile.info_cache`; Firefox ones from `profiles.ini`. The default browser comes from the `UrlAssociations\https\UserChoice` ProgId on Windows (BraveHTML, ChromeHTML, MSEdgeHTM, FirefoxURL-*).
+
+What comes over:
+- Bookmarks: Chromium `Bookmarks` (plain JSON tree), Firefox `places.sqlite` `moz_bookmarks`. A bookmarks HTML file (the Netscape format every browser exports, including Safari and Arc) is the fallback for anything not on the list. Duplicates by URL are skipped, so running it twice is safe.
+- History: Chromium `History` `urls`, Firefox `places.sqlite` `moz_places`. Chromium times are microseconds since 1601, Firefox's since 1970; both converters live in `src/shared` with tests. Merged by time with what Panes has, the newest 20,000 kept (the store's cap), same URL and time skipped.
+- Search engine: Chromium `Preferences` `default_search_provider_data`, Firefox `search.json.mozlz4` skipped for now. Matched by host onto `SEARCH_ENGINES`; anything else leaves the setting alone.
+- Passwords: a guided CSV step, like Firefox does for Chrome on Windows (`showsManualPasswordImport`). The step shows the exact clicks for that browser (Brave: `brave://password-manager/settings`, Export passwords), then a file picker feeds the existing `PasswordStore.importCsv`. Afterwards Panes offers to delete the CSV, since it holds every password in plain text.
+- Not imported, said plainly on the result screen: signed-in sessions (sign in again once per site), open tabs, extensions (Panes loads none yet; ad blockers are covered by the built-in blocker, and the result screen says so when it sees uBlock Origin or Brave Shields).
+
+Reading safely: each file is copied to a temp folder first and opened read-only from there; if the copy fails because the browser is running, the step asks to close it and retry. Temp copies are deleted when the import ends, success or not. The readers run in a `worker_threads` worker (same pattern as `adblockWorker.ts`) so a large `History` file never freezes the window. Nothing leaves the computer.
+
+Prior art: Firefox's migration wizard (browser migrators plus file migrators, per-item progress, the manual CSV flow for Chrome passwords), Chromium's first-run import from the default browser (`import_bookmarks`, `import_history`, `import_search_engine`), Zen's guide (copy profile files by hand, the experience to avoid).
+Copy: preselect the default browser, per-item results, a file import for everything else, the CSV password flow.
+Skip: importing on first run without asking, reading other browsers' encrypted cookies or passwords directly (app-bound encryption blocks Chrome and Edge anyway, and it is exactly what malware does), extension migration.
+
+## Steps
+
+- [ ] `src/shared/importers.ts` (pure, tested): source registry; Chromium bookmarks JSON to rows; Netscape HTML to rows; Chromium and Firefox time converters; search provider host to `SearchEngineId`; history merge (newest first, cap, dedupe).
+- [ ] `src/main/importer.ts`: detect installed sources and profiles, default browser lookup, temp copy, worker with `node:sqlite` for `History` and `places.sqlite`, writes through the stores.
+- [ ] `HistoryStore.importMany` and `BookmarkStore.importMany` (keep the original times, one save each).
+- [ ] IPC `int:import-sources`, `int:import-run`, `int:import-file` in `internal.ts`, typed in `shared/types.ts`, exposed in `preload/internal.ts`.
+- [ ] UI: Settings section "Import from another browser"; Welcome step with the same pieces and a Skip; guided password step reusing the Passwords page's CSV import.
+- [ ] Tests: synthetic fixtures built inside the tests (a tiny SQLite file made with `node:sqlite`, a Bookmarks JSON, an HTML export), never a real profile.
+- [ ] Verify: a scratch `PANES_USERDATA` importing from a real Brave profile with Brave closed and open; counts match `brave://bookmarks` and the History row count; run it twice, nothing doubles; Welcome Skip and Settings both work; a Firefox HTML export imports.
+
+Later: Firefox passwords read directly (`logins.json` plus `key4.db`, no app-bound lock there), open tabs from Chromium `Sessions/` and Firefox `sessionstore.jsonlz4`, extensions once Panes loads them.
+
+## Open questions (defaults in brackets)
+
+- Panes bookmarks are flat; Brave's are folders. [keep the folder path as a label on each bookmark, Bookmarks page groups by it] or add real folders, or import the bookmarks bar only.
+- Import offered on the Welcome step, or also on first start without asking? [Welcome step only, never automatic]
+- Several Brave profiles: [one per import, run it again for another] or merge them all into one.
