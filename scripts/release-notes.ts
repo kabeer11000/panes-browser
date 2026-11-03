@@ -15,21 +15,44 @@
  */
 import { $ } from 'bun'
 
-const USER_FACING = /^(?:feat|fix|perf)(?:\([^)]*\))?!?: (.+)$/
+const SUBJECT = /^(\w+)(?:\([^)]*\))?!?: (.+)$/
 
 export type Commit = { subject: string; notes: string[] }
 
-const sentence = (text: string): string => text[0].toUpperCase() + text.slice(1).replace(/\.$/, '')
+/** Section titles in the order users read them; a Notes trailer on any other type goes under Improved. */
+const SECTIONS: Record<string, string> = { feat: 'New', fix: 'Fixed', perf: 'Faster' }
+const ORDER = ['New', 'Improved', 'Faster', 'Fixed']
 
-/** Commits (newest first) to notes: their Notes trailers, else the subject of a feat, fix or perf. */
+/** "drag files out; retry, pause" to ["Drag files out.", "Retry, pause."] */
+const sentences = (text: string): string[] =>
+  text
+    .split(/;\s+/)
+    .map((s) => s.trim().replace(/[.;]$/, ''))
+    .filter(Boolean)
+    .map((s) => `${s[0].toUpperCase()}${s.slice(1)}.`)
+
+/**
+ * Commits to notes, as the plain text Panes shows (and a list GitHub renders): a title per kind of change, one
+ * "- " line per change. A commit's Notes trailers are used, else the subject of a feat, fix or perf.
+ */
 export function releaseNotes(commits: Commit[]): string {
-  return commits
-    .flatMap(({ subject, notes }) => {
-      if (notes.length) return notes.map(sentence)
-      const text = USER_FACING.exec(subject)?.[1].trim()
-      return text ? [sentence(text)] : []
-    })
-    .join('\n')
+  const groups = new Map<string, string[]>()
+  for (const { subject, notes } of commits) {
+    const [, type = '', text = ''] = SUBJECT.exec(subject) ?? []
+    const lines = notes.length ? notes.flatMap(sentences) : type in SECTIONS ? sentences(text) : []
+    if (!lines.length) continue
+    const title = SECTIONS[type] ?? 'Improved'
+    groups.set(title, [...(groups.get(title) ?? []), ...lines])
+  }
+  return ORDER.filter((title) => groups.has(title))
+    .map(
+      (title) =>
+        `${title}\n${groups
+          .get(title)!
+          .map((line) => `- ${line}`)
+          .join('\n')}`
+    )
+    .join('\n\n')
 }
 
 // Field and record separators: a subject or a note can hold anything else.
