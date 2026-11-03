@@ -13,6 +13,7 @@ const api: DockApi = {
   onStart: (cb) => subscribe<[DownloadStart]>('downloads:start', cb),
   onCorner: (cb) => subscribe<[boolean]>('dock:corner', cb),
   act: (id, action) => ipcRenderer.send('downloads:act', id, action),
+  drag: (id) => ipcRenderer.send('dock:drag', id),
   openDownloads: () => ipcRenderer.send('dock:open-downloads'),
   setMode: (mode) => ipcRenderer.send('dock:mode', mode),
   toggle: () => ipcRenderer.send('dock:toggle'),

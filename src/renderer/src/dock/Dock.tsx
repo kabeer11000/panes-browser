@@ -8,7 +8,7 @@ import type {
   DownloadStart
 } from '@shared/types'
 import { formatBytes } from '@renderer/internal/format'
-import { CloseIcon } from '@renderer/components/icons'
+import { CloseIcon, ReloadIcon } from '@renderer/components/icons'
 
 declare global {
   interface Window {
@@ -468,7 +468,13 @@ function FanRow({
           <button
             type="button"
             className="dk-row-main"
-            disabled={d.state !== 'completed'}
+            disabled={d.state !== 'completed' || d.missing}
+            draggable={d.state === 'completed' && !d.missing}
+            onDragStart={(e) => {
+              e.preventDefault() // the real drag is the system's, started by the main process
+              window.dock.drag(d.id)
+              onDone() // the fan's view covers the window: out of the way so the drop can reach a page
+            }}
             onClick={() => {
               window.dock.act(d.id, 'open')
               onDone()
@@ -478,20 +484,52 @@ function FanRow({
             <span className="dk-row-text">
               <span className="dk-row-title">{d.filename}</span>
               <span className="dk-row-meta">
-                {d.state === 'completed'
-                  ? formatBytes(d.total || d.received)
-                  : d.state === 'progressing'
-                    ? `${formatBytes(d.received)}${d.total ? ` of ${formatBytes(d.total)}` : ''}`
-                    : d.state === 'paused'
-                      ? 'Paused'
-                      : d.state === 'cancelled'
-                        ? 'Cancelled'
-                        : 'Interrupted'}
+                {d.missing
+                  ? 'File moved or deleted'
+                  : d.state === 'completed'
+                    ? formatBytes(d.total || d.received)
+                    : d.state === 'progressing'
+                      ? `${formatBytes(d.received)}${d.total ? ` of ${formatBytes(d.total)}` : ''}`
+                      : d.state === 'paused'
+                        ? 'Paused'
+                        : d.state === 'cancelled'
+                          ? 'Cancelled'
+                          : 'Interrupted'}
               </span>
             </span>
           </button>
           <span className="dk-row-acts">
-            {d.state === 'completed' && (
+            {(d.state === 'progressing' || d.state === 'paused') && (
+              <button
+                type="button"
+                title={d.state === 'paused' ? 'Resume' : 'Pause'}
+                aria-label={d.state === 'paused' ? 'Resume download' : 'Pause download'}
+                onClick={() => window.dock.act(d.id, d.state === 'paused' ? 'resume' : 'pause')}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    d={d.state === 'paused' ? 'M5 3l8 5-8 5z' : 'M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z'}
+                  />
+                </svg>
+              </button>
+            )}
+            {(d.state === 'interrupted' || d.state === 'cancelled') && (
+              <button
+                type="button"
+                title="Retry"
+                aria-label="Retry download"
+                onClick={() => window.dock.act(d.id, 'retry')}
+              >
+                <ReloadIcon />
+              </button>
+            )}
+            {d.state === 'completed' && !d.missing && (
               <button
                 type="button"
                 title="Show in folder"

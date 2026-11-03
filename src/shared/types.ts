@@ -485,6 +485,8 @@ export interface DownloadInfo {
   time: number
   /** A small picture of the file (a thumbnail of an image, else its icon) as a data URL, once it has finished. */
   preview?: string
+  /** A finished download whose file is no longer there (moved or deleted). */
+  missing?: boolean
 }
 
 /** A download that has just begun, and where on the window the pointer was, for the flight to the downloads bin. */
@@ -493,7 +495,7 @@ export interface DownloadStart {
   at: { x: number; y: number } | null
 }
 
-export type DownloadAction = 'open' | 'show' | 'cancel' | 'pause' | 'resume' | 'remove'
+export type DownloadAction = 'open' | 'show' | 'cancel' | 'pause' | 'resume' | 'retry' | 'remove'
 export type ClearKind = 'history' | 'cookies' | 'cache' | 'downloads'
 
 /** API exposed to panes:// pages only. */
@@ -663,6 +665,8 @@ export interface DockApi {
   /** The pointer is resting in the corner (told by the main process, which can see it over the page). */
   onCorner(cb: (here: boolean) => void): () => void
   act(id: number, action: DownloadAction): void
+  /** Start dragging a finished file out of the fan, into any app. */
+  drag(id: number): void
   /** Open the downloads page. */
   openDownloads(): void
   /** Bin: say how much of it should show. */

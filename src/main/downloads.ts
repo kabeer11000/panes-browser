@@ -60,7 +60,7 @@ export class DownloadManager {
   })
   private live = new Map<number, DownloadItem>()
 
-  constructor(session: Session) {
+  constructor(private session: Session) {
     // Anything that was mid-download when the app closed will not resume.
     for (const d of this.store.value.items) {
       if (d.state === 'progressing' || d.state === 'paused') d.state = 'interrupted'
@@ -75,10 +75,23 @@ export class DownloadManager {
   /** The list as the downloads bin shows it: with a preview for each finished file (kept in memory, never saved). */
   view(): DownloadInfo[] {
     this.fetchPreviews()
-    return this.store.value.items.map((d) => {
+    return this.store.value.items.map((d, i) => {
       const preview = this.previews.get(d.id)
-      return preview ? { ...d, preview } : d
+      // only the rows the bin shows are checked, so a long list costs nothing
+      const missing = i < SHOWN && d.state === 'completed' && !existsSync(d.savePath)
+      return preview || missing
+        ? { ...d, ...(preview && { preview }), ...(missing && { missing }) }
+        : d
     })
+  }
+
+  /** What a drag out of the bin carries: the file and its picture, or null when either is not there. */
+  dragItem(id: number): { file: string; icon: Electron.NativeImage } | null {
+    const d = this.store.value.items.find((x) => x.id === id)
+    const preview = this.previews.get(id)
+    if (!d || d.state !== 'completed' || !preview || !existsSync(d.savePath)) return null
+    const icon = nativeImage.createFromDataURL(preview).resize({ width: 64 })
+    return icon.isEmpty() ? null : { file: d.savePath, icon }
   }
 
   /** Downloads from earlier sessions get their pictures the first time they are asked for: the ones the bin shows. */
@@ -184,7 +197,13 @@ export class DownloadManager {
     else if (action === 'cancel') item?.cancel()
     else if (action === 'pause') item?.pause()
     else if (action === 'resume' && item?.canResume()) item.resume()
-    else if (action === 'remove') {
+    else if (action === 'retry') {
+      if (item?.canResume()) item.resume()
+      else {
+        this.act(id, 'remove')
+        this.session.downloadURL(info.url)
+      }
+    } else if (action === 'remove') {
       item?.cancel()
       this.store.value.items = this.store.value.items.filter((d) => d.id !== id)
       this.previews.delete(id)

@@ -28,7 +28,7 @@ const REACH_X = 130
 const REACH_Y = 120
 const DWELL_MS = 320
 const LEAVE_MS = 350
-const ACTIONS = ['open', 'show', 'cancel', 'pause', 'resume', 'remove']
+const ACTIONS = ['open', 'show', 'cancel', 'pause', 'resume', 'retry', 'remove']
 
 /**
  * The downloads bin: two transparent views above the page. The bin is a small view at the window's bottom-right corner;
@@ -139,6 +139,8 @@ class Dock {
     clearTimeout(this.overlayTimer)
     this.send('dock:overlay', state)
     if (state.active) {
+      // the fan is painted once, at load: the space's colours may have changed since
+      if (this.overlay) paintView(this.overlay.webContents)
       this.wanted = true
       this.show()
       if (state.open && this.overlay && !this.overlay.webContents.isDestroyed()) {
@@ -210,6 +212,10 @@ export function registerDock(
     if (fromDock(e) && typeof id === 'number' && ACTIONS.includes(action as string)) {
       downloads.act(id, action as DownloadAction)
     }
+  })
+  ipcMain.on('dock:drag', (e, id: unknown) => {
+    const item = fromDock(e) && typeof id === 'number' ? downloads.dragItem(id) : null
+    if (item) e.sender.startDrag(item)
   })
   ipcMain.on('dock:mode', (e, mode: unknown) => {
     if (fromBin(e) && (mode === 'peek' || mode === 'out')) dock.setMode(mode)
