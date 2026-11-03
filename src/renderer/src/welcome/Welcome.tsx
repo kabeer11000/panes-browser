@@ -4,8 +4,9 @@ import { resolveMode, type PerformanceMode } from '@shared/performance'
 import { SEARCH_ENGINES } from '@shared/settings'
 import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '@shared/types'
 import { Segmented, Toggle } from '@renderer/internal/ui'
+import { ImportSection } from '@renderer/internal/pages/ImportSection'
 
-const STEPS = ['welcome', 'look', 'layout', 'speed', 'finish'] as const
+const STEPS = ['welcome', 'import', 'look', 'layout', 'speed', 'finish'] as const
 type Step = (typeof STEPS)[number]
 
 /** Colour pairs offered on the look step: the same ones the space editor has as presets. */
@@ -184,9 +185,22 @@ export function Welcome(): React.JSX.Element {
                   A calm, fast browser built around the way you work: tabs you can see, pages side
                   by side, and nothing in your way.
                 </p>
-                <button type="button" className="wl-go" onClick={() => go('look')}>
+                <button type="button" className="wl-go" onClick={() => go('import')}>
                   Get started
                 </button>
+              </>
+            )}
+
+            {step === 'import' && (
+              <>
+                <h1>Bring your things along</h1>
+                <p className="wl-lede">
+                  Bookmarks, history and passwords from the browser you use now. Or skip this and do
+                  it later in Settings.
+                </p>
+                <div className="wl-import">
+                  <ImportSection />
+                </div>
               </>
             )}
 

@@ -168,18 +168,19 @@ Skip: importing on first run without asking, reading other browsers' encrypted c
 
 ## Steps
 
-- [ ] `src/shared/importers.ts` (pure, tested): source registry; Chromium bookmarks JSON to rows; Netscape HTML to rows; Chromium and Firefox time converters; search provider host to `SearchEngineId`; history merge (newest first, cap, dedupe).
-- [ ] `src/main/importer.ts`: detect installed sources and profiles, default browser lookup, temp copy, worker with `node:sqlite` for `History` and `places.sqlite`, writes through the stores.
-- [ ] `HistoryStore.importMany` and `BookmarkStore.importMany` (keep the original times, one save each).
-- [ ] IPC `int:import-sources`, `int:import-run`, `int:import-file` in `internal.ts`, typed in `shared/types.ts`, exposed in `preload/internal.ts`.
-- [ ] UI: Settings section "Import from another browser"; Welcome step with the same pieces and a Skip; guided password step reusing the Passwords page's CSV import.
-- [ ] Tests: synthetic fixtures built inside the tests (a tiny SQLite file made with `node:sqlite`, a Bookmarks JSON, an HTML export), never a real profile.
-- [ ] Verify: a scratch `PANES_USERDATA` importing from a real Brave profile with Brave closed and open; counts match `brave://bookmarks` and the History row count; run it twice, nothing doubles; Welcome Skip and Settings both work; a Firefox HTML export imports.
+Built 2026-11-04:
+- [x] `src/shared/importers.ts` (pure, tested): source registry; Chromium bookmarks JSON and Netscape HTML to rows; Chromium time converter; search host to `SearchEngineId`; merge (newest first, cap, dedupe).
+- [x] `src/main/importWorker.ts` (`node:sqlite` on temp copies, always closed and deleted) and `src/main/importer.ts` (sources, profiles, default browser via `app.getApplicationNameForProtocol`, password CSV and bookmarks HTML pickers, deletes only the CSV it just imported).
+- [x] `HistoryStore.importMany`, `BookmarkStore.importMany`; IPC `int:import-*`; typed in `shared/types.ts`.
+- [x] UI: `ImportSection` in Settings and as the Welcome step after the first page.
+- [x] Tests in `importers.test.ts`; the worker checked under Electron's Node against synthetic Chromium and Firefox profiles (times past 2^53, hidden pages, limit, Firefox WAL, missing profile, temp folder gone).
+- [ ] Verify in the running app: a scratch `PANES_USERDATA` importing from the real Brave profile with Brave closed and open; counts match `brave://bookmarks`; run it twice, nothing doubles; Welcome step and Settings both; an HTML export and a password CSV (and its delete).
+- [ ] `bun run build` once: confirm electron-vite leaves `node:sqlite` out of the worker bundle.
 
 Later: Firefox passwords read directly (`logins.json` plus `key4.db`, no app-bound lock there), open tabs from Chromium `Sessions/` and Firefox `sessionstore.jsonlz4`, extensions once Panes loads them.
 
-## Open questions (defaults in brackets)
+## Decisions (owner, 2026-11-04)
 
-- Panes bookmarks are flat; Brave's are folders. [keep the folder path as a label on each bookmark, Bookmarks page groups by it] or add real folders, or import the bookmarks bar only.
-- Import offered on the Welcome step, or also on first start without asking? [Welcome step only, never automatic]
-- Several Brave profiles: [one per import, run it again for another] or merge them all into one.
+- Bookmarks stay flat: folders are dropped on import.
+- Offered on the Welcome step and any time in Settings; never automatic.
+- One profile per import.

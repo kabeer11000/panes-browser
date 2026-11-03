@@ -330,6 +330,10 @@ body {
 }
 
 /* speed and privacy */
+.wl-import {
+  width: min(100%, 560px);
+  text-align: left;
+}
 .wl-list {
   width: min(100%, 560px);
   border-radius: 20px;

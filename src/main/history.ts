@@ -1,7 +1,8 @@
+import { mergeByTime, type ImportedPage } from '@shared/importers'
 import type { Bookmark, HistoryEntry } from '@shared/types'
 import { JsonStore } from './store'
 
-const MAX_ENTRIES = 20000
+export const MAX_ENTRIES = 20000
 const DUPLICATE_WINDOW_MS = 5000
 
 const isWeb = (url: string): boolean => /^https?:\/\//i.test(url)
@@ -59,6 +60,22 @@ export class HistoryStore {
     this.store.save()
   }
 
+  /** Pages from another browser, kept at their own times. Returns how many were added. */
+  importMany(pages: ImportedPage[]): number {
+    const d = this.store.value
+    const { items, nextId, added } = mergeByTime(
+      d.entries,
+      pages,
+      (p, id) => ({ id, url: p.url, title: p.title, favicon: null, time: p.time }),
+      d.nextId,
+      MAX_ENTRIES
+    )
+    d.entries = items
+    d.nextId = nextId
+    this.store.save()
+    return added
+  }
+
   /** Clear everything, or only visits newer than `sinceMs` milliseconds ago. */
   clear(sinceMs: number | null): void {
     const d = this.store.value
@@ -101,5 +118,21 @@ export class BookmarkStore {
     const d = this.store.value
     d.items = d.items.filter((b) => b.id !== id)
     this.store.save()
+  }
+
+  /** Bookmarks from another browser; addresses already bookmarked are left alone. Returns how many were added. */
+  importMany(pages: ImportedPage[]): number {
+    const d = this.store.value
+    const seen = new Set(d.items.map((b) => b.url))
+    const now = Date.now()
+    const fresh: Bookmark[] = []
+    for (const p of pages) {
+      if (seen.has(p.url)) continue
+      seen.add(p.url)
+      fresh.push({ id: d.nextId++, url: p.url, title: p.title, favicon: null, time: p.time || now })
+    }
+    d.items = [...d.items, ...fresh].sort((a, b) => b.time - a.time)
+    this.store.save()
+    return fresh.length
   }
 }

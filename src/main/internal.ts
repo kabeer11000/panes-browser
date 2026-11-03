@@ -16,6 +16,7 @@ import { normalizeOrigin } from '@shared/passwords'
 import type {
   ClearKind,
   DownloadAction,
+  ImportItem,
   LoginInput,
   MemoryStats,
   Space,
@@ -27,6 +28,7 @@ import type { TorStatus } from '@shared/tor'
 import { currentChromeTheme } from './chromeTheme'
 import { appVersion, rolledBackVersion } from './layers'
 import type { DownloadManager } from './downloads'
+import type { Importer } from './importer'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
 import { isPermKind, originOf } from '@shared/permissions'
@@ -87,6 +89,7 @@ interface Deps {
   }
   downloads: DownloadManager
   passwords: PasswordStore
+  importer: Importer
   spaces: {
     list: () => Space[]
     activeId: () => number
@@ -211,6 +214,17 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:passwords-import', (csv: string) => d.passwords.importCsv(String(csv)))
   handle('int:passwords-export', () => d.passwords.exportCsv())
   handle('int:password-generate', () => newPassword())
+  handle('int:import-sources', () => d.importer.sources())
+  handle('int:import-run', (sourceId: unknown, profileDir: unknown, items: unknown) =>
+    d.importer.run(
+      String(sourceId),
+      String(profileDir),
+      Array.isArray(items) ? (items as ImportItem[]) : []
+    )
+  )
+  handle('int:import-passwords-file', () => d.importer.passwordsFile())
+  handle('int:import-passwords-delete', () => d.importer.deletePasswordsFile())
+  handle('int:import-bookmarks-file', () => d.importer.bookmarksFile())
   handle('int:clear-data', (kinds: ClearKind[], sinceMs: number | null) =>
     d.clearBrowsingData(kinds, sinceMs)
   )

@@ -603,7 +603,34 @@ export interface InternalApi {
   passwordsImport(csv: string): Promise<{ added: number; skipped: number }>
   passwordsExport(): Promise<string>
   passwordGenerate(): Promise<string>
+  /** Browsers found on this computer, with their profiles; the system's default browser first. */
+  importSources(): Promise<ImportSource[]>
+  importRun(sourceId: string, profileDir: string, items: ImportItem[]): Promise<ImportResult>
+  /** Pick a password CSV export and import it; null when no file was picked. */
+  importPasswordsFile(): Promise<{ added: number; skipped: number } | null>
+  /** Delete the CSV just imported (it holds every password in plain text). */
+  deleteImportedPasswordsFile(): Promise<boolean>
+  /** Pick a bookmarks HTML export and import it; null when no file was picked. */
+  importBookmarksFile(): Promise<number | null>
 }
+
+export type ImportItem = 'bookmarks' | 'history' | 'search'
+
+export interface ImportSource {
+  id: string
+  name: string
+  profiles: Array<{ dir: string; name: string }>
+  isDefault: boolean
+  /** Its default search engine can be read (Chromium browsers). */
+  canSearch: boolean
+  /** How to export passwords from this browser, for the password step. */
+  passwordExport: string
+}
+
+export type ImportResult =
+  | { ok: true; bookmarks: number; history: number; search: SearchEngineId | null }
+  /** locked: the browser is running and holds its files; missing: the profile is gone. */
+  | { ok: false; error: 'locked' | 'missing' | 'failed' }
 
 export interface PipState {
   playing: boolean

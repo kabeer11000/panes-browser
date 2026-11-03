@@ -61,7 +61,13 @@ if (location.protocol === 'panes:') {
     passwordRemove: (id) => ipcRenderer.invoke('int:password-remove', id),
     passwordsImport: (csv) => ipcRenderer.invoke('int:passwords-import', csv),
     passwordsExport: () => ipcRenderer.invoke('int:passwords-export'),
-    passwordGenerate: () => ipcRenderer.invoke('int:password-generate')
+    passwordGenerate: () => ipcRenderer.invoke('int:password-generate'),
+    importSources: () => ipcRenderer.invoke('int:import-sources'),
+    importRun: (sourceId, profileDir, items) =>
+      ipcRenderer.invoke('int:import-run', sourceId, profileDir, items),
+    importPasswordsFile: () => ipcRenderer.invoke('int:import-passwords-file'),
+    deleteImportedPasswordsFile: () => ipcRenderer.invoke('int:import-passwords-delete'),
+    importBookmarksFile: () => ipcRenderer.invoke('int:import-bookmarks-file')
   }
   contextBridge.exposeInMainWorld('panesInternal', api)
 } else {

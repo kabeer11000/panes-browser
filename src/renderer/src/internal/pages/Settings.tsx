@@ -6,6 +6,7 @@ import type { ClearKind, SearchEngineId, Settings as SettingsData } from '@share
 
 import { SLIDERS } from '@renderer/internal/sliders'
 import { Group, Row, Segmented, Select, SliderRow, Toggle } from '@renderer/internal/ui'
+import { ImportSection } from './ImportSection'
 import { MemorySection } from './MemorySection'
 import { SitePermissions } from './SitePermissions'
 import { SpacesSection } from './SpacesSection'
@@ -149,6 +150,8 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
       </Group>
+
+      <ImportSection />
 
       <SpacesSection />
 

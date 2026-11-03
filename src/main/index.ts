@@ -20,6 +20,7 @@ import { applyPerformance, runningMode } from './performance'
 import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
 import { BookmarkStore, HistoryStore } from './history'
+import { Importer } from './importer'
 import { DumpStore } from './dumps'
 import { TorManager } from './tor'
 import { chromeVars } from '@shared/color'
@@ -293,6 +294,7 @@ function createWindow(): void {
     },
     downloads,
     passwords,
+    importer: new Importer({ win, history, bookmarks, settings, passwords }),
     spaces: {
       list: () => spaces.list(),
       activeId: () => spaces.activeId(),
