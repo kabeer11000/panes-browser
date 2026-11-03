@@ -16,6 +16,8 @@ export const DEFAULT_SETTINGS: Settings = {
   performanceMode: 'auto',
   adblockOffSites: [],
   adblockCosmeticOffSites: [],
+  adblockAggressive: false,
+  adblockAggressiveSites: [],
   torSnowflake: false,
   downloadAsk: false,
   downloadDir: null,

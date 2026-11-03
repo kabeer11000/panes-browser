@@ -101,7 +101,9 @@ export class SiteSettings {
         global: settings.adblock,
         off: siteListed(key, settings.adblockOffSites),
         cosmetic: !siteListed(key, settings.adblockCosmeticOffSites),
-        blocked: this.d.blocked(page.contentsId)
+        blocked: this.d.blocked(page.contentsId),
+        aggressiveGlobal: settings.adblockAggressive,
+        aggressive: settings.adblockAggressive || siteListed(key, settings.adblockAggressiveSites)
       },
       boost: space?.sites[key] ?? null,
       theme: { color: space?.color ?? '#6e7bff', tint: space?.tint ?? 0 },
@@ -131,6 +133,7 @@ export class SiteSettings {
       this.d.settings.update({
         adblockOffSites: settings.adblockOffSites.filter((s) => s !== key),
         adblockCosmeticOffSites: settings.adblockCosmeticOffSites.filter((s) => s !== key),
+        adblockAggressiveSites: settings.adblockAggressiveSites.filter((s) => s !== key),
         neverUnloadSites: settings.neverUnloadSites.filter((s) => s !== key),
         siteZoom: zoom
       })
@@ -146,6 +149,12 @@ export class SiteSettings {
       const rest = settings.adblockCosmeticOffSites.filter((s) => s !== key)
       this.d.settings.update({
         adblockCosmeticOffSites: patch.adblockCosmetic ? rest : [...rest, key]
+      })
+    }
+    if (typeof patch.adblockAggressive === 'boolean') {
+      const rest = settings.adblockAggressiveSites.filter((s) => s !== key)
+      this.d.settings.update({
+        adblockAggressiveSites: patch.adblockAggressive ? [...rest, key] : rest
       })
     }
     if (typeof patch.zoom === 'number' && Number.isFinite(patch.zoom)) {

@@ -433,6 +433,16 @@ export function Settings(): React.JSX.Element {
             onChange={(v) => void update({ adblock: v })}
           />
         </Row>
+        <Row
+          label="Block aggressively"
+          hint="Also blocks a site's own ads and trackers, not only other sites'. Some pages may break."
+        >
+          <Toggle
+            label="Block aggressively"
+            on={s.adblockAggressive}
+            onChange={(v) => void update({ adblockAggressive: v })}
+          />
+        </Row>
       </Group>
 
       <YouTubeSection s={s} update={update} />

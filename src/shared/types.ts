@@ -278,6 +278,13 @@ export interface Settings {
   adblockOffSites: string[]
   /** Sites where requests are still blocked but the blocker leaves the page's own elements alone. */
   adblockCosmeticOffSites: string[]
+  /**
+   * Block a site's own requests and generic page elements too, not only other sites' ads and trackers
+   * (Brave's "Aggressive" against its default "Standard").
+   */
+  adblockAggressive: boolean
+  /** Sites blocked aggressively even while the global setting is Standard. */
+  adblockAggressiveSites: string[]
   /** Reach Tor through Snowflake bridges (for networks that block Tor). */
   torSnowflake: boolean
   /** Ask where to save each download (the system's Save As dialog) instead of saving straight away. */
@@ -414,7 +421,15 @@ export interface SiteInfo {
   cookies: number
   spaceName: string
   /** `global` is the main ad blocker switch; `off` is this site's exception. */
-  adblock: { global: boolean; off: boolean; cosmetic: boolean; blocked: number }
+  adblock: {
+    global: boolean
+    off: boolean
+    cosmetic: boolean
+    blocked: number
+    /** Aggressive everywhere (Settings) / on this site. */
+    aggressiveGlobal: boolean
+    aggressive: boolean
+  }
   /** This site's boost in the current space, or null for none. */
   boost: SiteTheme | null
   keepLoaded: boolean
@@ -443,6 +458,8 @@ export interface SitePatch {
   reload?: boolean
   /** Whether the blocker may hide elements on the page (requests stay blocked either way). */
   adblockCosmetic?: boolean
+  /** Block aggressively on this site. */
+  adblockAggressive?: boolean
   boost?: SiteTheme | null
   /** Hide one more element (its selector), or bring one back. */
   zapAdd?: string

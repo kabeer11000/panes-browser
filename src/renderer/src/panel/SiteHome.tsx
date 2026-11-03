@@ -297,6 +297,28 @@ export function SiteHome({
               />
             </Row>
           )}
+          {adblockOn && (
+            <Row
+              title="Block aggressively"
+              hint={
+                info.adblock.aggressiveGlobal
+                  ? 'On for every site in Settings'
+                  : "Also blocks the site's own ads. May break the page"
+              }
+            >
+              <Switch
+                label="Block aggressively on this site"
+                on={info.adblock.aggressive}
+                disabled={info.adblock.aggressiveGlobal}
+                onChange={(v) =>
+                  send({ adblockAggressive: v }, (i) => ({
+                    ...i,
+                    adblock: { ...i.adblock, aggressive: v }
+                  }))
+                }
+              />
+            </Row>
+          )}
         </Section>
 
         <Section title="This site">

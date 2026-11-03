@@ -27,6 +27,9 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
     out.adblockOffSites = normalizeSites(patch.adblockOffSites)
   if (patch.adblockCosmeticOffSites !== undefined)
     out.adblockCosmeticOffSites = normalizeSites(patch.adblockCosmeticOffSites)
+  if (typeof patch.adblockAggressive === 'boolean') out.adblockAggressive = patch.adblockAggressive
+  if (patch.adblockAggressiveSites !== undefined)
+    out.adblockAggressiveSites = normalizeSites(patch.adblockAggressiveSites)
   if (patch.siteZoom !== undefined) out.siteZoom = normalizeZoom(patch.siteZoom)
   if (patch.mutedSites !== undefined) out.mutedSites = normalizeSites(patch.mutedSites)
   if (typeof patch.torSnowflake === 'boolean') out.torSnowflake = patch.torSnowflake
