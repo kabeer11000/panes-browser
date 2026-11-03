@@ -538,10 +538,10 @@ function App(): React.JSX.Element {
   }, [pickedIds])
 
   useTabHover()
-  // the downloads bin is tucked off the window while the pane view is open over that edge
+  // the downloads bin is tucked off the window while the pane view is open over that edge, and during the welcome tour
   useEffect(() => {
-    window.api.hideDock(mode === 'stack' || mode === 'grid')
-  }, [mode])
+    window.api.hideDock(mode === 'stack' || mode === 'grid' || immersive)
+  }, [mode, immersive])
 
   const { drag, start: startDrag } = useTabDrag(onTabClick, () => ({
     order: latest.current.tabs.map((t) => t.id),
@@ -627,7 +627,8 @@ function App(): React.JSX.Element {
           passwordPrompt={passwordPrompt}
           onAnswerPassword={answerPassword}
           updateVersion={updateVersion}
-          defaultPrompt={settings.askDefaultBrowser && !isDefault}
+          // the welcome tour asks first, on its last step
+          defaultPrompt={settings.askDefaultBrowser && settings.onboarded && !isDefault}
           peeking={openedByHover}
           onToggle={toggleSidebar}
           onTaskView={GRID_VIEW ? toggleGrid : undefined}
