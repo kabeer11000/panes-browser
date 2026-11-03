@@ -1720,6 +1720,11 @@ export class TabManager {
     this.applyVisibility()
   }
 
+  /** Something is drawn over the page (the space editor, the command bar, a tab being dragged). */
+  overlayOpen(): boolean {
+    return this.overlay
+  }
+
   async setOverlay(open: boolean, snapshot = true, sharp = false): Promise<void> {
     if (open && snapshot) {
       // Only views whose picture is old are worth waiting for; with a recent one the overlay opens at once.
