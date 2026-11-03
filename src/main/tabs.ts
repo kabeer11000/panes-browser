@@ -698,6 +698,16 @@ export class TabManager {
     const group = tab.groupId === null ? undefined : this.groups.get(tab.groupId)
     if (group) group.collapsed = false // opening a tab in a folded group unfolds it
     this.refresh()
+    this.focusActive(askForAddress)
+  }
+
+  /**
+   * Give the keyboard to what is on screen: a blank tab's address bar lives in the window's own page, anything else
+   * is the page itself. Also run once the window first shows, since showing it hands the keyboard to its own page.
+   */
+  focusActive(askForAddress = false): void {
+    const tab = this.current()
+    if (!tab) return
     if (this.isBlank(tab)) {
       this.win.webContents.focus()
       if (askForAddress) this.command('focus-address')

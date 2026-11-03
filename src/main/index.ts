@@ -551,6 +551,7 @@ function createWindow(): void {
   win.on('ready-to-show', () => {
     mark('ready-to-show')
     win.show()
+    tabs.focusActive() // showing gave the keyboard to the window's own page; the welcome tour or a restored page wants it
   })
 
   // On a machine running in efficient mode the interface stops animating its layout: sliding the sidebar or
