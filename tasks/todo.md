@@ -227,4 +227,4 @@ Looked at: Ghostery's `adblocker-electron` (current), Brave's `brave-core` (Shie
 - [ ] 7. Remove `@ghostery/*` and delete the old `adblock-engine.bin` on first run.
 - [ ] 8. Verify against the baseline: YouTube (watch page, embed), news sites, the sites that break today, private window, site off and hiding off toggles, first start offline (bundled fallback), a corrupt `.dat` (canary rebuilds).
 
-Open: which sites break today? They become the step 8 checklist.
+Step 8 sites (owner had none in mind, 2026-11-04): YouTube plus three heavy news sites, picked during the step 1 baseline so the same pages are measured before and after.
