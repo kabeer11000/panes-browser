@@ -15,6 +15,42 @@ interface Actions {
   searchUrl: (text: string) => string
 }
 
+/** Cut, copy, paste and spelling fixes for a text field. */
+function editItems(wc: WebContents, p: ContextMenuParams): MenuItemConstructorOptions[] {
+  const sep: MenuItemConstructorOptions = { type: 'separator' }
+  const items: MenuItemConstructorOptions[] = []
+  if (p.misspelledWord) {
+    // Corrections first, as in every browser; the menu pops up exactly where the squiggle was clicked.
+    const fixes = p.dictionarySuggestions.slice(0, 5)
+    items.push(
+      ...(fixes.length > 0
+        ? fixes.map((w) => ({ label: w, click: () => wc.replaceMisspelling(w) }))
+        : [{ label: 'No suggestions', enabled: false }]),
+      sep,
+      {
+        label: `Add "${p.misspelledWord}" to dictionary`,
+        click: () => wc.session.addWordToSpellCheckerDictionary(p.misspelledWord)
+      },
+      sep
+    )
+  }
+  items.push(
+    { role: 'undo', enabled: p.editFlags.canUndo },
+    { role: 'redo', enabled: p.editFlags.canRedo },
+    sep,
+    { role: 'cut', enabled: p.editFlags.canCut },
+    { role: 'copy', enabled: p.editFlags.canCopy },
+    { role: 'paste', enabled: p.editFlags.canPaste },
+    { role: 'selectAll' }
+  )
+  return items
+}
+
+/** Right-click in a text field of Panes' own window (the search box, the find bar, ...). */
+export function showEditMenu(win: BrowserWindow, wc: WebContents, p: ContextMenuParams): void {
+  if (p.isEditable) Menu.buildFromTemplate(editItems(wc, p)).popup({ window: win })
+}
+
 export function showContextMenu(
   win: BrowserWindow,
   wc: WebContents,
@@ -55,31 +91,7 @@ export function showContextMenu(
     )
   }
   if (p.isEditable) {
-    if (p.misspelledWord) {
-      // Corrections first, as in every browser; the menu pops up exactly where the squiggle was clicked.
-      const fixes = p.dictionarySuggestions.slice(0, 5)
-      items.push(
-        ...(fixes.length > 0
-          ? fixes.map((w) => ({ label: w, click: () => wc.replaceMisspelling(w) }))
-          : [{ label: 'No suggestions', enabled: false }]),
-        sep,
-        {
-          label: `Add "${p.misspelledWord}" to dictionary`,
-          click: () => wc.session.addWordToSpellCheckerDictionary(p.misspelledWord)
-        },
-        sep
-      )
-    }
-    items.push(
-      { role: 'undo', enabled: p.editFlags.canUndo },
-      { role: 'redo', enabled: p.editFlags.canRedo },
-      sep,
-      { role: 'cut', enabled: p.editFlags.canCut },
-      { role: 'copy', enabled: p.editFlags.canCopy },
-      { role: 'paste', enabled: p.editFlags.canPaste },
-      { role: 'selectAll' },
-      sep
-    )
+    items.push(...editItems(wc, p), sep)
   } else if (p.selectionText) {
     const text = p.selectionText.trim()
     const short = text.length > 28 ? text.slice(0, 28) + '...' : text

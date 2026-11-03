@@ -43,6 +43,7 @@ import { UpdateManager } from './updater'
 import { noteLayerHealthy } from './layers'
 import { Suggester } from './suggest'
 import { flushAllStores } from './store'
+import { showEditMenu } from './contextMenu'
 import { TabManager } from './tabs'
 
 mark('modules') // every import above has run
@@ -306,6 +307,7 @@ function createWindow(): void {
   })
 
   win.webContents.on('before-input-event', (e, input) => tabs.handleKey(e, input))
+  win.webContents.on('context-menu', (_e, p) => showEditMenu(win, win.webContents, p))
   win.webContents.on('will-navigate', (e) => e.preventDefault())
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
