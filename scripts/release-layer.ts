@@ -16,10 +16,10 @@
  *          reads a manifest whose files are not there yet
  */
 import { getRawHeader, extractFile } from '@electron/asar'
-import { spawnSync } from 'child_process'
 import { createHash } from 'crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
+import { $, type ShellError } from 'bun'
 import { gunzipSync, gzipSync, constants, zstdCompressSync, zstdDecompressSync } from 'zlib'
 import electronPackage from 'electron/package.json'
 import { MANIFEST_NAME, parseManifest, shellId, type LayerManifest } from '../src/shared/layers'
@@ -48,10 +48,12 @@ function fail(message: string): never {
   process.exit(1)
 }
 
-function gh(...ghArgs: string[]): string {
-  const r = spawnSync('gh', ghArgs, { encoding: 'utf8' })
-  if (r.status !== 0) fail(`gh ${ghArgs.join(' ')} failed: ${r.stderr || r.error}`)
-  return r.stdout
+async function gh(...ghArgs: string[]): Promise<string> {
+  try {
+    return await $`gh ${ghArgs}`.quiet().text()
+  } catch (e) {
+    return fail(`gh ${ghArgs.join(' ')} failed: ${(e as ShellError).stderr}`)
+  }
 }
 
 /** Every entry of the archive header that is kept outside the archive. A layer replaces app.asar alone. */
@@ -87,14 +89,19 @@ function makeDelta(base: Buffer, next: Buffer): Buffer {
 }
 
 /** The layers of the last few published releases on this shell, as bases for deltas. */
-function publishedBases(shell: string, version: string): { name: string; bytes: Buffer }[] {
+async function publishedBases(
+  shell: string,
+  version: string
+): Promise<{ name: string; bytes: Buffer }[]> {
   const tags = (
-    JSON.parse(gh('release', 'list', '--limit', '20', '--json', 'tagName')) as {
+    JSON.parse(await gh('release', 'list', '--limit', '20', '--json', 'tagName,isDraft')) as {
       tagName: string
+      isDraft: boolean
     }[]
   )
+    // a draft is a release that stopped half way: nobody was offered its layer
+    .filter((r) => !r.isDraft && r.tagName !== `v${version}`)
     .map((r) => r.tagName)
-    .filter((t) => t !== `v${version}`)
   const tmp = join(outDir, '.bases')
   mkdirSync(tmp, { recursive: true })
   const bases: { name: string; bytes: Buffer }[] = []
@@ -103,19 +110,13 @@ function publishedBases(shell: string, version: string): { name: string; bytes: 
     const dir = join(tmp, tag)
     rmSync(dir, { recursive: true, force: true })
     mkdirSync(dir, { recursive: true })
-    const got = spawnSync('gh', [
-      'release',
-      'download',
-      tag,
-      '--pattern',
-      MANIFEST_NAME,
-      '--dir',
-      dir
-    ])
-    if (got.status !== 0) continue // a release from before layers
+    const got = await $`gh release download ${tag} --pattern ${MANIFEST_NAME} --dir ${dir}`
+      .quiet()
+      .nothrow()
+    if (got.exitCode !== 0) continue // a release from before layers
     const m = parseManifest(JSON.parse(readFileSync(join(dir, MANIFEST_NAME), 'utf8')))
     if (!m || m.shell !== shell) continue // another Electron: a Panes on it takes the installer, not a delta
-    gh('release', 'download', tag, '--pattern', m.full.file, '--dir', dir)
+    await gh('release', 'download', tag, '--pattern', m.full.file, '--dir', dir)
     const bytes = gunzipSync(readFileSync(join(dir, m.full.file)))
     if (sha256(bytes) !== m.full.sha256)
       fail(`the published layer of ${tag} does not match its manifest`)
@@ -125,7 +126,7 @@ function publishedBases(shell: string, version: string): { name: string; bytes: 
   return bases
 }
 
-function main(): void {
+async function main(): Promise<void> {
   if (!existsSync(asarPath)) fail(`no app.asar at ${asarPath}; build the release first`)
   const layer = readFileSync(asarPath)
   const pkg = JSON.parse(extractFile(asarPath, 'package.json').toString('utf8')) as {
@@ -144,20 +145,22 @@ function main(): void {
 
   mkdirSync(outDir, { recursive: true })
   const fullName = `app-${build}.asar.gz`
-  writeFileSync(join(outDir, fullName), gzipSync(layer, { level: 9 }))
+  const gz = gzipSync(layer, { level: 9 })
+  writeFileSync(join(outDir, fullName), gz)
+  const layerHash = sha256(layer)
 
   const bases = localBases.length
-    ? localBases.map((p) => ({
-        name: sha256(readFileSync(p)).slice(0, 12),
-        bytes: readFileSync(p)
-      }))
+    ? localBases.map((p) => {
+        const bytes = readFileSync(p)
+        return { name: sha256(bytes).slice(0, 12), bytes }
+      })
     : publish
-      ? publishedBases(shell, version)
+      ? await publishedBases(shell, version)
       : []
   const deltas: LayerManifest['deltas'] = []
   for (const base of bases) {
     const from = sha256(base.bytes)
-    if (from === sha256(layer) || deltas.some((d) => d.from === from)) continue
+    if (from === layerHash || deltas.some((d) => d.from === from)) continue
     const name = `app-${base.name}-${build}.delta.zst`
     const delta = makeDelta(base.bytes, layer)
     writeFileSync(join(outDir, name), delta)
@@ -166,7 +169,8 @@ function main(): void {
   }
 
   const notes = publish
-    ? (JSON.parse(gh('release', 'view', `v${version}`, '--json', 'body')) as { body: string }).body
+    ? (JSON.parse(await gh('release', 'view', `v${version}`, '--json', 'body')) as { body: string })
+        .body
     : ''
   const manifest: LayerManifest = {
     schema: 1,
@@ -174,20 +178,20 @@ function main(): void {
     build,
     shell,
     notes,
-    full: { file: fullName, sha256: sha256(layer), size: layer.length },
+    full: { file: fullName, sha256: layerHash, size: layer.length },
     deltas
   }
   if (!parseManifest(manifest)) fail('the manifest would not pass the checks Panes makes')
   writeFileSync(join(outDir, MANIFEST_NAME), JSON.stringify(manifest, null, 2))
   console.log(
     `layer ${version} (build ${build}, shell ${shell}): ${mb(layer.length)}, whole ${mb(
-      readFileSync(join(outDir, fullName)).length
+      gz.length
     )} gzip, ${deltas.length} delta(s) in ${outDir}`
   )
 
   if (!publish) return
   const tag = `v${version}`
-  gh(
+  await gh(
     'release',
     'upload',
     tag,
@@ -195,8 +199,8 @@ function main(): void {
     join(outDir, fullName),
     ...deltas.map((d) => join(outDir, d.file))
   )
-  gh('release', 'upload', tag, '--clobber', join(outDir, MANIFEST_NAME)) // last: see the header
+  await gh('release', 'upload', tag, '--clobber', join(outDir, MANIFEST_NAME)) // last: see the header
   console.log(`uploaded to ${tag}`)
 }
 
-main()
+await main()
