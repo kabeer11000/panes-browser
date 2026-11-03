@@ -2,8 +2,12 @@ import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
+// Keep in step with `paths` in tsconfig.node.json and tsconfig.web.json.
+const shared = { '@shared': resolve('src/shared') }
+
 export default defineConfig({
   main: {
+    resolve: { alias: shared },
     build: {
       rolldownOptions: {
         // loader.ts is what package.json starts: it picks the app layer to run (see shared/layers.ts), then loads index.
@@ -15,6 +19,7 @@ export default defineConfig({
     }
   },
   preload: {
+    resolve: { alias: shared },
     build: {
       rollupOptions: {
         input: {
@@ -34,6 +39,7 @@ export default defineConfig({
   renderer: {
     resolve: {
       alias: {
+        ...shared,
         '@renderer': resolve('src/renderer/src')
       }
     },
