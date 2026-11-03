@@ -25,7 +25,7 @@ import {
   type LayerFeed,
   type LayerManifest,
   type LayerState
-} from '../shared/layers'
+} from '@shared/layers'
 
 /**
  * The main-process side of app layers (see shared/layers.ts and loader.ts): which one is running, its starts, and

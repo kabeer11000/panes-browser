@@ -10,7 +10,7 @@ import {
   shellId,
   STATE_NAME,
   type LayerState
-} from '../shared/layers'
+} from '@shared/layers'
 
 /**
  * The first code Panes runs (package.json `main`). It starts the newest app layer staged on this computer (see
