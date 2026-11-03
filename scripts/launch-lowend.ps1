@@ -7,7 +7,9 @@ param(
   [int]$Port = 9333,
   [int]$Cores = 2,
   [int]$RamMB = 2048,
-  [string]$UserData = "$env:TEMP\panes-perf-lowend"
+  [string]$UserData = "$env:TEMP\panes-perf-lowend",
+  # e.g. '--enable-low-end-device-mode' (Chromium's own low-memory mode), '--disable-gpu'
+  [string[]]$ExtraArgs = @()
 )
 Add-Type @'
 using System; using System.Runtime.InteropServices;
@@ -30,6 +32,6 @@ if (-not [Job]::CapSelf([uint64]$RamMB * 1MB)) { throw 'could not create the mem
 (Get-Process -Id $PID).ProcessorAffinity = [IntPtr]((1 -shl $Cores) - 1)
 Remove-Item $UserData -Recurse -Force -ErrorAction SilentlyContinue
 $env:PANES_USERDATA = $UserData; $env:PANES_TRACE_STARTUP = '1'
-$p = Start-Process $Exe -ArgumentList "--remote-debugging-port=$Port", '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding' -PassThru -RedirectStandardOutput "$UserData.out.log" -RedirectStandardError "$UserData.err.log"
+$p = Start-Process $Exe -ArgumentList (@("--remote-debugging-port=$Port", '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding') + $ExtraArgs) -PassThru -RedirectStandardOutput "$UserData.out.log" -RedirectStandardError "$UserData.err.log"
 $p.PriorityClass = 'BelowNormal'
 "started pid $($p.Id): $Cores cores, $RamMB MB cap, userdata $UserData"
