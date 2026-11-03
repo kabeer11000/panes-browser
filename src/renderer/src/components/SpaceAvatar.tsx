@@ -1,4 +1,4 @@
-import type { SpaceIcon } from '../../../shared/spaceicons'
+import type { SpaceIcon } from '@shared/spaceicons'
 
 const PATHS: Record<SpaceIcon, string> = {
   home: 'M3 11 12 4l9 7M5 10v10h5v-6h4v6h5V10',

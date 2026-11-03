@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Space } from '../../../shared/types'
+import type { Space } from '@shared/types'
 import { SpaceIdentity } from './SpaceIdentity'
 import { ThemePicker } from './ThemePicker'
 

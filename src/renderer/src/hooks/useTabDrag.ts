@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
-import { ROOT_TARGET, type Edge } from '../../../shared/layout'
-import { groupForSlot } from '../../../shared/tabgroups'
+import { ROOT_TARGET, type Edge } from '@shared/layout'
+import { groupForSlot } from '@shared/tabgroups'
 import { settleDrag } from './dragSettle'
-import { holdOverlay, releaseOverlay } from '../overlay'
+import { holdOverlay, releaseOverlay } from '@renderer/overlay'
 
 /** Modifier keys held when a tab was clicked. */
 export interface ClickMods {

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { InternalApi } from '../shared/types'
+import type { InternalApi } from '@shared/types'
 import { installAutofill } from './autofill'
 
 // This script is attached to every tab; it only exposes anything to panes:// pages.

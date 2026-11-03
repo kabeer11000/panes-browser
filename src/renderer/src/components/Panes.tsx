@@ -8,15 +8,15 @@ import {
   type DividerFrame,
   type Frame,
   type LayoutNode
-} from '../../../shared/layout'
-import type { Rect, Settings, TabInfo } from '../../../shared/types'
-import { displayHost } from '../../../shared/url'
-import { tabTitle } from '../tabTitle'
+} from '@shared/layout'
+import type { Rect, Settings, TabInfo } from '@shared/types'
+import { displayHost } from '@shared/url'
+import { tabTitle } from '@renderer/tabTitle'
 import { CloseIcon, GripIcon, PipIcon } from './icons'
 import { NewTab } from './NewTab'
 import { TabFavicon } from './TabFavicon'
-import { holdOverlay, releaseOverlay } from '../overlay'
-import { getSlide, getSlideY } from '../slide'
+import { holdOverlay, releaseOverlay } from '@renderer/overlay'
+import { getSlide, getSlideY } from '@renderer/slide'
 
 interface Props {
   tabs: TabInfo[]

@@ -1,4 +1,4 @@
-import type { Bookmark, HistoryEntry } from '../shared/types'
+import type { Bookmark, HistoryEntry } from '@shared/types'
 import { JsonStore } from './store'
 
 const MAX_ENTRIES = 20000

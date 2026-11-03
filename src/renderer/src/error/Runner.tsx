@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { RUNNER, newRunner, scoreOf, step, type RunnerState } from '../../../shared/runner'
+import { RUNNER, newRunner, scoreOf, step, type RunnerState } from '@shared/runner'
 
 const BEST_KEY = 'panes-runner-best'
 

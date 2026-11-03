@@ -1,5 +1,5 @@
-import { harmonize, maxSafeTint } from '../../../shared/color'
-import type { SpaceMode } from '../../../shared/types'
+import { harmonize, maxSafeTint } from '@shared/color'
+import type { SpaceMode } from '@shared/types'
 import { ColorWheel } from './ColorWheel'
 import { type Theme } from './themeVars'
 

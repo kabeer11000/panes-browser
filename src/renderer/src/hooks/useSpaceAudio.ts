@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { TabsState } from '../../../shared/types'
+import type { TabsState } from '@shared/types'
 
 type SpaceMarks = Pick<TabsState, 'spaceAudio' | 'spaceAttention'>
 

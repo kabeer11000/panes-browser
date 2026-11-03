@@ -9,7 +9,7 @@ import {
   type WebContents
 } from 'electron'
 import { join } from 'path'
-import type { DockMode, DockOverlayState, DownloadAction } from '../shared/types'
+import type { DockMode, DockOverlayState, DownloadAction } from '@shared/types'
 import { paintView } from './chromeTheme'
 import type { DownloadManager } from './downloads'
 

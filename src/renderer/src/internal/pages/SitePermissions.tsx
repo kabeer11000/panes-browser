@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react'
-import {
-  PERM_KINDS,
-  PERM_LABEL,
-  type PermSetting,
-  type SiteGrant
-} from '../../../../shared/permissions'
-import { Group, Segmented, type Option } from '../ui'
+import { PERM_KINDS, PERM_LABEL, type PermSetting, type SiteGrant } from '@shared/permissions'
+import { Group, Segmented, type Option } from '@renderer/internal/ui'
 
 const OPTIONS: Option<PermSetting>[] = [
   { value: 'ask', label: 'Ask' },

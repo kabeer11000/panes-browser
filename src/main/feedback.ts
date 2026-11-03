@@ -1,5 +1,5 @@
 import { release } from 'os'
-import { feedbackUrl } from '../shared/feedback'
+import { feedbackUrl } from '@shared/feedback'
 import { appVersion } from './layers'
 
 /** The mailto: link for a message to the developer, with this version and system in it. */

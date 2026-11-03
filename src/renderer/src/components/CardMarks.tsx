@@ -1,4 +1,4 @@
-import type { StackEntry } from '../../../shared/stack'
+import type { StackEntry } from '@shared/stack'
 import { SplitIcon } from './icons'
 import { TabFavicon } from './TabFavicon'
 

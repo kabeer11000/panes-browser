@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { LoginEdits, PasswordPrompt } from '../../../shared/types'
+import type { LoginEdits, PasswordPrompt } from '@shared/types'
 import { CloseIcon, EyeIcon, EyeOffIcon, KeyIcon } from './icons'
 
 /**

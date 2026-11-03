@@ -1,4 +1,4 @@
-import '../styles.css'
+import '@renderer/styles.css'
 import './permission.css'
 import './share.css'
 

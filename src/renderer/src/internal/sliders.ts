@@ -1,4 +1,4 @@
-import type { AppearanceKey } from '../../../shared/settings'
+import type { AppearanceKey } from '@shared/settings'
 
 export interface SliderSpec {
   key: AppearanceKey

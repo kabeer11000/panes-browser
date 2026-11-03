@@ -1,4 +1,4 @@
-import type { TabInfo } from '../../../shared/types'
+import type { TabInfo } from '@shared/types'
 import { BackIcon, ForwardIcon, ReloadIcon, StopIcon } from './icons'
 
 export function NavButtons({ active }: { active: TabInfo | null }): React.JSX.Element {

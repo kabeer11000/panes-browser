@@ -1,8 +1,8 @@
 import { nativeTheme } from 'electron'
-import { APPEARANCE_LIMITS, SPACE_COLORS, type AppearanceKey } from '../shared/settings'
-import { defaultSpaceIcon, isSpaceIcon, type SpaceIcon } from '../shared/spaceicons'
-import { MAX_SITES_PER_SPACE, sanitizeSiteTheme } from '../shared/sitetheme'
-import type { SiteTheme, Space, SpaceMode, SpacePatch, SpaceUi } from '../shared/types'
+import { APPEARANCE_LIMITS, SPACE_COLORS, type AppearanceKey } from '@shared/settings'
+import { defaultSpaceIcon, isSpaceIcon, type SpaceIcon } from '@shared/spaceicons'
+import { MAX_SITES_PER_SPACE, sanitizeSiteTheme } from '@shared/sitetheme'
+import type { SiteTheme, Space, SpaceMode, SpacePatch, SpaceUi } from '@shared/types'
 import { JsonStore } from './store'
 
 const MAX_NAME = 24

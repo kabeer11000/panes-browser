@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { shareTab } from '../../../shared/capture'
-import type { PermissionAnswer, ScreenSource } from '../../../shared/types'
+import { shareTab } from '@shared/capture'
+import type { PermissionAnswer, ScreenSource } from '@shared/types'
 
 const host = (origin: string): string => origin.replace(/^https?:\/\//, '')
 

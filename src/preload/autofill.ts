@@ -1,5 +1,5 @@
 import { ipcRenderer } from 'electron'
-import { usernameFieldIndex } from '../shared/passwords'
+import { usernameFieldIndex } from '@shared/passwords'
 
 interface Account {
   id: number

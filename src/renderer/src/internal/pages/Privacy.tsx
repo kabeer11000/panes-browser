@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { DEFAULT_SETTINGS } from '../../../../shared/settings'
-import { Group, Row } from '../ui'
+import { DEFAULT_SETTINGS } from '@shared/settings'
+import { Group, Row } from '@renderer/internal/ui'
 import { TorSection } from './TorSection'
 
 /** Private browsing and Tor, together on a page of their own rather than inside Settings. */

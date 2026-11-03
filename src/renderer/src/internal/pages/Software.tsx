@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import logo from '../../assets/logo.png'
-import type { AboutInfo } from '../../../../shared/types'
-import { formatSpeed, type UpdateState } from '../../../../shared/update'
-import { Group, Row } from '../ui'
+import logo from '@renderer/assets/logo.png'
+import type { AboutInfo } from '@shared/types'
+import { formatSpeed, type UpdateState } from '@shared/update'
+import { Group, Row } from '@renderer/internal/ui'
 
 const POLL_MS = 1000
 

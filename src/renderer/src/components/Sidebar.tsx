@@ -1,16 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState, type PointerEvent, type WheelEvent } from 'react'
-import { leaves, type LayoutNode } from '../../../shared/layout'
-import type { TabGroup } from '../../../shared/tabgroups'
-import type {
-  LoginEdits,
-  PasswordPrompt,
-  Settings,
-  Space,
-  TabInfo,
-  TabsState
-} from '../../../shared/types'
-import { tabTitle } from '../tabTitle'
+import { leaves, type LayoutNode } from '@shared/layout'
+import type { TabGroup } from '@shared/tabgroups'
+import type { LoginEdits, PasswordPrompt, Settings, Space, TabInfo, TabsState } from '@shared/types'
+import { tabTitle } from '@renderer/tabTitle'
 import { AddressBar } from './AddressBar'
 import { FindBar } from './FindBar'
 import { SavePrompt } from './SavePrompt'

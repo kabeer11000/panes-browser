@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { SiteInfo, SitePanelApi } from '../shared/types'
+import type { SiteInfo, SitePanelApi } from '@shared/types'
 
 const api: SitePanelApi = {
   info: () => ipcRenderer.invoke('panel:info'),

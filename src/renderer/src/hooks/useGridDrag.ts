@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
-import type { StackEntry } from '../../../shared/stack'
-import type { TabInfo } from '../../../shared/types'
+import type { StackEntry } from '@shared/stack'
+import type { TabInfo } from '@shared/types'
 
 /** Where the dragged card would land: just before or after another card. */
 export interface GridOver {

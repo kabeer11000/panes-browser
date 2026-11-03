@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { FindResult } from '../../../shared/types'
+import type { FindResult } from '@shared/types'
 import { ChevronDownIcon, ChevronUpIcon, CloseIcon } from './icons'
 
 /** Find-in-page. Lives in the sidebar because native page views always paint above renderer UI. */

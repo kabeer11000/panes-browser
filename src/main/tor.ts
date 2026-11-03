@@ -12,7 +12,7 @@ import {
   snowflakeBridges,
   torBundleFor,
   type TorStatus
-} from '../shared/tor'
+} from '@shared/tor'
 
 const exe = process.platform === 'win32' ? '.exe' : ''
 

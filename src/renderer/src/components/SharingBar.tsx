@@ -1,5 +1,5 @@
-import { isCapturing, type CaptureKind } from '../../../shared/capture'
-import type { TabInfo } from '../../../shared/types'
+import { isCapturing, type CaptureKind } from '@shared/capture'
+import type { TabInfo } from '@shared/types'
 import { CameraIcon, MicIcon, ScreenIcon } from './icons'
 
 const hostOf = (url: string): string => {

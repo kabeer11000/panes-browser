@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { INTERNAL_PAGES, type InternalPage } from '../../../shared/settings'
-import type { SpaceMode } from '../../../shared/types'
-import { useScheme } from '../useScheme'
+import { INTERNAL_PAGES, type InternalPage } from '@shared/settings'
+import type { SpaceMode } from '@shared/types'
+import { useScheme } from '@renderer/useScheme'
 import {
   BookmarkIcon,
   DownloadIcon,
@@ -10,7 +10,7 @@ import {
   SettingsIcon,
   ShieldIcon,
   SoftwareIcon
-} from '../components/icons'
+} from '@renderer/components/icons'
 import { Bookmarks } from './pages/Bookmarks'
 import { Downloads } from './pages/Downloads'
 import { History } from './pages/History'

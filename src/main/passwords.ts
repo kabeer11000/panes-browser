@@ -7,7 +7,7 @@ import {
   type WebContents
 } from 'electron'
 import { randomInt } from 'crypto'
-import { loginsFromCsv, loginsToCsv, type LoginRow } from '../shared/csv'
+import { loginsFromCsv, loginsToCsv, type LoginRow } from '@shared/csv'
 import {
   classify,
   generatePassword,
@@ -16,9 +16,9 @@ import {
   normalizeOrigin,
   type LoginProbe,
   type SaveDecision
-} from '../shared/passwords'
-import type { LoginInput, LoginSummary, PasswordPrompt } from '../shared/types'
-import { parseAnchor } from '../shared/anchor'
+} from '@shared/passwords'
+import type { LoginInput, LoginSummary, PasswordPrompt } from '@shared/types'
+import { parseAnchor } from '@shared/anchor'
 import { PromptPopover } from './popover'
 import { JsonStore } from './store'
 

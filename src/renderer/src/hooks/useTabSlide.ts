@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { slideOffsets } from '../../../shared/slide'
+import { slideOffsets } from '@shared/slide'
 import { rememberSlot } from './dragSettle'
 import type { DragState } from './useTabDrag'
 

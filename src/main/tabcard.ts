@@ -1,7 +1,7 @@
 import { is } from '@electron-toolkit/utils'
 import { ipcMain, type BrowserWindow, WebContentsView, type WebContents } from 'electron'
 import { join } from 'path'
-import type { TabCardInfo, TabHoverAnchor } from '../shared/types'
+import type { TabCardInfo, TabHoverAnchor } from '@shared/types'
 import { paintView } from './chromeTheme'
 
 const CARD_WIDTH = 264

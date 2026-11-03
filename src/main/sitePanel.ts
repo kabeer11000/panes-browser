@@ -7,7 +7,7 @@ import {
   type IpcMainInvokeEvent
 } from 'electron'
 import { join } from 'path'
-import type { Rect } from '../shared/types'
+import type { Rect } from '@shared/types'
 import type { SiteSettings } from './sites'
 import { paintView } from './chromeTheme'
 

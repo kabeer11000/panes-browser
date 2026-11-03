@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { Bookmark } from '../../../../shared/types'
-import { BookmarkIcon, CloseIcon, SearchIcon } from '../../components/icons'
-import { host } from '../format'
-import { Site } from '../Site'
-import { EmptyState } from '../ui'
+import type { Bookmark } from '@shared/types'
+import { BookmarkIcon, CloseIcon, SearchIcon } from '@renderer/components/icons'
+import { host } from '@renderer/internal/format'
+import { Site } from '@renderer/internal/Site'
+import { EmptyState } from '@renderer/internal/ui'
 import { Sessions } from './Sessions'
 
 export function Bookmarks(): React.JSX.Element {

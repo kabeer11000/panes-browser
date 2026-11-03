@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { UpdateState } from '../shared/update'
+import type { UpdateState } from '@shared/update'
 import type {
   FindResult,
   InitialData,
@@ -9,7 +9,7 @@ import type {
   TabsState,
   PasswordPrompt,
   UiCommand
-} from '../shared/types'
+} from '@shared/types'
 
 function subscribe<A extends unknown[]>(channel: string, cb: (...args: A) => void): () => void {
   const listener = (_e: unknown, ...args: unknown[]): void => cb(...(args as A))

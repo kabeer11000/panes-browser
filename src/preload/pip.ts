@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { PipApi, PipState } from '../shared/types'
+import type { PipApi, PipState } from '@shared/types'
 
 const api: PipApi = {
   onState: (cb) => {

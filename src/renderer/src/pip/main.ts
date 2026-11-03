@@ -1,5 +1,5 @@
 import './pip.css'
-import type { PipApi, PipState } from '../../../shared/types'
+import type { PipApi, PipState } from '@shared/types'
 
 declare global {
   interface Window {

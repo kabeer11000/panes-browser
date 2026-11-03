@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import type { LocalSuggestion } from '../../../shared/search'
-import { dailyPhotoId, nextPhotoId, photoUrl } from '../../../shared/photos'
-import { displayHost } from '../../../shared/url'
+import type { LocalSuggestion } from '@shared/search'
+import { dailyPhotoId, nextPhotoId, photoUrl } from '@shared/photos'
+import { displayHost } from '@shared/url'
 import { ImageIcon, SearchIcon, ShieldIcon } from './icons'
 import { useDitheredPhoto } from './useDitheredPhoto'
 

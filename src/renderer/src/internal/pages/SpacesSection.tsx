@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { DEFAULT_SETTINGS } from '../../../../shared/settings'
-import type { Settings, Space, SpacePatch, SpaceUi } from '../../../../shared/types'
-import { SpaceAvatar } from '../../components/SpaceAvatar'
-import { SpaceIdentity } from '../../components/SpaceIdentity'
-import { ThemePicker } from '../../components/ThemePicker'
-import { SLIDERS } from '../sliders'
-import { Group, Row, Segmented, SliderRow, Toggle } from '../ui'
+import { DEFAULT_SETTINGS } from '@shared/settings'
+import type { Settings, Space, SpacePatch, SpaceUi } from '@shared/types'
+import { SpaceAvatar } from '@renderer/components/SpaceAvatar'
+import { SpaceIdentity } from '@renderer/components/SpaceIdentity'
+import { ThemePicker } from '@renderer/components/ThemePicker'
+import { SLIDERS } from '@renderer/internal/sliders'
+import { Group, Row, Segmented, SliderRow, Toggle } from '@renderer/internal/ui'
 
 /** Create, theme, rename and delete spaces, and give each one its own interface settings. */
 export function SpacesSection(): React.JSX.Element {

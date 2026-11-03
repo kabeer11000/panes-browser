@@ -9,9 +9,9 @@ import {
   type MotionValue
 } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { StackEntry } from '../../../shared/stack'
-import { displayHost } from '../../../shared/url'
-import { useEdgeColor, useGlow } from '../ambient'
+import type { StackEntry } from '@shared/stack'
+import { displayHost } from '@shared/url'
+import { useEdgeColor, useGlow } from '@renderer/ambient'
 import { CardFavicons, CardMarks } from './CardMarks'
 import { CardThumb } from './CardThumb'
 import { entryTitle, pageAspect } from './cardUtils'

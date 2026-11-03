@@ -12,14 +12,14 @@ import {
   stageFromManifest,
   thisShell
 } from './layers'
-import { planLayerUpdate } from '../shared/layers'
+import { planLayerUpdate } from '@shared/layers'
 import {
   friendlyUpdateError,
   nextUpdateState,
   notesText,
   type UpdateEvent,
   type UpdateState
-} from '../shared/update'
+} from '@shared/update'
 
 const FIRST_CHECK_DELAY_MS = 15_000 // let the window settle before touching the network
 const CHECK_EVERY_MS = 4 * 60 * 60 * 1000

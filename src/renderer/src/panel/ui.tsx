@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
-import type { PermKind } from '../../../shared/permissions'
-import { CameraIcon, MicIcon, ScreenIcon } from '../components/icons'
+import type { PermKind } from '@shared/permissions'
+import { CameraIcon, MicIcon, ScreenIcon } from '@renderer/components/icons'
 
 export function Switch({
   on,

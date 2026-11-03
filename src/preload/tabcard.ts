@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { TabCardApi, TabCardInfo } from '../shared/types'
+import type { TabCardApi, TabCardInfo } from '@shared/types'
 
 const api: TabCardApi = {
   state: () => ipcRenderer.invoke('tabcard:state') as Promise<TabCardInfo | null>,

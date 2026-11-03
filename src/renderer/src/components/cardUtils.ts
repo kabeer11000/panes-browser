@@ -1,5 +1,5 @@
-import type { StackEntry } from '../../../shared/stack'
-import { tabTitle } from '../tabTitle'
+import type { StackEntry } from '@shared/stack'
+import { tabTitle } from '@renderer/tabTitle'
 
 /** Cards are sized like the page area so every tab (and group) looks the same size. */
 export function pageAspect(): number {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Space, TabInfo, TabsState } from '../../../shared/types'
+import type { Space, TabInfo, TabsState } from '@shared/types'
 
 export interface TabsView extends TabsState {
   thumbs: Record<number, string>

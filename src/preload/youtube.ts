@@ -5,7 +5,7 @@ import {
   youtubeUpdate,
   type YouTubeConfig,
   type YouTubeStart
-} from '../shared/youtube'
+} from '@shared/youtube'
 
 /**
  * Runs in YouTube's frames only (see src/main/youtube.ts), at document start, before any of the page's own

@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
-import type { TabGroup } from '../../../shared/tabgroups'
-import type { TabInfo } from '../../../shared/types'
+import type { TabGroup } from '@shared/tabgroups'
+import type { TabInfo } from '@shared/types'
 import { ChevronIcon, SpeakerIcon } from './icons'
 
 /**

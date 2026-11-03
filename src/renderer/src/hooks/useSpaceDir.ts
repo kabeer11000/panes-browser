@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Space } from '../../../shared/types'
+import type { Space } from '@shared/types'
 
 /**
  * Which way the active space moved along the row: 1 when it is further right than before, -1 when

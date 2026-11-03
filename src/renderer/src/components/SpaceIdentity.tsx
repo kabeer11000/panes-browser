@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { SPACE_ICONS, type SpaceIcon } from '../../../shared/spaceicons'
-import type { Space } from '../../../shared/types'
+import { SPACE_ICONS, type SpaceIcon } from '@shared/spaceicons'
+import type { Space } from '@shared/types'
 import { SpaceAvatar, SpaceGlyph } from './SpaceAvatar'
 
 interface Props {

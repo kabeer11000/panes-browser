@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PopoverApi, PopoverState } from '../../../shared/types'
-import { SavePrompt } from '../components/SavePrompt'
+import type { PopoverApi, PopoverState } from '@shared/types'
+import { SavePrompt } from '@renderer/components/SavePrompt'
 
 declare global {
   interface Window {

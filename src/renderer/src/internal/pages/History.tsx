@@ -1,17 +1,10 @@
 import { useCallback, useEffect, useState, type MouseEvent } from 'react'
-import {
-  BULK_OPEN_MAX,
-  NONE,
-  all,
-  bulkOpenList,
-  click,
-  type Selection
-} from '../../../../shared/selection'
-import type { HistoryEntry } from '../../../../shared/types'
-import { CloseIcon, HistoryIcon, SearchIcon } from '../../components/icons'
-import { dayLabel, formatTime, host } from '../format'
-import { Site } from '../Site'
-import { EmptyState } from '../ui'
+import { BULK_OPEN_MAX, NONE, all, bulkOpenList, click, type Selection } from '@shared/selection'
+import type { HistoryEntry } from '@shared/types'
+import { CloseIcon, HistoryIcon, SearchIcon } from '@renderer/components/icons'
+import { dayLabel, formatTime, host } from '@renderer/internal/format'
+import { Site } from '@renderer/internal/Site'
+import { EmptyState } from '@renderer/internal/ui'
 
 const PAGE = 120
 

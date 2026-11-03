@@ -25,10 +25,10 @@ import {
   sanitizeGroupPatch,
   TAB_GROUPS,
   type TabGroup
-} from '../shared/tabgroups'
-import { stageBackground } from '../shared/color'
-import { siteListed, ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '../shared/memory'
-import { siteKey, siteThemeCss } from '../shared/sitetheme'
+} from '@shared/tabgroups'
+import { stageBackground } from '@shared/color'
+import { siteListed, ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '@shared/memory'
+import { siteKey, siteThemeCss } from '@shared/sitetheme'
 import {
   holdCapture,
   mergeCapture,
@@ -40,7 +40,7 @@ import {
   type CaptureHold,
   type CaptureKind,
   type CaptureState
-} from '../shared/capture'
+} from '@shared/capture'
 import {
   FRESH_MEMO,
   NO_ATTENTION,
@@ -54,22 +54,22 @@ import {
   windowAttention,
   type AttentionMemo,
   type TabAttention
-} from '../shared/attention'
-import { NOTIFY_SCRIPT, parseNotify } from '../shared/notify'
+} from '@shared/attention'
+import { NOTIFY_SCRIPT, parseNotify } from '@shared/notify'
 import { TaskbarAttention } from './attention'
-import { dumpableTabs, type TabDump } from '../shared/dumps'
+import { dumpableTabs, type TabDump } from '@shared/dumps'
 import type { DumpStore } from './dumps'
 import type { TorManager } from './tor'
-import { ZAP_PREFIX, ZAP_SCRIPT } from '../shared/zap'
-import { errorPageUrl } from '../shared/errors'
+import { ZAP_PREFIX, ZAP_SCRIPT } from '@shared/zap'
+import { errorPageUrl } from '@shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
 import { totalmem } from 'os'
 import { applyIdentity, followIdentity } from './identity'
 import { PdfViewerHelper } from './pdf'
 import { runningMode } from './performance'
-import { pickUnloads, type MemoryPolicy, type TabFacts } from '../shared/memory'
+import { pickUnloads, type MemoryPolicy, type TabFacts } from '@shared/memory'
 import { join } from 'path'
-import { internalUrl, type InternalPage } from '../shared/settings'
+import { internalUrl, type InternalPage } from '@shared/settings'
 import {
   applyDrop,
   insertTab,
@@ -82,8 +82,8 @@ import {
   setRatios,
   type Edge,
   type LayoutNode
-} from '../shared/layout'
-import { bulkOpenList } from '../shared/selection'
+} from '@shared/layout'
+import { bulkOpenList } from '@shared/selection'
 import type {
   InitialData,
   MemoryStats,
@@ -94,12 +94,12 @@ import type {
   TabInfo,
   TabsState,
   UiCommand
-} from '../shared/types'
-import { displayHost, resolveInput } from '../shared/url'
-import { isWelcome, kindOf, type TabKind } from '../shared/tabkind'
+} from '@shared/types'
+import { displayHost, resolveInput } from '@shared/url'
+import { isWelcome, kindOf, type TabKind } from '@shared/tabkind'
 import { showContextMenu } from './contextMenu'
 import { feedbackMailto } from './feedback'
-import { mailtoWebUrl } from '../shared/mailto'
+import { mailtoWebUrl } from '@shared/mailto'
 import { PipController } from './pip'
 import type { BookmarkStore, HistoryStore } from './history'
 import type { SettingsStore } from './settings'

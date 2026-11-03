@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { attentionLabel, badgeText } from '../../../shared/attention'
-import type { TabInfo } from '../../../shared/types'
+import { attentionLabel, badgeText } from '@shared/attention'
+import type { TabInfo } from '@shared/types'
 import { GlobeIcon, IncognitoIcon, TorIcon } from './icons'
 
 function Plain({ tab, noSpinner }: { tab: TabInfo; noSpinner?: boolean }): React.JSX.Element {

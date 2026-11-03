@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { APPEARANCE_LIMITS } from '../../../shared/settings'
-import { ChevronDownIcon } from '../components/icons'
+import { APPEARANCE_LIMITS } from '@shared/settings'
+import { ChevronDownIcon } from '@renderer/components/icons'
 import type { SliderSpec } from './sliders'
 
 /** Inset rounded list with a small title above and an optional footnote below. */

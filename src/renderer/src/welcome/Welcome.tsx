@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
-import { resolveMode, type PerformanceMode } from '../../../shared/performance'
-import { SEARCH_ENGINES } from '../../../shared/settings'
-import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '../../../shared/types'
-import { Segmented, Toggle } from '../internal/ui'
+import { resolveMode, type PerformanceMode } from '@shared/performance'
+import { SEARCH_ENGINES } from '@shared/settings'
+import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '@shared/types'
+import { Segmented, Toggle } from '@renderer/internal/ui'
 
 const STEPS = ['welcome', 'look', 'layout', 'speed', 'finish'] as const
 type Step = (typeof STEPS)[number]

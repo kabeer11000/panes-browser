@@ -1,4 +1,4 @@
-import { dumpName, MAX_DUMPS, sanitizeName, type DumpTab, type TabDump } from '../shared/dumps'
+import { dumpName, MAX_DUMPS, sanitizeName, type DumpTab, type TabDump } from '@shared/dumps'
 import { JsonStore } from './store'
 
 interface DumpData {

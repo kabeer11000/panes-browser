@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { isCapturing, sameCapture, type CaptureState } from '../../../shared/capture'
+import { isCapturing, sameCapture, type CaptureState } from '@shared/capture'
 import { CameraIcon, MicIcon, ScreenIcon } from './icons'
 
 /**

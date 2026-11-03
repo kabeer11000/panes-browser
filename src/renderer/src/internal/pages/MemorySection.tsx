@@ -6,10 +6,10 @@ import {
   normalizeSites,
   presetOf,
   type MemoryPreset
-} from '../../../../shared/memory'
-import { resolveMode, type PerformanceMode } from '../../../../shared/performance'
-import type { MemoryStats, Settings } from '../../../../shared/types'
-import { Group, Row, Segmented, Select, Toggle } from '../ui'
+} from '@shared/memory'
+import { resolveMode, type PerformanceMode } from '@shared/performance'
+import type { MemoryStats, Settings } from '@shared/types'
+import { Group, Row, Segmented, Select, Toggle } from '@renderer/internal/ui'
 
 const PRESET_LABEL: Record<MemoryPreset | 'custom', string> = {
   relaxed: 'Relaxed',

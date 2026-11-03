@@ -1,7 +1,7 @@
-import { ROOT_TARGET } from '../../../shared/layout'
-import type { TabInfo } from '../../../shared/types'
-import type { DragState } from '../hooks/useTabDrag'
-import { tabTitle } from '../tabTitle'
+import { ROOT_TARGET } from '@shared/layout'
+import type { TabInfo } from '@shared/types'
+import type { DragState } from '@renderer/hooks/useTabDrag'
+import { tabTitle } from '@renderer/tabTitle'
 import { TabFavicon } from './TabFavicon'
 
 const LABELS = {

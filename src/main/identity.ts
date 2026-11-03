@@ -6,7 +6,7 @@ import {
   wantsChromeIdentity,
   type Brand,
   type UaMetadata
-} from '../shared/identity'
+} from '@shared/identity'
 
 const header = (list: Brand[]): string =>
   list.map((b) => `"${b.brand}";v="${b.version}"`).join(', ')

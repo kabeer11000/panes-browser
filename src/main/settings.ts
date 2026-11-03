@@ -1,20 +1,15 @@
-import { MAIL_HANDLERS } from '../shared/mailto'
-import { PHOTO_IDS } from '../shared/photos'
+import { MAIL_HANDLERS } from '@shared/mailto'
+import { PHOTO_IDS } from '@shared/photos'
 import {
   APPEARANCE_LIMITS,
   DEFAULT_SETTINGS,
   SEARCH_ENGINES,
   type AppearanceKey
-} from '../shared/settings'
-import {
-  IDLE_CHOICES_MIN,
-  MAX_LOADED_CHOICES,
-  normalizeSites,
-  normalizeZoom
-} from '../shared/memory'
-import { isPerformanceMode } from '../shared/performance'
-import type { Settings } from '../shared/types'
-import { sanitizeYouTube } from '../shared/youtube'
+} from '@shared/settings'
+import { IDLE_CHOICES_MIN, MAX_LOADED_CHOICES, normalizeSites, normalizeZoom } from '@shared/memory'
+import { isPerformanceMode } from '@shared/performance'
+import type { Settings } from '@shared/types'
+import { sanitizeYouTube } from '@shared/youtube'
 import { JsonStore } from './store'
 
 type Listener = (settings: Settings) => void

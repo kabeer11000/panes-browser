@@ -1,4 +1,4 @@
-import '../styles.css'
+import '@renderer/styles.css'
 import './popover.css'
 
 import { StrictMode } from 'react'

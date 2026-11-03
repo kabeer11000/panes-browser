@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import type { DownloadAction, DownloadInfo } from '../../../../shared/types'
-import { DownloadIcon } from '../../components/icons'
-import { formatBytes, formatTime, host } from '../format'
-import { EmptyState } from '../ui'
+import type { DownloadAction, DownloadInfo } from '@shared/types'
+import { DownloadIcon } from '@renderer/components/icons'
+import { formatBytes, formatTime, host } from '@renderer/internal/format'
+import { EmptyState } from '@renderer/internal/ui'
 
 const POLL_MS = 700
 

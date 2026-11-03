@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { SpaceMode } from '../../shared/types'
+import type { SpaceMode } from '@shared/types'
 
 const query = (): MediaQueryList => window.matchMedia('(prefers-color-scheme: dark)')
 

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { Space } from '../../../shared/types'
+import type { Space } from '@shared/types'
 
 export type Theme = Pick<Space, 'color' | 'color2' | 'tint' | 'grain' | 'mode'>
 

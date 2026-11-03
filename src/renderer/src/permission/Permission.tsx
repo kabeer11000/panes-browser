@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { describeKinds } from '../../../shared/permissions'
-import type { PermissionAnswer, PermissionApi, PermissionPromptState } from '../../../shared/types'
+import { describeKinds } from '@shared/permissions'
+import type { PermissionAnswer, PermissionApi, PermissionPromptState } from '@shared/types'
 import { ShareDialog } from './ShareDialog'
 
 declare global {

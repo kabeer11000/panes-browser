@@ -1,6 +1,6 @@
 import type { KeyboardEvent, WheelEvent } from 'react'
-import type { Settings, TabInfo } from '../../../shared/types'
-import { splitUrl } from '../../../shared/url'
+import type { Settings, TabInfo } from '@shared/types'
+import { splitUrl } from '@shared/url'
 import { CaptureBadge } from './CaptureBadge'
 import { SiteIcon, SpeakerIcon, StarIcon } from './icons'
 import { TabFavicon } from './TabFavicon'

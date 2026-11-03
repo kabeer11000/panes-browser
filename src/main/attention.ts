@@ -1,5 +1,5 @@
 import { app, nativeImage, type BrowserWindow, type NativeImage } from 'electron'
-import type { windowAttention } from '../shared/attention'
+import type { windowAttention } from '@shared/attention'
 
 type Summary = ReturnType<typeof windowAttention>
 

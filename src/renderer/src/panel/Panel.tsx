@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { SiteInfo, SitePanelApi, SitePatch } from '../../../shared/types'
-import { CloseIcon } from '../components/icons'
+import type { SiteInfo, SitePanelApi, SitePatch } from '@shared/types'
+import { CloseIcon } from '@renderer/components/icons'
 import { Boost } from './Boost'
 import { SiteHome } from './SiteHome'
 

@@ -35,7 +35,7 @@ import {
   type PermKind,
   type PermSetting,
   type SiteGrant
-} from '../shared/permissions'
+} from '@shared/permissions'
 import {
   CAPTURE_SCRIPT,
   captureKindsOf,
@@ -45,14 +45,14 @@ import {
   shareAudio,
   stopCaptureScript,
   type SharePass
-} from '../shared/capture'
+} from '@shared/capture'
 import type {
   PermissionAnswer,
   PermissionPromptState,
   Rect,
   ScreenSource,
   SitePerm
-} from '../shared/types'
+} from '@shared/types'
 import { JsonStore } from './store'
 import { paintView } from './chromeTheme'
 

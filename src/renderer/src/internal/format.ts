@@ -1,4 +1,4 @@
-import { displayHost } from '../../../shared/url'
+import { displayHost } from '@shared/url'
 
 export const host = displayHost
 

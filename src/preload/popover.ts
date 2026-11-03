@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { PopoverApi, PopoverState } from '../shared/types'
+import type { PopoverApi, PopoverState } from '@shared/types'
 
 const api: PopoverApi = {
   state: () => ipcRenderer.invoke('popover:state') as Promise<PopoverState>,

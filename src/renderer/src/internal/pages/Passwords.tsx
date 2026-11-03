@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import type { LoginSummary } from '../../../../shared/types'
-import { ChevronDownIcon, KeyIcon, SearchIcon } from '../../components/icons'
-import { Site } from '../Site'
-import { EmptyState, Group, Row } from '../ui'
+import type { LoginSummary } from '@shared/types'
+import { ChevronDownIcon, KeyIcon, SearchIcon } from '@renderer/components/icons'
+import { Site } from '@renderer/internal/Site'
+import { EmptyState, Group, Row } from '@renderer/internal/ui'
 
 interface Draft {
   id: number | null

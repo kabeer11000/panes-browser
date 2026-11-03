@@ -1,6 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react'
-import { ditherDuotone, duotone, levelsOf, lumaOf } from '../../../shared/dither'
-import { photoUrl } from '../../../shared/photos'
+import { ditherDuotone, duotone, levelsOf, lumaOf } from '@shared/dither'
+import { photoUrl } from '@shared/photos'
 
 /** One dither cell is this many CSS pixels at a device pixel ratio of 1 (see `cellOf`). */
 const CELL = 3

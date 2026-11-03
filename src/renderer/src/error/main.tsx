@@ -1,9 +1,9 @@
-import '../styles.css'
+import '@renderer/styles.css'
 import './error.css'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { parseSpaceTheme } from '../../../shared/errors'
+import { parseSpaceTheme } from '@shared/errors'
 import { ErrorPage } from './ErrorPage'
 
 // Before the first paint, so a light page never flashes dark. prefers-color-scheme already matches the space.

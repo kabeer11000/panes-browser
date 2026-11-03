@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { dumpMailto, dumpText, type TabDump } from '../../../../shared/dumps'
-import { Group, Row } from '../ui'
+import { dumpMailto, dumpText, type TabDump } from '@shared/dumps'
+import { Group, Row } from '@renderer/internal/ui'
 
 const when = (ms: number): string =>
   new Date(ms).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })

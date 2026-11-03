@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { BOOST_FONTS, DEFAULT_THEME, withTheme } from '../../../shared/sitetheme'
-import type { SiteInfo, SitePanelApi, SitePatch, SiteTheme } from '../../../shared/types'
-import { ColorWheel } from '../components/ColorWheel'
-import { BackIcon } from '../components/icons'
+import { BOOST_FONTS, DEFAULT_THEME, withTheme } from '@shared/sitetheme'
+import type { SiteInfo, SitePanelApi, SitePatch, SiteTheme } from '@shared/types'
+import { ColorWheel } from '@renderer/components/ColorWheel'
+import { BackIcon } from '@renderer/components/icons'
 import { Row, Switch } from './ui'
 
 type Tab = 'color' | 'font' | 'zap' | 'code'

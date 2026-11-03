@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
-import { hexToHsl, tasteful, wheelDistance } from '../../../shared/color'
+import { hexToHsl, tasteful, wheelDistance } from '@shared/color'
 
 const GAP = 8.6
 const DOT_R = 2.5

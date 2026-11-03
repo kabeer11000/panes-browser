@@ -11,8 +11,8 @@ import {
 import { is } from '@electron-toolkit/utils'
 import { join, normalize } from 'path'
 import { pathToFileURL } from 'url'
-import { INTERNAL_PAGES } from '../shared/settings'
-import { normalizeOrigin } from '../shared/passwords'
+import { INTERNAL_PAGES } from '@shared/settings'
+import { normalizeOrigin } from '@shared/passwords'
 import type {
   ClearKind,
   DownloadAction,
@@ -20,16 +20,16 @@ import type {
   MemoryStats,
   Space,
   SpacePatch
-} from '../shared/types'
-import type { TabDump } from '../shared/dumps'
-import type { OpenItem } from '../shared/types'
-import type { TorStatus } from '../shared/tor'
+} from '@shared/types'
+import type { TabDump } from '@shared/dumps'
+import type { OpenItem } from '@shared/types'
+import type { TorStatus } from '@shared/tor'
 import { currentChromeTheme } from './chromeTheme'
 import { appVersion } from './layers'
 import type { DownloadManager } from './downloads'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
-import { isPermKind, originOf } from '../shared/permissions'
+import { isPermKind, originOf } from '@shared/permissions'
 import type { PermissionStore } from './permissions'
 import { flushAllStores } from './store'
 import type { SettingsStore } from './settings'

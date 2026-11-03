@@ -1,7 +1,7 @@
-import { computeFrames } from '../../../shared/layout'
-import type { StackEntry } from '../../../shared/stack'
-import type { TabInfo } from '../../../shared/types'
-import { displayHost } from '../../../shared/url'
+import { computeFrames } from '@shared/layout'
+import type { StackEntry } from '@shared/stack'
+import type { TabInfo } from '@shared/types'
+import { displayHost } from '@shared/url'
 import { TabFavicon } from './TabFavicon'
 
 const MINI_GAP = 1.4 // gap between tiles in a group card, in percent of the card

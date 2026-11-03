@@ -1,4 +1,4 @@
-import type { TabsState } from '../../../shared/types'
+import type { TabsState } from '@shared/types'
 
 /**
  * What the window has to say that no page is saying: a short message about something that just happened (a saved

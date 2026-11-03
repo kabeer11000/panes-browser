@@ -5,8 +5,8 @@ import {
   inlineCompletion,
   type LocalSuggestion,
   type SearchResult
-} from '../../../shared/search'
-import type { Settings, TabInfo } from '../../../shared/types'
+} from '@shared/search'
+import type { Settings, TabInfo } from '@shared/types'
 import { GlobeIcon, SearchIcon, SettingsIcon, SplitIcon } from './icons'
 
 export interface Anchor {

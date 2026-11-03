@@ -1,6 +1,6 @@
 import { net } from 'electron'
-import { rankLocal, type LocalSuggestion } from '../shared/search'
-import type { SearchEngineId } from '../shared/types'
+import { rankLocal, type LocalSuggestion } from '@shared/search'
+import type { SearchEngineId } from '@shared/types'
 import type { BookmarkStore, HistoryStore } from './history'
 import type { SettingsStore } from './settings'
 

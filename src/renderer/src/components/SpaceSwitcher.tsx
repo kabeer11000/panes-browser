@@ -1,11 +1,11 @@
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import { useEffect, useId, useState } from 'react'
-import type { Space } from '../../../shared/types'
-import { attentionLabel, badgeText } from '../../../shared/attention'
-import { useSpaceMarks } from '../hooks/useSpaceAudio'
+import type { Space } from '@shared/types'
+import { attentionLabel, badgeText } from '@shared/attention'
+import { useSpaceMarks } from '@renderer/hooks/useSpaceAudio'
 import { PlusIcon, SpeakerIcon } from './icons'
 import { SpaceAvatar } from './SpaceAvatar'
-import { holdOverlay, releaseOverlay } from '../overlay'
+import { holdOverlay, releaseOverlay } from '@renderer/overlay'
 import { SpacePopover } from './SpacePopover'
 
 interface Props {

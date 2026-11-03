@@ -7,7 +7,7 @@ import {
   youtubeConfig,
   type YouTubeConfig,
   type YouTubeStart
-} from '../shared/youtube'
+} from '@shared/youtube'
 import type { Adblock } from './adblock'
 import type { SettingsStore } from './settings'
 

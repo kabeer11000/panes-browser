@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  describeError,
-  parseErrorParams,
-  retryTarget,
-  type ErrorKind
-} from '../../../shared/errors'
-import { SEARCH_ENGINES } from '../../../shared/settings'
+import { describeError, parseErrorParams, retryTarget, type ErrorKind } from '@shared/errors'
+import { SEARCH_ENGINES } from '@shared/settings'
 import { Runner } from './Runner'
 
 const KONAMI = [

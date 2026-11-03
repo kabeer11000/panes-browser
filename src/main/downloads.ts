@@ -1,7 +1,7 @@
 import { app, nativeImage, shell, type DownloadItem, type Session } from 'electron'
 import { existsSync } from 'fs'
 import { basename, extname, join } from 'path'
-import type { DownloadAction, DownloadInfo } from '../shared/types'
+import type { DownloadAction, DownloadInfo } from '@shared/types'
 import { JsonStore } from './store'
 
 /** "name (1).ext" style de-duplication so a download never overwrites an existing file. */

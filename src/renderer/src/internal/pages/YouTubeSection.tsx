@@ -4,9 +4,9 @@ import {
   YOUTUBE_SPEEDS,
   type YouTubeCodec,
   type YouTubeQuality
-} from '../../../../shared/youtube'
-import type { Settings } from '../../../../shared/types'
-import { Group, Row, Select, Toggle } from '../ui'
+} from '@shared/youtube'
+import type { Settings } from '@shared/types'
+import { Group, Row, Select, Toggle } from '@renderer/internal/ui'
 
 const QUALITY_LABEL: Record<YouTubeQuality, string> = {
   auto: 'Automatic',

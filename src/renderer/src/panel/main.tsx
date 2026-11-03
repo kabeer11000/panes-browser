@@ -1,4 +1,4 @@
-import '../styles.css'
+import '@renderer/styles.css'
 import './panel.css'
 
 import { StrictMode } from 'react'

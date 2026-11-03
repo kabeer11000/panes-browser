@@ -1,4 +1,4 @@
-import { attentionLabel, type CallState } from '../../../shared/attention'
+import { attentionLabel, type CallState } from '@shared/attention'
 import { PhoneIcon } from './icons'
 
 /**

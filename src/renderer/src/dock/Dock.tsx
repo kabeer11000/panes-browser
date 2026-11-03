@@ -6,9 +6,9 @@ import type {
   DockOverlayState,
   DownloadInfo,
   DownloadStart
-} from '../../../shared/types'
-import { formatBytes } from '../internal/format'
-import { CloseIcon } from '../components/icons'
+} from '@shared/types'
+import { formatBytes } from '@renderer/internal/format'
+import { CloseIcon } from '@renderer/components/icons'
 
 declare global {
   interface Window {

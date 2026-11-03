@@ -8,7 +8,7 @@ import {
   resolveMode,
   type PerformanceMode,
   type RunningMode
-} from '../shared/performance'
+} from '@shared/performance'
 
 let running: RunningMode = 'balanced'
 

@@ -3,9 +3,9 @@ import { promises as fs } from 'fs'
 import { join } from 'path'
 import { ElectronBlocker } from '@ghostery/adblocker-electron'
 import buildEngine from './adblockWorker?nodeWorker'
-import { siteListed } from '../shared/memory'
-import { siteKey } from '../shared/sitetheme'
-import { isYouTubeAdRequest, isYouTubeUrl } from '../shared/youtube'
+import { siteListed } from '@shared/memory'
+import { siteKey } from '@shared/sitetheme'
+import { isYouTubeAdRequest, isYouTubeUrl } from '@shared/youtube'
 
 /** A saved engine older than this is rebuilt: uBlock Origin answers YouTube's changes within a day. */
 const ENGINE_MAX_AGE_MS = 12 * 60 * 60 * 1000

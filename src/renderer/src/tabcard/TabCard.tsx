@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { TabCardApi, TabCardInfo } from '../../../shared/types'
+import type { TabCardApi, TabCardInfo } from '@shared/types'
 
 declare global {
   interface Window {

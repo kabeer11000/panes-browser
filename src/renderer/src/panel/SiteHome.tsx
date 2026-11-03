@@ -1,13 +1,8 @@
 import { useState } from 'react'
-import { ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '../../../shared/memory'
-import {
-  describeKinds,
-  PERM_LABEL,
-  type PermKind,
-  type PermSetting
-} from '../../../shared/permissions'
-import { DEFAULT_THEME } from '../../../shared/sitetheme'
-import type { SiteInfo, SitePatch, SitePerm } from '../../../shared/types'
+import { ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '@shared/memory'
+import { describeKinds, PERM_LABEL, type PermKind, type PermSetting } from '@shared/permissions'
+import { DEFAULT_THEME } from '@shared/sitetheme'
+import type { SiteInfo, SitePatch, SitePerm } from '@shared/types'
 import {
   ChevronIcon,
   CloseIcon,
@@ -16,7 +11,7 @@ import {
   ReloadIcon,
   ShieldIcon,
   TorIcon
-} from '../components/icons'
+} from '@renderer/components/icons'
 import { LockGlyph, PermIcon, Row, Section, Segmented, Switch, type Choice } from './ui'
 
 /** Shown whether or not the page has asked; the rest appear once they matter (set, asked, or in use). */

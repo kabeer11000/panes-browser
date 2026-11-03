@@ -8,7 +8,7 @@ import {
   type WebFrameMain
 } from 'electron'
 import { join } from 'path'
-import type { PipState } from '../shared/types'
+import type { PipState } from '@shared/types'
 
 const POLL_MS = 250
 const START_WIDTH = 480

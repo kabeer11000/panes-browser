@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { TorStatus } from '../../../../shared/tor'
-import { Group, Row, Toggle } from '../ui'
+import type { TorStatus } from '@shared/tor'
+import { Group, Row, Toggle } from '@renderer/internal/ui'
 
 const blank: TorStatus = {
   state: 'off',

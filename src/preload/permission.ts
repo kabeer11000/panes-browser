@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { PermissionApi, PermissionPromptState } from '../shared/types'
+import type { PermissionApi, PermissionPromptState } from '@shared/types'
 
 const api: PermissionApi = {
   state: () => ipcRenderer.invoke('perm:state') as Promise<PermissionPromptState | null>,
