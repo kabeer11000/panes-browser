@@ -112,6 +112,8 @@ function App(): React.JSX.Element {
   }, [])
   const [anchor, setAnchor] = useState<Anchor | null>(null) // where the command bar grows out of
   const [peekBar, setPeekBar] = useState(false) // pointer at the top edge brings an auto-hidden top bar back
+  const [searchPending, setSearchPending] = useState(false) // search is opening: the bar comes out first, so it can attach to it
+  const autoHideRef = useRef(false)
 
   // Event handlers outlive renders, so they read the latest values through refs.
   const modeRef = useRef<Mode>(null)
@@ -154,22 +156,32 @@ function App(): React.JSX.Element {
       if (opening.current) return
       opening.current = true
       if (m === 'search') {
-        const barEl = [...document.querySelectorAll<HTMLElement>('.address')]
-          .filter((el) => !el.closest('[inert]'))
-          .find((el) => {
-            const r = el.getBoundingClientRect()
-            return r.width > 0 && r.height > 0
-          })
+        const findBar = (): HTMLElement | undefined =>
+          [...document.querySelectorAll<HTMLElement>('.address')]
+            .filter((el) => !el.closest('[inert]'))
+            .find((el) => {
+              const r = el.getBoundingClientRect()
+              return r.width > 0 && r.height > 0
+            })
+        let barEl = findBar()
+        if (!barEl && autoHideRef.current) {
+          // the top bar is tucked away: bring it out and wait for it to settle, then grow the popover from it
+          setSearchPending(true)
+          await new Promise((r) => setTimeout(r, 200))
+          barEl = findBar()
+        }
         const bar = barEl?.getBoundingClientRect()
         const radius = barEl ? parseFloat(getComputedStyle(barEl).borderTopLeftRadius) || 8 : 8
         const stage = document.querySelector('.stage')?.getBoundingClientRect()
+        // the popover lives inside the page area, which the out-bar shifts down: measure from where it started
+        const dy = getSlideY()
         setAnchor(
           bar
-            ? { left: bar.left, top: bar.top, width: bar.width, height: bar.height, radius }
+            ? { left: bar.left, top: bar.top - dy, width: bar.width, height: bar.height, radius }
             : stage
               ? {
                   left: stage.left + Math.max(0, (stage.width - 600) / 2),
-                  top: stage.top + 6,
+                  top: stage.top - dy + 6,
                   width: Math.min(600, stage.width),
                   height: 40,
                   radius
@@ -180,6 +192,7 @@ function App(): React.JSX.Element {
       await holdOverlay('app', m !== 'search')
       opening.current = false
       setMode(m)
+      setSearchPending(false) // the open search holds the bar from here
       if (m === 'stack' && releasedEarly.current) {
         releasedEarly.current = false
         commitStack()
@@ -342,16 +355,14 @@ function App(): React.JSX.Element {
   // down with it (the page views follow from the main process): the page is not laid out or repainted for a glance
   // at the bar, and a little of its foot runs off the window instead.
   const [barShown, setBarShown] = useState(false)
-  const barOver = barAutoHidden && (peeking || barShown)
-  const stripHidden =
-    pushed ||
-    (barAutoHidden &&
-      !peeking &&
-      !barShown &&
-      mode !== 'search' &&
-      !passwordPrompt &&
-      findKey === null)
-  const barTarget = barAutoHidden && peeking ? barPx : 0
+  // the bar stays out while search, a save-password prompt or find is using it, whatever the pointer does
+  const barHeld = mode === 'search' || searchPending || !!passwordPrompt || findKey !== null
+  useEffect(() => {
+    autoHideRef.current = barAutoHidden
+  }, [barAutoHidden])
+  const barOver = barAutoHidden && (peeking || barHeld || barShown)
+  const stripHidden = pushed || (barAutoHidden && !peeking && !barHeld && !barShown)
+  const barTarget = barAutoHidden && (peeking || barHeld) ? barPx : 0
   useEffect(() => {
     const from = getSlideY()
     if (from === barTarget) return
@@ -579,6 +590,7 @@ function App(): React.JSX.Element {
         (showSidebar ? '' : ' sidebar-closed') +
         (hoverShown ? ' hover-open' : '') +
         (barOver ? ' bar-over' : '') +
+        (mode === 'search' && settings.searchStyle === 'dropdown' ? ' search-drop' : '') +
         (immersive ? ' immersive' : '') +
         (horizontal ? ' horizontal' : '') +
         (mode ? ' overlay-open' : '')

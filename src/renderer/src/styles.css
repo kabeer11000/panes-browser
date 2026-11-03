@@ -4039,6 +4039,10 @@ kbd {
   will-change: transform;
   transition: none;
 }
+/* the out-bar sits above the page area, where the search popover lives: its own address text would show over the popover's input */
+.search-drop.bar-over .strip .address {
+  visibility: hidden;
+}
 .bar-over .stage-wrap {
   transform: translateY(var(--slide-y, 0px));
   will-change: transform;
