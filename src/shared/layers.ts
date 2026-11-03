@@ -12,8 +12,12 @@
 /** Bumped when the loader's contract with the app changes: a layer only runs under the loader it was built for. */
 export const LOADER_VERSION = 1
 
-/** What a layer must have been built against to run here: the Electron version and the loader version. */
-export const shellId = (electron: string): string => `${electron}+${LOADER_VERSION}`
+/**
+ * What a layer must have been built for to run here: the platform and processor (a layer can carry platform-specific
+ * code and settings), the Electron version and the loader version, e.g. `win32-x64-44.10.0+1`.
+ */
+export const shellId = (platform: string, arch: string, electron: string): string =>
+  `${platform}-${arch}-${electron}+${LOADER_VERSION}`
 
 export const MANIFEST_NAME = 'app-layer.json'
 /** Where staged layers and their state live, inside the data folder. */

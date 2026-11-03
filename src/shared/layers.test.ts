@@ -20,7 +20,7 @@ import {
 } from './layers'
 
 const sha = (c: string): string => c.repeat(64)
-const SHELL = shellId('44.7.2')
+const SHELL = shellId('win32', 'x64', '44.7.2')
 
 const entry = (build: number, shell = SHELL): LayerEntry => ({
   build,
@@ -111,7 +111,10 @@ describe('chooseLayer', () => {
 
   test('a layer for another Electron, or older than the installed app, is not started', () => {
     expect(
-      chooseLayer({ ...EMPTY_LAYER_STATE, current: entry(20, shellId('45.0.0')) }, here).run
+      chooseLayer(
+        { ...EMPTY_LAYER_STATE, current: entry(20, shellId('win32', 'x64', '45.0.0')) },
+        here
+      ).run
     ).toBeNull()
     expect(
       chooseLayer({ ...EMPTY_LAYER_STATE, current: entry(20) }, { ...here, builtInBuild: 30 }).run
@@ -184,7 +187,19 @@ describe('planLayerUpdate', () => {
 
   test('a newer layer for this shell is a layer update; for another Electron it needs the installer', () => {
     expect(planLayerUpdate(m, here)).toBe('layer')
-    expect(planLayerUpdate(m, { ...here, shell: shellId('43.0.0') })).toBe('installer')
+    expect(planLayerUpdate(m, { ...here, shell: shellId('win32', 'x64', '43.0.0') })).toBe(
+      'installer'
+    )
+  })
+
+  test('a layer built for another platform or processor is never a layer update here', () => {
+    expect(SHELL).toBe('win32-x64-44.7.2+1')
+    expect(planLayerUpdate(m, { ...here, shell: shellId('darwin', 'arm64', '44.7.2') })).toBe(
+      'installer'
+    )
+    expect(planLayerUpdate(m, { ...here, shell: shellId('win32', 'arm64', '44.7.2') })).toBe(
+      'installer'
+    )
   })
 
   test('nothing newer, or a build that failed here, is no update', () => {

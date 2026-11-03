@@ -3,9 +3,12 @@
  * from the last few published layers, and the manifest that names them (see src/shared/layers.ts). Run after
  * electron-builder has built the release; `bun run release:win` (scripts/release.ts) does both.
  *
- *   bun scripts/release-layer.ts [--asar <app.asar>] [--out <dir>] [--base <app.asar> ...] [--publish]
+ *   bun scripts/release-layer.ts [--asar <app.asar>] [--target <platform-arch>] [--out <dir>] [--base <app.asar> ...]
+ *                                [--publish]
  *
  * --asar   the layer to release (default dist/win-unpacked/resources/app.asar)
+ * --target the platform and processor that build is for (default win32-x64, what `electron-builder --win` makes);
+ *          only a Panes on the same one takes the layer
  * --out    where the files are written (default dist/layer); with no --publish this folder is a feed that
  *          PANES_LAYER_FEED can point a Panes at, for trying an update without a release
  * --base   make a delta from this local app.asar instead of from the published releases (repeatable)
@@ -35,6 +38,7 @@ const publish = args.includes('--publish')
 const asarPath = resolve(option('--asar', 'dist/win-unpacked/resources/app.asar'))
 const outDir = resolve(option('--out', 'dist/layer'))
 const localBases = all('--base').map((p) => resolve(p))
+const [targetPlatform, targetArch] = option('--target', 'win32-x64').split('-')
 
 const sha256 = (b: Buffer): string => createHash('sha256').update(b).digest('hex')
 const mb = (n: number): string => `${(n / 1024 / 1024).toFixed(2)} MB`
@@ -135,7 +139,8 @@ function main(): void {
   const outside = unpackedFiles(getRawHeader(asarPath).header)
   if (outside.length > 0)
     fail(`files are unpacked beside app.asar, which a layer cannot carry: ${outside.join(', ')}`)
-  const shell = shellId(electronPackage.version)
+  if (!targetPlatform || !targetArch) fail('--target is <platform>-<arch>, e.g. win32-x64')
+  const shell = shellId(targetPlatform, targetArch, electronPackage.version)
 
   mkdirSync(outDir, { recursive: true })
   const fullName = `app-${build}.asar.gz`

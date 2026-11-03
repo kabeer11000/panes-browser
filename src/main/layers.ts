@@ -72,7 +72,8 @@ export function runningLayer(): string | null {
   return samePath(dirname(asar), layersDir()) ? basename(asar) : null
 }
 
-export const thisShell = (): string => shellId(process.versions.electron)
+export const thisShell = (): string =>
+  shellId(process.platform, process.arch, process.versions.electron)
 
 export function readLayerState(): LayerState {
   try {

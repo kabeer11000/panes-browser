@@ -63,7 +63,7 @@ function layerToStart(): { dir: string; build: number; file: string } | null {
   const state = readState(dir)
   if (!state.current && !state.previous) return null
   const { run, crashed } = chooseLayer(state, {
-    shell: shellId(process.versions.electron),
+    shell: shellId(process.platform, process.arch, process.versions.electron),
     builtInBuild: builtInBuild(),
     // original-fs: Electron's own fs would look inside the archive instead of at the file
     exists: (file) => ofs.existsSync(join(dir, file))
