@@ -164,6 +164,8 @@ button {
 }
 .int-btn {
   display: inline-flex;
+  flex-shrink: 0; /* a long hint beside it in a row must not squeeze the label onto two lines */
+  white-space: nowrap;
   align-items: center;
   justify-content: center;
   height: 38px;

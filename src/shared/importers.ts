@@ -259,7 +259,9 @@ export function htmlBookmarks(html: string): ImportedPage[] {
 export function searchEngineFor(url: string | undefined): SearchEngineId | null {
   let host: string
   try {
-    host = new URL((url ?? '').replace(/\{[^}]*\}/g, 'x')).hostname
+    // Chromium writes Google's own address as a placeholder for the country's Google site
+    const plain = (url ?? '').replace(/^\{google:baseURL\}/, 'https://www.google.com/')
+    host = new URL(plain.replace(/\{[^}]*\}/g, 'x')).hostname
   } catch {
     return null
   }
@@ -270,14 +272,19 @@ export function searchEngineFor(url: string | undefined): SearchEngineId | null 
   return null
 }
 
-/** Chromium's default search address, from a profile's `Preferences`. */
+/** Chromium's default search address, from a profile's `Preferences` (newer versions call it mirrored). */
 export function chromiumSearchUrl(preferences: string): string | undefined {
+  type Data = { url?: string }
   try {
-    return (
+    const d = (
       JSON.parse(preferences) as {
-        default_search_provider_data?: { template_url_data?: { url?: string } }
+        default_search_provider_data?: {
+          mirrored_template_url_data?: Data
+          template_url_data?: Data
+        }
       }
-    ).default_search_provider_data?.template_url_data?.url
+    ).default_search_provider_data
+    return (d?.mirrored_template_url_data ?? d?.template_url_data)?.url
   } catch {
     return undefined
   }

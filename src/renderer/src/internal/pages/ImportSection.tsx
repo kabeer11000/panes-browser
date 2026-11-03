@@ -158,10 +158,7 @@ export function ImportSection(): React.JSX.Element {
           </Row>
           <Row
             label="Passwords"
-            hint={
-              passwordNote ||
-              `${source.passwordExport} Then pick the file here. ${source.name} keeps its saved passwords locked, so they come over through that file.`
-            }
+            hint={passwordNote || `${source.passwordExport} Then pick the file here.`}
           >
             {passwordButton}
           </Row>

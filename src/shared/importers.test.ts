@@ -123,7 +123,9 @@ describe('htmlBookmarks', () => {
 describe('search engine', () => {
   test('known engines by host, others null', () => {
     expect(searchEngineFor('https://search.brave.com/search?q={searchTerms}')).toBe('brave')
-    expect(searchEngineFor('{google:baseURL}search?q={searchTerms}')).toBeNull()
+    expect(
+      searchEngineFor('{google:baseURL}search?q={searchTerms}&{google:RLZ}ie={inputEncoding}')
+    ).toBe('google')
     expect(searchEngineFor('https://www.google.co.uk/search?q={searchTerms}')).toBe('google')
     expect(searchEngineFor('https://www.bing.com/search?q={searchTerms}&form=X')).toBe('bing')
     expect(searchEngineFor('https://duckduckgo.com/?q={searchTerms}')).toBe('duckduckgo')
@@ -135,6 +137,10 @@ describe('search engine', () => {
       default_search_provider_data: { template_url_data: { url: 'https://search.brave.com/s' } }
     })
     expect(chromiumSearchUrl(prefs)).toBe('https://search.brave.com/s')
+    const mirrored = JSON.stringify({
+      default_search_provider_data: { mirrored_template_url_data: { url: 'https://bing.com/?q=x' } }
+    })
+    expect(chromiumSearchUrl(mirrored)).toBe('https://bing.com/?q=x')
     expect(chromiumSearchUrl('{}')).toBeUndefined()
     expect(chromiumSearchUrl('nope')).toBeUndefined()
   })
