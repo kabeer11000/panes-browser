@@ -2198,10 +2198,16 @@ export class TabManager {
     })()
   }
 
-  /** Bring every tab in line with the current theme and the setting. */
+  /**
+   * Bring every tab in line with the current theme and the setting. Panes' own pages are left alone: they are drawn
+   * for the scheme already, and Chromium's darkening would wipe out their light-on-dark surfaces and buttons.
+   */
   applyDarkening(): void {
     const on = this.deps.settings.get().darkenSites && nativeTheme.shouldUseDarkColors
-    for (const t of this.tabs.values()) this.setDarkening(t, on)
+    for (const t of this.tabs.values()) {
+      const own = liveContents(t)?.getURL().startsWith('panes://') ?? false
+      this.setDarkening(t, on && !own)
+    }
   }
 
   // ---- tab groups ----
