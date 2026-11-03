@@ -30,6 +30,8 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (patch.siteZoom !== undefined) out.siteZoom = normalizeZoom(patch.siteZoom)
   if (patch.mutedSites !== undefined) out.mutedSites = normalizeSites(patch.mutedSites)
   if (typeof patch.torSnowflake === 'boolean') out.torSnowflake = patch.torSnowflake
+  if (typeof patch.downloadAsk === 'boolean') out.downloadAsk = patch.downloadAsk
+  if (patch.downloadDir === null) out.downloadDir = null // reset only: a folder comes from the picker (setDownloadDir)
   if (patch.startup === 'newtab' || patch.startup === 'restore') out.startup = patch.startup
   if (typeof patch.accent === 'string' && /^#[0-9a-f]{6}$/i.test(patch.accent))
     out.accent = patch.accent
@@ -98,6 +100,13 @@ export class SettingsStore {
     this.store.save()
     for (const l of this.listeners) l(this.store.value)
     return this.store.value
+  }
+
+  /** A folder the user picked in a native dialog: not taken from a patch, which a page could fill with any path. */
+  setDownloadDir(dir: string): void {
+    this.store.value = { ...this.store.value, downloadDir: dir }
+    this.store.save()
+    for (const l of this.listeners) l(this.store.value)
   }
 
   onChange(l: Listener): void {

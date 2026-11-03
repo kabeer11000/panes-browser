@@ -1,11 +1,14 @@
 import {
   app,
+  BrowserWindow,
+  dialog,
   ipcMain,
   net,
   protocol,
   shell,
   webContents,
   type IpcMainInvokeEvent,
+  type OpenDialogOptions,
   type Session
 } from 'electron'
 import { is } from '@electron-toolkit/utils'
@@ -161,6 +164,20 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:dump-remove', (id: number) => d.dumps.remove(Number(id)))
   handle('int:downloads-list', () => d.downloads.list())
   handle('int:download-action', (id: number, action: DownloadAction) => d.downloads.act(id, action))
+  handle('int:pick-download-dir', async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    const opts: OpenDialogOptions = {
+      title: 'Download folder',
+      defaultPath: d.settings.get().downloadDir ?? app.getPath('downloads'),
+      properties: ['openDirectory', 'createDirectory']
+    }
+    const { canceled, filePaths } = await (win
+      ? dialog.showOpenDialog(win, opts)
+      : dialog.showOpenDialog(opts))
+    if (canceled || !filePaths[0]) return null
+    d.settings.setDownloadDir(filePaths[0])
+    return filePaths[0]
+  })
   handle('int:download-previews', (ids: unknown) =>
     d.downloads.previewsFor(Array.isArray(ids) ? ids.filter(Number.isInteger) : [])
   )

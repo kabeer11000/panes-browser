@@ -119,6 +119,36 @@ export function Settings(): React.JSX.Element {
         </Row>
       </Group>
 
+      <Group title="Downloads">
+        <Row label="Save downloads to" hint={s.downloadDir ?? 'Your Downloads folder'}>
+          {s.downloadDir && (
+            <button className="int-btn small" onClick={() => void update({ downloadDir: null })}>
+              Reset
+            </button>
+          )}
+          <button
+            className="int-btn small"
+            onClick={() =>
+              void window.panesInternal
+                .pickDownloadDir()
+                .then((dir) => dir && setS((prev) => ({ ...prev, downloadDir: dir })))
+            }
+          >
+            Change
+          </button>
+        </Row>
+        <Row
+          label="Ask where to save each file"
+          hint="Panes opens the Save As window before every download, in the folder above."
+        >
+          <Toggle
+            label="Ask where to save each file"
+            on={s.downloadAsk}
+            onChange={(v) => void update({ downloadAsk: v })}
+          />
+        </Row>
+      </Group>
+
       <Group
         title="Default browser"
         footer="Windows asks you to confirm this itself, so Panes opens its default apps page. Links and HTML or PDF files then open here."

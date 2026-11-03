@@ -173,7 +173,7 @@ function createWindow(): void {
   const settings = new SettingsStore()
   const history = new HistoryStore()
   const bookmarks = new BookmarkStore()
-  const downloads = new DownloadManager(tabSession)
+  const downloads = new DownloadManager(tabSession, settings)
   const passwords = new PasswordStore()
   registerPasswordIpc(win, passwords)
   const adblock = new Adblock(tabSession)

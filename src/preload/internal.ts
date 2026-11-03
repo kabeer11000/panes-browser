@@ -46,6 +46,7 @@ if (location.protocol === 'panes:') {
     restart: () => ipcRenderer.invoke('int:restart'),
     sendFeedback: () => ipcRenderer.invoke('int:feedback'),
     onboardingDone: () => ipcRenderer.invoke('int:onboarding-done'),
+    pickDownloadDir: () => ipcRenderer.invoke('int:pick-download-dir'),
     defaultBrowserStatus: () => ipcRenderer.invoke('int:default-status'),
     defaultBrowserRequest: () => ipcRenderer.invoke('int:default-request'),
     clearData: (kinds, since) => ipcRenderer.invoke('int:clear-data', kinds, since),

@@ -2,6 +2,7 @@ import { app, nativeImage, shell, type DownloadItem, type Session } from 'electr
 import { existsSync } from 'fs'
 import { basename, extname, join } from 'path'
 import type { DownloadAction, DownloadInfo } from '@shared/types'
+import type { SettingsStore } from './settings'
 import { JsonStore } from './store'
 
 /** "name (1).ext" style de-duplication so a download never overwrites an existing file. */
@@ -60,7 +61,10 @@ export class DownloadManager {
   })
   private live = new Map<number, DownloadItem>()
 
-  constructor(private session: Session) {
+  constructor(
+    private session: Session,
+    private settings: SettingsStore
+  ) {
     // Anything that was mid-download when the app closed will not resume.
     for (const d of this.store.value.items) {
       if (d.state === 'progressing' || d.state === 'paused') d.state = 'interrupted'
@@ -144,9 +148,35 @@ export class DownloadManager {
   }
 
   private track(item: DownloadItem): void {
+    const { downloadAsk, downloadDir } = this.settings.get()
+    const dir = downloadDir && existsSync(downloadDir) ? downloadDir : app.getPath('downloads')
+    const suggested = uniquePath(dir, item.getFilename())
+    if (!downloadAsk) {
+      item.setSavePath(suggested)
+      this.begin(item)
+      return
+    }
+    // Not setting a path makes Electron ask with the system's Save As dialog. Nothing is listed (and nothing flies to
+    // the bin) until a place is chosen: progress events arrive while the dialog is still open, so the chosen path is
+    // what says it has been answered. Cancelling the dialog ends the download with no path, and leaves no trace.
+    item.setSaveDialogOptions({ defaultPath: suggested })
+    let began = false
+    const onProgress = (): void => {
+      if (began || !item.getSavePath()) return
+      began = true
+      item.off('updated', onProgress)
+      this.begin(item)
+    }
+    item.on('updated', onProgress)
+    item.once('done', (_e, state) => {
+      if (began || !item.getSavePath()) return
+      this.finish(this.begin(item), item, state) // finished before any progress was seen (a tiny file)
+    })
+  }
+
+  private begin(item: DownloadItem): DownloadInfo {
     const d = this.store.value
-    const savePath = uniquePath(app.getPath('downloads'), item.getFilename())
-    item.setSavePath(savePath)
+    const savePath = item.getSavePath()
     const info: DownloadInfo = {
       id: d.nextId++,
       filename: basename(savePath),
@@ -169,23 +199,26 @@ export class DownloadManager {
         state === 'interrupted' ? 'interrupted' : item.isPaused() ? 'paused' : 'progressing'
       this.changed()
     })
-    item.once('done', (_e, state) => {
-      info.received = item.getReceivedBytes()
-      info.state =
-        state === 'completed' ? 'completed' : state === 'cancelled' ? 'cancelled' : 'interrupted'
-      this.live.delete(info.id)
-      this.store.save()
-      this.changed(true)
-      if (info.state === 'completed') {
-        this.asked.add(info.id)
-        void previewFor(info.savePath).then((preview) => {
-          if (!preview) return
-          this.previews.set(info.id, preview)
-          this.changed(true)
-        })
-      }
-    })
+    item.once('done', (_e, state) => this.finish(info, item, state))
     this.store.save()
+    return info
+  }
+
+  private finish(info: DownloadInfo, item: DownloadItem, state: string): void {
+    info.received = item.getReceivedBytes()
+    info.state =
+      state === 'completed' ? 'completed' : state === 'cancelled' ? 'cancelled' : 'interrupted'
+    this.live.delete(info.id)
+    this.store.save()
+    this.changed(true)
+    if (info.state === 'completed') {
+      this.asked.add(info.id)
+      void previewFor(info.savePath).then((preview) => {
+        if (!preview) return
+        this.previews.set(info.id, preview)
+        this.changed(true)
+      })
+    }
   }
 
   act(id: number, action: DownloadAction): void {

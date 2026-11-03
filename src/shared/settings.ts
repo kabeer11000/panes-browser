@@ -17,6 +17,8 @@ export const DEFAULT_SETTINGS: Settings = {
   adblockOffSites: [],
   adblockCosmeticOffSites: [],
   torSnowflake: false,
+  downloadAsk: false,
+  downloadDir: null,
   mutedSites: [],
   siteZoom: {},
   startup: 'newtab',

@@ -280,6 +280,10 @@ export interface Settings {
   adblockCosmeticOffSites: string[]
   /** Reach Tor through Snowflake bridges (for networks that block Tor). */
   torSnowflake: boolean
+  /** Ask where to save each download (the system's Save As dialog) instead of saving straight away. */
+  downloadAsk: boolean
+  /** Where downloads go, and where the Save As dialog opens; null is the system Downloads folder. Set only through the folder picker. */
+  downloadDir: string | null
   /** Sites whose tabs are always muted, subdomains included. */
   mutedSites: string[]
   /** Page zoom per site (host name to Chromium zoom level; 0 is 100%). */
@@ -569,6 +573,8 @@ export interface InternalApi {
   dumpRemove(id: number): Promise<void>
   downloadsList(): Promise<DownloadInfo[]>
   downloadAction(id: number, action: DownloadAction): Promise<void>
+  /** Opens a folder picker; the chosen folder becomes the download folder and is returned, null if cancelled. */
+  pickDownloadDir(): Promise<string | null>
   /** Pictures of finished downloads (data URLs), for the ones that have one yet; the rest are made in the background. */
   downloadPreviews(ids: number[]): Promise<Record<number, string>>
   getSettings(): Promise<Settings>
