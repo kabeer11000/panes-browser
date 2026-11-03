@@ -184,3 +184,47 @@ Later: Firefox passwords read directly (`logins.json` plus `key4.db`, no app-bou
 - Bookmarks stay flat: folders are dropped on import.
 - Offered on the Welcome step and any time in Settings; never automatic.
 - One profile per import.
+
+# Ad blocker on Brave's engine (plan, awaiting go-ahead)
+
+## Why
+
+Reported: sites break, ads and empty boxes still show, the blocker feels heavy. Causes found: Panes blocks everything everywhere, where Brave's default Standard mode spares a site's own requests and content; the scriptlet file Panes downloads (Ghostery's copy of uBlock Origin's) was last updated 14 Aug 2026; and the cosmetic glue is patched around the Ghostery package (the YouTube scriptlet path, the `withoutScripts` proxy). "Heavy" gets a measured baseline before anything changes.
+
+## Decisions (owner, 2026-11-04)
+
+- Engine: Brave's `adblock-rs` (Rust via Neon). Rust on dev and release machines is fine.
+- Lists: Brave's default catalog entries `default`, `4D715457-307C-4383-8873-73A2FD263F71` (privacy), `E99CBD02-FFD1-4651-9BDD-6A9ED7B87819` (first party). Not cookie notices, mobile promos or iOS.
+- Standard by default, Aggressive as a setting and per site. YouTube is always Aggressive (Brave does the same).
+- Must keep working with no Panes releases: lists and scriptlets both come from upstream on a schedule, with copies bundled at release as the fallback.
+
+## Design
+
+Package: `adblock-rs` 0.13.x has no prebuilt binary; its postinstall runs cargo, so it goes in `trustedDependencies`. Built on Node-API, so one `.node` works across Electron versions with no rebuild. It stays inside app.asar (the layers rule); Electron copies it to a temp file when loading it. The postinstall calls `npm run`; if that fails under bun, call `cargo-cp-artifact` from a bun script instead.
+
+Lists (worker, every 12 h as now): fetch Brave's `list_catalog.json`, take the three UUIDs above, run Brave's `!#if` preprocessing with Brave's `IF_CONDITIONS` (data in `src/shared`, tested), and pass each list's `permission_mask` so uBO's trusted scriptlets work. Lists with `first_party_protections` also build a second, small engine. A catalog snapshot ships in the app for when GitHub is unreachable.
+
+Scriptlets and redirects: `.github/workflows/adblock-resources.yml` runs daily. It checks out uBlock Origin's latest release, then `scripts/adblock-resources.ts` does what Brave's `generateResources` does (uBO `builtinScriptlets` as `application/javascript` resources, `uBlockResources` for redirects, plus Brave's own `dist/resources.json`). It builds a test engine with the result and publishes `resources.json` to a fixed release tag, `adblock-resources`. Panes downloads it alongside the lists and falls back to the copy bundled at release. Free, since the repo is public. GitHub pauses scheduled jobs after 60 days without repo activity, so the job re-enables itself through the workflow-enable API. uBO's code only ever runs in CI; on users' machines it is JSON data.
+
+Main process (`src/main/adblock.ts`, same surface: `set`, `setOffSites`, `attach`, `siteState`, `blockedOn`; `youtubeScriptlets` goes):
+- Saved engine named by package version (`adblock-<ver>.dat`). The binding's `deserialize` swallows errors, so every load runs a canary (a few requests that must block and a few that must not, after Brave's `sampleUnblockedNetworkRequests`); a failure means rebuild.
+- Network: Panes' own `onBeforeRequest` per session (`identity.ts` only uses `onBeforeSendHeaders`, so they don't clash). The decision is a pure function in `src/shared` with tests: Electron resource type to engine type, first party or not, Standard or Aggressive, `$important`, redirects as data URLs, `$removeparam` rewrites only for GET/HEAD/OPTIONS (as Brave does).
+- Site exceptions, the YouTube ad-request rule and the blocked count carry over as plain code instead of wrapped handlers.
+- One known gap: `$csp` rules. The JS binding has no call for them, and Ghostery did apply them.
+
+Page side: one frame preload, `src/preload/adblock.ts`, for http(s) frames, registered the way `youtube.ts` is. A sync `adblock:start` returns the page's scriptlet, hide selectors, procedural rules, exceptions and switches. The scriptlet runs at document start in every frame, which is what the YouTube special path existed for, so that path and `withoutScripts` are deleted. Styles go in with `insertCSS` (removable, as the YouTube preload notes). Generic class/id hiding: a batched MutationObserver asks main for `hiddenClassIdSelectors`. In Standard mode generic hides skip elements holding the site's own content, ported from Brave's `content_cosmetic.ts`. Procedural rules: port Brave's `procedural_filters.ts` (MPL-2.0, header kept). Frames that aren't http(s) are skipped, to keep the per-frame sync call cheap.
+
+Looked at: Ghostery's `adblocker-electron` (current), Brave's `brave-core` (Shields network helper, cosmetic content scripts) and `brave-core-crx-packager` (list and resource generation).
+
+## Steps
+
+- [ ] 1. Spike, nothing merged: install Rust and `adblock-rs` under bun; load it in main from a packed asar (`build:unpack`, needs ask) and inside a worker thread; serialize round trip; a data-URL redirect through `webRequest`; confirm Brave's Standard rule in `brave-core` source. Baseline on the current blocker with `scripts/perf-*.ts`: time to engine ready, main process memory, load of three heavy news sites.
+- [ ] 2. Resources script, workflow with self re-enable, bundled `resources.json` and catalog snapshot.
+- [ ] 3. `src/shared`: catalog picking, preprocessor, resource type map, request decision; tests.
+- [ ] 4. Worker build and main engine swap, network blocking, canary.
+- [ ] 5. Page preload (scriptlets, styles, generic hiding, procedural); delete the YouTube scriptlet path.
+- [ ] 6. Aggressive setting: settings schema, Settings page, site panel.
+- [ ] 7. Remove `@ghostery/*` and delete the old `adblock-engine.bin` on first run.
+- [ ] 8. Verify against the baseline: YouTube (watch page, embed), news sites, the sites that break today, private window, site off and hiding off toggles, first start offline (bundled fallback), a corrupt `.dat` (canary rebuilds).
+
+Open: which sites break today? They become the step 8 checklist.
