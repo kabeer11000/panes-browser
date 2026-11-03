@@ -7,7 +7,9 @@
  * <bump>    patch | minor | major | prerelease | an exact version: bumps package.json, commits `chore(release):
  *           <version>` and pushes it before building. Left out, the version in package.json is released as it is
  *           (how a failed run is repeated).
- * --notes   the release notes, required for a new release; Panes shows them next to the update
+ * --notes   replaces the generated release notes. Without it they are the feat, fix and perf commits since the last
+ *           release tag that touch src/ (scripts/release-notes.ts, preview: `bun scripts/release-notes.ts`). Panes shows
+ *           them next to the update, and the script does not pause: read the preview before a real run.
  * --dry-run build into dist/ and dist/layer with the current version, then stop before anything is changed or uploaded
  *
  * The GitHub release is a draft until every file is on it, then published and marked latest in one step. Until then
@@ -22,6 +24,7 @@
 import { existsSync, readFileSync } from 'fs'
 import { parseArgs } from 'util'
 import { $ } from 'bun'
+import { notesSinceLastTag } from './release-notes'
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -33,7 +36,6 @@ const { values, positionals } = parseArgs({
 })
 const [bump] = positionals
 const dryRun = values['dry-run']
-const notes = values.notes
 
 function fail(message: string): never {
   console.error(`release: ${message}`)
@@ -75,13 +77,19 @@ async function bumpVersion(increment: string): Promise<string> {
 }
 
 if (!dryRun) await preflight()
+// Before the bump is pushed, so a release with nothing to say does not burn a version number.
+const generated = await notesSinceLastTag()
+const notes = values.notes ?? generated.notes
+if (!notes) fail(`no user-facing changes since ${generated.since}. Pass --notes "<text>".`)
+console.log(
+  `release notes (${values.notes ? 'from --notes' : `since ${generated.since}`}):\n${notes}\n`
+)
+
 const version = !dryRun && bump ? await bumpVersion(bump) : currentVersion()
 const tag = `v${version}`
 const state = dryRun ? 'new' : await releaseState(tag)
 if (state === 'published')
   fail(`${tag} is already published. Pass a bump (patch, prerelease, ...).`)
-if (!dryRun && state === 'new' && !notes)
-  fail('pass --notes "<text>": users read them next to the update.')
 
 const build = Math.floor(Date.now() / 1000)
 
@@ -104,8 +112,8 @@ if (dryRun) {
 if (state === 'new') {
   // --target: a draft has no tag yet, and the tag is made at publish time on whatever the default branch is then.
   const head = (await $`git rev-parse HEAD`.text()).trim()
-  await $`gh release create ${tag} --draft --target ${head} --title ${tag} --notes ${notes!}`
-} else if (notes) {
+  await $`gh release create ${tag} --draft --target ${head} --title ${tag} --notes ${notes}`
+} else {
   // before the layer step: its manifest carries the release body
   await $`gh release edit ${tag} --notes ${notes}`
 }
