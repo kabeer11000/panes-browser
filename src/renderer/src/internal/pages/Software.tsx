@@ -238,7 +238,7 @@ export function Software(): React.JSX.Element {
 
       <Group
         title="About"
-        footer="Panes checks for updates when it starts and every few hours, downloads them quietly in the background, and installs when you restart. It never restarts on its own."
+        footer="Panes checks for updates when it starts and every few hours, and downloads them quietly in the background. Usually only the part that changed comes down, and it is used the next time Panes starts. It never restarts on its own."
       >
         <Row label="Version">
           <span className="sw-val">{about?.version}</span>

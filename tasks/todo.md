@@ -57,29 +57,31 @@ Measured 2026-11-04 on the real beta.1, beta.4 and beta.5 installers:
 
 Split Panes into the shell (Electron: `Panes.exe`, Chromium files) and the app layer (`app.asar`, our code). The shell only changes when Electron does. The app layer is updated in the background as a delta, written beside the running one, and used from the next start. No installer runs for a normal release, so there is no install window to click into and nothing to wait for after Panes closes.
 
-Prior art: Electron's own `default_app` (`app.setVersion`, `app.setAppPath`, then imports the entry, so loading an app from another path is first-party), Chrome's component updater (parts updated on their own while browsing) and its binary deltas, Discord's host and modules split (closed source, behaviour only).
+Prior art: Electron's own `default_app` (loads an app's entry from another path, the same idea), Chrome's component updater (parts updated on their own while browsing) and its binary deltas, Discord's host and modules split (closed source, behaviour only).
 Copy from Chrome: download while browsing, small deltas, swap is a pointer flip, a restart brings every tab back, a waiting update applies on the next normal start.
 Skip: always-on update services or scheduled tasks (Panes checks only while running), red buttons and nags, forced restart deadlines, full re-downloads, dropping private or Tor tabs without asking, and Discord's "Checking for updates" splash: startup never waits on the network, it boots whatever is already staged.
 
 ## Steps
 
-- [ ] 1. Loader in the shipped `app.asar`, small and synchronous: apply the `PANES_USERDATA` override, read the layer pointer, and if a staged layer matches this shell, `app.setVersion`, `app.setAppPath`, and `require` its `out/main/index.js`; else run the built-in app. One file format: a layer is exactly the `app.asar` the build already makes, which also notices when it was loaded as a layer. A fresh install's `resources/app.asar` is the first delta base, byte for byte. Update the startup-order note in CLAUDE.md (loader, then `singleInstance.ts`).
-- [ ] 2. Shell identity: `process.versions.electron` plus a whole-number loader version. A layer runs only on the exact shell it was built for.
-- [ ] 3. Signed manifest per release: build number (whole number, goes up every release, so no `beta.10` vs `beta.9` string compare and an old manifest can't be replayed), shell, sha256 and size of the full layer, and deltas keyed by the sha256 of their base. Ed25519 via Node `crypto`; the loader holds a list of public keys so the key can be rotated. Private key outside the repo; losing it means updates fall back to the installer only.
-- [ ] 4. Apply, in `UpdateManager`: fetch the manifest (plain GET of `releases/latest/download/...`, no range requests), check the signature and build number, download the delta for our base (or the 3.3 MB full layer when there is none or anything fails), decode, check the sha256, write `.partial`, rename, then write the pointer atomically. All `.asar` file work through `original-fs`. Done while browsing; the Software page says "ready, used next time Panes starts".
-- [ ] 5. Gate electron-updater: `autoDownload` off; download the installer only when the manifest's shell differs from ours (Electron upgrades). Every release still publishes `Panes-setup.exe` and `latest.yml` for new installs and the website link.
-- [ ] 6. Crash loops: the loader counts boots per layer, the app resets the count after its first window paints; two failed boots fall back to the previous layer, then to the built-in app, and the Software page says so.
-- [ ] 7. Clean-up: keep the running layer and the previous one, never delete the running one (its files stay open, `adblockWorker` starts from `__dirname`). Layers live under the local app data folder (not roaming), under the override when `PANES_USERDATA` is set.
-- [ ] 8. Release script (`scripts/release-layer.ts`, run by `release:win`): zstd deltas from the last few releases' layers (about 8 s each), sign the manifest, upload layer, deltas, then the manifest last (see the upload-race note in `tasks/lessons.md`).
-- [ ] 9. What the user sees: a quiet "Restart to update" on the Software page, no deadline. Restart is a plain relaunch (measured 1.3 to 2.4 s) that brings back every window, space, split and tab even with session restore off. Private or Tor tabs open: one line first, "2 private tabs will close", Restart or Later. Quitting normally just means the next start is the new version.
-- [ ] 10. Electron upgrades (rare) still use the installer. That path gets the earlier fixes: no progress window or promise when quitting, the progress window closes only once the new Panes is up, a launch guard before the single-instance lock, `customCheckAppRunning` without PowerShell probes and fixed sleeps.
+Built 2026-11-04 (commits from `feat: rules for updating Panes' own code` on):
+- [x] Loader (`src/main/loader.ts`, package.json `main`): applies the `PANES_USERDATA` override, reads `app-layers/state.json` and `require`s the chosen layer's `out/main/index.js` synchronously, else the installed app. No `app.setAppPath`/`app.setVersion` (internal, not in Electron's typings): the running code reads its own version from the package.json beside it (`appVersion()`), and knows it is a layer from where `__dirname` is.
+- [x] Shell identity: Electron version plus `LOADER_VERSION`; a layer only runs on the shell it was built for.
+- [x] Manifest checks (`parseManifest`): build number, shell, sha256 and size, plain file names only. No signature (owner's call 2026-11-04): anyone who can upload to the GitHub release can ship code that Panes runs.
+- [x] Apply (`src/main/layers.ts`): zstd delta against a layer on hand (staged, running or installed, picked by sha256), else the whole layer gzipped (gzip because Node marks zstd experimental); sha256 and size checked, `.partial` then rename, state written atomically, all `.asar` work through `original-fs`.
+- [x] electron-updater is asked only when the manifest's shell differs. A latest release with no `app-layer.json` means no update, not a 123 MB installer download.
+- [x] Crash loops: a start is counted after the single-instance lock, cleared when the window's page loads; two failed starts, or a layer that throws while loading, mark the build bad and Panes runs the previous layer, else the installed app. Silent: the Software page does not say it happened.
+- [x] Clean-up keeps the staged, previous and running layers. Layers live in the data folder (`%APPDATA%\Panes\app-layers`, roaming, like Electron's caches already are).
+- [x] Release (`bun run release:win` = `scripts/release.ts`): stamps `panesBuild`, builds, publishes the installer, then `scripts/release-layer.ts --publish` (gzip layer, deltas from the last 3 published layers on this shell, manifest last). `asarUnpack` removed so the layer is one file.
+- [x] Restart to update relaunches and always brings the tabs back (a one-shot flag, whatever the startup setting). Quitting with an update ready no longer shows the progress window.
 
-## Check before calling it done
+Tested end to end on a scratch `electron-builder --dir` build (`PANES_USERDATA` and `PANES_LAYER_FEED` in scratch, installed Panes untouched): Panes fetched the 3 KB delta (not the 5.2 MB layer), Restart to update to the new window loaded in 1.04 s, the open tab came back, the Software page showed the new version, the start count cleared. A layer file that is not an archive, and a layer at 2 failed starts, were both marked bad and Panes came up on the previous layer.
 
-- Renderer storage across the layer path change: `boot.js` keeps the theme in `localStorage` under `file://`, which Chromium treats as one origin, so it should survive. Confirm on the first start of a new layer (no theme flash). If anything is lost, serve the windows through the existing `panes://` handler, which has stable URLs.
-- End to end in scratch, without touching the installed Panes: run `win-unpacked` with `PANES_USERDATA` in scratch and a local manifest, apply a real delta, restart, and time quit to new window.
-- Unit tests in `src/shared`: manifest checks (signature, build number, shell match), delta selection by base hash, crash-loop fallback.
-- zstd in Node is still young; the full-layer fallback covers a decode failure.
+Still to do:
+- [ ] Private or Tor tabs open on Restart to update: one line first ("2 private tabs will close"), Restart or Later. Today they close without asking.
+- [ ] Say on the Software page when a new version was rolled back.
+- [ ] Installer path (new Electron only): launch guard before the single-instance lock, progress window closes only once the new Panes is up, `customCheckAppRunning` without PowerShell probes and fixed sleeps.
+- [ ] Signing the manifest (ed25519, key outside the repo) when wanted.
+- [ ] First real release with layers: the release after it is the first one existing users get as a delta.
 
 # Small cards
 
