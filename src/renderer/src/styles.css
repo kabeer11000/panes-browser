@@ -4040,6 +4040,12 @@ kbd {
   transition: none;
 }
 /* the out-bar sits above the page area, where the search popover lives: its own address text would show over the popover's input */
+.search-drop.bar-over .strip {
+  pointer-events: none; /* its empty middle sits over the popover's input and would take the clicks */
+}
+.search-drop.bar-over .strip .strip-side {
+  pointer-events: auto;
+}
 .search-drop.bar-over .strip .address {
   visibility: hidden;
 }

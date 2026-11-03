@@ -173,15 +173,13 @@ function App(): React.JSX.Element {
         const bar = barEl?.getBoundingClientRect()
         const radius = barEl ? parseFloat(getComputedStyle(barEl).borderTopLeftRadius) || 8 : 8
         const stage = document.querySelector('.stage')?.getBoundingClientRect()
-        // the popover lives inside the page area, which the out-bar shifts down: measure from where it started
-        const dy = getSlideY()
         setAnchor(
           bar
-            ? { left: bar.left, top: bar.top - dy, width: bar.width, height: bar.height, radius }
+            ? { left: bar.left, top: bar.top, width: bar.width, height: bar.height, radius }
             : stage
               ? {
                   left: stage.left + Math.max(0, (stage.width - 600) / 2),
-                  top: stage.top - dy + 6,
+                  top: stage.top + 6,
                   width: Math.min(600, stage.width),
                   height: 40,
                   radius

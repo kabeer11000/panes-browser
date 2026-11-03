@@ -206,7 +206,8 @@ export function SearchPalette({
         const left = anchor.width > width ? anchor.left + (anchor.width - width) / 2 : anchor.left
         return {
           left: Math.max(EDGE, Math.min(left, window.innerWidth - width - EDGE)),
-          top: anchor.top,
+          // the popover sits in the page area, which the out-bar shifts down by --slide-y: take that back out, live
+          top: `calc(${anchor.top}px - var(--slide-y, 0px))`,
           width,
           '--pal-r': `${anchor.radius}px`
         } as React.CSSProperties
