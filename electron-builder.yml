@@ -17,8 +17,17 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # adblock-rs is built from source on install: only js/index.js, js/index.node and package.json are needed to run it,
+  # not its Rust sources or the ~200 MB cargo target folder.
+  - '!node_modules/adblock-rs/{target,src,benches,fuzz,data}/**'
+  - '!node_modules/adblock-rs/js/{src,test}/**'
+  - '!node_modules/adblock-rs/{Cargo.toml,Cargo.lock,rust-toolchain.toml,rustfmt.toml}'
 # Nothing is unpacked from app.asar: an app layer update (src/shared/layers.ts) replaces app.asar alone, so a file kept
-# beside it would stay the old one. Electron reads the window icon from inside the archive.
+# beside it would stay the old one. Electron reads the window icon from inside the archive, and loads adblock-rs's
+# native module from it too (copying it to a temporary file first), so electron-builder's automatic unpacking of
+# native modules is off.
+asar:
+  smartUnpack: false
 win:
   executableName: Panes
   target:
