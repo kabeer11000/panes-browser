@@ -20,11 +20,11 @@ const run = (code: string): void => {
 const start = ipcRenderer.sendSync('youtube:start') as YouTubeStart | null
 
 if (start) {
-  // Ours first (the baseline that does not depend on the lists), then the lists' scriptlets.
-  // A random event name, so the page cannot easily find or fake the channel updates arrive on.
+  // The baseline that does not depend on the lists; their scriptlets come from the ad blocker's own preload
+  // (src/preload/adblock.ts), which runs in every frame. A random event name, so the page cannot easily find
+  // or fake the channel updates arrive on.
   const channel = `panes-yt-${Math.random().toString(36).slice(2)}`
   run(youtubeScript(start.cfg, channel))
-  for (const script of start.scriptlets) run(script)
 
   // An author sheet, not a user one: Electron cannot take a user sheet back out (tested on 44), and a setting
   // switched off has to show what it hid. Its rules are all `!important`: only an `!important` rule of

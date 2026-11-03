@@ -56,8 +56,7 @@ export class YouTube {
     if (!frame || !isYouTubeUrl(frame.url)) return null
     const cfg = this.config(frame)
     if (!cfg) return null
-    const scriptlets = cfg.ads && cfg.cosmetic ? this.adblock.youtubeScriptlets(frame.url) : []
-    return { cfg, scriptlets }
+    return { cfg }
   }
 
   /** After a settings change: tell every YouTube frame already running what it should do now. */

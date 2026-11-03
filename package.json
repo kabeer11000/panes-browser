@@ -20,13 +20,14 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux"
   },
+  "trustedDependencies": ["adblock-rs"],
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "@ghostery/adblocker": "^2.20.3",
-    "@ghostery/adblocker-electron": "^2.20.3",
+    "adblock-rs": "^0.13.5",
     "electron-updater": "^6.8.11",
-    "motion": "^14.7.1"
+    "motion": "^14.7.1",
+    "tldts": "^7.4.19"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.1",

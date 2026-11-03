@@ -177,16 +177,14 @@ function createWindow(): void {
   const passwords = new PasswordStore()
   registerPasswordIpc(win, passwords)
   const adblock = new Adblock(tabSession)
-  void adblock.attach(privateSession)
-  void adblock.set(settings.get().adblock)
-  adblock.setOffSites(settings.get().adblockOffSites, settings.get().adblockCosmeticOffSites)
+  adblock.attach(privateSession)
+  adblock.configure(settings.get())
   // YouTube's in-page ad defences and options go wherever the blocker does (not into Tor tabs).
   const youtube = new YouTube(settings, adblock)
   youtube.attach(tabSession)
   youtube.attach(privateSession)
   settings.onChange((s) => {
-    void adblock.set(s.adblock)
-    adblock.setOffSites(s.adblockOffSites, s.adblockCosmeticOffSites)
+    adblock.configure(s)
     youtube.update()
     tabs.applyDarkening()
     tabs.sweepMemory() // a stricter memory setting applies at once, not at the next sweep
@@ -412,7 +410,10 @@ function createWindow(): void {
           } else dwellSince = 0
         } else if (side.byHover) {
           dwellSince = 0
-          if (!inside || x > side.widthPx + SIDE_REACH_PX) {
+          // A space editor (or anything else) open over the page keeps the sidebar out: the pointer wandering off
+          // it, say to drag the colour wheel or look at the page, must not shut the sidebar and the editor with it.
+          if (tabs.overlayOpen()) outSince = 0
+          else if (!inside || x > side.widthPx + SIDE_REACH_PX) {
             outSince ||= Date.now()
             if (Date.now() - outSince >= SIDE_LEAVE_MS) {
               outSince = 0

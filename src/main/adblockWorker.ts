@@ -1,14 +1,31 @@
-import { parentPort } from 'node:worker_threads'
-import { FiltersEngine } from '@ghostery/adblocker'
-import { ADBLOCK_ENV, RESOURCES_URL, filterLists } from '@shared/adblock'
+import { parentPort, workerData } from 'node:worker_threads'
+import { Engine, FilterSet } from 'adblock-rs'
+import {
+  CATALOG_URL,
+  RESOURCES_URL,
+  pickLists,
+  preprocess,
+  type CatalogEntry
+} from '@shared/adblock'
 
 /**
- * Builds the ad blocking engine in a worker thread and posts it back serialized (or an error message).
+ * Builds the two ad blocking engines in a worker thread and posts them back serialized (or an error message).
  *
- * Parsing some 150,000 rules takes seconds of CPU and a few hundred MB of short-lived strings. Doing it here
- * keeps the main process (and so every window) responsive, and all of that memory goes away with the
- * thread: the main process only ever holds the finished engine.
+ * `all` holds every list; `firstParty` only the lists that also apply to a page's own requests in Standard
+ * mode (see `decide` in src/shared/adblock.ts). Parsing some 150,000 rules takes seconds of CPU and a few
+ * hundred MB of short-lived strings; doing it here keeps every window responsive, and that memory goes away
+ * with the thread.
+ *
+ * workerData.fallbackResources: the resources.json bundled with the app, used when the published one cannot
+ * be fetched.
  */
+
+export interface BuiltEngines {
+  all: ArrayBuffer
+  firstParty: ArrayBuffer
+  /** The resources the engines were built with, so the main process can give them to the loaded engines. */
+  resources: string
+}
 
 const TIMEOUT_MS = 60_000
 
@@ -19,26 +36,37 @@ async function text(url: string): Promise<string> {
   return res.text()
 }
 
-async function build(): Promise<Uint8Array> {
-  const lists = filterLists(new Date().getFullYear())
+async function build(fallbackResources: string): Promise<BuiltEngines> {
+  const lists = pickLists(JSON.parse(await text(CATALOG_URL)) as CatalogEntry[])
   const [texts, resources] = await Promise.all([
-    Promise.all(
-      lists.map((list) =>
-        text(list.url).catch((err: unknown) => {
-          if (list.optional) return ''
-          throw err
-        })
-      )
-    ),
-    text(RESOURCES_URL)
+    Promise.all(lists.map((l) => text(l.url))),
+    text(RESOURCES_URL).catch((err: unknown) => {
+      console.warn('[adblock] using bundled resources:', err)
+      return fallbackResources
+    })
   ])
-  const engine = FiltersEngine.parse(texts.join('\n'), { loadPreprocessors: true })
-  engine.updateEnv(new Map(ADBLOCK_ENV))
-  engine.updateResources(resources, String(resources.length))
-  return engine.serialize()
+  const parsed = JSON.parse(resources) as unknown[]
+
+  const all = new FilterSet()
+  const firstParty = new FilterSet()
+  lists.forEach((list, i) => {
+    const rules = preprocess(texts[i])
+    const opts = { permissions: list.permissions }
+    all.addFilters(rules, opts)
+    if (list.firstParty) firstParty.addFilters(rules, opts)
+  })
+
+  const serialize = (set: FilterSet): ArrayBuffer => {
+    const engine = new Engine(set)
+    engine.useResources(parsed)
+    return engine.serialize()
+  }
+  return { all: serialize(all), firstParty: serialize(firstParty), resources }
 }
 
-build().then(
-  (data) => parentPort?.postMessage(data, [data.buffer as ArrayBuffer]),
+build(
+  String((workerData as { fallbackResources?: string } | null)?.fallbackResources ?? '[]')
+).then(
+  (built) => parentPort?.postMessage(built, [built.all, built.firstParty]),
   (err: unknown) => parentPort?.postMessage(String(err))
 )

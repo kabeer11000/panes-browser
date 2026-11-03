@@ -1,0 +1,56 @@
+# Rebuilds the ad blocker's scriptlets and redirect files every day from uBlock Origin's latest release and
+# publishes them on the `adblock-resources` release, where Panes downloads them (src/shared/adblock.ts
+# RESOURCES_URL). Keeps the blocker current even when nobody is releasing Panes.
+name: adblock resources
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write # the release asset
+  actions: write # re-enabling this workflow, below
+
+concurrency:
+  group: adblock-resources
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # GitHub pauses scheduled workflows after 60 days without repository activity. Enabling it again on every
+      # run resets that clock, so it keeps running for as long as it runs.
+      - name: Keep this schedule alive
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/adblock-resources.yml/enable"
+
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Check out uBlock Origin's latest release
+        run: |
+          tag=$(gh release view --repo gorhill/uBlock --json tagName -q .tagName)
+          echo "uBlock Origin $tag"
+          git clone --depth 1 --branch "$tag" https://github.com/gorhill/uBlock.git "$RUNNER_TEMP/uBlock"
+
+      # Rust is on the runner already; adblock-rs builds itself from source on install.
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Build resources.json
+        run: bun scripts/adblock-resources.ts "$RUNNER_TEMP/uBlock" "$RUNNER_TEMP/resources.json"
+
+      - name: Publish
+        run: |
+          # A pre-release that is never "latest": releases/latest (the installer link, the updater) must stay on
+          # Panes' own releases. Uploading an asset later does not change either flag.
+          gh release view adblock-resources >/dev/null 2>&1 || gh release create adblock-resources \
+            --title "Ad blocker resources" \
+            --notes "Rebuilt daily from uBlock Origin's latest release. Panes downloads resources.json from here." \
+            --prerelease --latest=false
+          gh release upload adblock-resources "$RUNNER_TEMP/resources.json" --clobber

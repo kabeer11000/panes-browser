@@ -185,8 +185,6 @@ export function youtubeConfig(
 /** What the preload asks main for when a YouTube frame starts. */
 export interface YouTubeStart {
   cfg: YouTubeConfig
-  /** The filter lists' own scriptlets for the frame (uBlock Origin's YouTube fixes), run at document start. */
-  scriptlets: string[]
 }
 
 // ---- styles ----
