@@ -355,6 +355,10 @@ function createWindow(): void {
       if (wanted) {
         outSince = 0
         setPeek(true)
+      } else if (peeking && tabs.overlayOpen()) {
+        // A space editor dropped from the bar (or anything else open over the page) keeps it out: the pointer
+        // moving down into the editor must not fade the bar, and the editor inside it, away.
+        outSince = 0
       } else if (peeking) {
         outSince ||= Date.now()
         if (Date.now() - outSince >= HIDE_DELAY_MS) setPeek(false)
