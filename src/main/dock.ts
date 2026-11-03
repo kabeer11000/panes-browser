@@ -221,7 +221,9 @@ export function registerDock(
     if (fromBin(e) && (mode === 'peek' || mode === 'out')) dock.setMode(mode)
   })
   ipcMain.on('dock:toggle', (e) => {
-    if (fromBin(e)) dock.sendOverlay('dock:toggle')
+    if (!fromBin(e)) return
+    dock.sendBoth('downloads:state', downloads.view()) // a file may have gone since the last change
+    dock.sendOverlay('dock:toggle')
   })
   ipcMain.on('dock:report', (e, state: unknown) => {
     const s = state as Partial<DockOverlayState> | null
