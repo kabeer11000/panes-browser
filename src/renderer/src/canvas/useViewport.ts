@@ -1,0 +1,152 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import type { Viewport } from '@shared/ai/canvas'
+
+export const MIN_K = 0.08
+export const MAX_K = 2.5
+const clampK = (k: number): number => Math.min(MAX_K, Math.max(MIN_K, k))
+const ease = (t: number): number => 1 - Math.pow(1 - t, 3)
+
+/**
+ * The board's pan and zoom. The view lives in a ref and is written straight to the DOM (one transform on the board
+ * layer, and three custom properties on the root for the dotted background and label scale), so a pan never
+ * re-renders React. `onMove` is told after every change, throttled to one call per frame.
+ */
+export function useViewport(
+  initial: Viewport,
+  onMove: (v: Viewport) => void
+): {
+  root: React.RefObject<HTMLDivElement | null>
+  layer: React.RefObject<HTMLDivElement | null>
+  get: () => Viewport
+  set: (v: Viewport) => void
+  panBy: (dx: number, dy: number) => void
+  zoomAt: (factor: number, cx: number, cy: number) => void
+  animateTo: (v: Viewport, ms?: number) => void
+  fling: (vx: number, vy: number) => void
+  stop: () => void
+} {
+  const root = useRef<HTMLDivElement>(null)
+  const layer = useRef<HTMLDivElement>(null)
+  const view = useRef<Viewport>(initial)
+  const raf = useRef(0)
+  const anim = useRef(0)
+  const moved = useRef(onMove)
+  useEffect(() => {
+    moved.current = onMove
+  }, [onMove])
+  const pending = useRef(false)
+  const idle = useRef(0)
+
+  const paint = useCallback((): void => {
+    const v = view.current
+    const l = layer.current
+    if (l) l.style.transform = `translate3d(${v.x}px, ${v.y}px, 0) scale(${v.k})`
+    const r = root.current
+    if (r) {
+      // the board is promoted to its own layer only while it moves
+      r.classList.add('moving')
+      window.clearTimeout(idle.current)
+      idle.current = window.setTimeout(() => r.classList.remove('moving'), 180)
+      // whole pixels: dots that land between pixels shimmer as the board moves
+      r.style.setProperty('--vx', `${Math.round(v.x)}px`)
+      r.style.setProperty('--vy', `${Math.round(v.y)}px`)
+      r.style.setProperty('--vk', String(v.k))
+      // the fine grid keeps between 12 and 48 screen px apart (steps of 4, as the coarse grid is 4 of it), and
+      // fades out as it gets dense, so the density on screen stays even and nothing pops or moires
+      let ds = 24 * v.k
+      while (ds < 12) ds *= 4
+      while (ds >= 48) ds /= 4
+      r.style.setProperty('--ds', `${ds}px`)
+      r.style.setProperty('--ds2', `${ds * 4}px`)
+      r.style.setProperty('--da', String(Math.min(1, Math.max(0, (ds - 10) / 14)).toFixed(3)))
+      r.style.setProperty('--hs', String(Math.min(2.6, Math.max(1, 0.62 / v.k))))
+    }
+    if (!pending.current) {
+      pending.current = true
+      requestAnimationFrame(() => {
+        pending.current = false
+        moved.current(view.current)
+      })
+    }
+  }, [])
+
+  const stop = useCallback((): void => {
+    cancelAnimationFrame(anim.current)
+    cancelAnimationFrame(raf.current)
+  }, [])
+
+  const set = useCallback(
+    (v: Viewport): void => {
+      view.current = { x: v.x, y: v.y, k: clampK(v.k) }
+      paint()
+    },
+    [paint]
+  )
+
+  const panBy = useCallback(
+    (dx: number, dy: number): void =>
+      set({ ...view.current, x: view.current.x + dx, y: view.current.y + dy }),
+    [set]
+  )
+
+  const zoomAt = useCallback(
+    (factor: number, cx: number, cy: number): void => {
+      const v = view.current
+      const k = clampK(v.k * factor)
+      const f = k / v.k
+      set({ k, x: cx - (cx - v.x) * f, y: cy - (cy - v.y) * f })
+    },
+    [set]
+  )
+
+  const animateTo = useCallback(
+    (target: Viewport, ms = 360): void => {
+      stop()
+      const from = { ...view.current }
+      const to = { ...target, k: clampK(target.k) }
+      const t0 = performance.now()
+      const step = (now: number): void => {
+        const t = Math.min(1, (now - t0) / ms)
+        const e = ease(t)
+        // zoom along a log scale so a big zoom feels even
+        const k = from.k * Math.pow(to.k / from.k, e)
+        set({ k, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e })
+        if (t < 1) anim.current = requestAnimationFrame(step)
+      }
+      anim.current = requestAnimationFrame(step)
+    },
+    [set, stop]
+  )
+
+  /** Carry on moving after a drag let go, slowing down smoothly. Velocity in px per ms. */
+  const fling = useCallback(
+    (vx: number, vy: number): void => {
+      stop()
+      if (Math.hypot(vx, vy) < 0.08) return
+      let last = performance.now()
+      let x = vx
+      let y = vy
+      const step = (now: number): void => {
+        const dt = Math.min(48, now - last)
+        last = now
+        const decay = Math.exp(-dt / 320)
+        x *= decay
+        y *= decay
+        panBy(x * dt, y * dt)
+        if (Math.hypot(x, y) > 0.02) raf.current = requestAnimationFrame(step)
+      }
+      raf.current = requestAnimationFrame(step)
+    },
+    [panBy, stop]
+  )
+
+  useEffect(() => {
+    paint()
+    return stop
+  }, [paint, stop])
+
+  return useMemo(
+    () => ({ root, layer, get: () => view.current, set, panBy, zoomAt, animateTo, fling, stop }),
+    [set, panBy, zoomAt, animateTo, fling, stop]
+  )
+}
