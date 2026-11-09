@@ -1,4 +1,5 @@
 import type { SearchEngineId, Settings } from './types'
+import { DEFAULT_AI_SETTINGS } from './ai/types'
 import { YOUTUBE_DEFAULTS } from './youtube'
 
 export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; url: string }> = {
@@ -21,6 +22,7 @@ export const DEFAULT_SETTINGS: Settings = {
   torSnowflake: false,
   downloadAsk: false,
   downloadDir: null,
+  aiModelsDir: null,
   mutedSites: [],
   siteZoom: {},
   startup: 'newtab',
@@ -51,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxLoadedTabs: 0,
   unloadOtherSpaces: false,
   neverUnloadSites: [],
+  ai: DEFAULT_AI_SETTINGS,
   ...YOUTUBE_DEFAULTS
 }
 

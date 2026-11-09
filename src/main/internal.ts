@@ -56,7 +56,12 @@ export function serveInternalPages(session: Session): void {
     const url = new URL(req.url)
     // panes://error (a failed load) and panes://welcome (first run) have entries of their own, not the settings shell
     const own = STANDALONE[url.hostname]
-    if (!own && !(INTERNAL_PAGES as readonly string[]).includes(url.hostname)) {
+    // panes://reader is drawn by the same entry as the settings pages (see internal/main.tsx)
+    if (
+      !own &&
+      url.hostname !== 'reader' &&
+      !(INTERNAL_PAGES as readonly string[]).includes(url.hostname)
+    ) {
       return new Response('Not found', { status: 404 })
     }
     const entry = own ?? '/internal.html'
@@ -114,17 +119,20 @@ export function notifyInternalPages(channel: string): void {
   }
 }
 
+/** An IPC handler for panes:// pages: it refuses callers that are not on the panes:// scheme. */
+export function handleInternal<A extends unknown[], R>(
+  channel: string,
+  fn: (...args: A) => R | Promise<R>
+): void {
+  ipcMain.handle(channel, (e: IpcMainInvokeEvent, ...args: unknown[]) => {
+    if (!e.senderFrame?.url.startsWith('panes://')) throw new Error('forbidden')
+    return fn(...(args as A))
+  })
+}
+
 /** IPC for panes:// pages. Every handler refuses callers that are not on the panes:// scheme. */
 export function registerInternalIpc(d: Deps): void {
-  const handle = <A extends unknown[], R>(
-    channel: string,
-    fn: (...args: A) => R | Promise<R>
-  ): void => {
-    ipcMain.handle(channel, (e: IpcMainInvokeEvent, ...args: unknown[]) => {
-      if (!e.senderFrame?.url.startsWith('panes://')) throw new Error('forbidden')
-      return fn(...(args as A))
-    })
-  }
+  const handle = handleInternal
 
   handle('int:update-state', () => d.updater.get())
   handle('int:update-check', () => d.updater.check())

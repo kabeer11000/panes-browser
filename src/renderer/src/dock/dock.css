@@ -30,7 +30,7 @@ body {
   height: 100%;
   color: var(--fg);
   filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.22));
-  transition: transform 0.3s var(--ease);
+  transition: transform var(--dur-slow) var(--ease);
   transform-origin: 50% 90%;
 }
 /* the bin is out above the corner the pointer rests in: its hit area reaches down and right to the window's edge (the
@@ -89,7 +89,7 @@ body {
 .dk-level {
   fill: var(--accent);
   opacity: 0.55;
-  transition: y 0.3s var(--ease);
+  transition: y var(--dur-slow) var(--ease);
 }
 .dk-cards {
   position: absolute;
@@ -105,13 +105,13 @@ body {
   margin-left: -12px;
   display: grid;
   place-items: center;
-  border-radius: 4px;
+  border-radius: var(--r-1);
   background: color-mix(in srgb, var(--accent) 20%, white) center / cover no-repeat;
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 0.14),
     0 1px 3px rgb(0 0 0 / 0.25);
   transform-origin: 50% 100%;
-  transition: transform 0.32s var(--ease);
+  transition: transform var(--dur-slow) var(--ease);
 }
 .dk-card i {
   color: rgb(0 0 0 / 0.5);
@@ -151,7 +151,7 @@ body {
   height: 48px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--r-3);
   background: var(--popover-bg);
   color: var(--accent);
   box-shadow:
@@ -160,7 +160,7 @@ body {
   pointer-events: none;
 }
 .dk-ghost b {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -181,7 +181,7 @@ body {
   align-items: center;
   gap: 4px;
   padding: 0 8px 0 6px;
-  border-radius: 14px;
+  border-radius: var(--r-5);
   background: var(--popover-bg);
   box-shadow:
     inset 0 0 0 1px var(--border),
@@ -203,7 +203,7 @@ body {
   align-items: center;
   gap: 10px;
   padding: 0 4px;
-  border-radius: 10px;
+  border-radius: var(--r-4);
   text-align: left;
   color: var(--fg);
 }
@@ -224,17 +224,23 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-m);
   font-weight: 600;
 }
 .dk-row-meta {
+  overflow: hidden;
   color: var(--fg-dim);
-  font-size: 11.5px;
+  font-size: var(--fs-s);
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dk-row-meta.better {
+  color: var(--accent);
 }
 .dk-face {
   flex: none;
-  border-radius: 8px;
+  border-radius: var(--r-3);
   background: center / cover no-repeat;
   box-shadow: 0 0 0 1px var(--border);
 }
@@ -251,7 +257,7 @@ body {
   display: flex;
   gap: 2px;
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--dur-fast);
 }
 .dk-row:hover .dk-row-acts,
 .dk-row:focus-within .dk-row-acts {
@@ -262,7 +268,7 @@ body {
   height: 24px;
   display: grid;
   place-items: center;
-  border-radius: 7px;
+  border-radius: var(--r-3);
   color: var(--fg-dim);
 }
 .dk-row-acts button:hover {
@@ -278,5 +284,5 @@ body {
   border-radius: 2px;
   background: var(--accent);
   transform-origin: left;
-  transition: transform 0.25s var(--ease);
+  transition: transform var(--dur) var(--ease);
 }

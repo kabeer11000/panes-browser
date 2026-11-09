@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { InternalApi } from '@shared/types'
 import { installAutofill } from './autofill'
+import { installSelectionWatch } from './selection'
 
 // This script is attached to every tab; it only exposes anything to panes:// pages.
 if (location.protocol === 'panes:') {
@@ -29,6 +30,31 @@ if (location.protocol === 'panes:') {
     downloadsList: () => ipcRenderer.invoke('int:downloads-list'),
     downloadAction: (id, action) => ipcRenderer.invoke('int:download-action', id, action),
     downloadPreviews: (ids) => ipcRenderer.invoke('int:download-previews', ids),
+    readerGet: (key) => ipcRenderer.invoke('int:reader-get', key),
+    readerExit: () => ipcRenderer.invoke('int:reader-exit'),
+    readerToCanvas: (key) => ipcRenderer.invoke('int:reader-canvas', key),
+    aiStatus: () => ipcRenderer.invoke('int:ai-status'),
+    aiDownload: () => ipcRenderer.invoke('int:ai-download'),
+    aiCancelDownload: () => ipcRenderer.invoke('int:ai-cancel'),
+    aiRetry: () => ipcRenderer.invoke('int:ai-retry'),
+    aiRemoveLocal: () => ipcRenderer.invoke('int:ai-remove-local'),
+    aiRemoveData: () => ipcRenderer.invoke('int:ai-remove-data'),
+    aiOpenModelsDir: () => ipcRenderer.invoke('int:ai-models-open'),
+    aiPickModelsDir: () => ipcRenderer.invoke('int:ai-models-pick'),
+    aiResetModelsDir: () => ipcRenderer.invoke('int:ai-models-reset'),
+    aiSetKey: (provider, key) => ipcRenderer.invoke('int:ai-set-key', provider, key),
+    aiRemoveKey: (provider) => ipcRenderer.invoke('int:ai-remove-key', provider),
+    aiSignIn: (provider) => ipcRenderer.invoke('int:ai-signin', provider),
+    aiOpenGeminiKeyPage: () => ipcRenderer.invoke('int:ai-gemini-key-page'),
+    aiCancelSignIn: () => ipcRenderer.invoke('int:ai-signin-cancel'),
+    aiSignOut: (provider) => ipcRenderer.invoke('int:ai-signout', provider),
+    aiChatgptModels: () => ipcRenderer.invoke('int:ai-chatgpt-models'),
+    aiClearChats: () => ipcRenderer.invoke('int:ai-chats-clear'),
+    onAiChanged: (cb) => {
+      const listener = (): void => cb()
+      ipcRenderer.on('int:ai-changed', listener)
+      return () => ipcRenderer.removeListener('int:ai-changed', listener)
+    },
     getSettings: () => ipcRenderer.invoke('int:settings-get'),
     setSettings: (patch) => ipcRenderer.invoke('int:settings-set', patch),
     permissionsList: () => ipcRenderer.invoke('int:perms-list'),
@@ -73,4 +99,5 @@ if (location.protocol === 'panes:') {
   contextBridge.exposeInMainWorld('panesInternal', api)
 } else {
   installAutofill()
+  installSelectionWatch()
 }

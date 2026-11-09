@@ -5,15 +5,27 @@ import { NONE, click, type Selection } from '@shared/selection'
 import { stackEntries } from '@shared/stack'
 import { KIND_THEME, WELCOME_THEME, isWelcome, kindOf } from '@shared/tabkind'
 import type { UpdateState } from '@shared/update'
+import { ChatPanel, type ChatDraft } from './components/chat/ChatPanel'
+import { loadChatWidth } from './components/chat/width'
 import { Panes } from './components/Panes'
 import { SearchPalette, type Anchor } from './components/SearchPalette'
+import type { CanvasSearchRequest } from './canvas/askSearch'
 import { Sidebar } from './components/Sidebar'
 import { TabStack } from './components/TabStack'
 import { TaskView } from './components/TaskView'
+import { Canvas } from './canvas/Canvas'
 import { AddressBar } from './components/AddressBar'
 import { SharingBar } from './components/SharingBar'
 import { FindBar } from './components/FindBar'
-import { FeedbackIcon, GridIcon, MoreIcon, SidebarIcon, SplitIcon } from './components/icons'
+import {
+  CanvasIcon,
+  ChatIcon,
+  FeedbackIcon,
+  GridIcon,
+  MoreIcon,
+  SidebarIcon,
+  SplitIcon
+} from './components/icons'
 import { NavButtons } from './components/NavButtons'
 import { StatusChips } from './components/StatusChips'
 import { HorizontalTabs } from './components/HorizontalTabs'
@@ -33,7 +45,7 @@ import type { LoginEdits, PasswordPrompt, Settings } from '@shared/types'
 import { chromeVars } from '@shared/color'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 
-type Mode = 'grid' | 'stack' | 'search' | null
+type Mode = 'grid' | 'stack' | 'search' | 'canvas' | null
 
 /** The all-tabs grid is switched off for now: no button, shortcut or palette entry opens it. */
 const GRID_VIEW = false
@@ -79,6 +91,85 @@ function App(): React.JSX.Element {
   const [mode, setModeState] = useState<Mode>(null)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [findKey, setFindKey] = useState<number | null>(null)
+  // The chat panel: docked beside the page, so the page views are laid out smaller while it is open.
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatWidth, setChatWidth] = useState(loadChatWidth)
+  const [chatResizing, setChatResizing] = useState(false)
+  const [chatFocus, setChatFocus] = useState(0)
+  const [chatDraft, setChatDraft] = useState<ChatDraft | null>(null) // a selection to ask about, put in the box
+  // the chat panel stays shut on the canvas board (it has its own Ask bar), whatever asks for it
+  const inCanvasRef = useRef(false)
+  const toggleChat = useCallback(() => {
+    if (inCanvasRef.current) return
+    setChatOpen((o) => !o)
+    setChatDraft(null)
+    setChatFocus((k) => k + 1)
+  }, [])
+  // Canvas is immersive: the chat panel and the sidebar fold away and the top bar hides (the window edges bring
+  // them back for a moment), and leaving the canvas puts every one of them back as it was.
+  // Any switch to a tab while canvas is shown (sidebar, Ctrl+Tab, Ctrl+1..9, the command bar, a link) leaves canvas
+  // for that tab with the exit transition.
+  const canvasTab = useRef<number | null>(null)
+  // switching space while on the board shows that space's board: the tab change that comes with it is not a pick
+  const spaceSwitchAt = useRef(0)
+  const lastSpace = useRef(activeSpaceId)
+  useEffect(() => {
+    if (lastSpace.current !== activeSpaceId) spaceSwitchAt.current = performance.now()
+    lastSpace.current = activeSpaceId
+  }, [activeSpaceId])
+  useEffect(() => {
+    if (mode !== 'canvas') {
+      canvasTab.current = null
+      return
+    }
+    if (canvasTab.current === null) canvasTab.current = activeId
+    else if (activeId !== null && performance.now() - spaceSwitchAt.current < 1500)
+      canvasTab.current = activeId
+    else if (activeId !== null && activeId !== canvasTab.current) {
+      canvasTab.current = activeId
+      window.dispatchEvent(new CustomEvent('panes:canvas-exit', { detail: { pick: activeId } }))
+    }
+  }, [mode, activeId])
+  useEffect(() => {
+    inCanvasRef.current = mode === 'canvas'
+  }, [mode])
+  const beforeCanvas = useRef<{ chat: boolean; sidebar: boolean } | null>(null)
+  const chatOpenRef = useRef(false)
+  const sidebarOpenRef = useRef(true)
+  useEffect(() => {
+    chatOpenRef.current = chatOpen
+    sidebarOpenRef.current = sidebarOpen
+  }, [chatOpen, sidebarOpen])
+  useEffect(() => {
+    if (mode === 'canvas') {
+      if (beforeCanvas.current) return
+      beforeCanvas.current = { chat: chatOpenRef.current, sidebar: sidebarOpenRef.current }
+      setChatOpen(false)
+      setSidebar(false)
+    } else if (beforeCanvas.current) {
+      const was = beforeCanvas.current
+      beforeCanvas.current = null
+      setChatOpen(was.chat)
+      setSidebar(was.sidebar)
+    }
+  }, [mode, setSidebar])
+  // "Ask AI about ..." in a right-click menu: open the panel, with the selection quoted in its box
+  useEffect(
+    () =>
+      window.api.onAskAi((text) => {
+        if (inCanvasRef.current) return
+        setChatOpen(true)
+        setChatFocus((k) => k + 1)
+        if (text)
+          setChatDraft({
+            text: `About this: "${text}"
+
+`,
+            key: Date.now()
+          })
+      }),
+    []
+  )
   const [passwordPrompt, setPasswordPrompt] = useState<PasswordPrompt | null>(null)
   useEffect(() => window.api.onPasswordPrompt(setPasswordPrompt), [])
   const answerPassword = (answer: 'save' | 'never' | 'dismiss', edits?: LoginEdits): void => {
@@ -125,6 +216,30 @@ function App(): React.JSX.Element {
     modeRef.current = m
     setModeState(m)
   }, [])
+  // The canvas borrows the address bar's search popover (its new-tab prompt, a card's address): the pick goes back
+  // to the board instead of opening anything.
+  const [cvSearch, setCvSearch] = useState<CanvasSearchRequest | null>(null)
+  useEffect(() => {
+    const ask = (e: Event): void => {
+      const d = (e as CustomEvent<CanvasSearchRequest>).detail
+      if (d && modeRef.current === 'canvas') setCvSearch(d)
+    }
+    window.addEventListener('panes:canvas-search', ask)
+    return () => window.removeEventListener('panes:canvas-search', ask)
+  }, [])
+  const answerCvSearch = useCallback((req: number, text: string | null): void => {
+    setCvSearch((cur) => (cur?.req === req ? null : cur))
+    window.dispatchEvent(new CustomEvent('panes:canvas-search-result', { detail: { req, text } }))
+  }, [])
+  // the board itself is about to switch tabs (two cards joined in split view): stay on the board for that one
+  useEffect(() => {
+    const expect = (e: Event): void => {
+      const id = (e as CustomEvent<{ id?: unknown }>).detail?.id
+      if (modeRef.current === 'canvas' && typeof id === 'number') canvasTab.current = id
+    }
+    window.addEventListener('panes:canvas-expect', expect)
+    return () => window.removeEventListener('panes:canvas-expect', expect)
+  }, [])
 
   // ---- overlays (the native view sits above the UI, so hide it before showing one) ----
   const opening = useRef(false)
@@ -150,7 +265,7 @@ function App(): React.JSX.Element {
   }, [stackPos, closeOverlay])
 
   const openOverlay = useCallback(
-    async (m: 'grid' | 'stack' | 'search') => {
+    async (m: 'grid' | 'stack' | 'search' | 'canvas') => {
       if (m === 'grid' && !GRID_VIEW) return
       if (modeRef.current) return setMode(m) // already hidden, just switch
       if (opening.current) return
@@ -199,6 +314,11 @@ function App(): React.JSX.Element {
     [setMode, commitStack]
   )
 
+  const toggleCanvas = useCallback(() => {
+    if (modeRef.current === 'canvas') window.dispatchEvent(new Event('panes:canvas-exit'))
+    else if (modeRef.current === null) void openOverlay('canvas')
+  }, [openOverlay])
+
   const nudgeStack = useCallback(
     (cards: number, snapNow = false) => {
       const { tabs: ts, layout: l, activeId: a } = latest.current
@@ -238,11 +358,15 @@ function App(): React.JSX.Element {
   useEffect(() => {
     const offCmd = window.api.onCommand((cmd) => {
       if (cmd === 'focus-address') {
-        void openOverlay('search')
+        // on the canvas board a new tab asks what to open there, instead of swapping the board for search
+        if (modeRef.current === 'canvas') window.dispatchEvent(new Event('panes:canvas-new'))
+        else void openOverlay('search')
       } else if (cmd === 'find') {
         setFindKey((k) => (k ?? 0) + 1)
       } else if (cmd === 'toggle-sidebar') {
         toggleSidebar()
+      } else if (cmd === 'toggle-chat') {
+        toggleChat()
       } else if (cmd === 'open-stack') {
         if (modeRef.current === 'stack') return closeOverlay()
         const { tabs: ts, layout: l, activeId: id } = latest.current
@@ -250,6 +374,8 @@ function App(): React.JSX.Element {
         stackPos.jump(Math.max(0, at))
         stackSticky.current = true
         void openOverlay('stack')
+      } else if (cmd === 'toggle-canvas') {
+        toggleCanvas()
       } else if (cmd === 'toggle-taskview') {
         if (modeRef.current === 'grid') closeOverlay()
         else void openOverlay('grid')
@@ -292,7 +418,16 @@ function App(): React.JSX.Element {
       window.removeEventListener('keyup', onKeyState)
       window.removeEventListener('blur', onBlur)
     }
-  }, [closeOverlay, openOverlay, onStackWheel, commitStack, toggleSidebar, stackPos])
+  }, [
+    closeOverlay,
+    openOverlay,
+    onStackWheel,
+    commitStack,
+    toggleSidebar,
+    toggleChat,
+    toggleCanvas,
+    stackPos
+  ])
 
   // Global settings, overridden per space; everything visual hangs off CSS variables on the root.
   useEffect(() => {
@@ -345,14 +480,19 @@ function App(): React.JSX.Element {
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
   }, [openedByHover, showSidebar, effective.sidebarWidth])
-  const barAutoHidden = !pushed && !horizontal && settings.autoHideTopBar
+  // canvas is full screen in both layouts: with top tabs, the tab strip and the toolbar tuck away together
+  const barAutoHidden =
+    !pushed && (horizontal ? mode === 'canvas' : settings.autoHideTopBar || mode === 'canvas')
   // the sidebar and the top bar are never both brought out by the pointer: whichever came first keeps the stage
   const peeking = peekBar && !openedByHover
   const peekRef = useRef(false)
   useEffect(() => {
     peekRef.current = peeking
   }, [peeking])
-  const barPx = Math.round((6 + 26 * effective.addressSize) * effective.density * effective.uiScale)
+  // with top tabs the bar that comes out is the tab strip (34) and the toolbar (its 6 of padding more) together
+  const barPx = Math.round(
+    ((horizontal ? 46 : 6) + 26 * effective.addressSize) * effective.density * effective.uiScale
+  )
   // The top bar the pointer brings out slides down over the page area while the page area, at its own size, slides
   // down with it (the page views follow from the main process): the page is not laid out or repainted for a glance
   // at the bar, and a little of its foot runs off the window instead.
@@ -393,18 +533,18 @@ function App(): React.JSX.Element {
   useEffect(() => window.api.onPeekBar(setPeekBar), [])
   useEffect(() => {
     window.api.watchSidebar(
-      settings.sidebarHover && !horizontal,
+      (settings.sidebarHover || mode === 'canvas') && !horizontal,
       sidebarOpen,
       openedByHover,
       effective.sidebarWidth
     )
-  }, [settings.sidebarHover, horizontal, sidebarOpen, openedByHover, effective.sidebarWidth])
+  }, [settings.sidebarHover, mode, horizontal, sidebarOpen, openedByHover, effective.sidebarWidth])
   useEffect(
     () =>
       window.api.onSideHover((action) => {
         // The search popover hangs off the address bar, which moves when the sidebar does; leave the
         // layout alone until it is dismissed (the pointer keeps asking, so a close still follows).
-        if (modeRef.current !== null) return
+        if (modeRef.current !== null && modeRef.current !== 'canvas') return
         if (action === 'open' && peekRef.current) return // the top bar is out: leave the sidebar for later
         setSidebarOpen(action === 'open')
         setOpenedByHover(action === 'open')
@@ -502,6 +642,9 @@ function App(): React.JSX.Element {
   const onTabClick = useCallback((id: number, mods: ClickMods) => {
     if (!mods.shift && !mods.ctrl) {
       setPicked(NONE)
+      // the tab canvas opened over shows as not selected: clicking it must leave canvas too (activeId won't change)
+      if (modeRef.current === 'canvas')
+        window.dispatchEvent(new CustomEvent('panes:canvas-exit', { detail: { pick: id } }))
       window.api.activateTab(id)
       return
     }
@@ -605,7 +748,7 @@ function App(): React.JSX.Element {
           notice={notice}
           tabs={tabs}
           tabGroups={tabGroups}
-          activeId={activeId}
+          activeId={mode === 'canvas' ? null : activeId}
           active={active}
           layout={layout}
           spaces={spaces}
@@ -632,112 +775,137 @@ function App(): React.JSX.Element {
           peeking={openedByHover}
           onToggle={toggleSidebar}
           onTaskView={GRID_VIEW ? toggleGrid : undefined}
+          onChat={toggleChat}
+          chatOpen={chatOpen}
+          onCanvas={toggleCanvas}
+          canvasOpen={mode === 'canvas'}
           onWheel={swipe}
         />
       </aside>
 
       <main className="main">
-        {horizontal && (
-          <HorizontalTabs
-            tabs={tabs}
-            tabGroups={tabGroups}
-            activeId={activeId}
-            layout={layout}
-            spaces={spaces}
-            activeSpaceId={activeSpaceId}
-            dir={spaceDir}
-            dropGroupId={dropGroupId}
-            dragId={drag?.id ?? null}
-            dropIndex={
-              drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
+        {/* only a box in canvas with top tabs (they come out as one); otherwise it adds nothing to the layout */}
+        <div className={'topbars' + (horizontal && barAutoHidden ? ' tucked' : '')}>
+          {horizontal && (
+            <HorizontalTabs
+              tabs={tabs}
+              tabGroups={tabGroups}
+              activeId={mode === 'canvas' ? null : activeId}
+              layout={layout}
+              spaces={spaces}
+              activeSpaceId={activeSpaceId}
+              dir={spaceDir}
+              dropGroupId={dropGroupId}
+              dragId={drag?.id ?? null}
+              dropIndex={
+                drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
+              }
+              onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
+              picked={pickedIds}
+            />
+          )}
+          <div
+            className={
+              'strip drag' +
+              (stripHidden ? ' hidden' : '') +
+              (barAutoHidden && peeking ? ' peeking' : '') +
+              (horizontal ? ' hstrip' : '') +
+              (horizontal && effective.fullWidthAddress ? ' full' : '')
             }
-            onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
-            picked={pickedIds}
-          />
-        )}
-        <div
-          className={
-            'strip drag' +
-            (stripHidden ? ' hidden' : '') +
-            (barAutoHidden && peeking ? ' peeking' : '') +
-            (horizontal ? ' hstrip' : '') +
-            (horizontal && effective.fullWidthAddress ? ' full' : '')
-          }
-          inert={stripHidden}
-        >
-          {/* controls on the left, buttons on the right, and the address bar in the true middle of the window */}
-          <div className="strip-side start">
-            {!horizontal && window.api.platform !== 'darwin' && <WindowControls />}
-            {!horizontal && (
+            inert={stripHidden}
+          >
+            {/* controls on the left, buttons on the right, and the address bar in the true middle of the window */}
+            <div className="strip-side start">
+              {!horizontal && window.api.platform !== 'darwin' && <WindowControls />}
+              {!horizontal && (
+                <button
+                  className="icon-btn no-drag"
+                  onClick={() => setSidebar(true)}
+                  title="Show sidebar (Ctrl+B)"
+                >
+                  <SidebarIcon />
+                </button>
+              )}
+              {!horizontal && <span className="tabbar-sep" aria-hidden="true" />}
+              {!horizontal && (
+                <SpaceSwitcher
+                  spaces={spaces}
+                  activeSpaceId={activeSpaceId}
+                  placement="down"
+                  dir={spaceDir}
+                  size={22}
+                />
+              )}
+              <NavButtons active={active} />
+            </div>
+            <AddressBar
+              active={active}
+              onOpen={() => void openOverlay('search')}
+              urlDisplay={effective.urlDisplay}
+              paneFocus={!!layout && leaves(layout).includes(activeId ?? -1)}
+              onWheel={swipe}
+            />
+            <div className="strip-side end">
+              {!showSidebar && <StatusChips tor={tor} notice={notice} />}
+              {!showSidebar && <SharingBar tabs={tabs} activeId={activeId} />}
+              {!showSidebar && findKey !== null && (
+                <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
+              )}
               <button
                 className="icon-btn no-drag"
-                onClick={() => setSidebar(true)}
-                title="Show sidebar (Ctrl+B)"
+                onClick={window.api.toggleSplit}
+                title="Split view (Ctrl+\)"
               >
-                <SidebarIcon />
+                <SplitIcon />
               </button>
-            )}
-            {!horizontal && <span className="tabbar-sep" aria-hidden="true" />}
-            {!horizontal && (
-              <SpaceSwitcher
-                spaces={spaces}
-                activeSpaceId={activeSpaceId}
-                placement="down"
-                dir={spaceDir}
-                size={22}
-              />
-            )}
-            <NavButtons active={active} />
-          </div>
-          <AddressBar
-            active={active}
-            onOpen={() => void openOverlay('search')}
-            urlDisplay={effective.urlDisplay}
-            paneFocus={!!layout && leaves(layout).includes(activeId ?? -1)}
-            onWheel={swipe}
-          />
-          <div className="strip-side end">
-            {!showSidebar && <StatusChips tor={tor} notice={notice} />}
-            {!showSidebar && <SharingBar tabs={tabs} activeId={activeId} />}
-            {!showSidebar && findKey !== null && (
-              <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
-            )}
-            <button
-              className="icon-btn no-drag"
-              onClick={window.api.toggleSplit}
-              title="Split view (Ctrl+\)"
-            >
-              <SplitIcon />
-            </button>
-            {GRID_VIEW && (
+              <button
+                className={'icon-btn no-drag' + (mode === 'canvas' ? ' active' : '')}
+                onClick={toggleCanvas}
+                title="Canvas (Ctrl+Shift+K)"
+                aria-label="Canvas"
+                aria-pressed={mode === 'canvas'}
+              >
+                <CanvasIcon />
+              </button>
+              <button
+                className={'icon-btn no-drag' + (chatOpen ? ' active' : '')}
+                onClick={toggleChat}
+                title="Chat (Ctrl+Shift+L)"
+                aria-label="Chat"
+                aria-pressed={chatOpen}
+              >
+                <ChatIcon />
+              </button>
+              {GRID_VIEW && (
+                <button
+                  className="icon-btn no-drag"
+                  onClick={toggleGrid}
+                  title="All tabs (Ctrl+Shift+A)"
+                >
+                  <GridIcon />
+                </button>
+              )}
               <button
                 className="icon-btn no-drag"
-                onClick={toggleGrid}
-                title="All tabs (Ctrl+Shift+A)"
+                title="Send feedback"
+                aria-label="Send feedback"
+                onClick={window.api.sendFeedback}
               >
-                <GridIcon />
+                <FeedbackIcon />
               </button>
-            )}
-            <button
-              className="icon-btn no-drag"
-              title="Send feedback"
-              aria-label="Send feedback"
-              onClick={window.api.sendFeedback}
-            >
-              <FeedbackIcon />
-            </button>
-            <button
-              className="icon-btn no-drag"
-              title="Menu: bookmarks, history, downloads, settings"
-              aria-label="Menu"
-              aria-haspopup="menu"
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect()
-                window.api.appMenu(r.left, r.bottom + 4)
-              }}
-            >
-              <MoreIcon />
-            </button>
+              <button
+                className="icon-btn no-drag"
+                title="Menu: bookmarks, history, downloads, settings"
+                aria-label="Menu"
+                aria-haspopup="menu"
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  window.api.appMenu(r.left, r.bottom + 4)
+                }}
+              >
+                <MoreIcon />
+              </button>
+            </div>
           </div>
         </div>
         <div
@@ -771,6 +939,7 @@ function App(): React.JSX.Element {
               frozenBlur={settings.frozenBlur}
               newTabPhoto={settings.newTabPhoto}
               newTabPhotoId={settings.newTabPhotoId}
+              smartNewTab={settings.ai.enabled}
               dither={settings.newTabDither ? { color: theme.color, color2: theme.color2 } : null}
               tabs={tabs}
               activeId={activeId}
@@ -779,7 +948,6 @@ function App(): React.JSX.Element {
               thumbs={thumbs}
               dragId={drag?.id ?? null}
               onHeaderPointerDown={(e, id) => startDrag(e, id, 'pane')}
-              onOpenSearch={() => void openOverlay('search')}
             />
             {drag && <DropIndicator drag={drag} />}
             {mode === 'stack' && effective.paneView === 'side' && (
@@ -809,6 +977,23 @@ function App(): React.JSX.Element {
                   onClose={closeOverlay}
                 />
               )}
+              {mode === 'canvas' && (
+                <Canvas
+                  key={`canvas-${activeSpaceId}`}
+                  tabs={tabs}
+                  activeId={activeId}
+                  thumbs={thumbs}
+                  spaceId={activeSpaceId}
+                  spaces={spaces}
+                  spaceDir={spaceDir}
+                  layout={layout}
+                  dim={openedByHover || barOver}
+                  onExit={(pick) => {
+                    if (pick !== null) window.api.activateTab(pick)
+                    closeOverlay()
+                  }}
+                />
+              )}
               {mode === 'search' && (
                 <SearchPalette
                   key="search"
@@ -821,18 +1006,14 @@ function App(): React.JSX.Element {
                   onAction={(id) => {
                     closeOverlay()
                     if (id === 'new-space') window.api.createSpace()
-                    else if (id === 'split') window.api.toggleSplit()
                     else if (id === 'sidebar') toggleSidebar()
-                    else if (id === 'pip') window.api.togglePip()
                     else if (id === 'grid') void openOverlay('grid')
-                    else if (
-                      id === 'settings' ||
-                      id === 'history' ||
-                      id === 'bookmarks' ||
-                      id === 'downloads'
-                    ) {
-                      window.api.openInternal(id)
-                    }
+                    else if (id === 'canvas') toggleCanvas()
+                    else if (id === 'chat' && !inCanvasRef.current) {
+                      setChatOpen(true)
+                      setChatFocus((k) => k + 1)
+                    } else if (id === 'ai-settings') window.api.chatAction('settings')
+                    else window.api.runAction(id) // everything else main does (TabManager.runAction)
                   }}
                 />
               )}
@@ -852,7 +1033,42 @@ function App(): React.JSX.Element {
                 />
               )}
             </AnimatePresence>
+            <AnimatePresence>
+              {mode === 'canvas' && cvSearch && (
+                <SearchPalette
+                  key={`cv-search-${cvSearch.req}`}
+                  tabs={tabs}
+                  active={active}
+                  engineName={SEARCH_ENGINES[settings.searchEngine].name}
+                  variant="dropdown"
+                  anchor={cvSearch.anchor}
+                  initial={cvSearch.initial}
+                  onPick={(text) => answerCvSearch(cvSearch.req, text)}
+                  onClose={() => answerCvSearch(cvSearch.req, null)}
+                  onAction={() => answerCvSearch(cvSearch.req, null)}
+                />
+              )}
+            </AnimatePresence>
           </div>
+          <AnimatePresence>
+            {chatOpen && (
+              <ChatPanel
+                key="chat"
+                tabs={tabs}
+                active={active}
+                width={chatWidth}
+                onWidth={setChatWidth}
+                resizing={chatResizing}
+                onResizing={setChatResizing}
+                focusKey={chatFocus}
+                draft={chatDraft}
+                onClose={() => {
+                  setChatOpen(false)
+                  setChatDraft(null)
+                }}
+              />
+            )}
+          </AnimatePresence>
         </div>
       </main>
       {drag && !(drag.source === 'tab' && drag.target?.kind === 'list') && (

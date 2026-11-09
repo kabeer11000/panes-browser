@@ -1,3 +1,56 @@
+/* ---- design tokens: the one scale every surface draws from (see tasks/design-tokens.md) ---- */
+:root {
+  /* radius: controls 6-8, cards and menus 12, panels and dialogs 16, hero 20, pill */
+  --r-1: 4px;
+  --r-2: 6px;
+  --r-3: 8px;
+  --r-4: 12px;
+  --r-5: 16px;
+  --r-6: 20px;
+  --r-pill: 999px;
+  /* type */
+  --fs-xs: 11px;
+  --fs-s: 12px;
+  --fs-m: 13px;
+  --fs-l: 14px;
+  --fs-xl: 16px;
+  --fs-2xl: 20px;
+  /* spacing, a 4px base */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  /* shadow: 1 resting control, 2 menu or popover, 3 dialog or floating panel */
+  --shadow-1: 0 1px 3px rgb(0 0 0 / 0.28);
+  --shadow-2: 0 6px 18px rgb(0 0 0 / 0.3);
+  --shadow-3: 0 10px 34px rgb(0 0 0 / 0.36);
+  /* motion: fast for hover and press, base for most state changes, slow for layout and entrances */
+  --dur-fast: 0.14s;
+  --dur: 0.2s;
+  --dur-slow: 0.32s;
+  /* focus ring: keyboard only, thin, the accent at 80% */
+  --ring: 1.5px solid color-mix(in srgb, var(--accent) 80%, transparent);
+  --ring-offset: 2px;
+}
+[data-scheme='light'] {
+  --shadow-1: 0 1px 3px rgb(20 20 40 / 0.14);
+  --shadow-2: 0 6px 18px rgb(20 20 40 / 0.16);
+  --shadow-3: 0 10px 34px rgb(20 20 40 / 0.2);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01s;
+    --dur: 0.01s;
+    --dur-slow: 0.01s;
+  }
+}
+:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+
 /* ---- tokens ---- */
 :root {
   --bg: rgba(20, 20, 26, 0.8);
@@ -17,9 +70,9 @@
   --thumb-bg: #0d0d11;
   --popover-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.26), rgb(24 24 30 / 0.97));
   --ghost-bg: rgb(40 40 52 / 0.92);
-  --radius-s: 8px;
-  --radius-m: 12px;
-  --radius-l: 16px;
+  --radius-s: var(--r-3);
+  --radius-m: var(--r-4);
+  --radius-l: var(--r-5);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font: 'Segoe UI Variable Text', 'SF Pro Text', Inter, system-ui, sans-serif;
   --s: 1; /* ui scale */
@@ -82,12 +135,12 @@ button {
   flex: none;
   width: var(--sidebar-w);
   overflow: hidden;
-  transition: width 0.32s var(--ease);
+  transition: width var(--dur-slow) var(--ease);
 }
 .sidebar-inner {
   transition:
-    opacity 0.22s var(--ease),
-    transform 0.32s var(--ease);
+    opacity var(--dur) var(--ease),
+    transform var(--dur-slow) var(--ease);
   zoom: var(--s);
   width: calc(var(--sidebar-full) / var(--s));
   height: 100%;
@@ -119,13 +172,13 @@ button {
   align-items: center;
   gap: 1px;
   padding: 2px;
-  border-radius: 11px;
+  border-radius: var(--r-4);
   background: var(--surface);
 }
 .nav-capsule .icon-btn {
   width: calc(28px * var(--d));
   height: calc(26px * var(--d));
-  border-radius: 9px;
+  border-radius: var(--r-3);
 }
 [data-platform='darwin'] .sidebar-top {
   padding-left: 74px; /* native traffic lights */
@@ -151,8 +204,8 @@ button {
   overflow: hidden;
   /* shares the sidebar's timing so the whole layout opens and closes as one motion */
   transition:
-    height 0.32s var(--ease),
-    padding 0.32s var(--ease),
+    height var(--dur-slow) var(--ease),
+    padding var(--dur-slow) var(--ease),
     opacity 0.24s var(--ease) 0.08s;
 }
 .strip.hidden {
@@ -161,9 +214,9 @@ button {
   opacity: 0;
   pointer-events: none;
   transition:
-    height 0.32s var(--ease),
-    padding 0.32s var(--ease),
-    opacity 0.1s;
+    height var(--dur-slow) var(--ease),
+    padding var(--dur-slow) var(--ease),
+    opacity var(--dur-fast);
 }
 .strip .icon-btn {
   width: calc(26px * var(--d));
@@ -171,7 +224,7 @@ button {
 }
 .strip .address {
   height: calc(26px * var(--d) * var(--addr));
-  border-radius: 7px; /* a rounded rectangle; 10px on a bar this short reads as a pill */
+  border-radius: var(--r-3); /* a rounded rectangle; 10px on a bar this short reads as a pill */
   min-width: 0;
   margin: 0;
   /* the middle column is as wide as the window allows; the bar stops at 560px, centred in it */
@@ -195,7 +248,7 @@ button {
   flex: 1;
   min-height: 0;
   padding: var(--edge) var(--edge) var(--edge) 0;
-  transition: padding 0.32s var(--ease);
+  transition: padding var(--dur-slow) var(--ease);
 }
 .stage-wrap.with-strip {
   padding: max(var(--edge), 6px) var(--edge) var(--edge) var(--edge);
@@ -215,8 +268,8 @@ button {
   border-radius: var(--radius-s);
   color: var(--fg-dim);
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--dur-fast),
+    color var(--dur-fast);
 }
 .icon-btn:hover:not(:disabled) {
   background: var(--surface-hover);
@@ -225,7 +278,8 @@ button {
 .icon-btn:active:not(:disabled) {
   background: var(--surface-active);
 }
-.icon-btn.pin {
+.icon-btn.pin,
+.icon-btn.active {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
@@ -244,13 +298,13 @@ button {
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  border-radius: 10px;
+  border-radius: var(--r-4);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px transparent;
   overflow: hidden;
   transition:
-    background 0.15s,
-    box-shadow 0.15s;
+    background var(--dur-fast),
+    box-shadow var(--dur-fast);
 }
 .address:hover {
   background: var(--surface-hover);
@@ -267,7 +321,7 @@ button {
   outline: 0;
   color: var(--fg);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-m);
   text-align: center;
   user-select: text;
 }
@@ -314,13 +368,13 @@ button {
   gap: 10px;
   height: calc(38px * var(--d));
   padding: 0 8px 0 10px;
-  border-radius: 10px;
+  border-radius: var(--r-4);
   color: var(--fg-dim);
   overflow: hidden;
   transition:
-    background 0.12s,
-    color 0.12s,
-    translate 0.2s var(--ease);
+    background var(--dur-fast),
+    color var(--dur-fast),
+    translate var(--dur) var(--ease);
 }
 .tab-row:hover {
   background: var(--surface);
@@ -343,10 +397,21 @@ button {
   white-space: nowrap;
   text-align: left;
 }
+/* the title text inside .tab-title / .htab-title: a block of its own so two titles can cross-fade */
+.tab-title,
+.htab-title {
+  position: relative;
+}
+.tt {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .tab-row.grouped {
   margin-left: 8px;
   border-left: 3px solid var(--gc);
-  border-radius: 4px 10px 10px 4px;
+  border-radius: var(--r-1) var(--r-4) var(--r-4) var(--r-1);
   padding-left: 7px;
 }
 .group-head {
@@ -356,15 +421,15 @@ button {
   align-items: center;
   gap: 8px;
   padding: 0 10px 0 6px;
-  border-radius: 8px;
+  border-radius: var(--r-3);
   color: var(--fg-dim);
-  font-size: 12px;
+  font-size: var(--fs-s);
   font-weight: 600;
   overflow: hidden;
   cursor: default;
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--dur-fast),
+    color var(--dur-fast);
 }
 .group-head:hover,
 .group-head:focus-visible {
@@ -375,7 +440,7 @@ button {
   display: grid;
   place-items: center;
   width: 14px;
-  transition: transform 0.18s var(--ease);
+  transition: transform var(--dur) var(--ease);
 }
 .group-head.collapsed .group-chev {
   transform: rotate(-90deg);
@@ -399,7 +464,7 @@ button {
   min-width: 0;
   height: 22px;
   padding: 0 6px;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   background: var(--surface-active);
   color: var(--fg);
   font: inherit;
@@ -418,12 +483,12 @@ button {
   height: 22px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   opacity: 0;
   color: var(--fg-dim);
   transition:
-    opacity 0.12s,
-    background 0.12s;
+    opacity var(--dur-fast),
+    background var(--dur-fast);
 }
 .tab-row:hover .tab-close,
 .tab-close.visible {
@@ -439,7 +504,7 @@ button {
   flex: none;
   display: grid;
   place-items: center;
-  border-radius: 4px;
+  border-radius: var(--r-1);
   object-fit: contain;
 }
 .spinner {
@@ -515,8 +580,8 @@ button {
   background: rgba(255, 255, 255, 0.2);
   color: transparent;
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--dur-fast),
+    color var(--dur-fast);
 }
 .wc svg {
   width: 8px;
@@ -557,7 +622,7 @@ button {
   overflow: hidden;
   background: var(--stage-bg);
   box-shadow: 0 0 0 1px var(--border);
-  transition: box-shadow 0.18s;
+  transition: box-shadow var(--dur);
 }
 .pane.focused .pane-body {
   box-shadow:
@@ -573,12 +638,12 @@ button {
   align-items: center;
   gap: 8px;
   padding: 0 4px 0 10px;
-  border-radius: 9px;
+  border-radius: var(--r-3);
   background: var(--surface);
   color: var(--fg-dim);
   transition:
-    background 0.15s,
-    color 0.15s;
+    background var(--dur-fast),
+    color var(--dur-fast);
 }
 .pane.focused .pane-head {
   background: var(--surface-active);
@@ -589,7 +654,7 @@ button {
   height: 22px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   color: var(--fg-dim);
 }
 .pane-btn:hover {
@@ -601,8 +666,9 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: top left;
+  /* fill, not cover: with cover the picture is only scaled when the pane outgrows it and is clipped when
+     the pane shrinks (resizing a split, dragging the chat panel). Fill scales it both ways. */
+  object-fit: fill;
   pointer-events: none;
 }
 /* shown under a page that has not painted yet and has no snapshot: a shimmering skeleton block with the site name, then the page replaces it */
@@ -618,7 +684,7 @@ button {
     0 / 250% 100% no-repeat var(--stage-bg);
   animation: pane-shimmer 1.4s ease-in-out infinite;
   color: var(--fg-dim);
-  font-size: 13px;
+  font-size: var(--fs-m);
   pointer-events: none;
 }
 .pane-wait .favicon {
@@ -645,12 +711,12 @@ button {
   height: 22px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   opacity: 0;
   color: var(--fg-dim);
   transition:
-    opacity 0.12s,
-    background 0.12s;
+    opacity var(--dur-fast),
+    background var(--dur-fast);
 }
 .tab-row:hover .tab-action,
 .tab-action.split-on,
@@ -700,7 +766,7 @@ button {
   max-width: 240px;
   height: 34px;
   padding: 0 12px;
-  border-radius: 10px;
+  border-radius: var(--r-4);
   background: var(--ghost-bg);
   box-shadow:
     0 0 0 1px var(--border),
@@ -716,7 +782,7 @@ button {
   height: 22px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   color: var(--fg-dim);
 }
 .addr-star:hover {
@@ -737,7 +803,7 @@ button {
   height: 38px;
   margin-top: 8px;
   padding: 0 4px 0 12px;
-  border-radius: 10px;
+  border-radius: var(--r-4);
   background: var(--surface-hover);
   box-shadow: inset 0 0 0 1px var(--border);
 }
@@ -753,7 +819,7 @@ button {
 }
 .find-count {
   color: var(--fg-dim);
-  font-size: 12px;
+  font-size: var(--fs-s);
   padding: 0 4px;
   white-space: nowrap;
 }
@@ -780,8 +846,8 @@ button {
   display: flex;
   flex-direction: column;
   transition:
-    opacity 0.2s,
-    filter 0.2s;
+    opacity var(--dur),
+    filter var(--dur);
 }
 .pane.dragging {
   filter: saturate(0.5) brightness(0.65);
@@ -807,16 +873,16 @@ button {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
   box-shadow: 0 0 40px color-mix(in srgb, var(--accent) 30%, transparent);
   color: var(--fg);
-  font-size: 14px;
+  font-size: var(--fs-l);
   font-weight: 550;
   opacity: 0;
   pointer-events: none;
   transition:
-    left 0.2s var(--ease),
-    top 0.2s var(--ease),
-    width 0.2s var(--ease),
-    height 0.2s var(--ease),
-    opacity 0.15s;
+    left var(--dur) var(--ease),
+    top var(--dur) var(--ease),
+    width var(--dur) var(--ease),
+    height var(--dur) var(--ease),
+    opacity var(--dur-fast);
 }
 .drop-indicator.active {
   opacity: 1;
@@ -824,10 +890,10 @@ button {
 .ghost-count {
   flex: none;
   padding: 1px 7px;
-  border-radius: 8px;
+  border-radius: var(--r-3);
   background: var(--accent);
   color: #0b0b10;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 650;
 }
 
@@ -841,11 +907,11 @@ button {
 .pane {
   position: absolute;
   transition:
-    left 0.38s var(--ease),
-    top 0.38s var(--ease),
-    width 0.38s var(--ease),
-    height 0.38s var(--ease),
-    filter 0.2s;
+    left var(--dur-slow) var(--ease),
+    top var(--dur-slow) var(--ease),
+    width var(--dur-slow) var(--ease),
+    height var(--dur-slow) var(--ease),
+    filter var(--dur);
 }
 .panes.resizing .pane {
   transition: none;
@@ -857,10 +923,10 @@ button {
   touch-action: none;
   z-index: 2;
   transition:
-    left 0.38s var(--ease),
-    top 0.38s var(--ease),
-    width 0.38s var(--ease),
-    height 0.38s var(--ease);
+    left var(--dur-slow) var(--ease),
+    top var(--dur-slow) var(--ease),
+    width var(--dur-slow) var(--ease),
+    height var(--dur-slow) var(--ease);
 }
 .panes.resizing .divider {
   transition: none;
@@ -872,13 +938,13 @@ button {
   cursor: row-resize;
 }
 .divider span {
-  border-radius: 4px;
+  border-radius: var(--r-1);
   background: var(--surface-active);
   opacity: 0;
   transition:
-    width 0.18s var(--ease),
-    height 0.18s var(--ease),
-    background 0.15s;
+    width var(--dur) var(--ease),
+    height var(--dur) var(--ease),
+    background var(--dur-fast);
 }
 .divider.row span {
   width: 4px;
@@ -908,7 +974,7 @@ button {
   height: calc(24px * var(--d));
   margin-bottom: 5px;
   padding: 0 2px;
-  font-size: 12px;
+  font-size: var(--fs-s);
   position: relative;
 }
 .pane.focused .pane-head {
@@ -917,7 +983,7 @@ button {
 }
 .pane-head .pane-btn {
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--dur-fast);
 }
 .pane-head:hover .pane-btn {
   opacity: 1;
@@ -975,12 +1041,12 @@ button {
 }
 .drop-indicator span {
   padding: 6px 14px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--accent);
   color: #0b0b10;
-  font-size: 12px;
+  font-size: var(--fs-s);
   font-weight: 650;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-2);
 }
 
 /* focus marker in the rim: a dot, not a line, so it never clashes with the rounded body ring */
@@ -996,8 +1062,8 @@ button {
   opacity: 0;
   transform: scale(0.4);
   transition:
-    opacity 0.2s,
-    transform 0.28s var(--ease);
+    opacity var(--dur),
+    transform var(--dur-slow) var(--ease);
 }
 .pane.focused .pane-head::before {
   opacity: 1;
@@ -1013,7 +1079,7 @@ button {
 .mini-pane {
   position: absolute;
   overflow: hidden;
-  border-radius: 5px;
+  border-radius: var(--r-2);
   background: var(--card-bg);
   box-shadow: 0 0 0 1px var(--border);
 }
@@ -1028,7 +1094,7 @@ button {
   display: grid;
   place-items: center;
   color: var(--fg-dim);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .card-favicons {
   flex: none;
@@ -1036,7 +1102,7 @@ button {
   align-items: center;
   gap: 5px;
   color: var(--fg-dim);
-  font-size: 11.5px;
+  font-size: var(--fs-s);
 }
 .card-split {
   flex: none;
@@ -1044,7 +1110,7 @@ button {
   align-items: center;
   gap: 3px;
   color: var(--fg-dim);
-  font-size: 11.5px;
+  font-size: var(--fs-s);
   font-variant-numeric: tabular-nums;
 }
 .card-split svg {
@@ -1080,11 +1146,11 @@ button {
   gap: 10px;
   height: 42px;
   padding: 0 16px;
-  border-radius: 14px;
+  border-radius: var(--r-5);
   background: var(--surface-hover);
   color: var(--fg-dim);
   box-shadow: inset 0 0 0 1px var(--border);
-  transition: box-shadow 0.15s;
+  transition: box-shadow var(--dur-fast);
 }
 .ov-search:focus-within {
   box-shadow: inset 0 0 0 1.5px var(--accent);
@@ -1096,12 +1162,12 @@ button {
   outline: 0;
   color: var(--fg);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--fs-l);
   user-select: text;
 }
 .ov-hints {
   color: var(--fg-dim);
-  font-size: 12px;
+  font-size: var(--fs-s);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1134,7 +1200,7 @@ button {
   box-shadow: inset 0 0 0 1px var(--border);
   overflow: hidden;
   cursor: default;
-  transition: box-shadow 0.15s;
+  transition: box-shadow var(--dur-fast);
 }
 .grid-card.lifted {
   opacity: 0.35;
@@ -1153,12 +1219,12 @@ button {
   height: 22px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   color: var(--fg-dim);
   opacity: 0;
   transition:
-    opacity 0.12s,
-    background 0.12s;
+    opacity var(--dur-fast),
+    background var(--dur-fast);
 }
 .card-btn:hover {
   background: var(--surface-active);
@@ -1258,7 +1324,7 @@ button {
   width: min(66%, 780px, calc((100vh - 270px) * var(--stack-aspect, 1.4)));
   display: flex;
   flex-direction: column;
-  border-radius: 12px;
+  border-radius: var(--r-4);
   background: var(--card-bg);
   overflow: hidden;
   position: relative;
@@ -1267,7 +1333,7 @@ button {
   box-shadow:
     0 0 0 1px var(--border),
     0 12px 28px -14px rgb(0 0 0 / 0.5);
-  transition: box-shadow 0.3s var(--ease);
+  transition: box-shadow var(--dur-slow) var(--ease);
 }
 .stack-card.front {
   box-shadow:
@@ -1306,7 +1372,7 @@ button {
   justify-content: center;
   gap: 8px;
   color: var(--fg-dim);
-  font-size: 11.5px;
+  font-size: var(--fs-s);
   background: var(--thumb-bg);
 }
 .thumb-skeleton .favicon {
@@ -1321,7 +1387,7 @@ button {
   z-index: 3;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s var(--ease);
+  transition: opacity var(--dur) var(--ease);
 }
 .stack.awake .stack-nav,
 .stack.awake .stack-exit {
@@ -1355,9 +1421,9 @@ button {
   background: color-mix(in srgb, var(--fg) 7%, transparent);
   box-shadow: 0 0 0 1px var(--border);
   transition:
-    background 0.15s,
-    opacity 0.15s,
-    scale 0.15s var(--ease);
+    background var(--dur-fast),
+    opacity var(--dur-fast),
+    scale var(--dur-fast) var(--ease);
 }
 .stack-nav-btn svg {
   width: 16px;
@@ -1402,7 +1468,7 @@ button {
 .stack-meta {
   margin-top: 4px;
   color: var(--fg-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
 }
 .sr-only {
   position: absolute;
@@ -1501,8 +1567,8 @@ button {
 }
 
 .grid-card.selected {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
 }
 .mini-pane .thumb-skeleton .favicon {
   width: 22px;
@@ -1598,9 +1664,9 @@ button {
   height: 32px;
   display: grid;
   place-items: center;
-  border-radius: 11px;
+  border-radius: var(--r-4);
   opacity: 0.62;
-  transition: opacity 0.18s;
+  transition: opacity var(--dur);
 }
 .space-chip:hover,
 .space-chip.active {
@@ -1613,7 +1679,7 @@ button {
   width: 26px;
   height: 26px;
   margin: 0 3px;
-  border-radius: 9px;
+  border-radius: var(--r-3);
   background: var(--surface);
   color: var(--fg-dim);
   opacity: 1;
@@ -1630,7 +1696,7 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--fg-dim);
-  font-size: 12px;
+  font-size: var(--fs-s);
   font-weight: 600;
 }
 /* a space's face: a soft squircle in its colours with a white glyph */
@@ -1660,7 +1726,7 @@ button {
   left: 0;
   right: 0;
   bottom: calc(100% + 8px);
-  border-radius: 18px;
+  border-radius: var(--r-6);
   background: var(--popover-bg);
   box-shadow:
     0 0 0 1px var(--border),
@@ -1679,7 +1745,7 @@ button {
   max-height: 72vh;
   overflow-y: auto;
   padding: 14px;
-  border-radius: 18px;
+  border-radius: var(--r-6);
   scrollbar-width: thin;
 }
 .space-popover.down {
@@ -1706,7 +1772,7 @@ button {
   height: 36px;
   padding: 0 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r-4);
   background: var(--surface-hover);
   color: var(--fg);
   font: inherit;
@@ -1726,12 +1792,12 @@ button {
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--r-3);
   color: var(--fg-dim);
   transition:
-    background 0.12s,
-    color 0.12s,
-    transform 0.15s var(--ease);
+    background var(--dur-fast),
+    color var(--dur-fast),
+    transform var(--dur-fast) var(--ease);
 }
 .sid-icon svg {
   width: 62%;
@@ -1750,7 +1816,7 @@ button {
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sc, var(--accent)) 75%, var(--fg));
 }
 .sid-icon:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--ring);
   outline-offset: 1px;
 }
 .space-actions {
@@ -1777,7 +1843,7 @@ button {
   justify-content: space-between;
 }
 .tp-title {
-  font-size: 12px;
+  font-size: var(--fs-s);
   font-weight: 650;
   letter-spacing: 0.02em;
   color: var(--fg-dim);
@@ -1786,7 +1852,7 @@ button {
   display: flex;
   gap: 2px;
   padding: 2px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface-hover);
 }
 .tp-mode {
@@ -1794,11 +1860,11 @@ button {
   height: 24px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   color: var(--fg-dim);
   transition:
-    background 0.15s,
-    color 0.15s;
+    background var(--dur-fast),
+    color var(--dur-fast);
 }
 .tp-mode svg {
   width: 15px;
@@ -1820,7 +1886,7 @@ button {
     inset 0 0 0 1px var(--border);
 }
 .tp-mode:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--ring);
   outline-offset: 1px;
 }
 /* the panel glows with the colour you are choosing, like the window itself will */
@@ -1830,10 +1896,10 @@ button {
   align-items: center;
   gap: 12px;
   padding: 14px 14px 12px;
-  border-radius: 18px;
+  border-radius: var(--r-6);
   background: color-mix(in srgb, var(--tpc) 16%, var(--surface));
   box-shadow: inset 0 0 0 1px var(--border);
-  transition: background 0.2s;
+  transition: background var(--dur);
 }
 .tp-wheel {
   position: relative;
@@ -1855,7 +1921,7 @@ button {
   box-shadow:
     0 0 0 3px #fff,
     0 3px 10px rgb(0 0 0 / 0.5);
-  transition: transform 0.12s var(--ease);
+  transition: transform var(--dur-fast) var(--ease);
 }
 .tp-puck:active {
   cursor: grabbing;
@@ -1877,12 +1943,12 @@ button {
   align-items: center;
   gap: 8px;
   padding: 6px 12px 6px 8px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface-hover);
   color: var(--fg);
-  font-size: 12px;
+  font-size: var(--fs-s);
   font-weight: 550;
-  transition: background 0.12s;
+  transition: background var(--dur-fast);
 }
 .tp-add span {
   display: grid;
@@ -1891,7 +1957,7 @@ button {
   height: 18px;
   border-radius: 50%;
   background: var(--surface-active);
-  font-size: 14px;
+  font-size: var(--fs-l);
   line-height: 1;
 }
 .tp-add:hover {
@@ -1899,11 +1965,11 @@ button {
 }
 .tp-toggle {
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface-hover);
   color: var(--fg);
-  font-size: 12px;
-  transition: background 0.12s;
+  font-size: var(--fs-s);
+  transition: background var(--dur-fast);
 }
 .tp-toggle:hover {
   background: var(--surface-active);
@@ -1922,7 +1988,7 @@ button {
   height: 24px;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
-  transition: transform 0.15s var(--ease);
+  transition: transform var(--dur-fast) var(--ease);
 }
 .tp-preset:hover {
   transform: scale(1.14);
@@ -1932,7 +1998,7 @@ button {
   grid-template-columns: 62px 1fr 36px;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--fs-s);
   color: var(--fg-dim);
 }
 .tp-slider em {
@@ -1945,7 +2011,7 @@ button {
   appearance: none;
   width: 100%;
   height: 6px;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   background: linear-gradient(
     to right,
     color-mix(in srgb, var(--tpc) 80%, var(--fg)) var(--pct, 0%),
@@ -1959,11 +2025,11 @@ button {
   height: 16px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+  box-shadow: var(--shadow-1);
 }
 .tp-slider input[type='range']:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
 }
 
 /* ---- light mode: the same tokens, flipped. Applies to the root and to any element that sets data-scheme. ---- */
@@ -2005,7 +2071,7 @@ button {
 kbd {
   font: inherit;
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--r-2);
   background: var(--surface-hover);
   box-shadow: inset 0 0 0 1px var(--border);
 }
@@ -2063,7 +2129,7 @@ kbd {
   display: flex;
   gap: 10px;
   align-items: baseline;
-  font-size: 15px;
+  font-size: var(--fs-xl);
   color: var(--fg-dim);
 }
 .newtab-hello span {
@@ -2073,45 +2139,9 @@ kbd {
   content: '\00b7';
   margin-right: 10px;
 }
-.newtab-search {
-  height: 56px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 20px;
-  border-radius: 28px;
-  background: var(--surface-hover);
-  color: var(--fg-dim);
-  font-size: 16px;
-  text-align: left;
-  box-shadow:
-    inset 0 0 0 1px var(--border),
-    0 14px 40px -18px color-mix(in srgb, var(--space) 60%, black);
-  transition:
-    background 0.15s,
-    color 0.15s,
-    transform 0.2s var(--ease),
-    box-shadow 0.2s var(--ease);
-}
-.newtab-search:hover {
-  background: var(--surface-active);
-  color: var(--fg);
-  transform: translateY(-1px);
-}
-.newtab-search:focus-visible,
 .newtab-site:focus-visible {
-  outline: 2px solid var(--space);
-  outline-offset: 3px;
-}
-.newtab-search svg {
-  width: 18px;
-  height: 18px;
-}
-.newtab-search span {
-  flex: 1;
-}
-.newtab-search kbd {
-  font-size: 11.5px;
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
 }
 .newtab-sites {
   display: flex;
@@ -2126,12 +2156,12 @@ kbd {
   gap: 8px;
   width: 104px;
   padding: 4px;
-  border-radius: 16px;
+  border-radius: var(--r-5);
   color: var(--fg-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   animation: nt-in 0.4s var(--ease) both;
   animation-delay: calc(var(--i) * 30ms + 80ms);
-  transition: color 0.15s;
+  transition: color var(--dur-fast);
 }
 .newtab-site:hover {
   color: var(--fg);
@@ -2141,13 +2171,13 @@ kbd {
   place-items: center;
   width: 64px;
   height: 64px;
-  border-radius: 20px;
+  border-radius: var(--r-6);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--border);
   transition:
-    background 0.15s,
-    transform 0.2s var(--ease),
-    box-shadow 0.2s var(--ease);
+    background var(--dur-fast),
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
 }
 .newtab-site:hover .newtab-tile {
   background: var(--surface-hover);
@@ -2163,7 +2193,7 @@ kbd {
 .newtab-tile b {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--r-3);
 }
 .newtab-tile img {
   object-fit: contain;
@@ -2173,7 +2203,7 @@ kbd {
   place-items: center;
   background: hsl(var(--hue) 60% 50% / 0.22);
   color: hsl(var(--hue) 70% 72%);
-  font-size: 16px;
+  font-size: var(--fs-xl);
   font-weight: 600;
 }
 .newtab-label {
@@ -2192,19 +2222,96 @@ kbd {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   color: var(--fg-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   opacity: 0.75;
   transition:
-    background 0.15s,
-    color 0.15s,
-    opacity 0.15s;
+    background var(--dur-fast),
+    color var(--dur-fast),
+    opacity var(--dur-fast);
 }
 .newtab-private button:hover {
   background: var(--surface-hover);
   color: var(--fg);
   opacity: 1;
+}
+/* the smart part (AI on): a usual site, articles to go back to, boards */
+.newtab-smart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.newtab-smart section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.newtab-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-4);
+  text-align: left;
+  transition: background var(--dur-fast);
+}
+.newtab-row:hover {
+  background: var(--surface-hover);
+}
+.newtab-row .newtab-tile {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-3);
+}
+.newtab-row .newtab-tile img,
+.newtab-row .newtab-tile b {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-1);
+  font-size: var(--fs-m);
+}
+.newtab-row > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.newtab-row > span:last-child b,
+.newtab-row > span:last-child i {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.newtab-row > span:last-child b {
+  color: var(--fg);
+  font-size: var(--fs-m);
+  font-weight: 550;
+}
+.newtab-row > span:last-child i {
+  color: var(--fg-dim);
+  font-size: var(--fs-s);
+  font-style: normal;
+}
+.newtab-boards {
+  flex-direction: row !important;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2) !important;
+}
+.newtab-boards button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--board) 18%, var(--surface));
+  color: var(--fg);
+  font-size: var(--fs-s);
+  transition: background var(--dur-fast);
+}
+.newtab-boards button:hover {
+  background: color-mix(in srgb, var(--board) 30%, var(--surface-hover));
 }
 @media (max-width: 560px) {
   .newtab-clock {
@@ -2252,14 +2359,12 @@ kbd {
   --border: rgb(255 255 255 / 0.2);
   color: #fff;
 }
-.newtab.has-photo .newtab-search,
 .newtab.has-photo .newtab-tile {
   backdrop-filter: blur(14px);
 }
 .newtab.has-photo .newtab-clock {
   text-shadow: 0 2px 24px rgb(0 0 0 / 0.35);
 }
-[data-fx='low'] .newtab.has-photo .newtab-search,
 [data-fx='low'] .newtab.has-photo .newtab-tile {
   backdrop-filter: none;
 }
@@ -2274,7 +2379,6 @@ kbd {
   --glass-hover: color-mix(in srgb, var(--space) 68%, transparent);
   --glass-rim: 0 8px 24px -10px rgb(0 0 0 / 0.45);
 }
-.newtab-search,
 .newtab-tile,
 .newtab-private button {
   background: var(--glass);
@@ -2285,7 +2389,6 @@ kbd {
 .newtab-private button {
   opacity: 1;
 }
-.newtab-search:hover,
 .newtab-site:hover .newtab-tile,
 .newtab-private button:hover {
   background: var(--glass-hover);
@@ -2301,7 +2404,6 @@ kbd {
 .newtab:not(.has-photo) .newtab-clock {
   text-shadow: none;
 }
-[data-fx='low'] .newtab-search,
 [data-fx='low'] .newtab-tile,
 [data-fx='low'] .newtab-private button {
   backdrop-filter: none;
@@ -2317,16 +2419,16 @@ kbd {
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 14px;
+  border-radius: var(--r-5);
   background: var(--glass);
   backdrop-filter: blur(34px) saturate(1.5);
   box-shadow: var(--glass-rim);
   color: var(--fg);
   opacity: 0.85;
   transition:
-    background 0.15s,
-    opacity 0.15s,
-    transform 0.2s var(--ease);
+    background var(--dur-fast),
+    opacity var(--dur-fast),
+    transform var(--dur) var(--ease);
 }
 .newtab-bg:hover {
   background: var(--glass-hover);
@@ -2397,7 +2499,7 @@ kbd {
   max-height: min(520px, 74%);
   display: flex;
   flex-direction: column;
-  border-radius: 14px;
+  border-radius: var(--r-5);
   background: var(--popover-bg);
   box-shadow:
     0 0 0 1px var(--border),
@@ -2407,7 +2509,7 @@ kbd {
 .pal.popover {
   position: fixed;
   max-height: min(440px, calc(100vh - 80px));
-  border-radius: 12px;
+  border-radius: var(--r-4);
 }
 .pal-input {
   flex: none;
@@ -2426,7 +2528,7 @@ kbd {
   outline: 0;
   color: var(--fg);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--fs-l);
   user-select: text;
 }
 .pal-list {
@@ -2444,7 +2546,7 @@ kbd {
   gap: 12px;
   height: 38px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: var(--r-3);
   cursor: default;
 }
 .pal-row.selected {
@@ -2477,7 +2579,7 @@ kbd {
   gap: 10px;
   overflow: hidden;
   white-space: nowrap;
-  font-size: 13.5px;
+  font-size: var(--fs-m);
 }
 .pal-name {
   min-width: 0;
@@ -2489,25 +2591,25 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--fg-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
 }
 .pal-kind {
   flex: none;
   color: var(--fg-dim);
-  font-size: 12px;
+  font-size: var(--fs-s);
 }
 .pal-empty {
   padding: 24px 12px;
   text-align: center;
   color: var(--fg-dim);
-  font-size: 13px;
+  font-size: var(--fs-m);
 }
 
 /* behind the command bar the page is a stored snapshot; soften it instead of showing it stretched */
 .pane-frozen {
   transition:
-    filter 0.18s,
-    transform 0.18s;
+    filter var(--dur),
+    transform var(--dur);
 }
 @keyframes frozen-blur-in {
   from {
@@ -2548,23 +2650,23 @@ kbd {
   height: 52px;
   display: grid;
   place-items: center;
-  border-radius: 16px;
+  border-radius: var(--r-5);
   background: var(--surface-hover);
   color: var(--fg-dim);
   transform: scale(1.5);
   margin-bottom: 14px;
 }
 .pip-note-title {
-  font-size: 14px;
+  font-size: var(--fs-l);
   font-weight: 600;
 }
 .pip-note-btn {
   padding: 8px 16px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--surface-active);
   color: var(--fg);
-  font-size: 13px;
-  transition: background 0.12s;
+  font-size: var(--fs-m);
+  transition: background var(--dur-fast);
 }
 .pip-note-btn:hover {
   background: color-mix(in srgb, var(--accent) 30%, var(--surface-active));
@@ -2607,7 +2709,7 @@ kbd {
   flex-direction: column;
   gap: 12px;
   padding: 12px;
-  border-radius: 14px;
+  border-radius: var(--r-5);
   background: var(--surface-hover);
   box-shadow: inset 0 0 0 1px var(--border);
 }
@@ -2622,7 +2724,7 @@ kbd {
   height: 32px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--r-3);
   color: var(--space);
   background: color-mix(in srgb, var(--space) 16%, transparent);
 }
@@ -2637,12 +2739,12 @@ kbd {
   flex-direction: column;
 }
 .sp-text b {
-  font-size: 13px;
+  font-size: var(--fs-m);
   font-weight: 600;
   color: var(--fg);
 }
 .sp-text span {
-  font-size: 12px;
+  font-size: var(--fs-s);
   color: var(--fg-dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2655,20 +2757,20 @@ kbd {
   place-items: center;
   color: var(--fg-dim);
   transition:
-    background 0.15s,
-    color 0.15s;
+    background var(--dur-fast),
+    color var(--dur-fast);
 }
 .sp-x {
   align-self: flex-start;
   width: 24px;
   height: 24px;
   margin: -2px -2px 0 0;
-  border-radius: 12px;
+  border-radius: var(--r-4);
 }
 .sp-eye {
   width: 26px;
   height: 26px;
-  border-radius: 8px;
+  border-radius: var(--r-3);
 }
 .sp-x:hover,
 .sp-eye:hover {
@@ -2676,7 +2778,7 @@ kbd {
   color: var(--fg);
 }
 .sp-fields {
-  border-radius: 10px;
+  border-radius: var(--r-4);
   background: var(--surface);
   overflow: hidden;
 }
@@ -2687,7 +2789,7 @@ kbd {
   gap: 10px;
   min-height: 36px;
   padding: 0 6px 0 12px;
-  font-size: 12.5px;
+  font-size: var(--fs-s);
 }
 .sp-field + .sp-field::before {
   content: '';
@@ -2701,7 +2803,7 @@ kbd {
 .sp-key {
   flex: none;
   width: 68px;
-  font-size: 12px;
+  font-size: var(--fs-s);
   color: var(--fg-dim);
 }
 .sp-val {
@@ -2728,15 +2830,15 @@ kbd {
   flex: 1;
   height: 32px;
   padding: 0 12px;
-  border-radius: 9px;
+  border-radius: var(--r-3);
   background: var(--surface-active);
   color: var(--fg);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   font-weight: 550;
   white-space: nowrap;
   transition:
-    filter 0.15s,
-    transform 0.15s var(--ease);
+    filter var(--dur-fast),
+    transform var(--dur-fast) var(--ease);
 }
 .sp-btn:hover {
   filter: brightness(1.15);
@@ -2751,8 +2853,8 @@ kbd {
 .sp-x:focus-visible,
 .sp-eye:focus-visible,
 .sp-btn:focus-visible {
-  outline: 2px solid var(--space);
-  outline-offset: 2px;
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
 }
 @media (prefers-reduced-motion: reduce) {
   .sp-wrap {
@@ -2768,16 +2870,16 @@ kbd {
   width: 100%;
   height: 34px;
   padding: 0 12px;
-  border-radius: 10px;
+  border-radius: var(--r-4);
   background: color-mix(in srgb, var(--space) 20%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--space) 45%, transparent);
   color: var(--fg);
-  font-size: 12.5px;
+  font-size: var(--fs-s);
   font-weight: 550;
   text-align: left;
   transition:
-    background 0.15s,
-    transform 0.15s var(--ease);
+    background var(--dur-fast),
+    transform var(--dur-fast) var(--ease);
 }
 .update-pill:hover {
   background: color-mix(in srgb, var(--space) 32%, transparent);
@@ -2909,14 +3011,14 @@ kbd {
   align-items: center;
   gap: 8px;
   padding: 0 4px 0 10px;
-  border-radius: 9px;
+  border-radius: var(--r-3);
   color: var(--fg-dim);
-  font-size: 13px;
+  font-size: var(--fs-m);
   overflow: hidden;
   transition:
-    background 0.12s,
-    color 0.12s,
-    translate 0.2s var(--ease);
+    background var(--dur-fast),
+    color var(--dur-fast),
+    translate var(--dur) var(--ease);
 }
 .htab:hover {
   background: var(--surface);
@@ -2971,11 +3073,11 @@ kbd {
   height: 20px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   color: var(--fg-dim);
   transition:
-    opacity 0.12s,
-    background 0.12s;
+    opacity var(--dur-fast),
+    background var(--dur-fast);
 }
 .htab-btn:hover {
   background: var(--surface-active);
@@ -3002,10 +3104,10 @@ kbd {
   height: calc(20px * var(--d));
   padding: 0 8px;
   margin: 0 2px;
-  border-radius: 7px;
+  border-radius: var(--r-3);
   background: color-mix(in srgb, var(--gc) 30%, transparent);
   color: var(--fg);
-  font-size: 12px;
+  font-size: var(--fs-s);
   font-weight: 600;
   cursor: default;
 }
@@ -3026,7 +3128,7 @@ kbd {
   width: 96px;
   height: 18px;
   padding: 0 4px;
-  border-radius: 5px;
+  border-radius: var(--r-2);
   background: var(--surface-active);
   color: var(--fg);
   font: inherit;
@@ -3139,7 +3241,7 @@ kbd {
 }
 .sp-fields:has(.sp-input) .sp-key {
   width: 100%;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -3149,7 +3251,7 @@ kbd {
   height: 34px;
   padding: 0 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r-3);
   background: var(--surface-hover);
   box-shadow: inset 0 0 0 1px var(--border);
   color: var(--fg);
@@ -3157,8 +3259,8 @@ kbd {
   outline: 0;
   user-select: text;
   transition:
-    box-shadow 0.12s,
-    background 0.12s;
+    box-shadow var(--dur-fast),
+    background var(--dur-fast);
 }
 .sp-input::placeholder {
   color: var(--fg-dim);
@@ -3264,7 +3366,7 @@ kbd {
 /* group headers slide too while a tab is dragged past them */
 .group-head,
 .hgroup {
-  transition: translate 0.2s var(--ease);
+  transition: translate var(--dur) var(--ease);
 }
 
 /* private tabs carry the incognito mark, Tor tabs the onion in Tor's purple: as the icon when the page has none, else as a badge */
@@ -3321,7 +3423,7 @@ kbd {
 
 /* ---- tabs that look like tabs, not pills ---- */
 .tab-row {
-  border-radius: 6px;
+  border-radius: var(--r-2);
 }
 .tab-row.active {
   /* no edge bar (it fought the rounded corners): a filled tab with a hint of the highlight colour */
@@ -3329,14 +3431,14 @@ kbd {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, var(--border));
 }
 .tab-row.grouped {
-  border-radius: 3px 6px 6px 3px;
+  border-radius: 3px var(--r-2) var(--r-2) 3px;
 }
 .htab-list {
   align-self: stretch;
   align-items: flex-end;
 }
 .htab {
-  border-radius: 9px 9px 0 0;
+  border-radius: var(--r-3) var(--r-3) 0 0;
 }
 .htab.active {
   box-shadow:
@@ -3367,7 +3469,7 @@ kbd {
   align-items: center;
   gap: 2px;
   padding: 2px 5px;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   color: #ff5a52;
   background: color-mix(in srgb, #ff3b30 16%, transparent);
 }
@@ -3429,6 +3531,10 @@ kbd {
 .stage-wrap.with-strip.hlayout {
   padding-top: 0;
 }
+/* ...but with the bar tucked away (canvas) nothing sits above the page: give it the same margin as the other edges */
+.stage-wrap.with-strip.hlayout.no-bar {
+  padding-top: max(var(--edge), 4px);
+}
 .strip.hstrip {
   padding-bottom: calc(6px * var(--d));
   height: calc(var(--strip-h) + 6px * var(--d));
@@ -3439,7 +3545,7 @@ kbd {
   box-shadow: none;
   margin-right: calc(-10px * var(--d));
   padding-right: calc(18px * var(--d));
-  border-radius: 8px 0 0 8px;
+  border-radius: var(--r-3) 0 0 var(--r-3);
 }
 .tab-row.active.grouped {
   border-radius: 3px 0 0 3px;
@@ -3543,7 +3649,7 @@ kbd {
 /* side tabs: the page sits on a plane of its own, and the active tab flows into it with tapered corners */
 .stage-wrap.plane {
   background: var(--tab-surface);
-  border-radius: 14px 0 0 14px;
+  border-radius: var(--r-5) 0 0 var(--r-5);
 }
 .tab-row.active {
   overflow: visible;
@@ -3591,7 +3697,7 @@ kbd {
   animation: share-fade 0.2s ease both;
 }
 .installing-veil b {
-  font-size: 17px;
+  font-size: var(--fs-xl);
 }
 .installing-veil > span:last-child {
   color: var(--fg-dim);
@@ -3618,13 +3724,13 @@ kbd {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .htab.in-split.split-first {
-  border-radius: 9px 0 0 0;
+  border-radius: var(--r-3) 0 0 0;
 }
 .htab.in-split.split-last {
-  border-radius: 0 9px 0 0;
+  border-radius: 0 var(--r-3) 0 0;
 }
 .htab.in-split.split-first.split-last {
-  border-radius: 9px 9px 0 0;
+  border-radius: var(--r-3) var(--r-3) 0 0;
 }
 .htab.in-split:not(.split-first) {
   box-shadow: inset 1px 0 0 var(--border);
@@ -3672,7 +3778,7 @@ kbd {
   z-index: 6;
   opacity: 1;
   transition: none;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  box-shadow: var(--shadow-2);
   background: var(--tab-surface-strong);
   cursor: grabbing;
 }
@@ -3695,20 +3801,20 @@ kbd {
   background: var(--tab-surface-strong);
 }
 .tab-row.pair-active.pair-first {
-  border-radius: 8px 0 0 0;
+  border-radius: var(--r-3) 0 0 0;
 }
 .tab-row.pair-active.pair-last {
-  border-radius: 0 0 0 8px;
+  border-radius: 0 0 0 var(--r-3);
 }
 .tab-row.pair-active.pair-first.pair-last {
-  border-radius: 8px 0 0 8px;
+  border-radius: var(--r-3) 0 0 var(--r-3);
 }
 .tab-row.pair-active:not(.pair-first) {
   box-shadow: inset 0 1px 0 var(--border);
 }
 
 .stage-wrap.plane {
-  transition: background-color 0.16s;
+  transition: background-color var(--dur-fast);
 }
 
 /* while the hover sidebar is out, the top bar's controls are the sidebar's own, so they fade, and the bar and the
@@ -3725,11 +3831,11 @@ kbd {
 }
 .stage-wrap.plane-hover {
   background: color-mix(in srgb, var(--tab-surface) calc(var(--slide-p, 0) * 100%), transparent);
-  border-radius: 14px 0 0 14px;
+  border-radius: var(--r-5) 0 0 var(--r-5);
   transition: none;
 }
 .strip > * {
-  transition: opacity 0.14s;
+  transition: opacity var(--dur-fast);
 }
 
 /* the sound control is a badge on the chip's corner, so the chip (and the strip) never change width when audio starts or stops */
@@ -3769,7 +3875,7 @@ kbd {
   background: var(--surface-active);
 }
 .space-sound:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: var(--ring);
   outline-offset: 1px;
 }
 
@@ -3781,11 +3887,11 @@ kbd {
   min-width: 42px;
   max-width: 150px;
   transition:
-    background 0.12s,
-    color 0.12s,
-    translate 0.2s var(--ease),
-    flex-basis 0.2s var(--ease),
-    width 0.2s var(--ease);
+    background var(--dur-fast),
+    color var(--dur-fast),
+    translate var(--dur) var(--ease),
+    flex-basis var(--dur) var(--ease),
+    width var(--dur) var(--ease);
 }
 .htab.active {
   flex-basis: 232px;
@@ -3808,7 +3914,7 @@ kbd {
 .hgroup-input {
   border: 0;
   outline: 0;
-  border-radius: 7px;
+  border-radius: var(--r-3);
   background: var(--surface-active);
   color: var(--fg);
   font: inherit;
@@ -3834,7 +3940,7 @@ kbd {
 .htab.in-split.split-first,
 .htab.in-split.split-last,
 .htab.in-split.split-first.split-last {
-  border-radius: 9px 9px 0 0;
+  border-radius: var(--r-3) var(--r-3) 0 0;
 }
 .htab.in-split:not(.split-first),
 .htab.in-split:not(.split-first).grouped,
@@ -3852,13 +3958,13 @@ kbd {
 .tab-row.pair-active.pair-first,
 .tab-row.pair-active.pair-last,
 .tab-row.pair-active.pair-first.pair-last {
-  border-radius: 8px 0 0 8px;
+  border-radius: var(--r-3) 0 0 var(--r-3);
 }
 .tab-row.pair-active:not(.pair-first) {
   box-shadow: none;
 }
 .tab-row.in-split:not(.pair-active) {
-  border-radius: 8px;
+  border-radius: var(--r-3);
 }
 
 /* ---- pinned tabs: small, at the start of the list, no close button to hit by mistake ---- */
@@ -3896,7 +4002,7 @@ kbd {
   opacity: 1;
   transition: none;
   background: var(--tab-surface-strong);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  box-shadow: var(--shadow-2);
   cursor: grabbing;
 }
 .tab-list:has(.tab-row.floating) {
@@ -3990,13 +4096,13 @@ kbd {
 }
 .stack.side .stack-card {
   width: calc(100% - 28px);
-  border-radius: 10px;
+  border-radius: var(--r-4);
 }
 .stack.side .stack-card .card-head {
   height: 28px;
   padding: 0 6px 0 9px;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-s);
 }
 .stack.side .card-favicons .favicon {
   width: 14px;
@@ -4049,6 +4155,25 @@ kbd {
 .search-drop.bar-over .strip .address {
   visibility: hidden;
 }
+/* top tabs in canvas: the tab strip and the toolbar are one bar that tucks away above the window and slides out
+   together (the strip inside it no longer moves on its own); outside canvas the box is not there for layout */
+.topbars {
+  display: contents;
+}
+.topbars.tucked {
+  display: block;
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 0;
+  right: 0;
+  transform: translateY(calc(var(--slide-y, 0px) - 100%));
+  will-change: transform;
+}
+.bar-over .topbars.tucked .strip {
+  position: static;
+  transform: none;
+}
 .bar-over .stage-wrap {
   transform: translateY(var(--slide-y, 0px));
   will-change: transform;
@@ -4083,7 +4208,7 @@ kbd {
   right: -4px;
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--accent);
   box-shadow: 0 0 0 1.5px var(--popover-bg);
   pointer-events: none;
@@ -4114,7 +4239,7 @@ kbd {
   display: inline-grid;
   place-items: center;
   padding: 2px 5px;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   color: #3dd68c;
   background: color-mix(in srgb, #30a46c 18%, transparent);
   animation: call-blink 1.1s ease-in-out infinite;
@@ -4136,7 +4261,7 @@ kbd {
   content: '';
   position: absolute;
   inset: 3px;
-  border-radius: 8px;
+  border-radius: var(--r-3);
   box-shadow: inset 0 0 0 1.5px #30a46c;
   pointer-events: none;
   animation: call-blink 1.1s ease-in-out infinite;
@@ -4165,7 +4290,7 @@ kbd {
   right: -2px;
   min-width: 9px;
   height: 9px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--accent);
   box-shadow: 0 0 0 1.5px var(--overlay-solid);
   pointer-events: none;
@@ -4187,7 +4312,7 @@ kbd {
 .space-ring {
   position: absolute;
   inset: 0;
-  border-radius: 11px;
+  border-radius: var(--r-4);
   box-shadow: 0 0 0 2px #30a46c;
   pointer-events: none;
 }
@@ -4232,10 +4357,10 @@ kbd {
   gap: 2px;
   height: 26px;
   padding: 0 3px 0 4px;
-  border-radius: 13px;
+  border-radius: var(--r-5);
   background: color-mix(in srgb, #ff3b30 18%, transparent);
   color: #ff6a62;
-  font-size: 12px;
+  font-size: var(--fs-s);
   -webkit-app-region: no-drag;
 }
 .sharing-who,
@@ -4246,7 +4371,7 @@ kbd {
   height: 22px;
   padding: 0 8px;
   border: 0;
-  border-radius: 11px;
+  border-radius: var(--r-4);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -4308,11 +4433,11 @@ kbd {
   gap: 7px;
   height: 26px;
   padding: 0 10px;
-  border-radius: 13px;
+  border-radius: var(--r-5);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--border);
   color: var(--fg);
-  font-size: 12px;
+  font-size: var(--fs-s);
   white-space: nowrap;
   animation: status-in 0.18s var(--ease) both;
 }
@@ -4327,7 +4452,7 @@ kbd {
   margin-right: -4px;
   padding: 0 8px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r-4);
   background: var(--accent);
   color: var(--accent-fg, #fff);
   font: inherit;

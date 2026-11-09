@@ -1,7 +1,8 @@
 import { app, nativeImage, shell, type DownloadItem, type Session } from 'electron'
-import { existsSync } from 'fs'
-import { basename, extname, join } from 'path'
+import { existsSync, renameSync } from 'fs'
+import { basename, dirname, extname, join } from 'path'
 import type { DownloadAction, DownloadInfo } from '@shared/types'
+import { PAGE_SCRIPT, type PageHints } from '@shared/ai/evidence'
 import type { SettingsStore } from './settings'
 import { JsonStore } from './store'
 
@@ -12,6 +13,30 @@ function uniquePath(dir: string, filename: string): string {
   let candidate = join(dir, filename)
   for (let n = 1; existsSync(candidate); n++) candidate = join(dir, `${stem} (${n})${ext}`)
   return candidate
+}
+
+/** "name (2).ext": the first free name for a file renamed into a folder (the original file's own name is not counted). */
+function freeName(dir: string, filename: string): string {
+  const ext = extname(filename)
+  const stem = basename(filename, ext)
+  let candidate = join(dir, filename)
+  for (let n = 2; existsSync(candidate); n++) candidate = join(dir, `${stem} (${n})${ext}`)
+  return candidate
+}
+
+/** The page a download was started from, remembered while it runs. */
+export interface DownloadPage {
+  title: string
+  url: string
+  /** What the page says about the link that was clicked (og:title, h1, description, link text), read as the download started. */
+  hints?: Promise<PageHints | null>
+  mime?: string
+}
+
+/** Hints from the page a download was started on; null when the page is gone or does not answer. */
+function readHints(wc: Electron.WebContents): Promise<PageHints | null> {
+  if (wc.isDestroyed()) return Promise.resolve(null)
+  return wc.executeJavaScript(PAGE_SCRIPT).catch(() => null)
 }
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'])
@@ -53,6 +78,8 @@ export class DownloadManager {
   private asked = new Set<number>()
   private changeListeners: Array<() => void> = []
   private startListeners: Array<(info: DownloadInfo) => void> = []
+  private doneListeners: Array<(info: DownloadInfo, page: DownloadPage | undefined) => void> = []
+  private pages = new Map<number, DownloadPage>()
   private changeTimer: ReturnType<typeof setTimeout> | null = null
 
   private store = new JsonStore<{ nextId: number; items: DownloadInfo[] }>('downloads', {
@@ -69,8 +96,18 @@ export class DownloadManager {
     for (const d of this.store.value.items) {
       if (d.state === 'progressing' || d.state === 'paused') d.state = 'interrupted'
     }
-    session.on('will-download', (_e, item) => this.track(item))
+    session.on('will-download', (_e, item, wc) =>
+      this.track(item, {
+        title: wc?.getTitle() ?? '',
+        url: wc?.getURL() ?? '',
+        mime: item.getMimeType(),
+        hints: wc && this.wantHints() ? readHints(wc) : undefined
+      })
+    )
   }
+
+  /** Set by the AI features: whether to read the page's hints when a download starts. */
+  wantHints: () => boolean = () => false
 
   list(): DownloadInfo[] {
     return this.store.value.items
@@ -137,6 +174,37 @@ export class DownloadManager {
     this.startListeners.push(l)
   }
 
+  /** Called when a download has finished (completed only), with the page it came from. */
+  onComplete(l: (info: DownloadInfo, page: DownloadPage | undefined) => void): void {
+    this.doneListeners.push(l)
+  }
+
+  /** A better name for a finished download, offered in the downloads page. Nothing on disk changes. */
+  suggestName(id: number, name: string): void {
+    const info = this.store.value.items.find((d) => d.id === id)
+    if (!info || info.state !== 'completed' || name === info.filename) return
+    info.suggestedName = name
+    this.store.save()
+    this.changed(true)
+  }
+
+  /** Carry out the offered rename on disk. A name taken in that folder gets " (2)". */
+  private acceptName(info: DownloadInfo): void {
+    const name = info.suggestedName
+    delete info.suggestedName
+    if (!name || info.state !== 'completed' || !existsSync(info.savePath)) return
+    const target = freeName(dirname(info.savePath), name)
+    try {
+      renameSync(info.savePath, target)
+    } catch (err) {
+      console.warn('[downloads] rename failed:', err instanceof Error ? err.message : err)
+      return
+    }
+    info.savePath = target
+    info.filename = basename(target)
+    this.store.save()
+  }
+
   private changed(now = false): void {
     if (now) {
       if (this.changeTimer) clearTimeout(this.changeTimer)
@@ -147,13 +215,13 @@ export class DownloadManager {
     }
   }
 
-  private track(item: DownloadItem): void {
+  private track(item: DownloadItem, page: DownloadPage): void {
     const { downloadAsk, downloadDir } = this.settings.get()
     const dir = downloadDir && existsSync(downloadDir) ? downloadDir : app.getPath('downloads')
     const suggested = uniquePath(dir, item.getFilename())
     if (!downloadAsk) {
       item.setSavePath(suggested)
-      this.begin(item)
+      this.begin(item, page)
       return
     }
     // Not setting a path makes Electron ask with the system's Save As dialog. Nothing is listed (and nothing flies to
@@ -165,16 +233,16 @@ export class DownloadManager {
       if (began || !item.getSavePath()) return
       began = true
       item.off('updated', onProgress)
-      this.begin(item)
+      this.begin(item, page)
     }
     item.on('updated', onProgress)
     item.once('done', (_e, state) => {
       if (began || !item.getSavePath()) return
-      this.finish(this.begin(item), item, state) // finished before any progress was seen (a tiny file)
+      this.finish(this.begin(item, page), item, state) // finished before any progress was seen (a tiny file)
     })
   }
 
-  private begin(item: DownloadItem): DownloadInfo {
+  private begin(item: DownloadItem, page: DownloadPage): DownloadInfo {
     const d = this.store.value
     const savePath = item.getSavePath()
     const info: DownloadInfo = {
@@ -189,6 +257,7 @@ export class DownloadManager {
     }
     d.items.unshift(info)
     this.live.set(info.id, item)
+    this.pages.set(info.id, page)
     for (const l of this.startListeners) l(info)
     this.changed(true)
 
@@ -211,7 +280,10 @@ export class DownloadManager {
     this.live.delete(info.id)
     this.store.save()
     this.changed(true)
+    const page = this.pages.get(info.id)
+    this.pages.delete(info.id)
     if (info.state === 'completed') {
+      for (const l of this.doneListeners) l(info, page)
       this.asked.add(info.id)
       void previewFor(info.savePath).then((preview) => {
         if (!preview) return
@@ -225,7 +297,14 @@ export class DownloadManager {
     const info = this.store.value.items.find((d) => d.id === id)
     if (!info) return
     const item = this.live.get(id)
-    if (action === 'open') void shell.openPath(info.savePath)
+    if (action === 'accept-name') {
+      this.acceptName(info)
+      this.changed(true)
+    } else if (action === 'dismiss-name') {
+      delete info.suggestedName
+      this.store.save()
+      this.changed(true)
+    } else if (action === 'open') void shell.openPath(info.savePath)
     else if (action === 'show') shell.showItemInFolder(info.savePath)
     else if (action === 'cancel') item?.cancel()
     else if (action === 'pause') item?.pause()

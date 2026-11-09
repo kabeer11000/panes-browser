@@ -437,6 +437,8 @@ function FanRow({
   const y = -(index + 1) * (ROW_H + FAN_GAP)
   const x = -(index * index * 2.2 + 6)
   const pct = d && d.total > 0 ? Math.min(1, d.received / d.total) : 0
+  // the AI's clearer name for a file that came as "download (2)" (Settings, AI); panes://downloads can also dismiss it
+  const better = d && d.state === 'completed' && !d.missing ? d.suggestedName : undefined
   return (
     <motion.div
       className={'dk-row' + (all ? ' all' : '')}
@@ -483,18 +485,20 @@ function FanRow({
             <Face d={d} size={34} />
             <span className="dk-row-text">
               <span className="dk-row-title">{d.filename}</span>
-              <span className="dk-row-meta">
-                {d.missing
-                  ? 'File moved or deleted'
-                  : d.state === 'completed'
-                    ? formatBytes(d.total || d.received)
-                    : d.state === 'progressing'
-                      ? `${formatBytes(d.received)}${d.total ? ` of ${formatBytes(d.total)}` : ''}`
-                      : d.state === 'paused'
-                        ? 'Paused'
-                        : d.state === 'cancelled'
-                          ? 'Cancelled'
-                          : 'Interrupted'}
+              <span className={'dk-row-meta' + (better ? ' better' : '')}>
+                {better
+                  ? `Rename to ${better}?`
+                  : d.missing
+                    ? 'File moved or deleted'
+                    : d.state === 'completed'
+                      ? formatBytes(d.total || d.received)
+                      : d.state === 'progressing'
+                        ? `${formatBytes(d.received)}${d.total ? ` of ${formatBytes(d.total)}` : ''}`
+                        : d.state === 'paused'
+                          ? 'Paused'
+                          : d.state === 'cancelled'
+                            ? 'Cancelled'
+                            : 'Interrupted'}
               </span>
             </span>
           </button>
@@ -527,6 +531,52 @@ function FanRow({
                 onClick={() => window.dock.act(d.id, 'retry')}
               >
                 <ReloadIcon />
+              </button>
+            )}
+            {better && (
+              <button
+                type="button"
+                title={`Rename to ${better}`}
+                aria-label={`Rename ${d.filename} to ${better}`}
+                onClick={() => window.dock.act(d.id, 'accept-name')}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M10.5 2.5l3 3L6 13H3v-3z" />
+                </svg>
+              </button>
+            )}
+            {d.state === 'completed' && !d.missing && (
+              <button
+                type="button"
+                title="Show in canvas"
+                aria-label="Show in canvas"
+                onClick={() => window.dock.act(d.id, 'canvas')}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="2" y="2.5" width="5" height="5" rx="1" />
+                  <rect x="9" y="8.5" width="5" height="5" rx="1" />
+                  <path d="M7 5h2.5a1.5 1.5 0 0 1 1.5 1.5v2" />
+                </svg>
               </button>
             )}
             {d.state === 'completed' && !d.missing && (

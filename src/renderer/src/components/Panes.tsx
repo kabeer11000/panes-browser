@@ -11,7 +11,7 @@ import {
 } from '@shared/layout'
 import type { Rect, Settings, TabInfo } from '@shared/types'
 import { displayHost } from '@shared/url'
-import { tabTitle } from '@renderer/tabTitle'
+import { TabTitle } from './TabTitle'
 import { CloseIcon, GripIcon, PipIcon } from './icons'
 import { NewTab } from './NewTab'
 import { TabFavicon } from './TabFavicon'
@@ -27,12 +27,13 @@ interface Props {
   thumbs: Record<number, string>
   dragId: number | null
   onHeaderPointerDown: (e: PointerEvent, id: number) => void
-  onOpenSearch: () => void
   /** How soft the saved page image is while it stands in for the live page (the frozenBlur setting). */
   frozenBlur?: Settings['frozenBlur']
   /** Show the daily photo on blank tabs (the newTabPhoto setting). */
   newTabPhoto?: boolean
   newTabPhotoId?: number | null
+  /** AI is on: blank tabs show boards, articles to go back to and a usual site (shared/newtab.ts). */
+  smartNewTab?: boolean
   /** The space's colours when the new tab photo is to be dithered in them; null for the photo as it is. */
   dither?: { color: string; color2: string | null } | null
 }
@@ -69,10 +70,10 @@ export function Panes({
   thumbs,
   dragId,
   onHeaderPointerDown,
-  onOpenSearch,
   frozenBlur = 'off',
   newTabPhoto = false,
   newTabPhotoId = null,
+  smartNewTab = false,
   dither = null
 }: Props): React.JSX.Element {
   const byId = new Map(tabs.map((t) => [t.id, t]))
@@ -214,9 +215,9 @@ export function Panes({
                   dragging={id === dragId}
                   thumb={thumbs[id]}
                   onHeaderPointerDown={onHeaderPointerDown}
-                  onOpenSearch={onOpenSearch}
                   newTabPhoto={newTabPhoto}
                   newTabPhotoId={newTabPhotoId}
+                  smartNewTab={smartNewTab}
                   dither={dither}
                 />
               )
@@ -263,9 +264,9 @@ interface PaneProps {
   dragging: boolean
   thumb: string | undefined
   onHeaderPointerDown: (e: PointerEvent, id: number) => void
-  onOpenSearch: () => void
   newTabPhoto: boolean
   newTabPhotoId: number | null
+  smartNewTab: boolean
   dither: { color: string; color2: string | null } | null
 }
 
@@ -277,9 +278,9 @@ function Pane({
   dragging,
   thumb,
   onHeaderPointerDown,
-  onOpenSearch,
   newTabPhoto,
   newTabPhotoId,
+  smartNewTab,
   dither
 }: PaneProps): React.JSX.Element {
   return (
@@ -301,7 +302,7 @@ function Pane({
         >
           <GripIcon />
           <TabFavicon tab={tab} />
-          <span className="tab-title">{tabTitle(tab)}</span>
+          <TabTitle tab={tab} className="tab-title" />
           <button
             className="pane-btn"
             title="Take out of split (tab stays open)"
@@ -315,9 +316,9 @@ function Pane({
       <div className="pane-body" data-tab-id={tab.id}>
         {!tab.url && (
           <NewTab
-            onOpenSearch={onOpenSearch}
             photo={newTabPhoto && !tab.private && !tab.tor}
             photoId={newTabPhotoId}
+            smart={smartNewTab && !tab.private && !tab.tor}
             dither={dither}
           />
         )}

@@ -1,5 +1,6 @@
 import '@renderer/styles.css'
 import '@renderer/internal/internal.css'
+import '@renderer/internal/controls.css'
 import './welcome.css'
 
 import { StrictMode } from 'react'

@@ -1,11 +1,7 @@
-import { app, net } from 'electron'
-import { execFile, spawn, type ChildProcess } from 'child_process'
-import { createHash } from 'crypto'
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
-import { createServer } from 'net'
+import { app } from 'electron'
+import { spawn, type ChildProcess } from 'child_process'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { basename, join } from 'path'
-import { Readable } from 'stream'
-import { pipeline } from 'stream/promises'
 import {
   buildTorrc,
   parseBootstrap,
@@ -13,29 +9,7 @@ import {
   torBundleFor,
   type TorStatus
 } from '@shared/tor'
-
-const exe = process.platform === 'win32' ? '.exe' : ''
-
-const freePort = (): Promise<number> =>
-  new Promise((resolve, reject) => {
-    const srv = createServer()
-    srv.once('error', reject)
-    srv.listen(0, '127.0.0.1', () => {
-      const { port } = srv.address() as { port: number }
-      srv.close(() => resolve(port))
-    })
-  })
-
-const run = (cmd: string, args: string[], cwd: string): Promise<void> =>
-  new Promise((resolve, reject) =>
-    execFile(cmd, args, { windowsHide: true, cwd }, (err) => (err ? reject(err) : resolve()))
-  )
-
-/** Windows ships its own tar; a GNU tar earlier on PATH would read "C:" in a path as a remote host. */
-const tarCommand = (): string =>
-  process.platform === 'win32'
-    ? join(process.env['SystemRoot'] ?? 'C:/Windows', 'System32', 'tar.exe')
-    : 'tar'
+import { exe, fetchVerified, freePort, run, tarCommand } from './fetchVerified'
 
 /**
  * Runs Tor for private-with-Tor tabs. The daemon is not shipped in the installer: on first use the pinned
@@ -173,22 +147,15 @@ export class TorManager {
   private async download(url: string, sha256: string, dir: string): Promise<void> {
     mkdirSync(this.root, { recursive: true })
     const archive = join(this.root, 'bundle.tar.gz')
-    const res = await net.fetch(url)
-    if (!res.ok || !res.body) throw new Error(`Download failed (${res.status})`)
-    const total = Number(res.headers.get('content-length')) || 0
-    const hash = createHash('sha256')
-    let got = 0
-    const body = Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0])
-    body.on('data', (chunk: Buffer) => {
-      hash.update(chunk)
-      got += chunk.length
-      if (total > 0) this.set({ progress: Math.round((got / total) * 100) })
+    await fetchVerified({
+      url,
+      sha256,
+      dest: archive,
+      label: 'Tor bundle',
+      onProgress: (got, total) => {
+        if (total > 0) this.set({ progress: Math.round((got / total) * 100) })
+      }
     })
-    await pipeline(body, createWriteStream(archive))
-    if (hash.digest('hex') !== sha256) {
-      rmSync(archive, { force: true })
-      throw new Error('The downloaded Tor bundle did not match its checksum, so it was discarded')
-    }
     this.set({ message: 'Unpacking Tor' })
     rmSync(dir, { recursive: true, force: true })
     mkdirSync(dir, { recursive: true })

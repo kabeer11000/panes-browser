@@ -14,6 +14,25 @@ interface HistoryData {
 
 export class HistoryStore {
   private store = new JsonStore<HistoryData>('history', { nextId: 1, entries: [] })
+  private removedListeners: Array<(urls: string[]) => void> = []
+
+  /** Told which pages no longer have any visit left after a delete or a clear. */
+  onRemoved(l: (urls: string[]) => void): void {
+    this.removedListeners.push(l)
+  }
+
+  /** Pages that were among `before` and have no entry in the history now. */
+  private goneFrom(before: HistoryEntry[]): void {
+    if (this.removedListeners.length === 0) return
+    const left = new Set(this.store.value.entries.map((e) => e.url))
+    const gone = [...new Set(before.map((e) => e.url))].filter((u) => !left.has(u))
+    if (gone.length > 0) for (const l of this.removedListeners) l(gone)
+  }
+
+  /** The icon last seen for a page, if any visit has one. */
+  faviconFor(url: string): string | null {
+    return this.store.value.entries.find((e) => e.url === url && e.favicon)?.favicon ?? null
+  }
 
   add(url: string, title: string): void {
     if (!isWeb(url)) return
@@ -38,6 +57,11 @@ export class HistoryStore {
     this.store.save()
   }
 
+  /** Every visit, newest first (read only). */
+  all(): readonly HistoryEntry[] {
+    return this.store.value.entries
+  }
+
   list(query: string, limit: number, offset: number): HistoryEntry[] {
     const q = query.trim().toLowerCase()
     const all = this.store.value.entries
@@ -48,16 +72,16 @@ export class HistoryStore {
   }
 
   remove(id: number): void {
-    const d = this.store.value
-    d.entries = d.entries.filter((e) => e.id !== id)
-    this.store.save()
+    this.removeMany([id])
   }
 
   removeMany(ids: number[]): void {
     const drop = new Set(ids)
     const d = this.store.value
-    d.entries = d.entries.filter((e) => !drop.has(e.id))
+    const before = d.entries
+    d.entries = before.filter((e) => !drop.has(e.id))
     this.store.save()
+    this.goneFrom(before.filter((e) => drop.has(e.id)))
   }
 
   /** Pages from another browser, kept at their own times. Returns how many were added. */
@@ -80,8 +104,10 @@ export class HistoryStore {
   clear(sinceMs: number | null): void {
     const d = this.store.value
     const cutoff = sinceMs === null ? Infinity : Date.now() - sinceMs
-    d.entries = sinceMs === null ? [] : d.entries.filter((e) => e.time < cutoff)
+    const before = d.entries
+    d.entries = sinceMs === null ? [] : before.filter((e) => e.time < cutoff)
     this.store.save()
+    this.goneFrom(before)
   }
 }
 

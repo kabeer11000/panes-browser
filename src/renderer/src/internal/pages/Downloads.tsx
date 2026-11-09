@@ -78,6 +78,27 @@ export function Downloads(): React.JSX.Element {
               <span className="int-sub">
                 {formatTime(d.time)} - {stateLabel(d)}
               </span>
+              {d.state === 'completed' && d.suggestedName && (
+                <div className="dl-suggest">
+                  <span>Rename to</span>
+                  <span className="dl-name" title={d.suggestedName}>
+                    {d.suggestedName}
+                  </span>
+                  <button
+                    aria-label={`Rename ${d.filename} to ${d.suggestedName}`}
+                    onClick={() => act(d.id, 'accept-name')}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    className="quiet"
+                    aria-label="Keep the original name"
+                    onClick={() => act(d.id, 'dismiss-name')}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
               {(d.state === 'progressing' || d.state === 'paused') && (
                 <div className="progress">
                   <span

@@ -7,7 +7,29 @@ import {
   type SearchResult
 } from '@shared/search'
 import type { Settings, TabInfo } from '@shared/types'
-import { GlobeIcon, SearchIcon, SettingsIcon, SplitIcon } from './icons'
+import {
+  BookmarkIcon,
+  CanvasIcon,
+  ChatIcon,
+  DownloadIcon,
+  GlobeIcon,
+  GridIcon,
+  HistoryIcon,
+  IncognitoIcon,
+  KeyIcon,
+  PinIcon,
+  PipIcon,
+  PlusIcon,
+  PrintIcon,
+  ReaderIcon,
+  ReloadIcon,
+  SearchIcon,
+  SettingsIcon,
+  SoftwareIcon,
+  SpeakerIcon,
+  SplitIcon,
+  TorIcon
+} from './icons'
 
 export interface Anchor {
   left: number
@@ -28,6 +50,13 @@ interface Props {
   onClose: () => void
   /** Quick actions are carried out by the app shell. */
   onAction: (id: string) => void
+  /** What the field starts with, instead of the active tab's address. */
+  initial?: string
+  /**
+   * Hand the picked address or search to the caller (the canvas) instead of opening it; an open tab's result
+   * gives its address.
+   */
+  onPick?: (text: string) => void
 }
 
 const REMOTE_DEBOUNCE_MS = 110
@@ -52,7 +81,57 @@ function ResultIcon({ r }: { r: SearchResult }): React.JSX.Element {
     case 'suggestion':
       return <SearchIcon />
     case 'action':
-      return r.actionId === 'settings' ? <SettingsIcon /> : <SplitIcon />
+      switch (r.actionId) {
+        case 'new-tab':
+        case 'duplicate':
+          return <PlusIcon />
+        case 'new-private':
+          return <IncognitoIcon />
+        case 'new-tor':
+          return <TorIcon />
+        case 'pin':
+          return <PinIcon />
+        case 'mute':
+          return <SpeakerIcon muted />
+        case 'reader':
+          return <ReaderIcon />
+        case 'reload':
+        case 'hard-reload':
+          return <ReloadIcon />
+        case 'pip':
+          return <PipIcon />
+        case 'history':
+          return <HistoryIcon />
+        case 'bookmarks':
+        case 'bookmark':
+          return <BookmarkIcon />
+        case 'downloads':
+          return <DownloadIcon />
+        case 'passwords':
+          return <KeyIcon />
+        case 'software':
+          return <SoftwareIcon />
+        case 'grid':
+        case 'stack':
+          return <GridIcon />
+        case 'privacy':
+          return <IncognitoIcon />
+        case 'settings':
+        case 'ai-settings':
+        case 'ai-setup':
+          return <SettingsIcon />
+        case 'canvas':
+          return <CanvasIcon />
+        case 'chat':
+          return <ChatIcon />
+        case 'print':
+        case 'save-pdf':
+          return <PrintIcon />
+        case 'split':
+          return <SplitIcon />
+        default:
+          return r.actionId?.startsWith('settings-') ? <SettingsIcon /> : <SearchIcon />
+      }
     default:
       // a page with no icon of its own: a quiet, greyed-out globe, like any browser's
       return (
@@ -66,6 +145,7 @@ function ResultIcon({ r }: { r: SearchResult }): React.JSX.Element {
 /** A short label for results that are not plain pages. */
 const KIND_LABEL: Partial<Record<SearchResult['kind'], string>> = {
   tab: 'Switch to tab',
+  similar: 'Similar',
   bookmark: 'Bookmark',
   action: 'Action'
 }
@@ -82,14 +162,17 @@ export function SearchPalette({
   variant,
   anchor,
   onClose,
-  onAction
+  onAction,
+  initial,
+  onPick
 }: Props): React.JSX.Element {
-  const [shown, setShown] = useState(active?.url ?? '') // what the input displays, completion included
+  const [shown, setShown] = useState(initial ?? active?.url ?? '') // what the input displays, completion included
   const [typed, setTyped] = useState('') // what the user actually typed
   const [dirty, setDirty] = useState(false) // the prefilled address is not a search until edited
   const [sel, setSel] = useState(0)
   const [local, setLocal] = useState<LocalSuggestion[]>([])
   const [remote, setRemote] = useState<string[]>([])
+  const [similar, setSimilar] = useState<LocalSuggestion[]>([]) // AI: pages that match by meaning
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [forward, setForward] = useState(false) // the last edit was typing forward, not deleting
@@ -98,6 +181,7 @@ export function SearchPalette({
 
   useEffect(() => {
     inputRef.current?.select()
+    window.api.aiWarm() // the meaning search is ready by the first keystroke
   }, [])
 
   useEffect(() => {
@@ -121,6 +205,19 @@ export function SearchPalette({
     }
   }, [effective])
 
+  // Pages that match by meaning (AI). They arrive on their own, after the ones that match by letters, and
+  // are left out when the answer is slow: until one comes, what was shown stays.
+  useEffect(() => {
+    if (effective.length < 3) return
+    let alive = true
+    const shown = [...tabs.map((t) => t.url), ...local.map((l) => l.url)]
+    void window.api.suggestSemantic(effective, shown).then((r) => alive && setSimilar(r))
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effective, local])
+
   // Chrome-style inline completion: finish a site name you are typing, with the rest selected.
   const completion = useMemo(
     () => (dirty && forward ? inlineCompletion(typed, local) : null),
@@ -143,9 +240,10 @@ export function SearchPalette({
         activeId: active?.id ?? null,
         local,
         remote: effective ? remote : [],
+        semantic: effective.length >= 3 ? similar : [],
         engineName
       }),
-    [effective, tabs, active?.id, local, remote, engineName]
+    [effective, tabs, active?.id, local, remote, similar, engineName]
   )
   const current = Math.min(sel, Math.max(0, results.length - 1))
 
@@ -157,6 +255,17 @@ export function SearchPalette({
 
   const run = (r: SearchResult | undefined, how: 'current' | 'tab' | 'split'): void => {
     const text = shown.trim()
+    if (onPick) {
+      const picked = !r
+        ? text
+        : r.kind === 'tab'
+          ? (tabs.find((t) => t.id === r.tabId)?.url ?? text)
+          : r.kind === 'go' || r.kind === 'search' || r.kind === 'action'
+            ? text
+            : (r.url ?? r.title)
+      if (picked) onPick(picked)
+      return onClose()
+    }
     if (!r) {
       if (text) window.api.navigate(text) // nothing matched: treat the text as an address or search
       return onClose()

@@ -28,7 +28,17 @@ const REACH_X = 130
 const REACH_Y = 120
 const DWELL_MS = 320
 const LEAVE_MS = 350
-const ACTIONS = ['open', 'show', 'cancel', 'pause', 'resume', 'retry', 'remove']
+const ACTIONS = [
+  'open',
+  'show',
+  'cancel',
+  'pause',
+  'resume',
+  'retry',
+  'remove',
+  'accept-name',
+  'canvas'
+]
 
 /**
  * The downloads bin: two transparent views above the page. The bin is a small view at the window's bottom-right corner;
@@ -191,7 +201,9 @@ class Dock {
 export function registerDock(
   win: BrowserWindow,
   downloads: DownloadManager,
-  openDownloadsPage: () => void
+  openDownloadsPage: () => void,
+  /** "Show in canvas": put a finished download on the board. */
+  toCanvas?: (path: string, name: string) => void
 ): { raise: () => void; setHidden: (hidden: boolean) => void } {
   const dock = new Dock(win)
   dock.start()
@@ -210,7 +222,10 @@ export function registerDock(
   ipcMain.handle('downloads:list', (e) => (fromDock(e) ? downloads.view() : []))
   ipcMain.on('downloads:act', (e, id: unknown, action: unknown) => {
     if (fromDock(e) && typeof id === 'number' && ACTIONS.includes(action as string)) {
-      downloads.act(id, action as DownloadAction)
+      if (action === 'canvas') {
+        const d = downloads.list().find((x) => x.id === id && x.state === 'completed')
+        if (d) toCanvas?.(d.savePath, d.filename)
+      } else downloads.act(id, action as DownloadAction)
     }
   })
   ipcMain.on('dock:drag', (e, id: unknown) => {

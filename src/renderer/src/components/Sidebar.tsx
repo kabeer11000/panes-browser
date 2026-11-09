@@ -3,7 +3,7 @@ import { useEffect, useState, type PointerEvent, type WheelEvent } from 'react'
 import { leaves, type LayoutNode } from '@shared/layout'
 import type { TabGroup } from '@shared/tabgroups'
 import type { LoginEdits, PasswordPrompt, Settings, Space, TabInfo, TabsState } from '@shared/types'
-import { tabTitle } from '@renderer/tabTitle'
+import { TabTitle } from './TabTitle'
 import { AddressBar } from './AddressBar'
 import { FindBar } from './FindBar'
 import { SavePrompt } from './SavePrompt'
@@ -11,6 +11,8 @@ import { SharingBar } from './SharingBar'
 import {
   BookmarkIcon,
   CloseIcon,
+  CanvasIcon,
+  ChatIcon,
   FeedbackIcon,
   GridIcon,
   MoreIcon,
@@ -65,6 +67,12 @@ interface Props {
   /** The pointer brought the sidebar out; the toggle then keeps it open. */
   peeking: boolean
   onToggle: () => void
+  /** The chat panel's button, and whether the panel is open. */
+  onChat?: () => void
+  chatOpen?: boolean
+  /** The canvas view's button, and whether the view is open. */
+  onCanvas?: () => void
+  canvasOpen?: boolean
   onTaskView?: () => void
   onWheel: (e: WheelEvent) => void
 }
@@ -99,6 +107,10 @@ export function Sidebar({
   onAnswerPassword,
   peeking,
   onToggle,
+  onChat,
+  chatOpen,
+  onCanvas,
+  canvasOpen,
   onTaskView,
   onWheel
 }: Props): React.JSX.Element {
@@ -158,6 +170,28 @@ export function Sidebar({
         >
           <SplitIcon />
         </button>
+        {onCanvas && (
+          <button
+            className={'icon-btn no-drag' + (canvasOpen ? ' active' : '')}
+            onClick={onCanvas}
+            title="Canvas (Ctrl+Shift+K)"
+            aria-label="Canvas"
+            aria-pressed={canvasOpen}
+          >
+            <CanvasIcon />
+          </button>
+        )}
+        {onChat && (
+          <button
+            className={'icon-btn no-drag' + (chatOpen ? ' active' : '')}
+            onClick={onChat}
+            title="Chat (Ctrl+Shift+L)"
+            aria-label="Chat"
+            aria-pressed={chatOpen}
+          >
+            <ChatIcon />
+          </button>
+        )}
         {onTaskView && (
           <button className="icon-btn no-drag" onClick={onTaskView} title="All tabs (Ctrl+Shift+A)">
             <GridIcon />
@@ -266,7 +300,7 @@ export function Sidebar({
                 {footTop && <span className="trow-foot t" aria-hidden="true" />}
                 {footBottom && <span className="trow-foot b" aria-hidden="true" />}
                 <TabFavicon tab={t} />
-                <span className="tab-title">{tabTitle(t)}</span>
+                <TabTitle tab={t} className="tab-title" />
                 {inSplit ? (
                   <button
                     className="tab-action split-on"

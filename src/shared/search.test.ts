@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import { buildResults, inlineCompletion, isUrlLike, rankLocal, sectionOf } from './search'
+import {
+  ACTIONS,
+  buildResults,
+  inlineCompletion,
+  isUrlLike,
+  matchActions,
+  rankLocal,
+  sectionOf
+} from './search'
 import type { Bookmark, HistoryEntry, TabInfo } from './types'
 
 const NOW = Date.UTC(2026, 9, 29)
@@ -108,6 +116,20 @@ describe('buildResults', () => {
     const r = buildResults({ ...base, query: 'prefer' })
     expect(r.some((x) => x.kind === 'action' && x.actionId === 'settings')).toBe(true)
   })
+  test('the new features are reachable by name, above web suggestions, with their shortcut', () => {
+    for (const [q, id, key] of [
+      ['canvas', 'canvas', 'Ctrl+Shift+K'],
+      ['chat', 'chat', 'Ctrl+Shift+L'],
+      ['pdf', 'print', 'Ctrl+P'],
+      ['ai', 'ai-settings', undefined]
+    ] as const) {
+      const r = buildResults({ ...base, query: q, remote: [`${q} one`, `${q} two`] })
+      const at = r.findIndex((x) => x.actionId === id)
+      expect(at).toBeGreaterThan(-1)
+      expect(r[at].subtitle).toBe(key)
+      expect(at).toBeLessThan(r.findIndex((x) => x.kind === 'suggestion'))
+    }
+  })
   test('empty query offers other tabs and actions, no search row', () => {
     const r = buildResults({ ...base, query: '' })
     expect(r.some((x) => x.kind === 'search' || x.kind === 'go')).toBe(false)
@@ -136,5 +158,50 @@ describe('inlineCompletion', () => {
   })
   test('nothing to add when the host is already typed', () => {
     expect(inlineCompletion('github.com', local)).toBeNull()
+  })
+})
+
+describe('command bar actions', () => {
+  test('ids and shortcuts are unique', () => {
+    const ids = ACTIONS.map((a) => a.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    const keys = ACTIONS.flatMap((a) => (a.shortcut ? [a.shortcut] : []))
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+  test('every action has a title and is found by its own title', () => {
+    for (const a of ACTIONS) {
+      expect(a.title.length).toBeGreaterThan(0)
+      expect(matchActions(a.title, ACTIONS.length).map((x) => x.id)).toContain(a.id)
+    }
+  })
+  test('the app actions a person would look for are all there', () => {
+    for (const [q, id] of [
+      ['reader', 'reader'],
+      ['mute', 'mute'],
+      ['duplicate', 'duplicate'],
+      ['pin', 'pin'],
+      ['close other', 'close-others'],
+      ['save pdf', 'save-pdf'],
+      ['picture', 'pip'],
+      ['split', 'split'],
+      ['downloads', 'downloads'],
+      ['history', 'history'],
+      ['tor', 'new-tor'],
+      ['incognito', 'new-private'],
+      ['ai settings', 'ai-settings'],
+      ['appearance', 'settings-appearance'],
+      ['board', 'canvas']
+    ] as const) {
+      expect(matchActions(q, ACTIONS.length).map((x) => x.id)).toContain(id)
+    }
+  })
+  test('a title that starts with the word comes before one that only mentions it', () => {
+    const ids = matchActions('tab', ACTIONS.length).map((x) => x.id)
+    expect(ids.indexOf('new-tab')).toBeLessThan(ids.indexOf('settings-tabs'))
+    expect(ids.indexOf('settings-tabs')).toBeGreaterThan(-1)
+  })
+  test('nothing matches an empty query and the list is capped', () => {
+    expect(matchActions('  ', 5)).toEqual([])
+    expect(matchActions('tab', 2)).toHaveLength(2)
   })
 })

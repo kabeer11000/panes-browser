@@ -12,6 +12,9 @@ interface Actions {
   openPrivate: (url: string) => void
   openSplit: (url: string) => void
   pip: () => void
+  print: () => void
+  /** Null in a private or Tor tab: chat does not read those. */
+  askAi: ((text: string | null) => void) | null
   searchUrl: (text: string) => string
 }
 
@@ -98,6 +101,9 @@ export function showContextMenu(
     items.push(
       { role: 'copy' },
       { label: `Search for "${short}"`, click: () => a.openTab(a.searchUrl(text)) },
+      ...(a.askAi
+        ? [{ label: 'Ask AI about selection', click: () => a.askAi?.(text.slice(0, 2000)) }]
+        : []),
       sep
     )
   } else if (!p.linkURL && p.mediaType !== 'image') {
@@ -113,6 +119,9 @@ export function showContextMenu(
         click: () => wc.navigationHistory.goForward()
       },
       { label: 'Reload', click: () => wc.reload() },
+      sep,
+      { label: 'Print...', accelerator: 'CmdOrCtrl+P', click: a.print },
+      ...(a.askAi ? [{ label: 'Ask AI about this page', click: () => a.askAi?.(null) }] : []),
       sep
     )
   }

@@ -7,8 +7,9 @@ import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '@s
 import { Segmented, Toggle } from '@renderer/internal/ui'
 import { ImportSection } from '@renderer/internal/pages/ImportSection'
 import { preloadImportSources } from '@renderer/internal/pages/importSources'
+import { AiStep } from './AiStep'
 
-const STEPS = ['welcome', 'import', 'look', 'layout', 'speed', 'finish'] as const
+const STEPS = ['welcome', 'import', 'look', 'layout', 'speed', 'ai', 'finish'] as const
 type Step = (typeof STEPS)[number]
 
 const KEYS: Array<[string, string]> = [
@@ -396,6 +397,8 @@ export function Welcome(): React.JSX.Element {
                   </div>
                 </>
               )}
+
+              {step === 'ai' && <AiStep ai={s.ai} update={update} />}
 
               {step === 'finish' && (
                 <>

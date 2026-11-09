@@ -1,7 +1,7 @@
 import { ROOT_TARGET } from '@shared/layout'
 import type { TabInfo } from '@shared/types'
 import type { DragState } from '@renderer/hooks/useTabDrag'
-import { tabTitle } from '@renderer/tabTitle'
+import { TabTitle } from './TabTitle'
 import { TabFavicon } from './TabFavicon'
 
 const LABELS = {
@@ -35,7 +35,7 @@ export function DragLayer({
       style={{ transform: `translate(${drag.x + 14}px, ${drag.y + 10}px)` }}
     >
       <TabFavicon tab={tab} />
-      <span className="tab-title">{tabTitle(tab)}</span>
+      <TabTitle tab={tab} className="tab-title" />
       {drag.count > 1 && <span className="ghost-count">+{drag.count - 1}</span>}
     </div>
   )

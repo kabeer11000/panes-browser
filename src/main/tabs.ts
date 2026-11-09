@@ -70,6 +70,7 @@ import { runningMode } from './performance'
 import { pickUnloads, type MemoryPolicy, type TabFacts } from '@shared/memory'
 import { join } from 'path'
 import { internalUrl, type InternalPage } from '@shared/settings'
+import { pdfFileName } from '@shared/print'
 import {
   applyDrop,
   insertTab,
@@ -108,6 +109,7 @@ import type { SpaceStore } from './spaces'
 import { JsonStore } from './store'
 
 const THUMB_WIDTH = 800
+const CANVAS_THUMB_WIDTH = 480 // pictures taken for the canvas are small at once: about 30 KB each
 const THUMB_INTERVAL_MS = 4000
 const SNAPSHOT_TIMEOUT_MS = 250 // overlays open without waiting longer than this for snapshots
 const THUMB_FRESH_MS = 2000 // a snapshot newer than this is good enough, so opening an overlay does not wait
@@ -217,10 +219,54 @@ export class TabManager {
     return kindOf(this.current())
   }
 
+  /** The page on screen, for printing. */
+  activeContents(): WebContents | null {
+    const t = this.current()
+    return t ? liveContents(t) : null
+  }
+  /**
+   * The page behind a web contents, for the selection chip: where its view sits in the window and its zoom. Null for a
+   * private or Tor tab, one that is not a loaded web page, or one that is not on screen: nothing is offered there.
+   */
+  selectionHost(wc: WebContents): { view: { x: number; y: number }; zoom: number } | null {
+    for (const [id, t] of this.tabs) {
+      if (t.private || t.tor || t.unloaded || liveContents(t) !== wc) continue
+      if (!this.visibleIds().includes(id) || this.overlay || !t.view.getVisible()) return null
+      const b = t.view.getBounds()
+      return { view: { x: b.x, y: b.y }, zoom: wc.getZoomFactor() }
+    }
+    return null
+  }
+
+  /** Ctrl+Shift+Y: show the ask chip for the page's current selection and put the keyboard on it. */
+  onAskSelection: (() => void) | null = null
+  /** Ctrl+P (our print view) and Ctrl+Shift+P (the system dialog). */
+  onPrint: ((system: boolean) => void) | null = null
+  /** Reader mode for the page on screen (wired in index.ts). */
+  onReader: (() => void) | null = null
+
   /** Called after every state change (the permission card and the site panel follow the tab on screen). */
   onRefresh: (() => void) | null = null
   /** Called when a page view is added to the window: the downloads bin lifts itself back above it. */
   onViewAdded: (() => void) | null = null
+  /**
+   * AI: the shorter title to show for a tab, or null to show its own. Asked on every state push, so it must be
+   * quick; it is also what decides (through the AI policy) that a private or Tor tab never gets one.
+   */
+  aiTitle:
+    ((t: { url: string; title: string; private: boolean; tor: boolean }) => string | null) | null =
+    null
+  /** AI: a page has finished loading in a tab (any kind: the receiver checks the kind before touching it). */
+  onPageLoaded:
+    | ((p: {
+        id: number
+        url: string
+        title: string
+        private: boolean
+        tor: boolean
+        wc: WebContents
+      }) => void)
+    | null = null
   /** The dot and flash on the taskbar button while something waits and the person is away. */
   private taskbar: TaskbarAttention
   /**
@@ -244,6 +290,11 @@ export class TabManager {
   private lastActive = new Map<number, number | null>()
   private rects: Record<number, Rect> = {}
   private overlay = false
+  /** Canvas mode is open: every page view is hidden for real (not just parked), so none paints or composites. */
+  private canvasMode = false
+  /** The one tab whose real page is shown inside the canvas, and where. */
+  private liveId: number | null = null
+  private liveRect: Rect | null = null
   private closedUrls: string[] = []
   private pdf = new PdfViewerHelper()
   private groups = new Map<number, TabGroup & { spaceId: number }>()
@@ -376,6 +427,8 @@ export class TabManager {
         audible: this.sounding(t, wc),
         muted: wc.audioMuted,
         attention: attention.get(id) ?? NO_ATTENTION,
+        aiTitle:
+          this.aiTitle?.({ url, title: wc.getTitle(), private: t.private, tor: t.tor }) ?? null,
         bookmarked: this.deps.bookmarks.has(url),
         canGoBack: wc.navigationHistory.canGoBack(),
         canGoForward: wc.navigationHistory.canGoForward()
@@ -438,6 +491,67 @@ export class TabManager {
       wc.off('console-message', onMessage)
       done(null)
     })
+  }
+
+  /** Tabs of a space that are not in a group or pinned and not private (what a group suggestion is made from). */
+  groupCandidates(spaceId: number): Array<{ id: number; url: string; title: string }> {
+    const out: Array<{ id: number; url: string; title: string }> = []
+    for (const [id, t] of this.tabs) {
+      if (t.spaceId !== spaceId || t.pinned || t.private || t.groupId !== null) continue
+      const wc = liveContents(t)
+      if (!wc || t.unloaded) continue
+      out.push({ id, url: wc.getURL(), title: wc.getTitle() })
+    }
+    return out
+  }
+
+  /** Every tab with a page in it (any kind), for the AI to catch up on pages opened before it was switched on. */
+  loadedPages(): Array<{
+    id: number
+    url: string
+    title: string
+    private: boolean
+    tor: boolean
+    wc: WebContents
+  }> {
+    const out: ReturnType<TabManager['loadedPages']> = []
+    for (const [id, t] of this.tabs) {
+      const wc = liveContents(t)
+      if (!wc || t.unloaded || t.failed) continue
+      out.push({ id, url: wc.getURL(), title: wc.getTitle(), private: t.private, tor: t.tor, wc })
+    }
+    return out
+  }
+
+  /**
+   * Every tab of the space on screen, for the chat panel: its address and title (a tab that is not loaded still has
+   * both), whether it is the one shown, and its page when it has one. Private and Tor tabs are in the list because
+   * the caller needs to know to leave them out (the chat policy does).
+   */
+  aiTabs(): Array<{
+    id: number
+    url: string
+    title: string
+    active: boolean
+    private: boolean
+    tor: boolean
+    wc: WebContents | null
+  }> {
+    const out: ReturnType<TabManager['aiTabs']> = []
+    for (const [id, t] of this.tabs) {
+      if (t.spaceId !== this.activeSpaceId) continue
+      const wc = t.unloaded ? null : liveContents(t)
+      out.push({
+        id,
+        url: t.pending?.url || wc?.getURL() || t.firstUrl,
+        title: t.pending?.title || wc?.getTitle() || '',
+        active: id === this.activeId,
+        private: t.private,
+        tor: t.tor,
+        wc
+      })
+    }
+    return out
   }
 
   /** The active tab's page, space and session: what the site settings panel is about. */
@@ -1146,10 +1260,17 @@ export class TabManager {
   // ---- navigation ----
 
   /** Focus the tab already showing this internal page, or open it in a new tab. */
-  openInternal(page: InternalPage): void {
-    const url = internalUrl(page)
+  /** `hash` scrolls the page to a section (settings: ai). */
+  openInternal(page: InternalPage, hash?: string): void {
+    const base = internalUrl(page)
+    const url = hash ? `${base}#${hash}` : base
     for (const [id, t] of this.tabs) {
-      if (t.spaceId === this.activeSpaceId && liveContents(t)?.getURL().startsWith(url)) {
+      const wc = liveContents(t)
+      if (t.spaceId === this.activeSpaceId && wc?.getURL().startsWith(base)) {
+        if (hash)
+          void wc
+            .executeJavaScript(`location.hash = ${JSON.stringify(hash)}`)
+            .catch(() => undefined)
         return this.activate(id)
       }
     }
@@ -1260,6 +1381,17 @@ export class TabManager {
     return true
   }
 
+  /** Load an address or search in a given tab (the canvas preview's address field), without switching to it. */
+  navigateTab(id: number, input: string): boolean {
+    const tab = this.tabs.get(id)
+    const url = resolveInput(input, this.deps.settings.searchUrl())
+    if (!tab || !url) return false
+    tab.hasUrl = true
+    this.go(tab, url)
+    this.refresh()
+    return true
+  }
+
   navigate(input: string): void {
     const url = resolveInput(input, this.deps.settings.searchUrl())
     if (!url) return
@@ -1287,6 +1419,17 @@ export class TabManager {
     if (tab.failed) void tab.view.webContents.loadURL(tab.failed.url).catch(() => {})
     else if (hard) tab.view.webContents.reloadIgnoringCache()
     else tab.view.webContents.reload()
+  }
+
+  /** Back, forward or reload for one tab, whether or not it is the one on screen (the canvas preview's buttons). */
+  navTab(id: number, what: 'back' | 'forward' | 'reload'): void {
+    const tab = this.tabs.get(id)
+    const wc = tab && liveContents(tab)
+    if (!tab || !wc) return
+    if (what === 'back') wc.navigationHistory.goBack()
+    else if (what === 'forward') wc.navigationHistory.goForward()
+    else if (tab.failed) void wc.loadURL(tab.failed.url).catch(() => {})
+    else wc.reload()
   }
 
   /** Next or previous match of the last search, or open the find bar if there has been none. */
@@ -1323,6 +1466,93 @@ export class TabManager {
       filters: [{ name: 'Web page', extensions: ['html'] }]
     })
     if (!canceled && filePath) await wc.savePage(filePath, 'HTMLComplete').catch(() => {})
+  }
+
+  /** Direct "Save as PDF" of the page on screen (the print dialog has its own; this is for the command bar). */
+  private async savePdf(): Promise<void> {
+    const wc = this.current()?.view.webContents
+    if (!wc || !/^(https?|file):/i.test(wc.getURL())) return
+    const { canceled, filePath } = await dialog.showSaveDialog(this.win, {
+      defaultPath: pdfFileName(wc.getTitle(), wc.getURL()),
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (canceled || !filePath) return
+    writeFileSync(filePath, await wc.printToPDF({ printBackground: true }))
+  }
+
+  /** Close every tab of this space except the page on screen and pinned tabs. */
+  closeOthers(): void {
+    for (const id of this.own()) {
+      if (id !== this.activeId && !this.tabs.get(id)?.pinned) this.close(id)
+    }
+  }
+
+  /**
+   * An action from the command bar that the window's own UI does not handle itself (see ACTIONS in shared/search.ts).
+   * Returns false for an id it does not know.
+   */
+  runAction(id: string): boolean {
+    const tab = this.current()
+    const active = this.activeId
+    const settings =
+      (hash: string): (() => void) =>
+      () =>
+        this.openInternal('settings', hash)
+    const page =
+      (p: InternalPage): (() => void) =>
+      () =>
+        this.openInternal(p)
+    const run: Record<string, () => unknown> = {
+      'new-tab': () => this.newTabOrCard(),
+      'new-private': () => this.newPrivateTab(),
+      'new-tor': () => this.newTorTab(),
+      reopen: () => this.reopenClosed(),
+      'close-tab': () => active !== null && this.close(active),
+      'close-others': () => this.closeOthers(),
+      duplicate: () => active !== null && this.duplicate(active),
+      pin: () => tab && active !== null && this.setPinned(active, !tab.pinned),
+      mute: () => active !== null && this.toggleMute(active),
+      reader: () => this.onReader?.(),
+      'ask-selection': () => this.onAskSelection?.(),
+      find: () => this.command('find'),
+      bookmark: () => this.toggleBookmark(),
+      reload: () => this.reload(),
+      'hard-reload': () => this.reload(true),
+      split: () => this.toggleSplit(),
+      pip: () => this.togglePip(),
+      fullscreen: () => this.win.setFullScreen(!this.win.isFullScreen()),
+      'zoom-in': () => this.zoom(ZOOM_STEP),
+      'zoom-out': () => this.zoom(-ZOOM_STEP),
+      'zoom-reset': () => this.zoom(null),
+      print: () => this.printPage(),
+      'save-pdf': () => void this.savePdf(),
+      'save-page': () => void this.savePage(),
+      'open-file': () => void this.openFile(),
+      'view-source': () => this.viewSource(),
+      devtools: () => tab?.view.webContents.toggleDevTools(),
+      'ai-setup': settings('ai'),
+      passwords: page('passwords'),
+      privacy: page('privacy'),
+      software: page('software'),
+      history: page('history'),
+      bookmarks: page('bookmarks'),
+      downloads: page('downloads'),
+      settings: page('settings'),
+      'settings-search': settings('search'),
+      'settings-appearance': settings('appearance'),
+      'settings-tabs': settings('tabs'),
+      'settings-downloads': settings('downloads'),
+      'settings-privacy': settings('privacy'),
+      'settings-clear-data': settings('clear-data'),
+      stack: () => this.command('open-stack'),
+      grid: () => this.command('toggle-taskview'),
+      'save-session': () => this.dumpTabs(),
+      welcome: () => this.create('panes://welcome'),
+      feedback: () => this.sendFeedback()
+    }
+    if (!Object.hasOwn(run, id)) return false
+    run[id]()
+    return true
   }
 
   private async openFile(): Promise<void> {
@@ -1720,9 +1950,90 @@ export class TabManager {
     this.applyVisibility()
   }
 
+  /** The normal session (cookies and cache of ordinary tabs), for fetches the canvas makes for the person. */
+  normalSession(): Session {
+    return this.session
+  }
+
+  /** A tab's page for reading it (never a private or Tor one: the caller asks `private` and refuses). */
+  pageFor(id: number): {
+    wc: WebContents
+    url: string
+    title: string
+    private: boolean
+    tor: boolean
+    unloaded: boolean
+    loading: boolean
+  } | null {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (!t || !wc) return null
+    return {
+      wc,
+      url: wc.getURL() || t.pending?.url || '',
+      title: wc.getTitle(),
+      private: t.private,
+      tor: t.tor,
+      unloaded: t.unloaded,
+      loading: wc.isLoading()
+    }
+  }
+
+  /**
+   * Show one tab's real page inside the canvas, exactly at `rect` (window coordinates, scale 1, never transformed),
+   * or none (null). There is only ever one: the canvas hides every other view. A tab that is not loaded yet loads.
+   */
+  setLive(id: number | null, rect?: Rect): void {
+    this.liveId = id
+    this.liveRect = id !== null && rect ? rect : null
+    const t = id !== null ? this.tabs.get(id) : undefined
+    if (id !== null && t) this.ensureLoaded(id, t)
+    this.applyVisibility()
+  }
+
+  /** Whether the live tab has finished loading (the canvas waits for that before it swaps the snapshot out). */
+  liveReady(id: number): boolean {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    return !!wc && !wc.isLoading() && wc.getURL() !== ''
+  }
+
+  /** Ctrl+T: a new tab, or on the canvas board a new card where the person asks for it. */
+  private newTabOrCard(): void {
+    if (this.canvasMode) this.send('canvas:new')
+    else this.create()
+  }
+
+  /**
+   * Open an address the assistant was asked to open, and show it. On the canvas board the person stays on the
+   * board: the tab opens behind it, and the board shows its card in the preview, live (one click pops it out).
+   */
+  openForAssistant(url: string): number {
+    if (!this.canvasMode) return this.create(url)
+    const id = this.create(url, false)
+    this.send('canvas:show-tab', id)
+    return id
+  }
+
+  /** Canvas mode opened or closed (see main/ai/canvas.ts). */
+  setCanvasMode(open: boolean): void {
+    if (this.canvasMode === open) return
+    this.canvasMode = open
+    if (!open) {
+      this.liveId = null
+      this.liveRect = null
+    }
+    this.applyVisibility()
+  }
+
   /** Something is drawn over the page (the space editor, the command bar, a tab being dragged). */
   overlayOpen(): boolean {
     return this.overlay
+  }
+
+  /** The canvas board is up (it holds the overlay for as long as it is open). */
+  inCanvas(): boolean {
+    return this.canvasMode
   }
 
   async setOverlay(open: boolean, snapshot = true, sharp = false): Promise<void> {
@@ -1773,14 +2084,23 @@ export class TabManager {
             ? { x: 0, y: 0, width: w, height: h }
             : null
           : normal
-      const rect =
-        placed && this.overlay
+      // a live page that went full screen (a video) is no longer held to the slot: it takes the window
+      const liveFull = this.canvasMode && id === this.liveId && this.fullscreenId === id
+      const live = this.canvasMode && id === this.liveId && this.liveRect !== null && !liveFull
+      const rect = live
+        ? this.liveRect
+        : placed && this.overlay && !liveFull
           ? { ...placed, x: PARKED_X }
           : placed && this.fullscreenId === null
             ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
             : placed
       const show =
-        rect !== null && !this.isBlank(tab) && !tab.awaiting && !tab.torTarget && !this.settling
+        rect !== null &&
+        !this.isBlank(tab) &&
+        !tab.awaiting &&
+        !tab.torTarget &&
+        !this.settling &&
+        (live || liveFull || !this.canvasMode)
       // A full-screen page has no window edge to be rounded against.
       const flat = this.fullscreenId === id
       if (flat !== tab.flat && !tab.unloaded) {
@@ -1903,6 +2223,9 @@ export class TabManager {
           }
         },
         pip: () => this.togglePip(),
+        print: () => this.printPage(),
+        // chat never reads a private or Tor tab, so there is nothing to ask about there
+        askAi: tab.private || tab.tor ? null : (text) => this.askAi(text),
         searchUrl: (t) => this.deps.settings.searchUrl() + encodeURIComponent(t)
       })
     )
@@ -1918,6 +2241,22 @@ export class TabManager {
       tab.dirty = true
       this.refresh()
       this.scheduleSnapshot(id)
+      // the canvas board has every view hidden: a page that loads there is pictured off-screen for its card
+      if (this.canvasMode) {
+        if (tab.thumbTimer) clearTimeout(tab.thumbTimer)
+        tab.thumbTimer = setTimeout(() => void this.captureForCanvas(id), 500)
+      }
+    })
+    wc.on('did-finish-load', () => {
+      if (tab.failed) return
+      this.onPageLoaded?.({
+        id,
+        url: wc.getURL(),
+        title: wc.getTitle(),
+        private: tab.private,
+        tor: tab.tor,
+        wc
+      })
     })
     wc.on('did-start-navigation', (details) => {
       if (!details.isMainFrame || details.isSameDocument) return
@@ -2037,11 +2376,16 @@ export class TabManager {
       return void shell.openExternal(url)
     }
     const opener = from === undefined ? undefined : this.tabs.get(from)
+    // on the canvas board the page opens behind it, as a card the board draws an arrow to, shown in the preview
+    const onBoard = this.canvasMode && from !== undefined && !opener?.private && !opener?.tor
     const id = opener?.tor
       ? this.create(url, true, this.activeSpaceId, undefined, true, true)
       : opener?.private
         ? this.newPrivateTab(url)
-        : this.create(url)
+        : onBoard
+          ? this.create(url, false)
+          : this.create(url)
+    if (onBoard) this.send('canvas:link-opened', from, id)
     // A link opened from a tab in a group joins that group, at its bottom.
     const group = from === undefined ? null : (this.tabs.get(from)?.groupId ?? null)
     if (group !== null) this.addToGroup(id, group)
@@ -2070,7 +2414,7 @@ export class TabManager {
     let handled = true
 
     if (mod && !input.alt && !input.shift) {
-      if (k === 't') this.create()
+      if (k === 't') this.newTabOrCard()
       else if (k === 'w' && this.activeId !== null) this.close(this.activeId)
       else if (k === 'f4' && this.activeId !== null) this.close(this.activeId)
       else if (k === 'l') this.command('focus-address')
@@ -2084,7 +2428,8 @@ export class TabManager {
       else if (k === 'h') this.openInternal('history')
       else if (k === 'j') this.openInternal('downloads')
       else if (k === ',') this.openInternal('settings')
-      else if (k === 'p') this.current()?.view.webContents.print()
+      else if (k === 'p') this.onPrint?.(false)
+      else if (k === 'm') this.runAction('mute')
       else if (k === '=' || k === '+') this.zoom(ZOOM_STEP)
       else if (k === '-') this.zoom(-ZOOM_STEP)
       else if (k === '0') this.zoom(null)
@@ -2102,14 +2447,18 @@ export class TabManager {
       if (k === ' ') this.command('open-stack')
       else if (k === 'r') this.reload(true)
       else if (k === 'n') this.newPrivateTab()
-      else if (k === 'delete')
-        this.openInternal('settings') // clear browsing data lives there
+      else if (k === 'delete') this.openInternal('settings', 'clear-data')
       else if (k === 'b') this.openInternal('bookmarks')
       else if (k === 'j' || k === 'c') this.current()?.view.webContents.toggleDevTools()
       else if (k === 'pagedown') this.moveActive(1)
       else if (k === 'pageup') this.moveActive(-1)
       else if (k === 'tab') this.send('ui:stack-wheel', -STACK_STEP)
       else if (k === 'a') this.command('toggle-taskview')
+      else if (k === 'p') this.onPrint?.(true)
+      else if (k === 'e') this.runAction('reader')
+      else if (k === 'y') this.runAction('ask-selection')
+      else if (k === 'k') this.command('toggle-canvas')
+      else if (k === 'l') this.command('toggle-chat')
       else if (k === 't') this.reopenClosed()
       else if (k === 'o') this.openInternal('bookmarks')
       else if (k === 'd') this.dumpTabs()
@@ -2184,6 +2533,111 @@ export class TabManager {
     } catch {
       // tab closed or view torn down mid-capture
     }
+  }
+
+  // ---- canvas (main/ai/canvas.ts): pictures of tabs that are not on screen ----
+
+  /** The tabs of a space with what the canvas needs to know about their pictures. */
+  canvasTabs(spaceId: number): Array<{
+    id: number
+    url: string
+    title: string
+    private: boolean
+    tor: boolean
+    unloaded: boolean
+    thumbAt: number
+    hasThumb: boolean
+  }> {
+    const out: ReturnType<TabManager['canvasTabs']> = []
+    for (const [id, t] of this.tabs) {
+      if (t.spaceId !== spaceId) continue
+      const wc = liveContents(t)
+      out.push({
+        id,
+        url: t.pending?.url ?? wc?.getURL() ?? t.firstUrl,
+        title: t.pending?.title || wc?.getTitle() || '',
+        private: t.private,
+        tor: t.tor,
+        unloaded: t.unloaded,
+        thumbAt: t.thumbAt,
+        hasThumb: !!t.thumb
+      })
+    }
+    return out
+  }
+
+  /** A fresh picture of a loaded tab that may be hidden. Never for a private or Tor tab. */
+  /** A page that loaded while the canvas is up: its picture, tried a few times (the first capture can fail). */
+  private async captureForCanvas(id: number): Promise<void> {
+    for (let i = 0; i < 3; i++) {
+      const before = this.tabs.get(id)?.thumbAt
+      await this.captureHidden(id)
+      const t = this.tabs.get(id)
+      if (!t || !this.canvasMode || t.thumbAt !== before) return
+      await new Promise((res) => setTimeout(res, 500 + i * 500))
+    }
+  }
+
+  async captureHidden(id: number): Promise<void> {
+    const tab = this.tabs.get(id)
+    const wc = tab && liveContents(tab)
+    if (!tab || !wc || tab.private || tab.tor || tab.unloaded || tab.failed || this.isBlank(tab)) {
+      return
+    }
+    try {
+      // A hidden view draws nothing, and one that was never on screen (opened while the canvas is up) has no size
+      // either. Off the window it counts as hidden too, so it is shown with only its top-left pixel inside the
+      // window's bottom-right corner, which its own rounded corner leaves transparent: nothing shows, yet it paints.
+      const hidden = !tab.view.getVisible()
+      if (hidden) {
+        const b = tab.view.getBounds()
+        const [w, h] = this.win.getContentSize()
+        const r = this.activeRect()
+        tab.view.setBounds({
+          x: w - 3,
+          y: h - 3,
+          width: b.width >= 64 ? b.width : Math.max(800, r?.width ?? w),
+          height: b.height >= 64 ? b.height : Math.max(600, r?.height ?? h)
+        })
+        tab.view.setVisible(true)
+        wc.invalidate()
+        await new Promise((res) => setTimeout(res, 400))
+      }
+      let img: Electron.NativeImage | null
+      try {
+        // a page that never draws must not hold the card up: give up after a while (the card keeps its words)
+        img = await Promise.race([
+          wc.capturePage(undefined, { stayHidden: true }),
+          new Promise<null>((res) => setTimeout(() => res(null), 2500))
+        ])
+      } finally {
+        // back out of sight unless it became the page on screen (or the live page) meanwhile
+        if (hidden && this.tabs.has(id)) this.applyVisibility()
+      }
+      if (!img || img.isEmpty() || !this.tabs.has(id)) return
+      const jpeg = img.resize({ width: CANVAS_THUMB_WIDTH, quality: 'good' }).toJPEG(70)
+      tab.thumb = 'data:image/jpeg;base64,' + jpeg.toString('base64')
+      tab.thumbSharp = false
+      tab.thumbSize = { w: 0, h: 0 }
+      tab.thumbAt = Date.now()
+      this.win.webContents.send('tabs:thumb', id, tab.thumb)
+    } catch {
+      // closed mid-capture
+    }
+  }
+
+  /** The picture a normal tab has (null for private and Tor tabs, which are never kept or shown elsewhere). */
+  thumbOf(id: number): string | null {
+    const t = this.tabs.get(id)
+    return t && !t.private && !t.tor ? t.thumb || null : null
+  }
+
+  /** Give a tab with no picture one from the disk cache (an unloaded tab after a restart). */
+  seedThumb(id: number, dataUrl: string): void {
+    const t = this.tabs.get(id)
+    if (!t || t.private || t.tor || t.thumb) return
+    t.thumb = dataUrl
+    this.win.webContents.send('tabs:thumb', id, dataUrl)
   }
 
   // ---- dark websites ----
@@ -2302,6 +2756,11 @@ export class TabManager {
     const ids = dump.tabs.map((t, i) => this.create(t.url, i === 0))
     this.createGroup(ids[0], dump.name)
     for (const tid of ids.slice(1)) this.addToGroup(tid, this.tabs.get(ids[0])?.groupId ?? -1)
+  }
+
+  /** The group a tab is in, if any. */
+  groupIdOf(tabId: number): number | null {
+    return this.tabs.get(tabId)?.groupId ?? null
   }
 
   createGroup(tabId: number, name = ''): void {
@@ -2454,7 +2913,7 @@ export class TabManager {
       click: () => this.openInternal(to)
     })
     Menu.buildFromTemplate([
-      { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => this.create() },
+      { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => this.newTabOrCard() },
       { label: 'New Tor tab', click: () => this.newTorTab() },
       {
         label: 'New private tab',
@@ -2474,12 +2933,21 @@ export class TabManager {
       page('Private and Tor', 'privacy'),
       { type: 'separator' },
       { label: 'Find in page', accelerator: 'CmdOrCtrl+F', click: () => this.command('find') },
+      { label: 'Print...', accelerator: 'CmdOrCtrl+P', click: () => this.printPage() },
       { label: 'Save all tabs as a session', click: () => this.dumpTabs() },
       { label: 'Save page as...', click: () => void this.savePage() },
       { label: 'Open file...', click: () => void this.openFile() },
       { label: 'View page source', accelerator: 'CmdOrCtrl+U', click: () => this.viewSource() },
       { type: 'separator' },
+      {
+        label: 'Canvas',
+        accelerator: 'CmdOrCtrl+Shift+K',
+        click: () => this.command('toggle-canvas')
+      },
+      { label: 'Chat', accelerator: 'CmdOrCtrl+Shift+L', click: () => this.command('toggle-chat') },
+      { type: 'separator' },
       { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => this.openInternal('settings') },
+      { label: 'AI settings', click: () => this.openInternal('settings', 'ai') },
       page('About and updates', 'software'),
       { label: 'Welcome tour', click: () => this.create('panes://welcome') },
       { label: 'Send feedback', click: () => this.sendFeedback() }
@@ -2664,7 +3132,8 @@ export class TabManager {
 
   // ---- renderer sync ----
 
-  private refresh(): void {
+  /** Push the tabs' state to the window again (something it shows changed without a tab event). */
+  refresh(): void {
     if (this.win.isDestroyed()) return
     this.pruneGroups()
     const visible = this.visibleIds()
@@ -2691,6 +3160,17 @@ export class TabManager {
     this.deps.spaces.setThemeOverride(
       this.activeKind() !== 'normal' || this.activeIsWelcome() ? 'dark' : null
     )
+  }
+
+  /** Print... from a menu or the command bar: the same dialog as Ctrl+P. */
+  printPage(): void {
+    this.onPrint?.(false)
+  }
+
+  /** Open the chat panel, with `text` (a selection) in its box when given. */
+  askAi(text: string | null): void {
+    if (!this.win.isDestroyed()) this.win.webContents.focus()
+    this.send('ui:ask-ai', text)
   }
 
   private command(cmd: UiCommand): void {

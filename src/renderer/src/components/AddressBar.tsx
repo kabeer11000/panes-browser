@@ -1,8 +1,9 @@
 import type { KeyboardEvent, WheelEvent } from 'react'
 import type { Settings, TabInfo } from '@shared/types'
+import { canRead, readerSource } from '@shared/reader'
 import { splitUrl } from '@shared/url'
 import { CaptureBadge } from './CaptureBadge'
-import { SiteIcon, SpeakerIcon, StarIcon } from './icons'
+import { ReaderIcon, SiteIcon, SpeakerIcon, StarIcon } from './icons'
 import { TabFavicon } from './TabFavicon'
 
 interface Props {
@@ -23,7 +24,9 @@ export function AddressBar({
   onOpen,
   onWheel
 }: Props): React.JSX.Element {
-  const url = active?.url ?? ''
+  // in reader mode the bar names the page being read, not panes://reader
+  const reading = readerSource(active?.url ?? '')
+  const url = reading ?? active?.url ?? ''
   const { host, rest } = splitUrl(url)
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -70,7 +73,22 @@ export function AddressBar({
           <SpeakerIcon muted={active.muted} />
         </button>
       )}
-      {active && /^https?:/i.test(url) && (
+      {active && canRead(url) && (
+        <button
+          type="button"
+          className={'addr-star' + (reading ? ' on' : '')}
+          title={reading ? 'Leave reader mode (Ctrl+Shift+E)' : 'Reader mode (Ctrl+Shift+E)'}
+          aria-label={reading ? 'Leave reader mode' : 'Reader mode'}
+          aria-pressed={!!reading}
+          onClick={(e) => {
+            e.stopPropagation()
+            window.api.runAction('reader')
+          }}
+        >
+          <ReaderIcon />
+        </button>
+      )}
+      {active && !reading && /^https?:/i.test(url) && (
         <button
           type="button"
           className="addr-star addr-site"
@@ -85,7 +103,7 @@ export function AddressBar({
           <SiteIcon />
         </button>
       )}
-      {active && /^https?:/i.test(url) && (
+      {active && !reading && /^https?:/i.test(url) && (
         <button
           type="button"
           className={'addr-star' + (active.bookmarked ? ' on' : '')}

@@ -242,3 +242,15 @@ Known gap: `$csp` rules (the JS binding has no call for them).
 Before release: push, run the workflow once by hand, and check `/releases/latest` still points at Panes.
 
 Step 8 sites (owner had none in mind, 2026-11-04): YouTube plus three heavy news sites, picked during the step 1 baseline so the same pages are measured before and after.
+
+## AI harness: acting on pages (started 2026-11-10)
+
+Goal: the assistant can click, type, scroll and control media on any site, the small local model included, and it is
+visible, safe, quick and recovers by itself. Test against the local Qwen and fixture pages.
+
+- [ ] Local model gets a small action set (look, click, type, scroll, scroll_to, media, press_key) with short results
+- [ ] Targeting: controls inside shadow DOM, covered controls fall back to a script click, stale numbers recover by themselves
+- [ ] Loops: say when an action changed nothing, keep a short step history in the result
+- [ ] Speed: wait for the page to go quiet instead of fixed sleeps
+- [ ] Visible: an agent cursor glides to the control and ripples on click (the ring stays)
+- [ ] Tests on stubbed pages; a fixture page driven over CDP

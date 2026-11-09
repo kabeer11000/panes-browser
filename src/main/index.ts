@@ -37,13 +37,20 @@ import {
 } from './internal'
 import icon from '../../resources/icon.png?asset'
 import { PermissionManager, PermissionStore } from './permissions'
+import { AskSelection } from './askSelection'
+import { Reader } from './reader'
+import { continueReading, habits, pickBoards, type SmartNewTab } from '@shared/newtab'
 import { SitePanel } from './sitePanel'
+import { PrintDialog } from './print'
 import { SiteSettings, watchCertificates } from './sites'
 import { SettingsStore } from './settings'
 import { SpaceStore } from './spaces'
 import { UpdateManager } from './updater'
 import { noteLayerHealthy } from './layers'
 import { Suggester } from './suggest'
+import { registerAi } from './ai/ipc'
+import { registerCanvas } from './ai/canvas'
+import { addFileToBoard } from './ai/canvasAssistant'
 import { flushAllStores } from './store'
 import { showEditMenu } from './contextMenu'
 import { TabManager } from './tabs'
@@ -205,6 +212,18 @@ function createWindow(): void {
     chromeUa: chromeUserAgent(),
     icon
   })
+  const ai = registerAi({ settings, tabs, history, downloads })
+  suggester.setSemantic((q, exclude) => ai.features.semantic(q, exclude))
+  const canvas = registerCanvas({
+    win,
+    tabs,
+    index: ai.index,
+    router: ai.router,
+    history,
+    downloads,
+    settings,
+    content: ai.content
+  })
   const permissions = new PermissionStore()
   // Popover views (site panel, permission and password cards) wear the window's colours too.
   setChromeThemeSource(() => {
@@ -326,11 +345,22 @@ function createWindow(): void {
 
   // Auto-hidden top bar: the page cannot see the pointer over a drag region or a native page view,
   // so the main process watches the real cursor and says when the bar should show.
+  // Something over the page keeps a hover-revealed sidebar or top bar out (the pointer heading into a space editor
+  // must not shut it). The canvas board holds the overlay the whole time it is open, so on the board only other
+  // holders count (the renderer says when there are any), or nothing revealed by hover would ever close there.
+  let overlayPinned = false
+  ipcMain.on('ui:overlay-pins', (e, p: unknown) => {
+    if (e.sender === win.webContents) overlayPinned = p === true
+  })
+  const chromePinned = (): boolean => tabs.overlayOpen() && (!tabs.inCanvas() || overlayPinned)
   const REVEAL_EDGE_PX = 6 // how close to the top of the window the cursor must be
+  // the pointer has to rest at the edge a moment: passing over it on the way somewhere does not bring the bar out
+  const REVEAL_DWELL_MS = 220
   const HIDE_DELAY_MS = 350
   let watchTimer: NodeJS.Timeout | null = null
   let peeking = false
   let outSince = 0
+  let edgeSince = 0
   const setPeek = (show: boolean): void => {
     if (show === peeking || win.isDestroyed()) return
     peeking = show
@@ -351,11 +381,15 @@ function createWindow(): void {
       const b = win.getContentBounds()
       const y = p.y - b.y
       const inside = p.x >= b.x && p.x <= b.x + b.width && y >= 0 && y <= b.height
-      const wanted = inside && (y <= REVEAL_EDGE_PX || (peeking && y <= reach))
+      const atEdge = inside && y <= REVEAL_EDGE_PX
+      if (!atEdge) edgeSince = 0
+      else edgeSince ||= Date.now()
+      const wanted =
+        inside && (peeking ? y <= reach : atEdge && Date.now() - edgeSince >= REVEAL_DWELL_MS)
       if (wanted) {
         outSince = 0
         setPeek(true)
-      } else if (peeking && tabs.overlayOpen()) {
+      } else if (peeking && chromePinned()) {
         // A space editor dropped from the bar (or anything else open over the page) keeps it out: the pointer
         // moving down into the editor must not fade the bar, and the editor inside it, away.
         outSince = 0
@@ -373,7 +407,7 @@ function createWindow(): void {
   // main watches the real cursor. It asks the window to open the sidebar when the pointer rests at the
   // left edge, and to close it again (only if the pointer opened it) once the pointer has left it.
   const SIDE_EDGE_PX = 4
-  const SIDE_DWELL_MS = 70
+  const SIDE_DWELL_MS = 220 // a rest at the edge, not a pass over it on the way to something
   const SIDE_LEAVE_MS = 450
   const SIDE_REACH_PX = 28
   let sideTimer: NodeJS.Timeout | null = null
@@ -416,7 +450,7 @@ function createWindow(): void {
           dwellSince = 0
           // A space editor (or anything else) open over the page keeps the sidebar out: the pointer wandering off
           // it, say to drag the colour wheel or look at the page, must not shut the sidebar and the editor with it.
-          if (tabs.overlayOpen()) outSince = 0
+          if (chromePinned()) outSince = 0
           else if (!inside || x > side.widthPx + SIDE_REACH_PX) {
             outSince ||= Date.now()
             if (Date.now() - outSince >= SIDE_LEAVE_MS) {
@@ -465,6 +499,8 @@ function createWindow(): void {
   ipcMain.on('tabs:split-many', (_e, ids: unknown) => tabs.splitMany(numbers(ids)))
   ipcMain.on('tabs:unsplit', (_e, keepId?: number) => tabs.unsplit(keepId))
   ipcMain.on('tabs:toggle-split', () => tabs.toggleSplit())
+  ipcMain.on('tabs:print', () => tabs.printPage())
+  ipcMain.on('tabs:action', (_e, id: unknown) => typeof id === 'string' && tabs.runAction(id))
   ipcMain.on('tabs:drop', (_e, id: number, targetId: number, edge: Edge | 'center') =>
     tabs.dropTab(id, targetId, edge)
   )
@@ -480,6 +516,33 @@ function createWindow(): void {
   ipcMain.on('pip:exit', () => tabs.exitPip())
   ipcMain.on('tabs:close-pane', (_e, id: number) => tabs.closePane(id))
   const sitePanel = new SitePanel({ win, sites, pickElement: (done) => tabs.pickElement(done) })
+  const printDialog = new PrintDialog({
+    win,
+    target: () => {
+      const wc = tabs.activeContents()
+      return wc ? { wc, persist: tabs.activeKind() === 'normal' } : null
+    }
+  })
+  tabs.onPrint = (system) => (system ? printDialog.openSystem() : printDialog.open())
+  const askSelection = new AskSelection({
+    win,
+    chat: ai.chat,
+    host: (wc) => tabs.selectionHost(wc),
+    active: () => tabs.activeContents(),
+    enabled: () => {
+      const info = ai.chat.info()
+      return info.enabled && !!info.target && settings.get().ai.selectionAsk
+    },
+    continueInChat: (draft) => tabs.askAi(draft)
+  })
+  tabs.onAskSelection = () => askSelection.offerNow()
+  const reader = new Reader({
+    win,
+    active: () => tabs.activeContents(),
+    inCanvas: () => tabs.inCanvas(),
+    normal: () => tabs.activeKind() === 'normal'
+  })
+  tabs.onReader = () => void reader.toggle()
   ipcMain.on('site:panel-toggle', (e, raw: unknown) => {
     const r = raw as Partial<Rect> | null
     if (e.sender !== win.webContents || !r) return
@@ -496,9 +559,18 @@ function createWindow(): void {
   )
   ipcMain.on('tabs:group-menu', (_e, id: number) => tabs.groupMenu(id))
   // the downloads bin, at the window's bottom-right corner
-  const dock = registerDock(win, downloads, () => tabs.openInternal('downloads'))
+  const dock = registerDock(
+    win,
+    downloads,
+    () => tabs.openInternal('downloads'),
+    (path, name) => {
+      if (!tabs.inCanvas()) win.webContents.send('ui:command', 'toggle-canvas')
+      void addFileToBoard(path, name)
+    }
+  )
   tabs.onViewAdded = () => dock.raise() // page views made later would otherwise cover it
   tabs.onRefresh = () => {
+    askSelection.sync() // the offer follows the page it was made for
     permissionManager.sync() // the same, and a question waiting for its tab shows once the tab is on screen
     sitePanel.refresh() // the open panel follows the tab as it navigates, loads, or starts capturing
   }
@@ -549,7 +621,41 @@ function createWindow(): void {
     tabs.setOverlay(open, snapshot, sharp === true)
   )
   ipcMain.handle('search:local', (_e, q: string) => suggester.local(String(q)))
+  // the smart part of a blank tab (shared/newtab.ts): only with AI on, worked out here from history and saved boards
+  ipcMain.handle('newtab:smart', (e): SmartNewTab | null => {
+    if (e.sender !== win.webContents || !settings.get().ai.enabled) return null
+    const now = Date.now()
+    const all = history.all()
+    const open = spaces.list().flatMap((s) => tabs.canvasTabs(s.id).map((t) => t.url))
+    const boards = spaces.list().map((s) => {
+      const st = canvas.load(s.id).state
+      const things = st
+        ? st.notes.length + Object.keys(st.items).length + (st.marks?.length ?? 0)
+        : 0
+      return { spaceId: s.id, name: s.name, color: s.color, things, usedAt: st?.usedAt }
+    })
+    return {
+      boards: pickBoards(boards, spaces.activeId()),
+      reading: continueReading(all, open, now),
+      next: habits(all, open, now)
+    }
+  })
+  ipcMain.on('newtab:open-board', (e, spaceId: unknown) => {
+    if (e.sender !== win.webContents || typeof spaceId !== 'number' || !spaces.get(spaceId)) return
+    if (spaceId !== spaces.activeId()) tabs.switchSpace(spaceId)
+    win.webContents.send('ui:command', 'toggle-canvas')
+  })
   ipcMain.handle('search:remote', (_e, q: string) => suggester.remote(String(q)))
+  ipcMain.handle('search:semantic', (_e, q: unknown, exclude: unknown) =>
+    suggester.semantic(
+      String(q),
+      Array.isArray(exclude) ? exclude.filter((u): u is string => typeof u === 'string') : []
+    )
+  )
+  ipcMain.on('ai:warm', (e) => {
+    if (e.sender === win.webContents) ai.features.warm()
+  })
+  ai.chat.attach(win)
   ipcMain.on('tabs:open-in-split', (_e, input: string) => tabs.openInSplit(String(input)))
 
   win.on('close', () => tabs.shutdown())

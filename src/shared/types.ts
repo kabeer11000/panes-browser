@@ -1,3 +1,4 @@
+import type { AskAction } from './ask'
 import type { LocalSuggestion } from './search'
 import type { UpdateState } from './update'
 import type { Edge, LayoutNode } from './layout'
@@ -7,10 +8,21 @@ import type { TabKind } from './tabkind'
 import type { CaptureKind, CaptureState } from './capture'
 import type { SpaceAttention, TabAttention } from './attention'
 import type { TabDump } from './dumps'
+import type { PrintOptions } from './print'
+import type { ReaderArticle } from './reader'
+import type { SmartNewTab } from './newtab'
 import type { TorState, TorStatus } from './tor'
 import type { YouTubeCodec, YouTubeQuality } from './youtube'
 import type { TabGroup } from './tabgroups'
 import type { SpaceIcon } from './spaceicons'
+import type { AiKeyInfo, AiSettings, AiStatus, ChatChoice, CredentialProvider } from './ai/types'
+import type { ChatFile, Conversation } from './ai/chatConv'
+import type { ChatTarget } from './ai/policy'
+import type { ChatBlock } from './ai/chatState'
+import type { CanvasState, Group } from './ai/canvas'
+import type { Placement } from './ai/canvasItems'
+import type { CanvasFoundEvent } from './ai/canvasFind'
+import type { CanvasPageContent, CanvasReaderDoc } from './ai/canvasItems'
 
 export type SpaceMode = 'system' | 'dark' | 'light'
 
@@ -40,6 +52,8 @@ export interface TabInfo {
   muted: boolean
   /** New messages or a call waiting for the person (cleared once they look at the tab). */
   attention: TabAttention
+  /** A shorter title to show in place of `title` (AI titles, on), or null. Display only. */
+  aiTitle: string | null
   bookmarked: boolean
   canGoBack: boolean
   canGoForward: boolean
@@ -138,7 +152,13 @@ export interface Rect {
 
 /** Commands main sends to the renderer UI (usually from keyboard shortcuts). */
 export type UiCommand =
-  'focus-address' | 'toggle-taskview' | 'toggle-sidebar' | 'find' | 'open-stack'
+  | 'focus-address'
+  | 'toggle-taskview'
+  | 'toggle-sidebar'
+  | 'find'
+  | 'open-stack'
+  | 'toggle-canvas'
+  | 'toggle-chat'
 
 export interface PanesApi {
   getState(): Promise<InitialData>
@@ -164,6 +184,12 @@ export interface PanesApi {
   splitMany(ids: number[]): void
   unsplit(keepId?: number): void
   toggleSplit(): void
+  /** Ctrl+P: the print dialog for the page on screen. */
+  print(): void
+  /** An app action from the command bar that main performs (see ACTIONS in shared/search.ts). */
+  runAction(id: string): void
+  /** Open the chat panel, optionally with some text (a selection) put in its box. */
+  onAskAi(cb: (text: string | null) => void): () => void
   /** Drop a tab on an edge (or the centre) of the pane showing targetId. */
   dropTab(id: number, targetId: number, edge: Edge | 'center'): void
   closePane(id: number): void
@@ -211,7 +237,90 @@ export interface PanesApi {
   onSideHover(cb: (action: 'open' | 'close') => void): () => void
   onPeekBar(cb: (show: boolean) => void): () => void
   suggestLocal(query: string): Promise<LocalSuggestion[]>
+  /** Boards, articles to go back to and a usual site for a blank tab; null while AI is off (shared/newtab.ts). */
+  newTabSmart(): Promise<SmartNewTab | null>
+  /** Switch to the space and open its canvas board. */
+  openBoard(spaceId: number): void
   suggestRemote(query: string): Promise<string[]>
+  /** Pages from history that match by meaning (AI). Empty when AI is off or it takes too long. */
+  suggestSemantic(query: string, exclude: string[]): Promise<LocalSuggestion[]>
+  /** The command bar opened: get the embedding model ready. */
+  aiWarm(): void
+  /** The chat panel: where it is answered (no keys or tokens), and the turn, saved conversations and events. */
+  chatInfo(): Promise<ChatInfo>
+  chatSend(req: ChatSendRequest): Promise<{ dropped: number[] }>
+  /** Pick files to attach (a system dialog). */
+  chatPickFiles(): Promise<{ files: ChatFile[]; failed: string[] }>
+  /** Attach files dropped on the chat (File objects; their paths are read in the preload). */
+  chatAttach(files: File[]): Promise<{ files: ChatFile[]; failed: string[] }>
+  chatStop(turnId: string): void
+  chatAnswer(turnId: string, callId: string, ok: boolean): void
+  chatList(): Promise<Array<{ id: string; title: string; updated: number }>>
+  chatLoad(id: string): Promise<Conversation | null>
+  /** Keep a conversation; `ephemeral` ones (started on a private or Tor tab) are never kept. */
+  chatSave(conv: Conversation, ephemeral: boolean): void
+  chatDelete(id: string): void
+  chatAction(action: ChatAction): void
+  /** Pick the model chat uses: the same setting as Settings, Cloud AI, Chat uses. */
+  chatSetModel(choice: ChatChoice, chatgptModel?: string): void
+  /** Something that decides where chat goes changed (settings, a download, a sign-in): ask chatInfo again. */
+  onChatChanged(cb: () => void): () => void
+  onChatEvent(cb: (e: ChatStreamEvent) => void): () => void
+  /** Canvas mode (AI phase 3): the saved board, thumbnails, and the AI parts of arranging it. */
+  canvas: {
+    load(spaceId: number): Promise<{ state: CanvasState | null; boot: string } | null>
+    save(spaceId: number, state: CanvasState): void
+    /** The board opens: refresh old thumbnails in the background. */
+    open(spaceId: number): void
+    close(spaceId: number): void
+    cluster(spaceId: number): Promise<{ groups: Group[]; semantic: boolean }>
+    name(spaceId: number, tabIds: number[]): Promise<string | null>
+    assign(spaceId: number, tabId: number, frames: Record<string, number[]>): Promise<string | null>
+    /** Bring back the last n closed tabs (the undo of closing tabs from the board). */
+    reopen(n: number): void
+    /** What an open tab's page says about itself (null for private, Tor or unloaded tabs). */
+    content(tabId: number): Promise<CanvasPageContent | null>
+    /** The article of an open tab or of an address, as blocks. */
+    reader(req: { tab?: number; url?: string }): Promise<CanvasReaderDoc | null>
+    /** Key points of a page for a note (a model's, else its first sentences); null for private or Tor. */
+    summarize(req: { tab?: number; url?: string }): Promise<string | null>
+    /** A model's call on how to place a page the rules could not place. */
+    placement(req: { url: string; title: string; text: string }): Promise<Placement | null>
+    /** The bytes of a PDF or picture, from the web or from a finished download. */
+    bytes(req: { url?: string; file?: string }): Promise<{ mime: string; data: Uint8Array } | null>
+    /** Keep a copy of a file dropped or pasted onto the board; its path is then readable with `bytes`. */
+    store(file: File): Promise<{ file: string; name: string } | null>
+    /** A PNG of part of the window (the board, fitted, its controls hidden). */
+    capture(rect: Rect): Promise<Uint8Array | null>
+    /** Save an export through a save dialog: a PNG, the PNG as a one-page PDF, or Markdown text. */
+    saveFile(req: {
+      kind: 'png' | 'pdf' | 'md'
+      name: string
+      data?: Uint8Array
+      text?: string
+    }): Promise<boolean>
+    /** Search for what the prompt holds: results arrive as `onFound` events. */
+    find(queryId: string, query: string, spaceId: number, classify: boolean): void
+    cancelFind(queryId: string): void
+    onFound(cb: (e: CanvasFoundEvent) => void): () => void
+    /** Show one tab's real page at a rect (window coordinates); returns its tab id. */
+    liveOpen(req: { tab?: number; url?: string; rect: Rect }): Promise<number | null>
+    liveMove(tabId: number, rect: Rect): void
+    liveHide(): void
+    /** Back, forward or reload in the live page of the preview. */
+    liveNav(tabId: number, what: 'back' | 'forward' | 'reload'): void
+    /** Load an address or search in a card's tab (null: a new background tab); the tab's id, or null. */
+    navigate(tab: number | null, input: string): Promise<number | null>
+    /** The assistant asks the board to do something; answer with `toolResult`. */
+    onTool(cb: (id: string, name: string, args: unknown) => void): () => void
+    toolResult(id: string, text: string): void
+    /** New tab (Ctrl+T, the menu) while the board is open: the board asks where and what instead. */
+    onNew(cb: () => void): () => void
+    /** The assistant opened a tab for the person while the board is up: show its card in the preview, live. */
+    onShowTab(cb: (tabId: number) => void): () => void
+    /** A page on the board opened a link in a new tab: `from` is the page, `tabId` the new tab (behind the board). */
+    onLinkOpened(cb: (from: number, tabId: number) => void): () => void
+  }
   openInSplit(input: string): void
   switchSpace(id: number): void
   createSpace(): void
@@ -228,6 +337,8 @@ export interface PanesApi {
   moveTabs(ids: number[], index: number, groupId?: number | null): void
   /** Hide the native page view (so renderer overlays can show); snapshots the active tab first. */
   setOverlay(open: boolean, snapshot?: boolean, sharp?: boolean): Promise<void>
+  /** Something other than the window's own mode (the canvas board) is over the page: a space editor, a drag. */
+  setOverlayPins(pinned: boolean): void
   /** Shift the page views right by x and down by y pixels, keeping their size (the hover sidebar or top bar sliding out). */
   setSlide(x: number, y: number): void
   minimizeWindow(): void
@@ -291,6 +402,8 @@ export interface Settings {
   downloadAsk: boolean
   /** Where downloads go, and where the Save As dialog opens; null is the system Downloads folder. Set only through the folder picker. */
   downloadDir: string | null
+  /** Where the local AI models are kept; null: <userData>/ai/models. Set only by the main process. */
+  aiModelsDir: string | null
   /** Sites whose tabs are always muted, subdomains included. */
   mutedSites: string[]
   /** Page zoom per site (host name to Chromium zoom level; 0 is 100%). */
@@ -369,6 +482,8 @@ export interface Settings {
   youtubeTheater: boolean
   /** YouTube: leave its "autoplay the next video" switch alone (false turns it off). */
   youtubeAutoplay: boolean
+  /** Local AI and the quiet features built on it. Off by default. */
+  ai: AiSettings
 }
 
 /** What the memory section of settings shows. */
@@ -508,6 +623,8 @@ export interface DownloadInfo {
   preview?: string
   /** A finished download whose file is no longer there (moved or deleted). */
   missing?: boolean
+  /** A better name for a file that came with a meaningless one (AI), offered once it has finished. */
+  suggestedName?: string
 }
 
 /** A download that has just begun, and where on the window the pointer was, for the flight to the downloads bin. */
@@ -516,7 +633,18 @@ export interface DownloadStart {
   at: { x: number; y: number } | null
 }
 
-export type DownloadAction = 'open' | 'show' | 'cancel' | 'pause' | 'resume' | 'retry' | 'remove'
+export type DownloadAction =
+  | 'open'
+  | 'show'
+  | 'cancel'
+  | 'pause'
+  | 'resume'
+  | 'retry'
+  | 'remove'
+  | 'accept-name'
+  /** Put the finished file on the canvas board (the download shelf). */
+  | 'canvas'
+  | 'dismiss-name'
 export type ClearKind = 'history' | 'cookies' | 'cache' | 'downloads'
 
 /** API exposed to panes:// pages only. */
@@ -594,6 +722,41 @@ export interface InternalApi {
   pickDownloadDir(): Promise<string | null>
   /** Pictures of finished downloads (data URLs), for the ones that have one yet; the rest are made in the background. */
   downloadPreviews(ids: number[]): Promise<Record<number, string>>
+  /** Reader mode: the article kept under this key (null once forgotten, e.g. after a restart); `canvas` is false in private and Tor tabs. */
+  readerGet(key: string): Promise<(ReaderArticle & { canvas: boolean }) | null>
+  /** Back to the page the reader was opened on. */
+  readerExit(): Promise<void>
+  /** Put the article's page on the canvas board (opening it); false when that did not work. */
+  readerToCanvas(key: string): Promise<boolean>
+  aiStatus(): Promise<AiStatus>
+  /** Fetch the local runtime and models (after confirmation in the page). */
+  aiDownload(): Promise<void>
+  aiCancelDownload(): Promise<void>
+  /** Forget a failure (including a GPU one) and try again. */
+  aiRetry(): Promise<void>
+  /** Delete the downloaded runtime and models, keep the rest. */
+  aiRemoveLocal(): Promise<void>
+  /** Delete everything under the AI folder: models, runtime, index, caches. */
+  aiRemoveData(): Promise<void>
+  /** Open the folder the models are kept in. */
+  aiOpenModelsDir(): Promise<string>
+  /** Pick another folder for the models and move them there; null when the picker was cancelled. Rejects with why a move failed. */
+  aiPickModelsDir(): Promise<string | null>
+  /** Move the models back into the data folder. */
+  aiResetModelsDir(): Promise<void>
+  /** Store a key (encrypted in the main process). It is never sent back. */
+  aiSetKey(provider: CredentialProvider, key: string): Promise<AiKeyInfo[]>
+  aiRemoveKey(provider: CredentialProvider): Promise<AiKeyInfo[]>
+  /** Open the provider's own sign-in page in the browser. Progress comes through aiStatus (signIn). */
+  aiSignIn(provider: 'chatgpt' | 'openrouter'): Promise<void>
+  aiCancelSignIn(): Promise<void>
+  /** Open aistudio.google.com/apikey in the system browser (the one page that can be asked for). */
+  aiOpenGeminiKeyPage(): Promise<void>
+  aiSignOut(provider: CredentialProvider): Promise<AiKeyInfo[]>
+  /** The models the signed-in ChatGPT account lists. */
+  aiChatgptModels(): Promise<Array<{ slug: string; name: string }>>
+  aiClearChats(): Promise<void>
+  onAiChanged(cb: () => void): () => void
   getSettings(): Promise<Settings>
   setSettings(patch: Partial<Settings>): Promise<Settings>
   permissionsList(): Promise<SiteGrant[]>
@@ -761,6 +924,32 @@ export interface PopoverApi {
   reveal(): Promise<string | null>
 }
 
+/** What the print dialog (a view of its own above the window) is given when it opens. */
+export interface PrintInit {
+  options: PrintOptions
+  printers: Array<{ name: string; displayName: string; isDefault: boolean }>
+  title: string
+  url: string
+  /** A small picture of the page as it is on screen (a data URL), for the dialog's backdrop. */
+  snapshot: string | null
+  /** Whether this page's choices are kept for next time (not in private and Tor tabs). */
+  remembers: boolean
+}
+
+export interface PrintApi {
+  init(): Promise<PrintInit | null>
+  /** The whole page as a PDF (base64) with the layout options applied, and its page count. */
+  preview(o: PrintOptions): Promise<{ pdf: string; pages: number } | null>
+  /** Print or save; resolves with what to tell the user. */
+  run(o: PrintOptions): Promise<{ ok: boolean; message?: string }>
+  /** The system's own print dialog for the page as chosen here; resolves when it is done. */
+  system(o: PrintOptions): Promise<{ ok: boolean; message?: string }>
+  /** The window's own buttons, which the print view would otherwise cover. */
+  windowControl(action: 'minimize' | 'maximize' | 'close'): void
+  close(): void
+  onOpen(cb: () => void): () => void
+}
+
 /** A screen or window a page may capture, as offered in the screen-sharing picker. */
 export interface ScreenSource {
   id: string
@@ -827,4 +1016,85 @@ export interface PipApi {
   close(): void
   back(): void
   drag(phase: 'start' | 'move' | 'end'): void
+}
+
+/** One model the chat picker can offer. Unavailable ones are shown disabled, with the reason in `hint`. */
+export interface ChatModelOption {
+  id: string
+  choice: ChatChoice
+  /** ChatGPT: the model slug this option selects. */
+  chatgptModel?: string
+  group: string
+  label: string
+  available: boolean
+  hint: string
+  current: boolean
+}
+
+/** What the chat panel is told about where chat goes and why it cannot. No keys, no tokens. */
+export interface ChatInfo {
+  enabled: boolean
+  target: ChatTarget | null
+  /** The model in use, as the header shows it ("Local - Qwen3 1.7B"). */
+  label: string
+  /** The small local model: fewer tools, shorter pages. */
+  weak: boolean
+  limited: boolean
+  reauth: boolean
+  /** Why chat cannot answer (null when it can). */
+  block: ChatBlock | null
+  /** The local model is warming up. */
+  starting: boolean
+  models: ChatModelOption[]
+}
+
+/** What a "cannot chat" state's button can ask for. */
+export type ChatAction = 'enable-ai' | 'download' | 'cancel-download' | 'retry' | 'settings'
+
+export interface ChatSendRequest {
+  turnId: string
+  messages: Conversation['messages']
+  chips: number[]
+  /** Ids of attached files (from chatPickFiles / chatAttach). */
+  files?: string[]
+  /** The docked panel and the canvas board (both may act), or the read-only popover. */
+  mode?: 'panel' | 'popover' | 'canvas'
+  /** What the canvas knows that the model should too (the board, the open tabs, selected cards): sent with the
+   * question but kept apart from it, so it can be fitted to the model and the question read as typed. */
+  context?: string
+}
+
+export type ChatStreamEvent = { turnId: string } & (
+  | { kind: 'text'; text: string }
+  | {
+      kind: 'tool'
+      part: Extract<Conversation['messages'][number]['parts'][number], { type: 'tool' }>
+    }
+  | { kind: 'done'; stopped: boolean }
+  | { kind: 'error'; message: string; retry: boolean }
+)
+
+/** What the ask-about-selection chip and answer card (two small views above the page) can do. */
+export interface AskApi {
+  /** Chip: start an action. Card: run Ask with a typed question. */
+  run(action: AskAction, question?: string): void
+  /** The page has mounted and is listening: main sends what to show. */
+  ready(): void
+  stop(): void
+  /** Close and give the keyboard back to the page. */
+  close(): void
+  copy(): void
+  continueInChat(): void
+  /** Main shows or re-aims the view: which action the card is for, and a short preview of the selection. */
+  onShow(cb: (s: AskShow) => void): () => void
+  onEvent(cb: (e: ChatStreamEvent) => void): () => void
+}
+
+export interface AskShow {
+  action: AskAction
+  preview: string
+  /** The card only: the answer is waiting for a typed question (Ask), or is being worked on. */
+  needsQuestion: boolean
+  /** Under the selection (the card then grows downward) or above it. */
+  below: boolean
 }

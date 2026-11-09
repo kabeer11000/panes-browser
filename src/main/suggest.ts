@@ -19,6 +19,18 @@ const ENDPOINTS: Record<SearchEngineId, (q: string) => string> = {
 
 export class Suggester {
   private cache = new Map<string, string[]>()
+  private semanticSource:
+    ((query: string, exclude: string[]) => Promise<LocalSuggestion[]>) | null = null
+
+  /** Where pages matched by meaning come from (the AI features, when they are there). */
+  setSemantic(source: (query: string, exclude: string[]) => Promise<LocalSuggestion[]>): void {
+    this.semanticSource = source
+  }
+
+  /** Pages from history that match what was typed by meaning, not by its letters. Empty when AI is off or slow. */
+  semantic(query: string, exclude: string[]): Promise<LocalSuggestion[]> {
+    return this.semanticSource?.(query, exclude) ?? Promise.resolve([])
+  }
 
   constructor(
     private deps: { history: HistoryStore; bookmarks: BookmarkStore; settings: SettingsStore }

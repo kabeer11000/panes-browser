@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 
 import { leaves, type LayoutNode } from '@shared/layout'
 import type { TabGroup } from '@shared/tabgroups'
 import type { Space, TabInfo } from '@shared/types'
-import { tabTitle } from '@renderer/tabTitle'
+import { TabTitle } from './TabTitle'
 import { CloseIcon, PlusIcon, SpeakerIcon } from './icons'
 import { CaptureBadge } from './CaptureBadge'
 import { CallBadge } from './CallBadge'
@@ -232,7 +232,7 @@ export function HorizontalTabs({
               {footLeft && <span className="htab-foot l" aria-hidden="true" />}
               {footRight && <span className="htab-foot r" aria-hidden="true" />}
               <TabFavicon tab={t} />
-              <span className="htab-title">{tabTitle(t)}</span>
+              <TabTitle tab={t} className="htab-title" />
               <CallBadge call={t.attention.call} />
               <CaptureBadge capture={t.capture} />
               {(t.audible || t.muted) && (

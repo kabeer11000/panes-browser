@@ -10,6 +10,8 @@ import { IDLE_CHOICES_MIN, MAX_LOADED_CHOICES, normalizeSites, normalizeZoom } f
 import { isPerformanceMode } from '@shared/performance'
 import type { Settings } from '@shared/types'
 import { sanitizeYouTube } from '@shared/youtube'
+import { sanitizeAi } from '@shared/ai/settings'
+import { DEFAULT_AI_SETTINGS } from '@shared/ai/types'
 import { JsonStore } from './store'
 
 type Listener = (settings: Settings) => void
@@ -90,6 +92,11 @@ export class SettingsStore {
   private store = new JsonStore<Settings>('settings', DEFAULT_SETTINGS)
   private listeners: Listener[] = []
 
+  constructor() {
+    // a settings file from before AI existed, or one with only some of its fields
+    this.store.value.ai = sanitizeAi(this.store.value.ai, DEFAULT_AI_SETTINGS)
+  }
+
   get(): Settings {
     return this.store.value
   }
@@ -99,7 +106,9 @@ export class SettingsStore {
   }
 
   update(patch: Partial<Settings>): Settings {
-    this.store.value = { ...this.store.value, ...sanitize(patch) }
+    const next = { ...this.store.value, ...sanitize(patch) }
+    if (patch.ai !== undefined) next.ai = sanitizeAi(patch.ai, this.store.value.ai)
+    this.store.value = next
     this.store.save()
     for (const l of this.listeners) l(this.store.value)
     return this.store.value
@@ -108,6 +117,13 @@ export class SettingsStore {
   /** A folder the user picked in a native dialog: not taken from a patch, which a page could fill with any path. */
   setDownloadDir(dir: string): void {
     this.store.value = { ...this.store.value, downloadDir: dir }
+    this.store.save()
+    for (const l of this.listeners) l(this.store.value)
+  }
+
+  /** Where the AI models now are: only after they were moved there, never from a page's patch. */
+  setAiModelsDir(dir: string | null): void {
+    this.store.value = { ...this.store.value, aiModelsDir: dir }
     this.store.save()
     for (const l of this.listeners) l(this.store.value)
   }

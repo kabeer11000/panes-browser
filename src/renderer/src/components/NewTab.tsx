@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
+import type { SmartNewTab } from '@shared/newtab'
 import type { LocalSuggestion } from '@shared/search'
 import { dailyPhotoId, nextPhotoId, photoUrl } from '@shared/photos'
 import { displayHost } from '@shared/url'
-import { ImageIcon, SearchIcon, ShieldIcon } from './icons'
+import { CanvasIcon, ImageIcon, ShieldIcon } from './icons'
 import { useDitheredPhoto } from './useDitheredPhoto'
 
 const MAX_SITES = 8
@@ -108,14 +109,15 @@ function useNow(): Date {
   return now
 }
 
-/** A blank tab: the time, one big input that opens the command bar, and the sites you go to most as tiles. */
+/** A blank tab: the time and the sites you go to most as tiles (the address bar, Ctrl+L, is the way to search). */
 export function NewTab({
-  onOpenSearch,
   photo,
   photoId,
-  dither
+  dither,
+  smart
 }: {
-  onOpenSearch: () => void
+  /** Boards, articles and a usual site (AI on, not a private or Tor tab). */
+  smart: boolean
   photo: boolean
   /** The photo kept in the settings, or null for the daily one. */
   photoId: number | null
@@ -123,6 +125,7 @@ export function NewTab({
   dither: { color: string; color2: string | null } | null
 }): React.JSX.Element {
   const [sites, setSites] = useState<LocalSuggestion[]>([])
+  const [more, setMore] = useState<SmartNewTab | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [broken, setBroken] = useState(false)
   const now = useNow()
@@ -143,6 +146,15 @@ export function NewTab({
       alive = false
     }
   }, [])
+  useEffect(() => {
+    if (!smart) return
+    let alive = true
+    void window.api.newTabSmart().then((r) => alive && setMore(r))
+    return () => {
+      alive = false
+    }
+  }, [smart])
+  const shown = smart ? more : null
 
   return (
     <div ref={rootRef} className={'newtab' + (photo && picUp ? ' has-photo' : '')}>
@@ -194,12 +206,6 @@ export function NewTab({
           </p>
         </header>
 
-        <button type="button" className="newtab-search" onClick={onOpenSearch}>
-          <SearchIcon />
-          <span>Search or enter address</span>
-          <kbd>Ctrl L</kbd>
-        </button>
-
         {sites.length > 0 && (
           <div className="newtab-sites">
             {sites.map((s, i) => {
@@ -220,6 +226,61 @@ export function NewTab({
             })}
           </div>
         )}
+
+        {shown &&
+          (shown.boards.length > 0 || shown.reading.length > 0 || shown.next.length > 0) && (
+            <div className="newtab-smart">
+              {shown.next.length + shown.reading.length > 0 && (
+                <section aria-label="Pick up where you left off">
+                  {shown.next.map((s) => (
+                    <button
+                      key={s.url}
+                      type="button"
+                      className="newtab-row"
+                      style={{ '--hue': hueOf(displayHost(s.url)) } as React.CSSProperties}
+                      onClick={() => window.api.navigate(s.url)}
+                    >
+                      <SiteTile favicon={s.favicon ?? undefined} host={displayHost(s.url)} />
+                      <span>
+                        <b>{s.title}</b>
+                        <i>{s.reason}</i>
+                      </span>
+                    </button>
+                  ))}
+                  {shown.reading.map((p) => (
+                    <button
+                      key={p.url}
+                      type="button"
+                      className="newtab-row"
+                      style={{ '--hue': hueOf(displayHost(p.url)) } as React.CSSProperties}
+                      onClick={() => window.api.navigate(p.url)}
+                    >
+                      <SiteTile favicon={p.favicon ?? undefined} host={displayHost(p.url)} />
+                      <span>
+                        <b>{p.title}</b>
+                        <i>Continue reading - {displayHost(p.url)}</i>
+                      </span>
+                    </button>
+                  ))}
+                </section>
+              )}
+              {shown.boards.length > 0 && (
+                <section className="newtab-boards" aria-label="Boards">
+                  {shown.boards.map((b) => (
+                    <button
+                      key={b.spaceId}
+                      type="button"
+                      style={{ '--board': b.color } as React.CSSProperties}
+                      onClick={() => window.api.openBoard(b.spaceId)}
+                    >
+                      <CanvasIcon />
+                      {b.name} board
+                    </button>
+                  ))}
+                </section>
+              )}
+            </div>
+          )}
 
         <footer className="newtab-private">
           <button type="button" onClick={() => window.api.newPrivateTab()}>

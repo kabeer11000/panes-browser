@@ -6,6 +6,7 @@ import type { ClearKind, SearchEngineId, Settings as SettingsData } from '@share
 
 import { SLIDERS } from '@renderer/internal/sliders'
 import { Group, Row, Segmented, Select, SliderRow, Toggle } from '@renderer/internal/ui'
+import { AiSection } from './AiSection'
 import { ImportSection } from './ImportSection'
 import { MemorySection } from './MemorySection'
 import { SitePermissions } from './SitePermissions'
@@ -29,6 +30,17 @@ const RANGES: Array<{ label: string; ms: number | null }> = [
 ]
 
 export function Settings(): React.JSX.Element {
+  // panes://settings#appearance (from the command bar) scrolls to that group
+  useEffect(() => {
+    const go = (): void => {
+      const id = location.hash.slice(1)
+      if (id && id !== 'ai')
+        window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }), 80)
+    }
+    go()
+    window.addEventListener('hashchange', go)
+    return () => window.removeEventListener('hashchange', go)
+  }, [])
   const [s, setS] = useState<SettingsData>(DEFAULT_SETTINGS)
   const [kinds, setKinds] = useState<Set<ClearKind>>(new Set(['history']))
   const [range, setRange] = useState(1)
@@ -70,7 +82,7 @@ export function Settings(): React.JSX.Element {
 
   return (
     <>
-      <Group title="Search">
+      <Group title="Search" id="search">
         <Row label="Search engine" hint="Used when you type something that is not a web address.">
           <Select
             label="Search engine"
@@ -105,7 +117,7 @@ export function Settings(): React.JSX.Element {
         </Row>
       </Group>
 
-      <Group title="On startup" footer="Restore brings back the tabs you had open.">
+      <Group title="On startup" id="startup" footer="Restore brings back the tabs you had open.">
         <Row label="When Panes opens">
           <Segmented
             label="When Panes opens"
@@ -119,7 +131,7 @@ export function Settings(): React.JSX.Element {
         </Row>
       </Group>
 
-      <Group title="Downloads">
+      <Group title="Downloads" id="downloads">
         <Row label="Save downloads to" hint={s.downloadDir ?? 'Your Downloads folder'}>
           {s.downloadDir && (
             <button className="int-btn small" onClick={() => void update({ downloadDir: null })}>
@@ -187,6 +199,7 @@ export function Settings(): React.JSX.Element {
 
       <Group
         title="Tabs"
+        id="tabs"
         footer="Vertical keeps tabs, spaces and the address bar in a sidebar you can tuck away. Horizontal puts tabs in a row along the top, with spaces at the left end."
       >
         <Row label="Tab layout">
@@ -306,6 +319,7 @@ export function Settings(): React.JSX.Element {
 
       <Group
         title="Appearance"
+        id="appearance"
         footer="Accent colour highlights controls, focus rings and the split view glow."
       >
         <Row label="Accent colour">
@@ -351,6 +365,7 @@ export function Settings(): React.JSX.Element {
 
       <Group
         title="Websites"
+        id="websites"
         footer="Sites that already have a dark theme use it whenever the space is dark. This darkens the ones that do not."
       >
         <Row
@@ -365,7 +380,7 @@ export function Settings(): React.JSX.Element {
         </Row>
       </Group>
 
-      <Group title="Interface size">
+      <Group title="Interface size" id="size">
         {SLIDERS.map((sl) => (
           <SliderRow
             key={sl.key}
@@ -447,8 +462,11 @@ export function Settings(): React.JSX.Element {
 
       <YouTubeSection s={s} update={update} />
 
+      <AiSection s={s} update={update} />
+
       <Group
         title="Clear browsing data"
+        id="clear-data"
         footer="Cookies and cache are always cleared for all time."
       >
         {CLEAR_OPTIONS.map((o) => (

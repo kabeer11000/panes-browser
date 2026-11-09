@@ -29,6 +29,8 @@ export default defineConfig({
           popover: resolve('src/preload/popover.ts'),
           permission: resolve('src/preload/permission.ts'),
           panel: resolve('src/preload/panel.ts'),
+          ask: resolve('src/preload/ask.ts'),
+          print: resolve('src/preload/print.ts'),
           tabcard: resolve('src/preload/tabcard.ts'),
           dock: resolve('src/preload/dock.ts'),
           youtube: resolve('src/preload/youtube.ts'),
@@ -59,6 +61,8 @@ export default defineConfig({
           error: resolve('src/renderer/error.html'),
           welcome: resolve('src/renderer/welcome.html'),
           panel: resolve('src/renderer/panel.html'),
+          ask: resolve('src/renderer/ask.html'),
+          print: resolve('src/renderer/print.html'),
           permission: resolve('src/renderer/permission.html'),
           tabcard: resolve('src/renderer/tabcard.html'),
           dock: resolve('src/renderer/dock.html')

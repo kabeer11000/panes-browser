@@ -260,3 +260,49 @@ export const PipIcon = (): React.JSX.Element => (
     <rect x="8" y="7.6" width="4.6" height="3.2" rx="0.9" fill="currentColor" stroke="none" />
   </Svg>
 )
+export const ChatIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M3.2 3h9.6A1.7 1.7 0 0 1 14.5 4.7v5.1a1.7 1.7 0 0 1-1.7 1.7H8l-3 2.4v-2.4h-1.8A1.7 1.7 0 0 1 1.5 9.8V4.7A1.7 1.7 0 0 1 3.2 3Z" />
+    <path d="M5.2 6.2h5.6M5.2 8.5h3.4" />
+  </Svg>
+)
+export const CanvasIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="1.8" y="2.6" width="7" height="6.2" rx="1.8" />
+    <rect x="10.2" y="2.6" width="4" height="3.4" rx="1.3" />
+    <rect x="10.2" y="7.4" width="4" height="6" rx="1.3" />
+    <rect x="1.8" y="10.2" width="7" height="3.2" rx="1.3" />
+  </Svg>
+)
+export const PrintIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M4.5 5.5V2.2h7v3.3M4.5 11.5h-1A1.5 1.5 0 0 1 2 10V7a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 14 7v3a1.5 1.5 0 0 1-1.5 1.5h-1" />
+    <rect x="4.5" y="9.2" width="7" height="4.6" rx="1" />
+  </Svg>
+)
+export const SendIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M8 13V3.5M3.8 7.4 8 3.2l4.2 4.2" />
+  </Svg>
+)
+export const StopSquareIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="4" y="4" width="8" height="8" rx="1.8" fill="currentColor" />
+  </Svg>
+)
+export const AttachIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M12.6 7.6 8 12.2a3 3 0 0 1-4.2-4.2l4.9-4.9a2 2 0 0 1 2.8 2.8L6.8 10.6a1 1 0 0 1-1.4-1.4L9.8 4.8" />
+  </Svg>
+)
+export const FileIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M9 2.5H5a1.5 1.5 0 0 0-1.5 1.5v8A1.5 1.5 0 0 0 5 13.5h6a1.5 1.5 0 0 0 1.5-1.5V6L9 2.5Z" />
+    <path d="M9 2.5V6h3.5" />
+  </Svg>
+)
+export const ReaderIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M8 4.2C6.8 3.3 5 3 2.5 3v8.8c2.5 0 4.3.3 5.5 1.2 1.2-.9 3-1.2 5.5-1.2V3C11 3 9.2 3.3 8 4.2ZM8 4.2V13" />
+  </Svg>
+)
