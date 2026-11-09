@@ -22,3 +22,15 @@
 - A mode that holds the page overlay for its whole life (canvas) must not count as "something is over the page" for the hover sidebar and top bar, or they open on hover and never close. Only other holders pin them (overlay.ts tells main via ui:overlay-pins). Test hover with the real cursor (SetCursorPos on a focused test window), since main reads the real cursor, not DOM events.
 - Dev instances side by side share `out/`: one instance rebuilding main or preload can leave another's freshly loaded page without its preload (`window.panesInternal` undefined, blank page). Reload the page before calling it a bug.
 - A CSS file split out of a shared one (controls.css out of internal.css) must be imported by every entry that used those classes: welcome/main.tsx lost its toggles and segmented controls until it imported controls.css too. Grep the class users per entry after a split.
+
+## A packaged build must start where nothing else is installed (2026-11-10)
+
+beta.9 would not start on another computer: `zod`, which the AI SDK needs, was in node_modules here but not in
+package.json `dependencies`, so electron-builder left it out of app.asar. It worked on the dev machine only because
+the repo's own node_modules sits above `dist/win-unpacked`, and Node found it there.
+
+- Every package the built main process or a preload imports, and every peer dependency of one of them, goes in
+  `dependencies` (bun does not install or pack peers for you).
+- Before a release, start the packaged app from a copy outside the repo: copy `dist/win-unpacked` to a temp folder, use
+  `PANES_USERDATA=<fresh folder>`, and check a window opens. To test the layer path too, put `app.asar` in
+  `<userData>/app-layers/` with a `state.json` naming it, on an installed copy whose `panesBuild` is lower.
