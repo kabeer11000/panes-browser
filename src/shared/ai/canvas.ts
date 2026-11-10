@@ -456,9 +456,12 @@ function freeSlot(
 ): { frame: CanvasFrame; x: number; y: number } {
   const others = members(s, f.id).filter((c) => !skip.has(c.id))
   const notesIn = memberNotes(s, f.id).filter((n) => !skipNote.has(n.id))
+  const item = skip.size === 1 ? s.cards.find((c) => skip.has(c.id)) : undefined
+  const iw = item?.w ?? CARD_W
+  const ih = item?.h ?? CARD_H
   const taken = (p: { x: number; y: number }): boolean =>
-    others.some((c) => intersects(cardBox(c), cardBox(p), -GAP / 2)) ||
-    notesIn.some((n) => intersects(n, cardBox(p), -GAP / 2))
+    others.some((c) => intersects(cardBox(c), { x: p.x, y: p.y, w: iw, h: ih }, -GAP / 2)) ||
+    notesIn.some((n) => intersects(n, { x: p.x, y: p.y, w: iw, h: ih }, -GAP / 2))
   const cols = colsOf(f)
   const cap = Math.max(1, Math.round((f.h - HEAD - PAD + GAP) / (CARD_H + GAP))) * cols
   const total = Math.max(cap, others.length + notesIn.length + 1) + cols
@@ -475,8 +478,11 @@ function freeSlot(
   }
   const p = slotAt(f, best)
   const rows = Math.floor(best / cols) + 1
-  const needH = rowsHeight(rows)
-  return { frame: needH > f.h ? { ...f, h: needH } : f, x: p.x, y: p.y }
+  const needW = Math.max(f.w, p.x - f.x + iw + PAD)
+  const needH = Math.max(rowsHeight(rows), p.y - f.y + ih + PAD)
+  const nextFrame =
+    needW > f.w || needH > f.h ? { ...f, w: Math.max(f.w, needW), h: Math.max(f.h, needH) } : f
+  return { frame: nextFrame, x: p.x, y: p.y }
 }
 
 function ensureFrame(s: CanvasState, kind: 'other' | 'private'): CanvasState {
@@ -525,7 +531,6 @@ export function regridFrame(s: CanvasState, id: string, keepCols = false): Canva
   const widest = Math.max(1, ...units.map((u) => u.length))
   const cols = Math.min(MAX_COLS, Math.max(widest, keepCols ? colsOf(f) : gridCols(n)))
   const side = pair.length >= 2 ? SPLIT_SIDE : 0
-  const box = { ...f, w: frameBox(n, cols).w + side * 2 }
   const cellOf = new Map<number, number>()
   const splitRows = new Set<number>()
   let cell = 0
@@ -537,6 +542,38 @@ export function regridFrame(s: CanvasState, id: string, keepCols = false): Canva
     cell += u.length
     if (u.length > 1) cell = Math.ceil(cell / cols) * cols
   }
+  const totalCells = cell + ns.length
+  const rows = Math.max(1, Math.ceil(totalCells / cols))
+  const colW = Array.from({ length: cols }, () => CARD_W)
+  const rowH = Array.from({ length: rows }, () => CARD_H)
+  const byId = new Map(cs.map((c) => [c.id, c]))
+  for (const [cid, i] of cellOf) {
+    const c = byId.get(cid)
+    if (!c) continue
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    if ((c.w ?? CARD_W) > colW[col]) colW[col] = c.w ?? CARD_W
+    if ((c.h ?? CARD_H) > rowH[row]) rowH[row] = c.h ?? CARD_H
+  }
+  ns.forEach((note, j) => {
+    const i = cell + j
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    if (note.w > colW[col]) colW[col] = note.w
+    if (note.h > rowH[row]) rowH[row] = note.h
+  })
+  const colX: number[] = []
+  let cx = PAD
+  for (let c = 0; c < cols; c++) {
+    colX.push(cx)
+    cx += colW[c] + GAP
+  }
+  const rowY: number[] = []
+  let ry = HEAD
+  for (let r = 0; r < rows; r++) {
+    rowY.push(ry)
+    ry += rowH[r] + GAP
+  }
   // each row with a split in it is set lower, and every row below follows (lower again past the split's outline)
   const lower = (row: number): number =>
     [...splitRows].reduce(
@@ -547,16 +584,22 @@ export function regridFrame(s: CanvasState, id: string, keepCols = false): Canva
       0
     )
   const place = (i: number): { x: number; y: number } => {
-    const p = slotAt(box, i)
-    return { x: p.x + side, y: p.y + lower(Math.floor(i / cols)) }
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    return { x: f.x + colX[col] + side, y: f.y + rowY[row] + lower(row) }
   }
   const at = new Map([...cellOf].map(([cid, i]) => [cid, place(i)]))
   const nat = new Map(ns.map((note, i) => [note.id, place(cell + i)]))
-  cell += ns.length
-  const rows = Math.max(1, Math.ceil(cell / cols))
   const grown = {
-    ...box,
-    h: rowsHeight(rows) + lower(rows - 1) + (splitRows.has(rows - 1) ? SPLIT_SIDE : 0)
+    ...f,
+    w: PAD * 2 + colW.reduce((a, b) => a + b, 0) + (cols - 1) * GAP + side * 2,
+    h:
+      HEAD +
+      rowH.reduce((a, b) => a + b, 0) +
+      (rows - 1) * GAP +
+      PAD +
+      lower(rows - 1) +
+      (splitRows.has(rows - 1) ? SPLIT_SIDE : 0)
   }
   return {
     ...withFrame(s, grown),
@@ -600,7 +643,8 @@ function seat(
   s: CanvasState,
   cardId: number,
   frameId: string,
-  near?: { x: number; y: number }
+  near?: { x: number; y: number },
+  manual?: boolean
 ): CanvasState {
   const f = s.frames.find((x) => x.id === frameId)
   const card = s.cards.find((c) => c.id === cardId)
@@ -609,7 +653,15 @@ function seat(
   let next: CanvasState = {
     ...withFrame(s, slot.frame),
     cards: s.cards.map((c) =>
-      c.id === cardId ? { ...c, x: slot.x, y: slot.y, frame: frameId } : c
+      c.id === cardId
+        ? {
+            ...c,
+            x: slot.x,
+            y: slot.y,
+            frame: frameId,
+            manual: manual ?? (f.kind === 'user' ? true : c.manual)
+          }
+        : c
     )
   }
   // a frame that keeps taking cards in one column of rows is made wider instead
@@ -665,14 +717,19 @@ export function syncTabs(
   return { state: s, added }
 }
 
-/** Move a tab's card into the frame AI chose for it (its first free slot). */
-export function moveToFrame(s: CanvasState, cardId: number, frameId: string): CanvasState {
+/** Move a tab's card into a frame (its first free slot). */
+export function moveToFrame(
+  s: CanvasState,
+  cardId: number,
+  frameId: string,
+  manual = false
+): CanvasState {
   const card = s.cards.find((c) => c.id === cardId)
   const target = s.frames.find((f) => f.id === frameId)
   if (!card || !target || card.private || target.kind === 'private' || card.frame === frameId)
     return s
   const from = card.frame
-  return dropIfEmpty(seat(s, cardId, frameId), from)
+  return dropIfEmpty(seat(s, cardId, frameId, undefined, manual), from)
 }
 
 // ---- tidy up ----
@@ -682,8 +739,9 @@ const overlapCount = (a: number[], b: Set<number>): number => a.filter((i) => b.
 /**
  * Lay the board out again from `groups` (what AI found, over `clusterable` tabs only).
  * Frames keep their id, name and place when their cards are the same; a frame the person named or moved stays where
- * it is when its cards change; cards the person placed by hand stay in their frames. `rearrange` forgets all that
- * (notes stay). Nothing overlaps afterwards.
+ * it is when its cards change; cards the person placed by hand or grouped into a user section stay in their frames.
+ * `rearrange` resets AI topic frames and loose placements while keeping user-created sections, results and notes.
+ * Nothing overlaps afterwards.
  */
 export function tidy(
   prev: CanvasState,
@@ -693,15 +751,28 @@ export function tidy(
 ): CanvasState {
   const order = new Map(tabs.map((t, i) => [t.id, i]))
   const byOrder = (a: number, b: number): number => (order.get(a) ?? 0) - (order.get(b) ?? 0)
+  const userFrameIds = new Set(prev.frames.filter((f) => f.kind === 'user').map((f) => f.id))
+  const sizeById = new Map(
+    prev.cards
+      .filter((c) => c.w !== undefined || c.h !== undefined)
+      .map((c) => [c.id, { w: c.w, h: c.h }])
+  )
   const base: CanvasState = rearrange
     ? {
         ...prev,
-        frames: prev.frames.filter((f) => f.kind === 'result'),
-        cards: prev.cards.filter((c) => c.id < 0)
+        frames: prev.frames.filter((f) => f.kind === 'result' || f.kind === 'user'),
+        cards: prev.cards.filter(
+          (c) => c.id < 0 || (c.frame !== null && userFrameIds.has(c.frame) && order.has(c.id))
+        )
       }
     : { ...prev, cards: prev.cards.filter((c) => c.id < 0 || order.has(c.id)) }
   const old = new Map(base.cards.map((c) => [c.id, c]))
-  const fixed = (id: number): boolean => !!old.get(id)?.manual && !old.get(id)?.private
+  const inUserFrame = (id: number): boolean => {
+    const f = old.get(id)?.frame
+    return !!f && userFrameIds.has(f)
+  }
+  const fixed = (id: number): boolean =>
+    !old.get(id)?.private && (!!old.get(id)?.manual || inUserFrame(id))
   const lite = new Map(tabs.map((t) => [t.id, t]))
   const freeIds = new Set(
     clusterable(tabs)
@@ -720,7 +791,9 @@ export function tidy(
 
   // which existing frame each group continues
   const prevMembers = (fid: string): number[] =>
-    base.cards.filter((c) => c.frame === fid && !c.manual && !c.private).map((c) => c.id)
+    base.cards.filter((c) => c.frame === fid && !fixed(c.id) && !c.private).map((c) => c.id)
+  const allPrevIn = (fid: string): number[] =>
+    prev.cards.filter((c) => c.frame === fid).map((c) => c.id)
   const candidates = base.frames.filter((f) => f.kind === 'topic' || f.kind === 'user')
   const pairs: Array<{ g: number; f: number; n: number }> = []
   gs.forEach((g, gi) =>
@@ -756,8 +829,9 @@ export function tidy(
   gs.forEach((g, gi) => {
     const f = frameOfGroup.get(gi)
     if (f) {
-      const keep = sameSet(prevMembers(f.id), g.ids)
-      plans.push({ frame: f, ids: [...g.ids, ...fixedIn(f.id)].sort(byOrder), keep })
+      const ids = [...g.ids, ...fixedIn(f.id)].sort(byOrder)
+      const keep = sameSet(prevMembers(f.id), g.ids) && sameSet(allPrevIn(f.id), ids)
+      plans.push({ frame: f, ids, keep })
     } else {
       const frame: CanvasFrame = {
         id: `f${++seq}`,
@@ -780,7 +854,7 @@ export function tidy(
       plans.push({
         frame: f,
         ids: fx,
-        keep: fx.length === prevMembers(f.id).length + fx.length && prevMembers(f.id).length === 0
+        keep: prevMembers(f.id).length === 0 && sameSet(allPrevIn(f.id), fx)
       })
   }
   const other = base.frames.find((f) => f.id === OTHER_ID)
@@ -796,7 +870,11 @@ export function tidy(
       pinned: false
     }
     const ids = [...rest, ...fixedIn(OTHER_ID)].sort(byOrder)
-    plans.push({ frame, ids, keep: !!other && sameSet(prevMembers(OTHER_ID), rest) })
+    plans.push({
+      frame,
+      ids,
+      keep: !!other && sameSet(prevMembers(OTHER_ID), rest) && sameSet(allPrevIn(OTHER_ID), ids)
+    })
   }
   const pf = base.frames.find((f) => f.id === PRIVATE_ID)
   if (priv.length > 0) {
@@ -819,7 +897,11 @@ export function tidy(
   for (const n of base.notes)
     if (n.frame) notesOf.set(n.frame, [...(notesOf.get(n.frame) ?? []), n])
   const movedNotes = new Map<string, CanvasNote>()
-  const settled: Box[] = [...looseNotes(base)]
+  const settled: Box[] = [
+    ...looseNotes(base),
+    ...markBoxes(base),
+    ...base.cards.filter((c) => c.frame === null && fixed(c.id)).map(cardBox)
+  ]
   const frames: CanvasFrame[] = []
   const cards = new Map<number, CanvasCard>()
   // what the prompt made (result frames and their cards) is the person's: tidy up never moves it
@@ -829,21 +911,73 @@ export function tidy(
     settled.push(f)
   }
   for (const c of base.cards) if (c.id < 0) cards.set(c.id, c)
-  const sizeOf = (plan: Plan): { w: number; h: number } =>
-    frameBox(plan.ids.length + (notesOf.get(plan.frame.id)?.length ?? 0))
+  const gridFor = (
+    plan: Plan
+  ): { w: number; h: number; cols: number; colX: number[]; rowY: number[] } => {
+    const notes = notesOf.get(plan.frame.id) ?? []
+    const total = plan.ids.length + notes.length
+    const cols = gridCols(total)
+    const rows = Math.max(1, Math.ceil(total / cols))
+    const colW = Array.from({ length: cols }, () => CARD_W)
+    const rowH = Array.from({ length: rows }, () => CARD_H)
+    plan.ids.forEach((id, i) => {
+      const sz = sizeById.get(id)
+      const w = sz?.w ?? CARD_W
+      const h = sz?.h ?? CARD_H
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      if (w > colW[col]) colW[col] = w
+      if (h > rowH[row]) rowH[row] = h
+    })
+    notes.forEach((n, j) => {
+      const i = plan.ids.length + j
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      if (n.w > colW[col]) colW[col] = n.w
+      if (n.h > rowH[row]) rowH[row] = n.h
+    })
+    const colX: number[] = []
+    let cx = PAD
+    for (let c = 0; c < cols; c++) {
+      colX.push(cx)
+      cx += colW[c] + GAP
+    }
+    const rowY: number[] = []
+    let ry = HEAD
+    for (let r = 0; r < rows; r++) {
+      rowY.push(ry)
+      ry += rowH[r] + GAP
+    }
+    return {
+      w: PAD * 2 + colW.reduce((a, b) => a + b, 0) + (cols - 1) * GAP,
+      h: HEAD + rowH.reduce((a, b) => a + b, 0) + (rows - 1) * GAP + PAD,
+      cols,
+      colX,
+      rowY
+    }
+  }
+  const sizeOf = (plan: Plan): { w: number; h: number } => {
+    const g = gridFor(plan)
+    return { w: g.w, h: g.h }
+  }
   const put = (plan: Plan, x: number, y: number): void => {
-    const size = sizeOf(plan)
-    const frame = { ...plan.frame, x, y, ...size }
+    const g = gridFor(plan)
+    const frame = { ...plan.frame, x, y, w: g.w, h: g.h }
     frames.push(frame)
     settled.push(frame)
+    const at = (i: number): { x: number; y: number } => ({
+      x: frame.x + g.colX[i % g.cols],
+      y: frame.y + g.rowY[Math.floor(i / g.cols)]
+    })
     ;(notesOf.get(frame.id) ?? []).forEach((n, i) =>
-      movedNotes.set(n.id, { ...n, ...slotAt(frame, plan.ids.length + i) })
+      movedNotes.set(n.id, { ...n, ...at(plan.ids.length + i) })
     )
     plan.ids.forEach((id, i) => {
-      const p = slotAt(frame, i)
+      const p = at(i)
       const t = lite.get(id)
       const c = old.get(id)
-      cards.set(id, {
+      const sz = sizeById.get(id)
+      const card: CanvasCard = {
         id,
         url: t ? (t.private ? '' : t.url) : (c?.url ?? ''),
         x: p.x,
@@ -851,7 +985,10 @@ export function tidy(
         frame: frame.id,
         manual: c?.manual ?? false,
         private: !!t?.private
-      })
+      }
+      if (sz?.w !== undefined) card.w = sz.w
+      if (sz?.h !== undefined) card.h = sz.h
+      cards.set(id, card)
     })
   }
   const kept = plans.filter((p) => p.keep && p.frame.w > 0)
@@ -1052,7 +1189,7 @@ export function resizeCard(s: CanvasState, id: number, box: Box): CanvasState {
   const cw = c.w ?? CARD_W
   const ch = c.h ?? CARD_H
   if (x === c.x && y === c.y && w === cw && h === ch) return s
-  return {
+  return fitFrames({
     ...s,
     cards: s.cards.map((item) => {
       if (item.id !== id) return item
@@ -1063,7 +1200,7 @@ export function resizeCard(s: CanvasState, id: number, box: Box): CanvasState {
       }
       return next
     })
-  }
+  })
 }
 
 /** Reset a card's size to default `CARD_W x CARD_H` (or to `size`, such as 16:9 for a video card). */
@@ -1141,7 +1278,7 @@ export function addFrame(
       !c.private &&
       contains(frame, c.x + (c.w ?? CARD_W) / 2, c.y + (c.h ?? CARD_H) / 2)
   )
-  for (const c of inside) next = seat(next, c.id, id, c)
+  for (const c of inside) next = seat(next, c.id, id, c, true)
   for (const n of next.notes.filter(
     (x) => !x.frame && contains(frame, x.x + x.w / 2, x.y + x.h / 2)
   ))
@@ -1690,6 +1827,6 @@ export function groupInto(
     name.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX) || 'Group'
   )
   let next = made.state
-  for (const c of cards) next = moveToFrame(next, c.id, made.id)
+  for (const c of cards) next = moveToFrame(next, c.id, made.id, true)
   return { state: next, frameId: made.id }
 }

@@ -2002,47 +2002,53 @@
 /* ---- the way out, and something new ---- */
 .cv-top {
   position: absolute;
-  left: 14px;
-  top: 14px;
+  left: 8px;
+  top: 8px;
   z-index: 12;
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
+}
+.cv-top .winctl {
+  gap: 5px;
+  padding: 0 4px 0 2px;
+}
+.cv-top .wc {
+  width: 10px;
+  height: 10px;
+}
+.cv-top .wc svg {
+  width: 6.5px;
+  height: 6.5px;
 }
 .cv-back,
 .cv-newbtn {
-  height: 34px;
+  height: 26px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 12px 0 9px;
-  border-radius: 11px;
-  font-size: 13px;
-  color: var(--fg);
-  background: var(--popover-bg);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 6px 20px rgb(0 0 0 / 0.22);
-  backdrop-filter: blur(14px);
+  gap: 5px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  background: var(--surface);
   transition:
     background 0.12s,
     color 0.12s;
 }
-/* the space switcher, on the same glass as Back to tabs */
+/* the space switcher, on the same quiet pill as Back to tabs */
 .cv-spaces {
-  height: 34px;
+  height: 26px;
   display: flex;
   align-items: center;
-  padding: 0 6px;
-  border-radius: 11px;
-  background: var(--popover-bg);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 6px 20px rgb(0 0 0 / 0.22);
-  backdrop-filter: blur(14px);
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--surface);
 }
 .cv-back:hover,
 .cv-newbtn:hover {
-  background: color-mix(in srgb, var(--surface-hover) 60%, var(--popover-bg));
+  color: var(--fg);
+  background: var(--surface-hover);
 }
 .cv-back kbd {
   margin-left: 4px;
@@ -3374,9 +3380,15 @@
   color: var(--fg-dim);
 }
 .cv-newbtn.cv-iconbtn {
-  width: 34px;
+  width: 26px;
   padding: 0;
   justify-content: center;
+}
+.cv-dock-input .cv-mention {
+  left: 0;
+  right: 0;
+  max-width: none;
+  bottom: calc(100% + 8px);
 }
 .cv-newbtn:disabled {
   opacity: 0.45;

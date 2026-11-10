@@ -115,7 +115,7 @@ import { CardView, FrameBar, FrameView, NoteView } from './Cards'
 import { pickStreams, streamCap } from '@shared/ai/tabStream'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
-import { BackIcon, ExpandIcon, UnsplitIcon } from './icons'
+import { ExpandIcon, UnsplitIcon } from './icons'
 import { HistoryIcon } from '@renderer/components/icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
@@ -878,21 +878,34 @@ export function Canvas({
 
   // ---- tidy up ----
   const runTidy = useCallback(
-    async (rearrange: boolean): Promise<void> => {
+    async (rearrange = false): Promise<void> => {
       if (!stRef.current) return
       setBusy(true)
       try {
         const res = await window.api.canvas.cluster(spaceId)
         const before = new Set(stRef.current.frames.map((f) => f.id))
-        edit((s) => tidy(s, lite(), res.groups, rearrange), { flip: true, stagger: true })
+        edit((s) => tidy(s, lite(), res.groups, rearrange), {
+          flip: true,
+          stagger: true,
+          undo: 'Tidied the board'
+        })
         const next = stRef.current
         if (next) {
           void nameFrames(
             next.frames.filter((f) => !before.has(f.id) && f.kind === 'topic').map((f) => f.id)
           )
-          if (rearrange) {
-            const { w, h } = size()
-            vp.animateTo(fitView(boundsOf(next.frames), w, h, 80, 1))
+          const { w, h } = size()
+          const vv = vp.get()
+          const boxes = contentBoxes(next)
+          const anyInSight = boxes.some(
+            (b) =>
+              (b.x + b.w) * vv.k + vv.x > 0 &&
+              (b.y + b.h) * vv.k + vv.y > 0 &&
+              b.x * vv.k + vv.x < w &&
+              b.y * vv.k + vv.y < h
+          )
+          if (rearrange || !anyInSight) {
+            vp.animateTo(fitView(boundsOf(boxes), w, h, 80, 1))
           }
         }
       } finally {
@@ -1174,6 +1187,7 @@ export function Canvas({
         const id = added.find((i) => !r.state.cards.find((c) => c.id === i)?.private)
         if (id !== undefined) {
           placeNext.current = null
+          if (showTab.current?.id === id) showTab.current = null
           placed = id
           return placeCard(r.state, id, want)
         }
@@ -1585,7 +1599,7 @@ export function Canvas({
           setToolBoth('shape')
         } else return
       } else if (!mod && !e.altKey && e.shiftKey && e.key.toLowerCase() === 't') {
-        void runTidy(true)
+        void runTidy(false)
       } else if (!mod && !e.altKey && e.shiftKey && e.key.toLowerCase() === 'm') {
         // everything playing on the board goes quiet (or, when nothing plays, what was muted comes back)
         window.api.muteSpace(spaceId)
@@ -3431,6 +3445,9 @@ export function Canvas({
     ask()
     return window.api.onChatChanged(ask)
   }, [])
+  useEffect(() => {
+    if ((aiOff || privateWin) && asker.open) asker.close()
+  }, [aiOff, privateWin, asker])
   const firstMsRef = useRef<number | null>(null)
   useEffect(() => {
     firstMsRef.current = finder.firstMs
@@ -3969,7 +3986,7 @@ export function Canvas({
         setEditing(g.frameId)
         return
       }
-      edit((cur) => ids.reduce((s, cid) => moveToFrame(s, cid, to), cur), {
+      edit((cur) => ids.reduce((s, cid) => moveToFrame(s, cid, to, true), cur), {
         flip: true,
         undo: ids.length === 1 ? 'Moved a card' : `Moved ${ids.length} cards`
       })
@@ -4218,7 +4235,7 @@ export function Canvas({
           setSel(new Set([`f:${made.id}`]))
           setEditing(made.id)
         } else if (act === 'paste') void boardClip.pasteAt(w)
-        else if (act === 'tidy') void runTidy(true)
+        else if (act === 'tidy') void runTidy(false)
         else if (act === 'fit') fitAll()
         else if (act === 'all') {
           const cur = stRef.current
@@ -4323,10 +4340,18 @@ export function Canvas({
         label: 'Tidy',
         also: 'arrange rearrange sort group reset',
         keys: 'Shift+T',
-        run: () => void runTidy(true)
+        run: () => void runTidy(false)
       },
-      { id: 'ask', label: 'Ask', also: 'question chat ai', keys: '', run: () => asker.show() },
-      { id: 'find', label: 'Find', also: 'search', run: () => promptRef.current?.focus() },
+      { id: 'ask', label: 'Ask', also: 'question chat ai', keys: '', run: () => askInDock() },
+      {
+        id: 'find',
+        label: 'Find',
+        also: 'search',
+        run: () => {
+          if (aiOff || privateWin) promptRef.current?.focus()
+          else askInDock()
+        }
+      },
       { id: 'fit', label: 'Fit everything', also: 'zoom', keys: 'Shift+1', run: fitAll },
       {
         id: 'history',
@@ -4691,7 +4716,6 @@ export function Canvas({
             title="Back to tabs"
             onClick={() => leaveRef.current(null)}
           >
-            <BackIcon />
             <span>Back to tabs</span>
           </button>
           {/* always there, even with one space: it is the only way to switch or make a space on the board */}
@@ -4702,7 +4726,7 @@ export function Canvas({
                 activeSpaceId={spaceId}
                 placement="down"
                 dir={spaceDir}
-                size={22}
+                size={18}
               />
             </div>
           )}
@@ -4841,6 +4865,12 @@ export function Canvas({
       )}
       <AskDock
         ask={asker}
+        enabled={!aiOff && !privateWin}
+        onShow={askInDock}
+        onSubmit={onPrompt}
+        mentionable={allTabs
+          .filter((t) => !t.private && !t.tor && /^(https?|file):/i.test(t.url))
+          .map((t) => ({ tab: t.id, title: t.aiTitle ?? t.title ?? t.url }))}
         titles={allTabs
           .filter((t) => !t.private && !t.tor && t.url)
           .map((t) => t.aiTitle ?? t.title)}
@@ -4892,6 +4922,7 @@ export function Canvas({
         busy={busy}
         finding={finder.busy || asker.streaming}
         asking={asker.open}
+        showPrompt={aiOff || privateWin}
         promptRef={promptRef}
         shapeKind={shapeKind}
         onShapeKind={setShapeKind}
@@ -4902,7 +4933,7 @@ export function Canvas({
         onMention={asker.mention}
         onPrompt={onPrompt}
         onTool={setToolBoth}
-        onTidy={() => void runTidy(true)}
+        onTidy={() => void runTidy(false)}
         onFit={fitAll}
         onZoom={stepZoom}
       />

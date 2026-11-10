@@ -71,6 +71,8 @@ interface Props {
   finding: boolean
   /** An answer is open above the bar: the box asks follow-ups. */
   asking?: boolean
+  /** Show the inline prompt in the bottom bar (only when AI is off or unavailable). */
+  showPrompt?: boolean
   promptRef: React.RefObject<HTMLInputElement | null>
   shapeKind: ShapeKind
   onShapeKind: (k: ShapeKind) => void
@@ -93,6 +95,7 @@ export function Toolbar({
   busy,
   finding,
   asking = false,
+  showPrompt = false,
   promptRef,
   shapeKind,
   onShapeKind,
@@ -208,63 +211,69 @@ export function Toolbar({
         )}
       </div>
       <span className="cv-sep" aria-hidden="true" />
-      <form
-        className={'cv-prompt ai-edge' + (finding ? ' finding on' : '') + (asking ? ' asking' : '')}
-        onSubmit={(e) => {
-          e.preventDefault()
-          const input = promptRef.current
-          if (!input || input.value.trim() === '') return
-          onPrompt(input.value)
-          input.value = ''
-          input.blur()
-        }}
-      >
-        <SearchGlyph />
-        <input
-          ref={promptRef}
-          type="text"
-          placeholder={asking ? 'Ask a follow-up' : 'Ask anything'}
-          aria-label={asking ? 'Ask a follow-up' : 'Ask anything'}
-          autoComplete="off"
-          spellCheck={false}
-          maxLength={300}
-          onChange={(e) => {
-            const m = /@([^\s@]{0,30})$/.exec(e.currentTarget.value)
-            setAt(m ? m[1].toLowerCase() : null)
-          }}
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key === 'Escape') e.currentTarget.blur()
-          }}
-        />
-        {at !== null && (
-          <div className="cv-mention" role="listbox" aria-label="Mention a tab">
-            {mentionable
-              .filter((t) => t.title.toLowerCase().includes(at))
-              .slice(0, 6)
-              .map((t) => (
-                <button
-                  key={t.tab}
-                  type="button"
-                  role="option"
-                  aria-selected="false"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    const input = promptRef.current
-                    if (input) input.value = input.value.replace(/@[^\s@]{0,30}$/, '')
-                    setAt(null)
-                    onMention(t.tab)
-                  }}
-                >
-                  {t.title}
-                </button>
-              ))}
-          </div>
-        )}
-        <kbd aria-hidden="true">/</kbd>
-        <i className="cv-prompt-dot" aria-hidden="true" />
-      </form>
-      <span className="cv-sep" aria-hidden="true" />
+      {showPrompt && (
+        <>
+          <form
+            className={
+              'cv-prompt ai-edge' + (finding ? ' finding on' : '') + (asking ? ' asking' : '')
+            }
+            onSubmit={(e) => {
+              e.preventDefault()
+              const input = promptRef.current
+              if (!input || input.value.trim() === '') return
+              onPrompt(input.value)
+              input.value = ''
+              input.blur()
+            }}
+          >
+            <SearchGlyph />
+            <input
+              ref={promptRef}
+              type="text"
+              placeholder="Find or open address"
+              aria-label="Find or open address"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={300}
+              onChange={(e) => {
+                const m = /@([^\s@]{0,30})$/.exec(e.currentTarget.value)
+                setAt(m ? m[1].toLowerCase() : null)
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Escape') e.currentTarget.blur()
+              }}
+            />
+            {at !== null && (
+              <div className="cv-mention" role="listbox" aria-label="Mention a tab">
+                {mentionable
+                  .filter((t) => t.title.toLowerCase().includes(at))
+                  .slice(0, 6)
+                  .map((t) => (
+                    <button
+                      key={t.tab}
+                      type="button"
+                      role="option"
+                      aria-selected="false"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        const input = promptRef.current
+                        if (input) input.value = input.value.replace(/@[^\s@]{0,30}$/, '')
+                        setAt(null)
+                        onMention(t.tab)
+                      }}
+                    >
+                      {t.title}
+                    </button>
+                  ))}
+              </div>
+            )}
+            <kbd aria-hidden="true">/</kbd>
+            <i className="cv-prompt-dot" aria-hidden="true" />
+          </form>
+          <span className="cv-sep" aria-hidden="true" />
+        </>
+      )}
       <button
         type="button"
         className={'cv-tidy' + (busy ? ' busy' : '')}

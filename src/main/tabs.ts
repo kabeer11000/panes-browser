@@ -767,8 +767,12 @@ export class TabManager {
         this.go(tab, url)
       }
     }
-    // a space browsed with the canvas has no tab to put on screen: the page lands on the board, in its preview
-    const toBoard = activate && !!url && !tab.private && this.boardBrowsing(spaceId)
+    // a space browsed with the canvas (or while the canvas board is open) keeps the person on the board
+    const toBoard =
+      activate &&
+      !!url &&
+      !tab.private &&
+      (this.boardBrowsing(spaceId) || (this.canvasMode && spaceId === this.activeSpaceId))
     if (activate && !toBoard) this.activate(id, true)
     else this.refresh()
     if (toBoard) this.send('canvas:show-tab', id)
@@ -1009,22 +1013,27 @@ export class TabManager {
     tab.firstUrl = url
     let timer: NodeJS.Timeout = setTimeout(() => release(), AWAIT_PAINT_MAX_MS)
     const onReady = (): void => {
+      if (wc.isDestroyed() || wc.getURL() === 'about:blank' || tab.navUrl) return
       clearTimeout(timer)
       timer = setTimeout(() => release(), FIRST_PAINT_MS) // dom-ready comes just before the first frame
+    }
+    const onStop = (): void => {
+      if (wc.isDestroyed() || wc.getURL() === 'about:blank' || tab.navUrl) return
+      release()
     }
     const release = (): void => {
       clearTimeout(timer)
       if (wc.isDestroyed()) return
       wc.off('dom-ready', onReady)
       wc.off('did-fail-load', release)
-      wc.off('did-stop-loading', release)
+      wc.off('did-stop-loading', onStop)
       if (!tab.awaiting) return
       tab.awaiting = false
       this.refresh() // re-applies visibility, which now reveals the view
     }
     wc.on('dom-ready', onReady)
     wc.on('did-fail-load', release)
-    wc.on('did-stop-loading', release)
+    wc.on('did-stop-loading', onStop)
     this.go(tab, url)
   }
 
@@ -1435,7 +1444,7 @@ export class TabManager {
     }
     tab.hasUrl = true
     this.go(tab, url)
-    tab.view.webContents.focus()
+    if (!this.canvasMode && !this.overlay) tab.view.webContents.focus()
     this.refresh()
   }
 
@@ -2019,17 +2028,44 @@ export class TabManager {
    * or none (null). There is only ever one: the canvas hides every other view. A tab that is not loaded yet loads.
    */
   setLive(id: number | null, rect?: Rect): void {
+    const prevId = this.liveId
+    const changed = prevId !== id
     this.liveId = id
     this.liveRect = id !== null && rect ? rect : null
+    if (prevId !== null && prevId !== id && !this.streaming.has(prevId)) {
+      const prevTab = this.tabs.get(prevId)
+      const prevWc = prevTab && liveContents(prevTab)
+      if (prevWc) prevWc.setBackgroundThrottling(true)
+    }
     const t = id !== null ? this.tabs.get(id) : undefined
-    if (id !== null && t) this.ensureLoaded(id, t)
+    if (id !== null && t) {
+      this.ensureLoaded(id, t)
+      t.awaiting = false
+      if (changed && !t.unloaded && !this.win.isDestroyed()) {
+        this.win.contentView.addChildView(t.view)
+        this.onViewAdded?.()
+      }
+      const wc = liveContents(t)
+      if (wc) wc.setBackgroundThrottling(false)
+    }
     this.applyVisibility()
+    if (id !== null && t && !t.unloaded) {
+      const wc = liveContents(t)
+      if (wc) {
+        wc.invalidate()
+        if (changed) wc.focus()
+      }
+    }
   }
 
   /** Start loading a tab that is about to go live (an unloaded one would otherwise only start once shown). */
-  prepareLive(id: number): void {
+  prepareLive(id: number, rect?: Rect): void {
     const t = this.tabs.get(id)
-    if (t) this.ensureLoaded(id, t)
+    if (!t) return
+    this.ensureLoaded(id, t)
+    if (rect && !t.unloaded) t.view.setBounds(rect)
+    const wc = liveContents(t)
+    if (wc) wc.setBackgroundThrottling(false)
   }
 
   /** The canvas preview opened, changed card or closed (see pageTab). */
@@ -2042,7 +2078,17 @@ export class TabManager {
   liveReady(id: number): boolean {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
-    return !!wc && !wc.isLoading() && wc.getURL() !== ''
+    const u = wc ? wc.getURL() : ''
+    return (
+      !!t &&
+      !t.unloaded &&
+      !t.pending &&
+      !t.navUrl &&
+      !!wc &&
+      !wc.isLoading() &&
+      u !== '' &&
+      u !== 'about:blank'
+    )
   }
 
   /** Ctrl+T: a new tab, or on the canvas board a new card where the person asks for it. */
@@ -2089,7 +2135,8 @@ export class TabManager {
     for (const id of new Set([...this.streaming, ...next])) {
       const t = this.tabs.get(id)
       const wc = t && liveContents(t)
-      if (wc && next.has(id) !== this.streaming.has(id)) wc.setBackgroundThrottling(!next.has(id))
+      if (wc && id !== this.liveId && next.has(id) !== this.streaming.has(id))
+        wc.setBackgroundThrottling(!next.has(id))
     }
     this.streaming = next
     this.applyVisibility()

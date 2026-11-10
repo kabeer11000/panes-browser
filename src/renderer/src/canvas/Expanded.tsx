@@ -655,9 +655,13 @@ export function Expanded({
   const caps = pageCaps(href, !!page && (page.private || page.tor))
   const canEditUrl = (m.kind === 'page' || m.kind === 'video') && (tab !== undefined || !!url)
   const editRef = useRef<() => void>(() => undefined)
+  const liveReq = useRef(0)
   const toReader = (): void => {
-    if (live === 'off') return
+    autoLive.current = true
+    liveReq.current++
+    if (liveRef.current === 'off') return
     hideLive()
+    liveRef.current = 'off'
     setLive('off')
     if (url) onLive?.(url, false)
   }
@@ -673,17 +677,29 @@ export function Expanded({
     if (reduced || !panel.current) return
     panel.current.style.transformOrigin = '0 0'
     // the live page is a native view and cannot grow with the panel: it waits for this (see goLive)
-    openDone.current = animate(
+    const ctrl = animate(
       panel.current,
       { transform: [fromTf, 'translate(0px, 0px) scale(1, 1)'] },
       SPRING
-    ).finished.then(
-      () => undefined,
-      () => undefined
     )
-    if (scrim.current) void animate(scrim.current, { opacity: [0, 1] }, { duration: 0.22 })
-    if (body.current)
-      void animate(body.current, { opacity: [0, 1] }, { duration: 0.2, delay: 0.12 })
+    openDone.current = Promise.race([
+      ctrl.finished.then(
+        () => undefined,
+        () => undefined
+      ),
+      new Promise<void>((r) => setTimeout(r, 450))
+    ])
+    const sCtrl = scrim.current
+      ? animate(scrim.current, { opacity: [0, 1] }, { duration: 0.22 })
+      : null
+    const bCtrl = body.current
+      ? animate(body.current, { opacity: [0, 1] }, { duration: 0.2, delay: 0.12 })
+      : null
+    return () => {
+      ctrl.stop()
+      sCtrl?.stop()
+      bCtrl?.stop()
+    }
     // runs once, on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -802,27 +818,43 @@ export function Expanded({
   }
 
   const canLive = (m.kind === 'page' || m.kind === 'video') && (tab !== undefined || !!url)
-  /** Show the live page (or go back to the words). `to`: a tab just made for this card, not yet in its props. */
+  /** Show the live page. `to`: a tab just made for this card, not yet in its props. */
   const goLive = async (to?: number): Promise<void> => {
-    if (live !== 'off' && to === undefined) {
-      hideLive()
+    autoLive.current = true
+    if (liveRef.current !== 'off' && to === undefined) return
+    const req = ++liveReq.current
+    liveRef.current = 'loading'
+    flushSync(() => setLive('loading'))
+    await Promise.race([openDone.current, new Promise<void>((r) => setTimeout(r, 450))])
+    if (req !== liveReq.current || closing.current) return
+    await new Promise((r) => requestAnimationFrame(() => r(null))) // the slot is in place
+    if (req !== liveReq.current || closing.current) return
+    const r = slotBox(slot.current)
+    if (!r) {
+      liveRef.current = 'off'
       setLive('off')
-      if (url) onLive?.(url, false)
       return
     }
-    setLive('loading')
-    await new Promise((r) => requestAnimationFrame(() => r(null))) // the slot is in place
-    await openDone.current // and the panel has finished growing (the page cannot grow with it)
-    const r = slotBox(slot.current)
-    if (!r) return setLive('off')
     const id = await window.api.canvas.liveOpen({
-      tab: to ?? tab,
+      tab: to ?? tabRef.current ?? tab,
       url: to === undefined ? url : undefined,
       rect: { x: r.x, y: r.y, width: r.width, height: r.height }
     })
-    if (id === null) return setLive('off')
+    if (req !== liveReq.current || closing.current) {
+      hideLive()
+      return
+    }
+    if (id === null) {
+      liveRef.current = 'off'
+      setLive('off')
+      return
+    }
+    tabRef.current = id
     if (tab === undefined && to === undefined) onTab(id)
+    liveRef.current = 'on'
     setLive('on')
+    const rNow = slotBox(slot.current)
+    if (rNow && !addressOpenRef.current) window.api.canvas.liveMove(id, rNow)
     if (url) onLive?.(url, true)
   }
   const editAddress = async (): Promise<void> => {
@@ -1085,7 +1117,7 @@ export function Expanded({
               </button>
             </div>
           ) : null}
-          {canLive && m.kind === 'page' ? (
+          {canLive && (m.kind === 'page' || m.kind === 'video') ? (
             <div className="cv-seg" role="radiogroup" aria-label="Show as">
               <button
                 type="button"
@@ -1102,7 +1134,7 @@ export function Expanded({
                 aria-checked={live !== 'off'}
                 className={live !== 'off' ? 'on' : ''}
                 title="The real page, which you can use"
-                onClick={() => live === 'off' && void goLive()}
+                onClick={() => void goLive()}
               >
                 Live
               </button>
@@ -1112,7 +1144,7 @@ export function Expanded({
               <button
                 type="button"
                 className={'cv-pill' + (live !== 'off' ? ' on' : '')}
-                onClick={() => void goLive()}
+                onClick={() => (live === 'off' ? void goLive() : toReader())}
                 aria-pressed={live !== 'off'}
               >
                 <LiveIcon />

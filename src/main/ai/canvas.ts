@@ -440,7 +440,7 @@ export function registerCanvas(d: {
     if (id === null) return null
     const gen = ++liveGen
     d.tabs.setLive(null)
-    d.tabs.prepareLive(id) // an unloaded tab starts loading now, not after the wait below
+    d.tabs.prepareLive(id, rect) // an unloaded tab starts loading now, not after the wait below
     const until = Date.now() + 7000
     while (!d.tabs.liveReady(id) && Date.now() < until && gen === liveGen)
       await new Promise((x) => setTimeout(x, 80))

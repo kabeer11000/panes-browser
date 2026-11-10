@@ -12,6 +12,14 @@ import './ask.css'
 
 interface Props {
   ask: AskApi
+  /** Whether AI is enabled for this canvas board. */
+  enabled?: boolean
+  /** Open the dock and focus its input box. */
+  onShow?: () => void
+  /** Submit a message or query from the dock's input box. */
+  onSubmit?: (q: string) => void
+  /** Tabs that can be @mentioned in the dock's input box. */
+  mentionable?: Array<{ tab: number; title: string }>
   /** Titles of what is on the board, for the example asks. */
   titles: string[]
   /** A source or link: pan to its card (or open it as a card). */
@@ -104,6 +112,10 @@ function Answer({
  */
 export function AskDock({
   ask,
+  enabled = true,
+  onShow,
+  onSubmit,
+  mentionable = [],
   titles,
   onOpen,
   onAdd,
@@ -115,10 +127,15 @@ export function AskDock({
   inputRef
 }: Props): React.JSX.Element {
   const [draft, setDraft] = useState('')
+  const [at, setAt] = useState<string | null>(null)
   const sendDraft = (): void => {
-    if (!draft.trim()) return
-    ask.ask(draft)
+    const q = draft.trim()
+    if (!q) return
     setDraft('')
+    setAt(null)
+    if (inputRef?.current) inputRef.current.style.height = 'auto'
+    if (onSubmit) onSubmit(q)
+    else ask.ask(q)
   }
   const reduced = useReducedMotion()
   const scroller = useRef<HTMLDivElement>(null)
@@ -141,17 +158,17 @@ export function AskDock({
   return (
     <>
       <AnimatePresence>
-        {!ask.open && ask.turns.length > 0 && (
+        {enabled && !ask.open && (
           <motion.button
             key="handle"
             type="button"
             className="cv-dock-handle"
             aria-label="Show the conversation"
-            title="Show the conversation"
+            title="Ask AI"
             initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 12 }}
-            onClick={ask.show}
+            onClick={() => (onShow ? onShow() : ask.show())}
           >
             Ask
             {ask.streaming && <i className="cv-dock-dot" aria-hidden="true" />}
@@ -159,7 +176,7 @@ export function AskDock({
         )}
       </AnimatePresence>
       <AnimatePresence>
-        {ask.open && (
+        {enabled && ask.open && (
           <motion.aside
             key="dock"
             className="cv-dock"
@@ -441,7 +458,10 @@ export function AskDock({
                   }
                   aria-label="Message"
                   onChange={(e) => {
-                    setDraft(e.target.value)
+                    const val = e.target.value
+                    setDraft(val)
+                    const m = /@([^\s@]{0,30})$/.exec(val)
+                    setAt(m ? m[1].toLowerCase() : null)
                     const el = e.target
                     el.style.height = 'auto'
                     el.style.height = `${Math.min(140, el.scrollHeight)}px`
@@ -453,11 +473,39 @@ export function AskDock({
                       e.preventDefault()
                       sendDraft()
                     } else if (e.key === 'Escape') {
+                      if (at !== null) {
+                        setAt(null)
+                        return
+                      }
                       e.currentTarget.blur()
                       ask.close()
                     }
                   }}
                 />
+                {at !== null && mentionable.length > 0 && (
+                  <div className="cv-mention" role="listbox" aria-label="Mention a tab">
+                    {mentionable
+                      .filter((t) => t.title.toLowerCase().includes(at))
+                      .slice(0, 6)
+                      .map((t) => (
+                        <button
+                          key={t.tab}
+                          type="button"
+                          role="option"
+                          aria-selected="false"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setDraft((prev) => prev.replace(/@[^\s@]{0,30}$/, ''))
+                            setAt(null)
+                            ask.mention(t.tab)
+                            inputRef?.current?.focus()
+                          }}
+                        >
+                          {t.title}
+                        </button>
+                      ))}
+                  </div>
+                )}
                 <button
                   type="submit"
                   className="cv-dock-send"

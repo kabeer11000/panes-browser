@@ -15,6 +15,7 @@ import {
   forDisk,
   frameAt,
   freeSpot,
+  groupInto,
   hostClusters,
   intersects,
   moveFrame,
@@ -162,6 +163,27 @@ describe('tidy', () => {
     const s = tidy(a, list, groups, true)
     expect(s.notes.length).toBe(1)
     expectClean(s)
+  })
+  test('user-created sections and their cards survive tidy and rearrange', () => {
+    const a = tidy(emptyState('b'), list, groups)
+    const g = groupInto(a, 'My Research', [1, 11, 25])!
+    expect(g).not.toBeNull()
+    const b = tidy(g.state, list, groups)
+    expect(b.frames.some((f) => f.id === g.frameId && f.name === 'My Research')).toBe(true)
+    expect(b.cards.filter((c) => c.frame === g.frameId).map((c) => c.id)).toEqual([1, 11, 25])
+    const c = tidy(b, list, groups, true)
+    expect(c.frames.some((f) => f.id === g.frameId && f.name === 'My Research')).toBe(true)
+    expect(c.cards.filter((x) => x.frame === g.frameId).map((x) => x.id)).toEqual([1, 11, 25])
+    expectClean(b)
+    expectClean(c)
+  })
+  test('resized cards preserve custom dimensions across tidy without overlap', () => {
+    const a = tidy(emptyState('b'), tabs(4), [{ name: 'Videos', ids: [1, 2, 3] }])
+    const r = resizeCard(a, 1, { x: a.cards[0].x, y: a.cards[0].y, w: 420, h: 240 })
+    const b = tidy(r, tabs(4), [{ name: 'Videos', ids: [1, 2, 3, 4] }])
+    const c1 = b.cards.find((c) => c.id === 1)!
+    expect([c1.w, c1.h]).toEqual([420, 240])
+    expectClean(b)
   })
   test('150 tabs in 12 clusters pack without overlap', () => {
     const many = tabs(150)
