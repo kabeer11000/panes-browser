@@ -34,3 +34,18 @@ the repo's own node_modules sits above `dist/win-unpacked`, and Node found it th
 - Before a release, start the packaged app from a copy outside the repo: copy `dist/win-unpacked` to a temp folder, use
   `PANES_USERDATA=<fresh folder>`, and check a window opens. To test the layer path too, put `app.asar` in
   `<userData>/app-layers/` with a `state.json` naming it, on an installed copy whose `panesBuild` is lower.
+
+## Local AI work (2026-11-10)
+
+- Edit scripts go through the Write tool, never a heredoc: `\n` and `\s` in a heredoc were mangled three times in one
+  session (a literal newline inside a string, a regex that matched nothing). The rule above already said so; follow it.
+- Never put `bun run dev &` (or any app launch) on the end of an unrelated command. One slipped in and started a dev
+  Panes; kill such a stray by PID after listing processes created in the last minutes, nothing broader.
+- Killing processes by command-line match (`CommandLine -match 'ai-bench.ts'`) also matches the shell running the
+  kill: it killed itself. Match by PID or exclude the current process tree.
+- Measure the local model before tuning it: `bun scripts/ai-bench.ts --dir E:/ai-bench --affinity FF` (4 cores + HT,
+  an i5 stand-in). Guesses were wrong twice: Q4_0 was slower than Q4_K_M on AVX2, and the 8-bit KV cache that was
+  meant to save memory halved prompt reading at depth.
+- Small models copy the surface form of prompt examples: prose like "scroll_to with target X" came back as that text,
+  and `<tool_call>` examples got the request lines echoed. Worked turns as real messages (LOCAL_EXAMPLES) are the
+  form that holds.
