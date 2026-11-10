@@ -1,5 +1,12 @@
 import { memo, useEffect, useRef, useState, useLayoutEffect } from 'react'
-import { FRAME_COLORS, NOTE_COLORS, type CanvasFrame, type CanvasNote } from '@shared/ai/canvas'
+import {
+  CARD_H,
+  CARD_W,
+  FRAME_COLORS,
+  NOTE_COLORS,
+  type CanvasFrame,
+  type CanvasNote
+} from '@shared/ai/canvas'
 import { noteFontSize } from '@shared/ai/canvasText'
 import { CloseIcon, IncognitoIcon, SpeakerIcon, TorIcon } from '@renderer/components/icons'
 import { CallBadge } from '@renderer/components/CallBadge'
@@ -26,6 +33,8 @@ interface CardProps {
   m: CardModel
   x: number
   y: number
+  w?: number
+  h?: number
   selected: boolean
   fresh: boolean
   lod: boolean
@@ -103,11 +112,13 @@ function PdfFace({
 function Face({
   m,
   lod,
+  cardAspect,
   onPdf,
   onLink
 }: {
   m: CardModel
   lod: boolean
+  cardAspect: number
   onPdf: CardProps['onPdf']
   onLink: CardProps['onLink']
 }): React.JSX.Element {
@@ -145,6 +156,22 @@ function Face({
         </div>
       )
     case 'video':
+      if (cardAspect < 1.15) {
+        return (
+          <div className="cv-video carded">
+            <div className="cv-video-stage">
+              {m.image && !lod ? <Img src={m.image} /> : null}
+              <span className="cv-play" aria-hidden="true">
+                <PlayIcon />
+              </span>
+            </div>
+            <div className="cv-doc-body">
+              {m.site ? <span className="cv-site">{m.site}</span> : null}
+              <h3>{m.title}</h3>
+            </div>
+          </div>
+        )
+      }
       return (
         <div className="cv-video">
           {m.image && !lod ? <Img src={m.image} /> : null}
@@ -295,6 +322,8 @@ export const CardView = memo(
     m,
     x,
     y,
+    w = CARD_W,
+    h = CARD_H,
     selected,
     fresh,
     lod,
@@ -309,6 +338,7 @@ export const CardView = memo(
     live = 0
   }: CardProps): React.JSX.Element {
     const label = `${m.title}${m.site ? `, ${m.site}` : ''}${m.kind === 'pdf' ? ', PDF' : m.kind === 'image' ? ', image' : m.kind === 'video' ? ', video' : m.kind === 'answer' ? ', answer' : ''}${m.current ? ', current tab' : ''}`
+    const cardAspect = w / h
     return (
       <div
         className={
@@ -320,15 +350,39 @@ export const CardView = memo(
           (hidden ? ' away' : '')
         }
         data-cid={m.id}
-        style={{ ...at(x, y), '--i': Math.min(rank, 16) } as React.CSSProperties}
+        style={
+          {
+            ...at(x, y),
+            width: w,
+            height: h,
+            '--i': Math.min(rank, 16)
+          } as React.CSSProperties
+        }
         role="button"
         aria-pressed={selected}
         aria-label={label}
       >
-        <Face m={m} lod={lod} onPdf={onPdf} onLink={onLink} />
-        {live > 0 && m.isTab && <LiveTab id={m.id} cardPx={live} />}
+        <Face m={m} lod={lod} cardAspect={cardAspect} onPdf={onPdf} onLink={onLink} />
+        {live > 0 && m.isTab && (
+          <LiveTab
+            id={m.id}
+            cardPx={live}
+            cardAspect={cardAspect}
+            site={m.site}
+            title={m.title}
+          />
+        )}
         {m.kind !== 'pending' && (
           <>
+            {RZ.map((d) => (
+              <i
+                key={d}
+                className={'cv-crz ' + d}
+                data-crz={d}
+                data-crzc={m.id}
+                aria-hidden="true"
+              />
+            ))}
             <div className="cv-badges">
               <CallBadge call={m.ringing ? 'ringing' : null} />
               {m.isTab && (m.audible || m.muted || m.kind === 'video') && <MediaControls m={m} />}
@@ -388,6 +442,8 @@ export const CardView = memo(
   (a, b) =>
     a.x === b.x &&
     a.y === b.y &&
+    a.w === b.w &&
+    a.h === b.h &&
     a.selected === b.selected &&
     a.fresh === b.fresh &&
     a.lod === b.lod &&

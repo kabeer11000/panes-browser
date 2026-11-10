@@ -7,6 +7,8 @@ export interface VideoRegion {
   y: number
   w: number
   h: number
+  /** Width over height of the page's viewport (`innerWidth / innerHeight`), when known. */
+  pageAspect?: number
 }
 
 /**
@@ -73,7 +75,13 @@ export function videoRegion(raw: unknown): VideoRegion | null {
   const y0 = Math.max(0, top + (height - ch) / 2)
   const x1 = Math.min(vw, left + (width + cw) / 2)
   const y1 = Math.min(vh, top + (height + ch) / 2)
-  const r = { x: x0 / vw, y: y0 / vh, w: (x1 - x0) / vw, h: (y1 - y0) / vh }
+  const r: VideoRegion = {
+    x: x0 / vw,
+    y: y0 / vh,
+    w: (x1 - x0) / vw,
+    h: (y1 - y0) / vh,
+    pageAspect: vw / vh
+  }
   // a thumbnail-sized or mostly hidden video is not worth a stream
   return r.w > 0 && r.h > 0 && r.w * r.h >= 0.02 ? r : null
 }
@@ -81,6 +89,8 @@ export function videoRegion(raw: unknown): VideoRegion | null {
 /**
  * Lay out the stream so only the video shows, whole, centered in the card (letterboxed): `clip` is the box the
  * video fills, in % of the card; `video` is the whole page frame inside that box, in % of the box.
+ * When Chromium's tab capture frame (`frameAspect`) differs from the page's viewport (`r.pageAspect`), the page sits
+ * letterboxed or pillarboxed inside the stream frame, and `video` accounts for those bars so only the video shows.
  */
 export function fitRegion(
   r: VideoRegion,
@@ -90,31 +100,62 @@ export function fitRegion(
   clip: { w: number; h: number }
   video: { x: number; y: number; w: number; h: number }
 } {
-  const regionAspect = (r.w * frameAspect) / r.h
+  const pageAspect = r.pageAspect && r.pageAspect > 0 ? r.pageAspect : frameAspect
+  const pw = frameAspect > pageAspect ? pageAspect / frameAspect : 1
+  const ph = frameAspect > pageAspect ? 1 : frameAspect / pageAspect
+  const px = (1 - pw) / 2
+  const py = (1 - ph) / 2
+  const rx = px + r.x * pw
+  const ry = py + r.y * ph
+  const rw = r.w * pw
+  const rh = r.h * ph
+  const regionAspect = (r.w * pageAspect) / r.h
   const clip =
     regionAspect > boxAspect
       ? { w: 100, h: (boxAspect / regionAspect) * 100 }
       : { w: (regionAspect / boxAspect) * 100, h: 100 }
   return {
     clip,
-    video: { x: (-r.x / r.w) * 100, y: (-r.y / r.h) * 100, w: 100 / r.w, h: 100 / r.h }
+    video: { x: (-rx / rw) * 100, y: (-ry / rh) * 100, w: 100 / rw, h: 100 / rh }
   }
 }
 
 /**
  * Run in the tab's page: the biggest playing <video> in view, for `videoRegion`. Main frame only; a video inside
- * a cross-site frame is not found, and that card keeps its picture.
+ * a cross-site frame is not found, and that card keeps its picture. Clips to any `overflow: hidden | clip` ancestor
+ * (such as YouTube's player container) so surrounding page content never leaks into the crop.
  */
 export const VIDEO_RECT_SCRIPT = `(() => {
   let best = null, area = 0
   for (const v of document.querySelectorAll('video')) {
     if (v.paused || v.readyState < 2 || !v.videoWidth || !v.videoHeight) continue
     const r = v.getBoundingClientRect()
-    const a = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)) *
-      Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0))
+    if (r.width <= 0 || r.height <= 0) continue
+    const fit = getComputedStyle(v).objectFit
+    const ar = v.videoWidth / v.videoHeight
+    const cw = fit === 'cover' || fit === 'fill' ? r.width : Math.min(r.width, r.height * ar)
+    const ch = fit === 'cover' || fit === 'fill' ? r.height : cw / ar
+    let x0 = r.left + (r.width - cw) / 2
+    let y0 = r.top + (r.height - ch) / 2
+    let x1 = x0 + cw
+    let y1 = y0 + ch
+    for (let p = v.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+      const s = getComputedStyle(p)
+      if (/(hidden|clip)/.test(s.overflowX + s.overflowY)) {
+        const pr = p.getBoundingClientRect()
+        x0 = Math.max(x0, pr.left)
+        y0 = Math.max(y0, pr.top)
+        x1 = Math.min(x1, pr.right)
+        y1 = Math.min(y1, pr.bottom)
+      }
+    }
+    const vx0 = Math.max(0, x0), vy0 = Math.max(0, y0)
+    const vx1 = Math.min(innerWidth, x1), vy1 = Math.min(innerHeight, y1)
+    const w = vx1 - vx0, h = vy1 - vy0
+    const a = Math.max(0, w) * Math.max(0, h)
     if (a > area) {
       area = a
-      best = [r.left, r.top, r.width, r.height, innerWidth, innerHeight, v.videoWidth, v.videoHeight]
+      best = [vx0, vy0, w, h, innerWidth, innerHeight, w, h]
     }
   }
   return best

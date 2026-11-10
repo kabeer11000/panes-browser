@@ -12,6 +12,10 @@ import { pruneConnectors, remapCards, sanitizeConnectors, type CanvasConnector }
 
 export const CARD_W = 240
 export const CARD_H = 300
+export const CARD_MIN_W = 160
+export const CARD_MAX_W = 960
+export const CARD_MIN_H = 110
+export const CARD_MAX_H = 900
 export const GAP = 16
 export const PAD = 24
 /** The room a section keeps above its cards. Its title sits outside, above its top edge, so this is the padding. */
@@ -84,6 +88,9 @@ export interface CanvasCard {
   /** Top-left corner on the board. */
   x: number
   y: number
+  /** Size when resized by hand (defaults to CARD_W by CARD_H). */
+  w?: number
+  h?: number
   frame: string | null
   /** The person put it here by hand: Tidy up leaves it in its frame. */
   manual: boolean
@@ -178,11 +185,11 @@ export function liftSections(s: CanvasState): CanvasState {
 export const intersects = (a: Box, b: Box, gap = 0): boolean =>
   a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap
 
-export const cardBox = (c: { x: number; y: number }): Box => ({
+export const cardBox = (c: { x: number; y: number; w?: number; h?: number }): Box => ({
   x: c.x,
   y: c.y,
-  w: CARD_W,
-  h: CARD_H
+  w: c.w ?? CARD_W,
+  h: c.h ?? CARD_H
 })
 
 const contains = (b: Box, px: number, py: number): boolean =>
@@ -413,11 +420,12 @@ function shrinkFrame(s: CanvasState, id: string): CanvasState {
   // down to what is in it, plus its padding (a split view's outline needs more room when it is the last row)
   const cs = members(s, id)
   const ns = memberNotes(s, id)
-  const bottoms = [...cs.map((c) => c.y + CARD_H), ...ns.map((n) => n.y + n.h)]
+  const bottoms = [...cs.map((c) => c.y + (c.h ?? CARD_H)), ...ns.map((n) => n.y + n.h)]
   if (!bottoms.length) return s
   const low = Math.max(...bottoms)
   const split = new Set(s.split ?? [])
-  const splitLast = cs.some((c) => split.has(c.id) && c.y + CARD_H >= low - 0.5) && split.size >= 2
+  const splitLast =
+    cs.some((c) => split.has(c.id) && c.y + (c.h ?? CARD_H) >= low - 0.5) && split.size >= 2
   const h = Math.max(rowsHeight(1), low - f.y + PAD + (splitLast ? SPLIT_SIDE : 0))
   return h < f.h ? withFrame(s, { ...f, h }) : s
 }
@@ -946,7 +954,7 @@ export function dropCards(
         ...looseNotes(s),
         ...s.cards.filter((o) => o.id !== id && o.frame === null).map(cardBox)
       ]
-      const spot = freeSpot({ w: CARD_W, h: CARD_H }, others, to, GAP)
+      const spot = freeSpot({ w: c.w ?? CARD_W, h: c.h ?? CARD_H }, others, to, GAP)
       s = {
         ...s,
         cards: s.cards.map((x) => (x.id === id ? { ...x, ...spot, frame: null, manual: true } : x))
@@ -1014,7 +1022,8 @@ export function resizeFrame(s: CanvasState, id: string, box: Box): CanvasState {
   }
   if (b.x === f.x && b.y === f.y && b.w === f.w && b.h === f.h) return s
   const frame: CanvasFrame = { ...f, ...b, pinned: true, sized: true }
-  const mid = (c: CanvasCard): boolean => contains(frame, c.x + CARD_W / 2, c.y + CARD_H / 2)
+  const mid = (c: CanvasCard): boolean =>
+    contains(frame, c.x + (c.w ?? CARD_W) / 2, c.y + (c.h ?? CARD_H) / 2)
   const nmid = (n: CanvasNote): boolean => contains(frame, n.x + n.w / 2, n.y + n.h / 2)
   return {
     ...withFrame(s, frame),
@@ -1030,6 +1039,44 @@ export function resizeFrame(s: CanvasState, id: string, box: Box): CanvasState {
       return n
     })
   }
+}
+
+/** Resize a card by its handles; its section grows around it via `fitFrames`. */
+export function resizeCard(s: CanvasState, id: number, box: Box): CanvasState {
+  const c = s.cards.find((x) => x.id === id)
+  if (!c) return s
+  const x = Math.round(box.x)
+  const y = Math.round(box.y)
+  const w = Math.round(Math.min(CARD_MAX_W, Math.max(CARD_MIN_W, box.w)))
+  const h = Math.round(Math.min(CARD_MAX_H, Math.max(CARD_MIN_H, box.h)))
+  const cw = c.w ?? CARD_W
+  const ch = c.h ?? CARD_H
+  if (x === c.x && y === c.y && w === cw && h === ch) return s
+  return {
+    ...s,
+    cards: s.cards.map((item) => {
+      if (item.id !== id) return item
+      const next: CanvasCard = { ...item, x, y, w, h, manual: true }
+      if (w === CARD_W && h === CARD_H) {
+        delete next.w
+        delete next.h
+      }
+      return next
+    })
+  }
+}
+
+/** Reset a card's size to default `CARD_W x CARD_H` (or to `size`, such as 16:9 for a video card). */
+export function resetCardSize(
+  s: CanvasState,
+  id: number,
+  size?: { w: number; h: number }
+): CanvasState {
+  const c = s.cards.find((x) => x.id === id)
+  if (!c) return s
+  const w = size ? size.w : CARD_W
+  const h = size ? size.h : CARD_H
+  return resizeCard(s, id, { x: c.x, y: c.y, w, h })
 }
 
 /** Remember how a page card shows (by its address). */
@@ -1060,7 +1107,13 @@ export function setPreview(s: CanvasState, url: string, live: boolean): CanvasSt
 export function placeCard(s: CanvasState, id: number, at: { x: number; y: number }): CanvasState {
   const c = s.cards.find((x) => x.id === id)
   if (!c) return s
-  return dropCards(s, [id], at.x - CARD_W / 2 - c.x, at.y - CARD_H / 2 - c.y, at)
+  return dropCards(
+    s,
+    [id],
+    at.x - (c.w ?? CARD_W) / 2 - c.x,
+    at.y - (c.h ?? CARD_H) / 2 - c.y,
+    at
+  )
 }
 
 export function renameFrame(s: CanvasState, id: string, name: string): CanvasState {
@@ -1083,7 +1136,10 @@ export function addFrame(
   const frame: CanvasFrame = { id, name, kind: 'user', ...spot, ...size, pinned: true }
   let next: CanvasState = { ...s, seq: s.seq + 1, frames: [...s.frames, frame] }
   const inside = next.cards.filter(
-    (c) => c.frame === null && !c.private && contains(frame, c.x + CARD_W / 2, c.y + CARD_H / 2)
+    (c) =>
+      c.frame === null &&
+      !c.private &&
+      contains(frame, c.x + (c.w ?? CARD_W) / 2, c.y + (c.h ?? CARD_H) / 2)
   )
   for (const c of inside) next = seat(next, c.id, id, c)
   for (const n of next.notes.filter(

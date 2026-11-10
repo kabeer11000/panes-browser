@@ -1,4 +1,4 @@
-import { CARD_H, CARD_W, HEAD, type Box, type CanvasFrame, type CanvasState } from './canvas'
+import { cardBox, HEAD, type Box, type CanvasFrame, type CanvasState } from './canvas'
 
 /**
  * Connectors on the canvas board (FigJam-like arrows). Pure and deterministic like the rest of the board: a
@@ -67,7 +67,7 @@ export function endBox(s: CanvasState, e: End, off?: Offsets): Box | null {
   let b: Box | null = null
   if (e.kind === 'card') {
     const c = s.cards.find((x) => x.id === e.id)
-    if (c) b = { x: c.x, y: c.y, w: CARD_W, h: CARD_H }
+    if (c) b = cardBox(c)
   } else if (e.kind === 'note') {
     const n = s.notes.find((x) => x.id === e.id)
     if (n) b = { x: n.x, y: n.y, w: n.w, h: n.h }
@@ -462,7 +462,7 @@ export function objectAt(
   for (let i = s.cards.length - 1; i >= 0; i--) {
     const c = s.cards[i]
     if (o.skip === `c${c.id}`) continue
-    if (inBox({ x: c.x, y: c.y, w: CARD_W, h: CARD_H }, p, pad)) return { kind: 'card', id: c.id }
+    if (inBox(cardBox(c), p, pad)) return { kind: 'card', id: c.id }
   }
   for (let i = s.notes.length - 1; i >= 0; i--) {
     const n = s.notes[i]

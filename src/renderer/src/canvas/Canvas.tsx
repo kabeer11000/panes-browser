@@ -14,6 +14,10 @@ import {
   addNote,
   boundsOf,
   CARD_H,
+  CARD_MAX_H,
+  CARD_MAX_W,
+  CARD_MIN_H,
+  CARD_MIN_W,
   CARD_W,
   cardBox,
   GAP,
@@ -23,7 +27,6 @@ import {
   emptyState,
   fitView,
   frameAt,
-  FRAME_COLORS,
   freeSpot,
   isVirtual,
   moveFrame,
@@ -39,16 +42,19 @@ import {
   noteHeight,
   patchNote,
   placeCard,
+  resetCardSize,
+  resizeCard,
   resizeNote,
   unsizeFrame,
   reconcileSaved,
+  regridFrame,
   removeVirtual,
   renameFrame,
   resizeFrame,
   setCardView,
   setFrameColor,
   setItem,
-  addResultFrame,
+  groupInto,
   syncTabs,
   tidy,
   type Box,
@@ -66,7 +72,15 @@ import {
 } from '@shared/ai/canvas'
 import { arrangeSplit, splitBox, splitEdge, splitMembers } from '@shared/ai/split'
 import { leaves, type LayoutNode } from '@shared/layout'
-import { suggestPlacement, placeItem } from '@shared/ai/canvasPlace'
+import { suggestPlacement, placeItem, noteOf } from '@shared/ai/canvasPlace'
+import {
+  boardMenu,
+  cardMenu,
+  markMenu,
+  noteMenu,
+  sectionMenu,
+  selectionMenu
+} from '@shared/ai/canvasMenu'
 import { classifyFile, classifyPaste, csvRows } from '@shared/ai/canvasPaste'
 import {
   itemFor,
@@ -105,7 +119,7 @@ import { BackIcon, ExpandIcon, UnsplitIcon } from './icons'
 import { HistoryIcon } from '@renderer/components/icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
-import { ContextMenu, type MenuItem } from './ContextMenu'
+import { ContextMenu, type MenuEntry } from './ContextMenu'
 import { PlayingItem } from './PlayingItem'
 import { useDismiss } from './useDismiss'
 import { Expanded, type ExpandSource } from './Expanded'
@@ -138,6 +152,7 @@ import {
   duplicateMarks,
   groupMarks,
   isBlock,
+  isShape,
   MARK_TEXT_MAX,
   markAt,
   markBox,
@@ -291,6 +306,16 @@ type Gesture =
       el: HTMLElement | null
       box: Box
     }
+  | {
+      kind: 'cresize'
+      id: number
+      dir: string
+      start: Box
+      sx: number
+      sy: number
+      el: HTMLElement | null
+      box: Box
+    }
 
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 const UNDO_MAX = 60
@@ -393,7 +418,8 @@ export function Canvas({
     x: number
     y: number
     title?: string
-    items: MenuItem[]
+    items: MenuEntry[]
+    onPick: (id: string) => void
   } | null>(null)
   const closeContext = useCallback(() => setCtx(null), [])
   // `live`: open straight onto the live page (something the assistant just opened for the person)
@@ -526,8 +552,6 @@ export function Canvas({
     window.api.canvas.streaming?.([...streams])
   }, [streams])
   useEffect(() => () => window.api.canvas.streaming?.([]), [])
-  // the card's width on screen, in 40 px steps so zooming re-renders streaming cards rarely
-  const liveCardPx = Math.max(40, Math.round((CARD_W * zoomPct) / 100 / 40) * 40)
   const markFresh = useCallback((ids: number[]): void => {
     if (ids.length === 0) return
     setFresh((prev) => new Set([...prev, ...ids]))
@@ -610,11 +634,13 @@ export function Canvas({
     }
     const next = new Set<number>()
     for (const c of s.cards) {
+      const cw = c.w ?? CARD_W
+      const ch = c.h ?? CARD_H
       if (
         c.x < view.x + view.w &&
-        c.x + CARD_W > view.x &&
+        c.x + cw > view.x &&
         c.y < view.y + view.h &&
-        c.y + CARD_H > view.y
+        c.y + ch > view.y
       )
         next.add(c.id)
     }
@@ -627,8 +653,8 @@ export function Canvas({
     inViewTimer.current = window.setTimeout(() => {
       const shown = new Set(
         (stRef.current?.cards ?? [])
-          .filter((c) => c.id > 0 && c.x < view.x + view.w && c.x + CARD_W > view.x)
-          .filter((c) => c.y < view.y + view.h && c.y + CARD_H > view.y)
+          .filter((c) => c.id > 0 && c.x < view.x + view.w && c.x + (c.w ?? CARD_W) > view.x)
+          .filter((c) => c.y < view.y + view.h && c.y + (c.h ?? CARD_H) > view.y)
           .map((c) => c.id)
       )
       window.api.canvas.inView?.(spaceIdRef.current, [...shown])
@@ -981,8 +1007,8 @@ export function Canvas({
     const to = {
       left: card.x * v.k + v.x,
       top: card.y * v.k + v.y,
-      width: CARD_W * v.k,
-      height: CARD_H * v.k
+      width: (card.w ?? CARD_W) * v.k,
+      height: (card.h ?? CARD_H) * v.k
     }
     const a = g.animate(
       [
@@ -1022,8 +1048,8 @@ export function Canvas({
         ? {
             left: card.x * v.k + v.x,
             top: card.y * v.k + v.y,
-            width: CARD_W * v.k,
-            height: CARD_H * v.k
+            width: (card.w ?? CARD_W) * v.k,
+            height: (card.h ?? CARD_H) * v.k
           }
         : null
       const seen =
@@ -1899,6 +1925,39 @@ export function Canvas({
       window.addEventListener('pointerup', end)
       window.addEventListener('pointercancel', end)
     }
+    const crzEl = t.closest<HTMLElement>('[data-crz]')
+    if (!pan && crzEl) {
+      const cid = Number(crzEl.dataset.crzc)
+      const c = s.cards.find((x) => x.id === cid)
+      if (c) {
+        e.preventDefault()
+        e.stopPropagation()
+        const box = cardBox(c)
+        gesture.current = {
+          kind: 'cresize',
+          id: c.id,
+          dir: crzEl.dataset.crz ?? 'se',
+          start: box,
+          sx: e.clientX,
+          sy: e.clientY,
+          el: root.current!.querySelector<HTMLElement>(`[data-cid="${c.id}"]`),
+          box
+        }
+        root.current!.setPointerCapture(e.pointerId)
+        root.current!.classList.add('resizing')
+        const move = (ev: PointerEvent): void => onGestureMove(ev)
+        const end = (ev: PointerEvent): void => {
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', end)
+          window.removeEventListener('pointercancel', end)
+          onGestureEnd(ev)
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', end)
+        window.addEventListener('pointercancel', end)
+        return
+      }
+    }
     const nrzEl = t.closest<HTMLElement>('[data-nrz]')
     if (!pan && nrzEl) {
       const n = s.notes.find((x) => x.id === nrzEl.dataset.nrzn)
@@ -2268,6 +2327,32 @@ export function Canvas({
         target,
         hide: g.existing
       })
+    } else if (g.kind === 'cresize') {
+      const dx = (e.clientX - g.sx) / v.k
+      const dy = (e.clientY - g.sy) / v.k
+      const b = g.start
+      let x0 = b.x
+      let y0 = b.y
+      let x1 = b.x + b.w
+      let y1 = b.y + b.h
+      if (g.dir.includes('w')) x0 = Math.max(x1 - CARD_MAX_W, Math.min(x1 - CARD_MIN_W, x0 + dx))
+      if (g.dir.includes('e')) x1 = Math.min(x0 + CARD_MAX_W, Math.max(x0 + CARD_MIN_W, x1 + dx))
+      if (g.dir.includes('n')) y0 = Math.max(y1 - CARD_MAX_H, Math.min(y1 - CARD_MIN_H, y0 + dy))
+      if (g.dir.includes('s')) y1 = Math.min(y0 + CARD_MAX_H, Math.max(y0 + CARD_MIN_H, y1 + dy))
+      let box: Box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+      if (e.shiftKey && g.dir.length === 2) {
+        const anchor = {
+          x: g.dir.includes('w') ? b.x + b.w : b.x,
+          y: g.dir.includes('n') ? b.y + b.h : b.y
+        }
+        box = keepAspect(b, box, anchor)
+      }
+      g.box = box
+      if (g.el) {
+        g.el.style.transform = `translate3d(${box.x}px, ${box.y}px, 0)`
+        g.el.style.width = `${box.w}px`
+        g.el.style.height = `${box.h}px`
+      }
     } else if (g.kind === 'nresize') {
       const dx = (e.clientX - g.sx) / v.k
       const dy = (e.clientY - g.sy) / v.k
@@ -2455,6 +2540,19 @@ export function Canvas({
       if (dt > 8 && e.timeStamp - b.t < 80) vp.fling((b.x - a.x) / dt, (b.y - a.y) / dt)
     } else if (g.kind === 'marquee') {
       if (marquee.current) marquee.current.style.display = 'none'
+    } else if (g.kind === 'cresize') {
+      el.classList.remove('resizing')
+      const box = g.box
+      if (!edit((s) => resizeCard(s, g.id, box), { undo: 'Resized a card' }) && g.el) {
+        const c = stRef.current?.cards.find((x) => x.id === g.id)
+        if (c) {
+          const cb = cardBox(c)
+          g.el.style.transform = `translate3d(${cb.x}px, ${cb.y}px, 0)`
+          g.el.style.width = `${cb.w}px`
+          g.el.style.height = `${cb.h}px`
+        }
+      }
+      setSel(new Set([`c:${g.id}`]))
     } else if (g.kind === 'nresize') {
       el.classList.remove('resizing')
       const w = g.w
@@ -2679,28 +2777,34 @@ export function Canvas({
         : byIdRef.current.get(id)
       if (tab && (tab.private || tab.tor)) return
       const url = item?.url ?? tab?.url ?? ''
-      let summary: string | undefined
-      if (to === 'note' && (!item || item.kind !== 'answer')) {
-        toastNow('Making a note...')
-        summary =
-          (await window.api.canvas.summarize(
-            item?.tab !== undefined || !virtual ? { tab: item?.tab ?? id } : { url }
-          )) ?? undefined
-      }
-      if (item) {
-        edit((s1) => setItem(s1, id, placeItem(item, to, summary)), { flip: true })
+      if (item && (to !== 'note' || item.kind === 'answer')) {
+        edit((s1) => setItem(s1, id, placeItem(item, to)), { flip: true })
         markFresh([id])
-      } else if (tab && to === 'note') {
-        // a tab stays a tab: its note is a new card beside it, with a link back
-        const base = itemFor(url, tabTitle(tab), { tab: tab.id, source: 'tab' })
-        const made = addResultFrame(stRef.current ?? s0, 'Notes', 1, {
-          x: (size().w / 2 - vp.get().x) / vp.get().k - 400,
-          y: (size().h * 0.4 - vp.get().y) / vp.get().k - 260
-        })
-        edit(() => made.state, { flip: true })
-        edit((s1) => setItem(s1, made.ids[0], placeItem(base, 'note', summary)))
-        flyRef.current = made.ids
+        return
       }
+      if (to !== 'note') return
+      const src = item ?? (tab ? itemFor(url, tabTitle(tab), { tab: tab.id, source: 'tab' }) : null)
+      if (!src) return
+      // a pending note card appears beside the page right away; its text arrives when the summary is done
+      let noteId = id
+      if (!item) {
+        const made = addLoose(stRef.current ?? s0, noteOf(src, undefined, true), { cards: [id] })
+        noteId = made.id
+        edit(() => made.state, { flip: true, undo: 'Made a note' })
+        flyRef.current = [noteId]
+      } else {
+        edit((s1) => setItem(s1, id, noteOf(src, undefined, true)), {
+          flip: true,
+          undo: 'Made a note'
+        })
+        markFresh([id])
+      }
+      const summary =
+        (await window.api.canvas.summarize(
+          item?.tab !== undefined || !virtual ? { tab: item?.tab ?? id } : { url }
+        )) ?? undefined
+      edit((s1) => setItem(s1, noteId, noteOf(src, summary)))
+      markFresh([noteId])
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [edit, markFresh, toastNow]
@@ -2759,7 +2863,12 @@ export function Canvas({
     setExpanded({
       id: card.id,
       live: true,
-      from: { x: card.x * v.k + v.x, y: card.y * v.k + v.y, w: CARD_W * v.k, h: CARD_H * v.k }
+      from: {
+        x: card.x * v.k + v.x,
+        y: card.y * v.k + v.y,
+        w: (card.w ?? CARD_W) * v.k,
+        h: (card.h ?? CARD_H) * v.k
+      }
     })
   }
   useLayoutEffect(() => {
@@ -2777,8 +2886,8 @@ export function Canvas({
     setSel(new Set([`c:${id}`]))
     // an empty tab has nothing to read: ask what to open in it, right where its card is
     if (m.blank && phaseRef.current === 'open') {
-      const wx = card.x + CARD_W / 2
-      const wy = card.y + CARD_H / 2
+      const wx = card.x + (card.w ?? CARD_W) / 2
+      const wy = card.y + (card.h ?? CARD_H) / 2
       setNewAt({ sx: wx * v.k + v.x, sy: wy * v.k + v.y, wx, wy, fill: id })
       return
     }
@@ -2787,7 +2896,12 @@ export function Canvas({
     setExpanded({
       id,
       live: forceLive ?? (!!url && s.previews?.[url] === 'live'),
-      from: { x: card.x * v.k + v.x, y: card.y * v.k + v.y, w: CARD_W * v.k, h: CARD_H * v.k }
+      from: {
+        x: card.x * v.k + v.x,
+        y: card.y * v.k + v.y,
+        w: (card.w ?? CARD_W) * v.k,
+        h: (card.h ?? CARD_H) * v.k
+      }
     })
   }
   useLayoutEffect(() => {
@@ -3678,7 +3792,12 @@ export function Canvas({
     setSel(new Set([`c:${next}`]))
     setExpanded({
       id: next,
-      from: { x: card.x * v.k + v.x, y: card.y * v.k + v.y, w: CARD_W * v.k, h: CARD_H * v.k }
+      from: {
+        x: card.x * v.k + v.x,
+        y: card.y * v.k + v.y,
+        w: (card.w ?? CARD_W) * v.k,
+        h: (card.h ?? CARD_H) * v.k
+      }
     })
   }
 
@@ -3834,15 +3953,27 @@ export function Canvas({
     if (!s0 || !r) return
     const w = world(cx, cy)
     const at = { x: cx - r.left, y: cy - r.top }
-    // no separator first, last or twice in a row
-    const show = (items: MenuItem[], title?: string): void => {
-      const out: MenuItem[] = []
-      for (const x of items)
-        if (x !== 'sep' || (out.length && out[out.length - 1] !== 'sep')) out.push(x)
-      while (out[out.length - 1] === 'sep') out.pop()
-      setCtx({ ...at, title, items: out })
+    const show = (items: MenuEntry[], onPick: (id: string) => void, title?: string): void => {
+      setCtx({ ...at, title, items, onPick })
     }
     const ask = (): void => askInDock()
+    const sections = s0.frames
+      .filter((f) => f.kind !== 'private')
+      .map((f) => ({ id: f.id, name: f.name }))
+    const moveCards = (ids: number[], to: string): void => {
+      if (to === 'new') {
+        const g = groupInto(stRef.current ?? s0, 'Section', ids)
+        if (!g) return
+        flushSync(() => edit(() => g.state, { flip: true, undo: 'Made a section' }))
+        setSel(new Set([`f:${g.frameId}`]))
+        setEditing(g.frameId)
+        return
+      }
+      edit((cur) => ids.reduce((s, cid) => moveToFrame(s, cid, to), cur), {
+        flip: true,
+        undo: ids.length === 1 ? 'Moved a card' : `Moved ${ids.length} cards`
+      })
+    }
 
     const cardEl = t.closest<HTMLElement>('[data-cid]')
     if (cardEl) {
@@ -3853,23 +3984,59 @@ export function Canvas({
       // a card of a bigger selection: what is done to them all
       if (selCards.length > 1 && selCards.includes(id)) {
         const n = selCards.length
+        const isPriv = (cid: number): boolean => {
+          const it = isVirtual(cid) ? s0.items[String(cid)] : undefined
+          const tb = isVirtual(cid)
+            ? it?.tab !== undefined
+              ? byId.get(it.tab)
+              : undefined
+            : byId.get(cid)
+          return !!(tb && (tb.private || tb.tor))
+        }
+        const privCount = selCards.filter(isPriv).length
+        const framesOf = [
+          ...new Set(
+            selCards
+              .map((cid) => s0.cards.find((c) => c.id === cid)?.frame)
+              .filter((fid): fid is string => !!fid)
+          )
+        ]
         return show(
-          [
-            { label: `Ask about these ${n}`, run: ask },
-            'sep',
-            {
-              label: `Close ${n} cards`,
-              keys: 'Del',
-              danger: true,
-              run: () => closeCards(selCards)
-            }
-          ],
+          selectionMenu({
+            n,
+            private: privCount,
+            canSplit: n === 2 && privCount === 0 && selCards.every(canTab),
+            inSection: framesOf.length > 0,
+            allTabs: selCards.every((cid) => !isVirtual(cid)),
+            sections
+          }),
+          (act) => {
+            if (act === 'ask') ask()
+            else if (act === 'note') {
+              for (const cid of selCards) if (!isPriv(cid)) void placeAs(cid, 'note')
+            } else if (act === 'split') void joinOnBoard(selCards[0], { id: selCards[1], edge: 'left' })
+            else if (act === 'group') moveCards(selCards, 'new')
+            else if (act.startsWith('move:')) moveCards(selCards, act.slice(5))
+            else if (act === 'tidy') {
+              edit(
+                (cur) =>
+                  framesOf.reduce(
+                    (s, fid) =>
+                      regridFrame(s, fid, !!s.frames.find((x) => x.id === fid)?.sized),
+                    cur
+                  ),
+                { flip: true, undo: 'Tidied sections' }
+              )
+            } else if (act === 'fit') fitSelection()
+            else if (act === 'close') closeCards(selCards)
+          },
           `${n} cards`
         )
       }
       const m = modelForRef.current({ id })
       if (!m || m.kind === 'pending') return
       setSel(new Set([`c:${id}`]))
+      const card = s0.cards.find((c) => c.id === id)
       const item = isVirtual(id) ? s0.items[String(id)] : undefined
       const tab = isVirtual(id)
         ? item?.tab !== undefined
@@ -3881,121 +4048,167 @@ export function Canvas({
       const web = /^https?:/i.test(url)
       const canLive = (m.kind === 'page' || m.kind === 'video') && (!!tab || web)
       const media = m.isTab && (m.audible || m.muted || m.kind === 'video')
-      const items: MenuItem[] = [
-        { label: 'Open', keys: 'Enter', run: () => expandRef.current(id, false) }
-      ]
-      if (canLive) items.push({ label: 'Open live', run: () => expandRef.current(id, true) })
-      if (m.isTab || tab || web)
-        items.push({ label: 'Pop out as a tab', run: () => leaveRef.current(id) })
-      items.push('sep')
-      if (media) {
-        items.push({
-          label: m.audible ? 'Pause' : 'Play',
-          run: () =>
+      return show(
+        cardMenu({
+          isTab: m.isTab,
+          private: priv,
+          canLive,
+          canPop: m.isTab || !!tab || web,
+          media,
+          audible: m.audible,
+          muted: m.muted,
+          toggle: m.toggle,
+          reader: m.reader,
+          answer: m.kind === 'answer',
+          note: m.kind === 'answer' && m.placement === 'note',
+          canDocument: !!item && (item.kind === 'page' || (item.kind === 'answer' && !!item.url)),
+          link: web,
+          section: card?.frame ?? null,
+          sections
+        }),
+        (act) => {
+          if (act === 'open') expandRef.current(id, false)
+          else if (act === 'live') expandRef.current(id, true)
+          else if (act === 'pop') leaveRef.current(id)
+          else if (act === 'play')
             void window.api.mediaPlay?.(m.id, m.audible ? 'pause' : 'play').catch(() => undefined)
-        })
-        if (m.audible || m.muted)
-          items.push({ label: m.muted ? 'Unmute' : 'Mute', run: () => window.api.toggleMute(m.id) })
-      }
-      if (m.toggle)
-        items.push({
-          label: m.reader ? 'Show the page' : 'Show as reader',
-          run: () => onCardView(id)
-        })
-      items.push('sep')
-      if (!priv) {
-        items.push({ label: 'Ask about this', run: ask })
-        items.push({ label: 'Make a note of it', run: () => void placeAs(id, 'note') })
-        if (item && item.kind === 'page')
-          items.push({ label: 'Show as document', run: () => void placeAs(id, 'document') })
-      }
-      items.push('sep')
-      if (web && !priv)
-        items.push({ label: 'Copy link', run: () => void navigator.clipboard.writeText(url) })
-      items.push({
-        label: m.isTab ? 'Close tab' : 'Remove from the board',
-        keys: 'Del',
-        danger: true,
-        run: () => closeCards([id])
-      })
-      return show(items, priv ? 'Private tab' : m.title || m.site)
+          else if (act === 'mute') window.api.toggleMute(m.id)
+          else if (act === 'view') onCardView(id)
+          else if (act === 'ask') ask()
+          else if (act === 'note') void placeAs(id, 'note')
+          else if (act === 'document') void placeAs(id, 'document')
+          else if (act === 'copy') void navigator.clipboard.writeText(url)
+          else if (act === 'duplicate') boardClip.duplicate()
+          else if (act.startsWith('move:')) moveCards([id], act.slice(5))
+          else if (act === 'close') closeCards([id])
+        },
+        priv ? 'Private tab' : m.title || m.site
+      )
     }
 
     const noteEl = t.closest<HTMLElement>('[data-nid]')
     if (noteEl) {
       const nid = noteEl.dataset.nid!
+      const note = s0.notes.find((n) => n.id === nid)
       setSel(new Set([`n:${nid}`]))
       return show(
-        [
-          { label: 'Edit', keys: 'Enter', run: () => setEditing(nid) },
-          'sep',
-          {
-            label: 'Delete note',
-            keys: 'Del',
-            danger: true,
-            run: () => {
-              edit((s1) => deleteNote(s1, nid), { undo: 'Deleted 1 item' })
-              setSel(new Set())
-            }
+        noteMenu({ color: note?.color ?? 0 }),
+        (act) => {
+          if (act === 'edit') setEditing(nid)
+          else if (act.startsWith('color:')) {
+            const c = Number(act.slice(6)) % NOTE_COLORS
+            edit((s1) => patchNote(s1, nid, { color: c }), { undo: 'Recoloured a note' })
+          } else if (act === 'delete') {
+            edit((s1) => deleteNote(s1, nid), { undo: 'Deleted 1 item' })
+            setSel(new Set())
           }
-        ],
+        },
         'Note'
       )
     }
 
+    const markEl = t.closest<HTMLElement>('[data-mid]')
+    if (markEl) {
+      const mid = markEl.dataset.mid!
+      const curSel = [...selRef.current].filter((k) => k[0] === 'm').map((k) => k.slice(2))
+      const ids = withGroups(s0, curSel.includes(mid) ? curSel : [mid])
+      setSel(new Set(ids.map((i) => `m:${i}`)))
+      const all = marksOf(s0).filter((m) => ids.includes(m.id))
+      if (all.length === 0) return
+      const one = all.length === 1 ? all[0] : null
+      const locked = all.some((m) => m.locked)
+      const shapes = all.some((m) => isShape(m.kind))
+      const colors = new Set(all.map((m) => (isShape(m.kind) && m.fill === -1 ? -1 : m.color)))
+      return show(
+        markMenu({
+          n: all.length,
+          editable: !!one && !locked && (one.kind === 'text' || isShape(one.kind)),
+          shapes,
+          locked,
+          grouped: all.some((m) => !!m.group),
+          color: colors.size === 1 ? [...colors][0] : null
+        }),
+        (act) => {
+          if (act === 'edit' && one) setEditing(one.id)
+          else if (act === 'color:none')
+            edit((s1) => ids.reduce((n, i) => patchMark(n, i, { fill: -1 }), s1), {
+              undo: 'Restyled'
+            })
+          else if (act.startsWith('color:')) {
+            const c = Number(act.slice(6))
+            edit(
+              (s1) =>
+                ids.reduce((n, i) => {
+                  const cur = marksOf(n).find((x) => x.id === i)
+                  const p: MarkPatch =
+                    cur && isShape(cur.kind) && cur.fill === -1 ? { color: c, fill: c } : { color: c }
+                  return patchMark(n, i, p)
+                }, s1),
+              { undo: 'Restyled' }
+            )
+          } else if (act === 'front' || act === 'back')
+            edit((s1) => reorderMarks(s1, ids, act), {
+              undo: act === 'front' ? 'Brought to front' : 'Sent to back'
+            })
+          else if (act === 'duplicate') duplicateSel()
+          else if (act === 'group') groupSel(true)
+          else if (act === 'ungroup') groupSel(false)
+          else if (act === 'lock')
+            edit((s1) => ids.reduce((n, i) => patchMark(n, i, { locked: !locked }), s1), {
+              undo: locked ? 'Unlocked' : 'Locked'
+            })
+          else if (act === 'delete') deleteSelected()
+        },
+        all.length > 1 ? `${all.length} drawings` : 'Drawing'
+      )
+    }
+
     const headEl = t.closest<HTMLElement>('[data-fhead]')
-    const f = headEl
-      ? s0.frames.find((x) => x.id === headEl.dataset.fhead)
-      : t.closest('[data-mid]')
-        ? undefined
-        : frameAt(s0, w.x, w.y)
+    const f = headEl ? s0.frames.find((x) => x.id === headEl.dataset.fhead) : frameAt(s0, w.x, w.y)
     if (f) {
       setSel(new Set([`f:${f.id}`]))
       const inside = s0.cards.filter((c) => c.frame === f.id).length
-      const items: MenuItem[] = [{ label: 'Rename', keys: 'F2', run: () => startRename(f.id) }]
-      if (f.sized)
-        items.push({
-          label: 'Fit to what is in it',
-          run: () => edit((s1) => unsizeFrame(s1, f.id), { flip: true, undo: 'Fitted a section' })
-        })
-      items.push({
-        swatches: [null, ...Array.from({ length: FRAME_COLORS }, (_, i) => i)].map((c) => ({
-          label: c === null ? 'Space colour' : `Colour ${c + 1}`,
-          cls: 'cv-swatch' + (c === null ? '' : ` fc${c}`),
-          on: (f.color ?? null) === c,
-          run: () => onFrameColor(f.id, c)
-        }))
-      })
-      items.push('sep')
-      items.push({
-        label: inside
-          ? `Delete section and close its ${inside} tab${inside === 1 ? '' : 's'}`
-          : 'Delete section',
-        danger: true,
-        run: () => onFrameDelete(f.id)
-      })
-      return show(items, f.name)
+      return show(
+        sectionMenu({ inside, sized: !!f.sized, color: f.color ?? null }),
+        (act) => {
+          if (act === 'rename') startRename(f.id)
+          else if (act === 'fit') {
+            const { w: sw, h: sh } = size()
+            vp.animateTo(fitView(f, sw, sh, 120, 1.2))
+          } else if (act.startsWith('color:')) {
+            const v = act.slice(6)
+            onFrameColor(f.id, v === 'none' ? null : Number(v))
+          } else if (act === 'tidy')
+            edit((s1) => regridFrame(s1, f.id, !!f.sized), { flip: true, undo: 'Tidied a section' })
+          else if (act === 'shrink')
+            edit((s1) => unsizeFrame(s1, f.id), { flip: true, undo: 'Fitted a section' })
+          else if (act === 'ungroup')
+            edit((s1) => deleteFrame(s1, f.id), { undo: 'Ungrouped a section' })
+          else if (act === 'delete') onFrameDelete(f.id)
+        },
+        f.name
+      )
     }
 
     // the board itself: what is made goes where it was clicked
     setSel(new Set())
-    show([
-      { label: 'New page here', keys: 'Ctrl+T', run: () => askNew(at.x, at.y) },
-      {
-        label: 'Note here',
-        keys: 'S',
-        run: () => {
+    const topUndo = undoStack.current[undoStack.current.length - 1]?.label ?? null
+    show(
+      boardMenu({
+        empty: contentBoxes(s0).length === 0,
+        paste: true,
+        canPaste: boardClip.canPaste,
+        undo: topUndo
+      }),
+      (act) => {
+        if (act === 'page') askNew(at.x, at.y)
+        else if (act === 'note') {
           const made = addNote(stRef.current!, { x: w.x - 92, y: w.y - 66 }, 0)
           edit(() => made.state, { undo: 'Added a note' })
           setSel(new Set([`n:${made.id}`]))
           setEditing(made.id)
-        }
-      },
-      { label: 'Text here', keys: 'T', run: () => addBlockAt('body', { x: w.x, y: w.y }) },
-      {
-        label: 'Section here',
-        keys: 'F',
-        run: () => {
+        } else if (act === 'text') addBlockAt('body', { x: w.x, y: w.y })
+        else if (act === 'section') {
           const made = addFrame(
             stRef.current!,
             { x: w.x - 280, y: w.y - 40, w: 560, h: 400 },
@@ -4004,15 +4217,28 @@ export function Canvas({
           flushSync(() => edit(() => made.state, { flip: true, undo: 'Made a section' }))
           setSel(new Set([`f:${made.id}`]))
           setEditing(made.id)
-        }
-      },
-      'sep',
-      { label: 'Tidy up', keys: 'Shift+T', run: () => void runTidy(true) },
-      { label: 'Fit everything', keys: 'Shift+1', run: fitAll },
-      { label: 'Ask', run: () => asker.show() },
-      'sep',
-      { label: 'Export as picture', run: () => void exportBoard('png') }
-    ])
+        } else if (act === 'paste') void boardClip.pasteAt(w)
+        else if (act === 'tidy') void runTidy(true)
+        else if (act === 'fit') fitAll()
+        else if (act === 'all') {
+          const cur = stRef.current
+          if (cur)
+            setSel(
+              new Set([
+                ...cur.cards.map((c) => `c:${c.id}`),
+                ...cur.notes.map((n) => `n:${n.id}`),
+                ...marksOf(cur).map((m) => `m:${m.id}`)
+              ])
+            )
+        } else if (act === 'undo') {
+          const said = undo()
+          toastNow(said ? `Undid: ${said}` : 'Nothing to undo')
+        } else if (act === 'ask') ask()
+        else if (act === 'export:png') void exportBoard('png')
+        else if (act === 'export:pdf') void exportBoard('pdf')
+        else if (act === 'export:md') void exportBoard('md')
+      }
+    )
   }
   useLayoutEffect(() => {
     openContextRef.current = openContext
@@ -4209,6 +4435,19 @@ export function Canvas({
       onPointerLeave={() => conn.current?.hover(null)}
       onDoubleClick={(e) => {
         const t = e.target as HTMLElement
+        const crz = t.closest<HTMLElement>('[data-crz]')
+        if (crz?.dataset.crzc) {
+          const cid = Number(crz.dataset.crzc)
+          const c = stRef.current?.cards.find((x) => x.id === cid)
+          const m = modelForRef.current({ id: cid })
+          const isVid = m?.kind === 'video' || streams.has(cid)
+          const wantVid = isVid && (c?.w ?? CARD_W) === CARD_W && (c?.h ?? CARD_H) === CARD_H
+          edit(
+            (s0) => resetCardSize(s0, cid, wantVid ? { w: 320, h: 180 } : undefined),
+            { flip: true, undo: wantVid ? 'Fitted video card' : 'Reset card size' }
+          )
+          return
+        }
         const rz = t.closest<HTMLElement>('[data-rz]')
         if (rz?.dataset.rzf) {
           const fid = rz.dataset.rzf
@@ -4326,12 +4565,16 @@ export function Canvas({
           if (!vis.has(c.id)) return null
           const m = modelFor(c)
           if (!m) return null
+          const cw = c.w ?? CARD_W
+          const ch = c.h ?? CARD_H
           return (
             <CardView
               key={c.id}
               m={m}
               x={c.x}
               y={c.y}
+              w={cw}
+              h={ch}
               selected={sel.has(`c:${c.id}`)}
               fresh={fresh.has(c.id)}
               lod={lod}
@@ -4343,7 +4586,11 @@ export function Canvas({
               onView={onCardView}
               onLink={onCardLink}
               onPlace={onPlace}
-              live={streams.has(c.id) ? liveCardPx : 0}
+              live={
+                streams.has(c.id)
+                  ? Math.max(40, Math.round((cw * zoomPct) / 100 / 40) * 40)
+                  : 0
+              }
             />
           )
         })}
@@ -4585,6 +4832,10 @@ export function Canvas({
           y={ctx.y}
           title={ctx.title}
           items={ctx.items}
+          avoid={
+            asker.open ? [{ x: Math.max(0, stage.w - dockShown), y: 0, w: dockShown, h: stage.h }] : []
+          }
+          onPick={ctx.onPick}
           onClose={closeContext}
         />
       )}

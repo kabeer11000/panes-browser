@@ -25,6 +25,8 @@ import {
   PRIVATE_ID,
   reconcileSaved,
   renameFrame,
+  resetCardSize,
+  resizeCard,
   syncTabs,
   tidy,
   type Box,
@@ -345,5 +347,20 @@ describe('saving', () => {
     )
     expect(new Set(later.cards.map((c) => c.id)).size).toBe(2)
     expect(CARD_H).toBeGreaterThan(0)
+  })
+  test('resizeCard and resetCardSize update card dimensions and expand enclosing section', () => {
+    const s0 = tidy(emptyState('b1'), tabs(2), [{ name: 'Videos', ids: [1, 2] }])
+    const f0 = s0.frames[0]
+    const s1 = resizeCard(s0, 1, { x: s0.cards[0].x, y: s0.cards[0].y, w: 480, h: 270 })
+    expect(cardBox(s1.cards[0])).toEqual({
+      x: s0.cards[0].x,
+      y: s0.cards[0].y,
+      w: 480,
+      h: 270
+    })
+    expect(s1.frames[0].w).toBeGreaterThanOrEqual(f0.w)
+    const s2 = resetCardSize(s1, 1)
+    expect(cardBox(s2.cards[0]).w).toBe(CARD_W)
+    expect(cardBox(s2.cards[0]).h).toBe(CARD_H)
   })
 })

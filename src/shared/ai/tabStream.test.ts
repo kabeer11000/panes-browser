@@ -100,4 +100,17 @@ describe('fitRegion', () => {
     expect(f.video.x).toBe(-100)
     expect(f.video.w).toBe(400)
   })
+  test('a 16:9 video in a 16:10 tab letterboxed into a 1:1 capture frame preserves 16:9 and never crops below the player', () => {
+    const r = videoRegion([64, 56, 854, 480, 1280, 800, 1920, 1080])!
+    expect(r.pageAspect).toBeCloseTo(1.6)
+    const fSquare = fitRegion(r, 1, 16 / 9)
+    const fMatch = fitRegion(r, 1.6, 16 / 9)
+    // Both must recognize the video as 16:9 and fill a 16:9 card completely
+    expect(fSquare.clip.w).toBeCloseTo(100, 1)
+    expect(fSquare.clip.h).toBeCloseTo(100, 1)
+    expect(fMatch.clip.w).toBeCloseTo(100, 1)
+    expect(fMatch.clip.h).toBeCloseTo(100, 1)
+    // In the letterboxed 1:1 frame, the page starts at y = 0.1875, so the video's top offset is shifted deeper than in a 1.6 frame
+    expect(fSquare.video.y).toBeLessThan(fMatch.video.y)
+  })
 })
