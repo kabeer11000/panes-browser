@@ -287,6 +287,9 @@ type Gesture =
       splitTo?: { id: number; edge: 'left' } | null
       /** The cards dragged are a split view: they stay side by side, loose. */
       split?: boolean
+      /** The rest of the selection that goes along: its notes and drawings (cards are in `cards`). */
+      notes?: string[]
+      marks?: string[]
     }
   | {
       kind: 'nresize'
@@ -2207,6 +2210,28 @@ export function Canvas({
         if (mk.locked || (e.shiftKey && had)) return
         const ids = [...next].filter((k) => k[0] === 'm').map((k) => k.slice(2))
         const movable = ids.filter((id) => !marksOf(s).find((m) => m.id === id)?.locked)
+        // drawings in a selection with cards or notes: the whole selection moves together, as from a card
+        const selCards = [...next].filter((k) => k[0] === 'c').map((k) => Number(k.slice(2)))
+        const selNotes = [...next].filter((k) => k[0] === 'n').map((k) => k.slice(2))
+        if (!e.altKey && (selCards.length || selNotes.length)) {
+          beginG({
+            kind: 'item',
+            what: selCards.length ? 'card' : 'note',
+            id: selCards.length ? String(selCards[0]) : selNotes[0],
+            cards: selCards,
+            notes: selCards.length ? selNotes : selNotes.slice(1),
+            marks: withGroups(s, movable),
+            sx: e.clientX,
+            sy: e.clientY,
+            shift: false,
+            moved: false,
+            items: [],
+            target: null,
+            ldx: 0,
+            ldy: 0
+          })
+          return
+        }
         beginG({
           kind: 'marks',
           ids: movable,
@@ -2237,19 +2262,24 @@ export function Canvas({
         cardEl?.dataset.cid ?? headEl?.dataset.fhead ?? noteEl?.dataset.nid ?? bodyFrame?.id ?? ''
       const key = `${what[0]}:${id}`
       const inSplit = what === 'card' && splitRef.current.includes(Number(id))
-      const group =
-        what === 'card' && selRef.current.has(key) && !inSplit
-          ? [...selRef.current].filter((k) => k[0] === 'c').map((k) => Number(k.slice(2)))
-          : inSplit
-            ? [...splitRef.current]
-            : what === 'card'
-              ? [Number(id)]
-              : []
+      // a thing in a selection of several takes all of it along: cards, notes, drawings, moved as one
+      const bulk = selRef.current.has(key) && selRef.current.size > 1 && !inSplit && what !== 'frame'
+      const picked = (p: string): string[] =>
+        [...selRef.current].filter((k) => k[0] === p).map((k) => k.slice(2))
+      const group = bulk
+        ? picked('c').map(Number)
+        : inSplit
+          ? [...splitRef.current]
+          : what === 'card'
+            ? [Number(id)]
+            : []
       g = {
         kind: 'item',
         what,
         id,
         cards: group,
+        notes: bulk ? picked('n').filter((n) => what !== 'note' || n !== id) : [],
+        marks: bulk ? withGroups(s, picked('m')) : [],
         sx: e.clientX,
         sy: e.clientY,
         shift: e.shiftKey,
@@ -2506,6 +2536,9 @@ export function Canvas({
           for (const c of s.cards) if (c.frame === g.id) want.push(`[data-cid="${c.id}"]`)
           for (const n of s.notes) if (n.frame === g.id) want.push(`[data-nid="${n.id}"]`)
         } else want.push(`[data-nid="${g.id}"]`)
+        if (g.what === 'note') for (const id of g.cards) want.push(`[data-cid="${id}"]`)
+        for (const n of g.notes ?? []) want.push(`[data-nid="${n}"]`)
+        for (const m of g.marks ?? []) want.push(`.cv-marks [data-mid="${m}"]:not([data-mh])`)
         // a split view whose cards all move (a section dragged, or a selection taking them) goes with them
         const moving = new Set(
           g.what === 'frame' ? s.cards.filter((c) => c.frame === g.id).map((c) => c.id) : g.cards
@@ -2517,7 +2550,13 @@ export function Canvas({
         )
           want.push('[data-splitbox]')
         g.items = [...root.current!.querySelectorAll<HTMLElement>(want.join(','))].map((el) => ({
-          key: keyOf(el) ?? (el.dataset.splitbox !== undefined ? 'split' : `n${el.dataset.nid}`),
+          key:
+            keyOf(el) ??
+            (el.dataset.splitbox !== undefined
+              ? 'split'
+              : el.dataset.mid !== undefined
+                ? `m${el.dataset.mid}`
+                : `n${el.dataset.nid}`),
           el
         }))
         for (const it of g.items) it.el.classList.add('lifted')
@@ -2537,7 +2576,13 @@ export function Canvas({
       g.ldy = dy
       for (const it of g.items) it.el.style.translate = `${dx}px ${dy}px`
       conn.current?.drag(new Map(g.items.map((it) => [it.key, { x: dx, y: dy }])))
-      if (g.what === 'card' && g.cards.length === 1 && !splitRef.current.includes(g.cards[0])) {
+      if (
+        g.what === 'card' &&
+        g.cards.length === 1 &&
+        !g.notes?.length &&
+        !g.marks?.length &&
+        !splitRef.current.includes(g.cards[0])
+      ) {
         // dropped on another page: the two join in split view, on that half of it
         const w0 = world(e.clientX, e.clientY)
         const over = objectAt(s, w0, { skip: `c${g.cards[0]}` })
@@ -2714,6 +2759,24 @@ export function Canvas({
       const dy = g.ldy
       const w = world(e.clientX, e.clientY)
       const off: Pos = new Map(g.items.map((it) => [it.key, { x: dx, y: dy }]))
+      // the rest of a selection dragged along: its notes and drawings move by the same
+      const extraNotes = g.notes ?? []
+      const extraMarks = g.marks ?? []
+      const alsoMoved = (s: CanvasState): CanvasState =>
+        moveMarks(
+          extraNotes.reduce((acc, n) => dropNote(acc, n, dx, dy), s),
+          extraMarks,
+          dx,
+          dy
+        )
+      const count =
+        g.cards.length + extraNotes.length + extraMarks.length + (g.what === 'note' ? 1 : 0)
+      const movedLabel =
+        count > 1
+          ? `Moved ${count} things`
+          : g.what === 'note'
+            ? 'Moved a note'
+            : 'Moved a card'
       conn.current?.drag(null)
       let changed: boolean
       root.current?.querySelectorAll('.split-into').forEach((n) => n.classList.remove('split-into'))
@@ -2746,10 +2809,10 @@ export function Canvas({
           { flip: true, off }
         )
       } else if (g.what === 'card')
-        changed = edit((s) => dropCards(s, g.cards, dx, dy, w), {
+        changed = edit((s) => alsoMoved(dropCards(s, g.cards, dx, dy, w)), {
           flip: true,
           off,
-          undo: g.cards.length === 1 ? 'Moved a card' : `Moved ${g.cards.length} cards`
+          undo: movedLabel
         })
       else if (g.what === 'frame')
         changed = edit((s) => moveFrame(s, g.id, dx, dy), {
@@ -2757,7 +2820,13 @@ export function Canvas({
           off,
           undo: 'Moved a section'
         })
-      else changed = edit((s) => dropNote(s, g.id, dx, dy), { undo: 'Moved a note' })
+      else
+        changed = edit(
+          (s) => alsoMoved(g.cards.length ? dropCards(dropNote(s, g.id, dx, dy), g.cards, dx, dy, w) : dropNote(s, g.id, dx, dy)),
+          { undo: movedLabel }
+        )
+      // drawings were moved by translate, not by the board's own re-layout: let them go
+      for (const it of g.items) if (it.el instanceof SVGElement) it.el.style.translate = ''
       if (!changed || g.what === 'note') {
         if (g.what === 'note') clearDrag()
         else
