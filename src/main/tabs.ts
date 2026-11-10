@@ -118,9 +118,8 @@ import { JsonStore } from './store'
 
 const THUMB_WIDTH = 800
 const CANVAS_THUMB_WIDTH = 480 // pictures taken for the canvas are small at once: about 30 KB each
-const THUMB_INTERVAL_MS = 4000
+const THUMB_INTERVAL_MS = 2500
 const SNAPSHOT_TIMEOUT_MS = 250 // overlays open without waiting longer than this for snapshots
-const THUMB_FRESH_MS = 2000 // a snapshot newer than this is good enough, so opening an overlay does not wait
 const FIRST_PAINT_MS = 90 // after dom-ready, before a freshly loaded page is revealed
 const AWAIT_PAINT_MAX_MS = 2500 // never keep a view hidden longer than this, whatever the page does
 const VIEW_RADIUS = 12
@@ -417,7 +416,11 @@ export class TabManager {
     const timers = [
       setInterval(() => {
         if (this.win.isDestroyed() || !this.win.isFocused()) return
-        for (const id of this.visibleIds()) if (this.tabs.get(id)?.dirty) void this.snapshot(id)
+        // a page that changed, or plays media (it changes with no event to say so), gets a fresh picture
+        for (const id of this.visibleIds()) {
+          const t = this.tabs.get(id)
+          if (t && (t.dirty || t.media)) void this.snapshot(id)
+        }
       }, THUMB_INTERVAL_MS),
       setInterval(() => this.sweepMemory(), MEMORY_SWEEP_MS)
     ]
@@ -2385,9 +2388,9 @@ export class TabManager {
 
   async setOverlay(open: boolean, snapshot = true, sharp = false): Promise<void> {
     if (open && snapshot) {
-      // Only views whose picture is old are worth waiting for; with a recent one the overlay opens at once.
-      const now = Date.now()
-      // An unchanged page keeps the picture it has; only a new or changed one is worth a GPU readback.
+      // The overlay shows the page as it was a moment ago, so a page on screen that changed since its last picture
+      // (input, a load, sound, media playing) is taken again now, however recent that picture: an unchanged page
+      // keeps it. The wait is capped (SNAPSHOT_TIMEOUT_MS); a capture that runs over updates the picture after.
       const stale = this.visibleIds().filter((id) => {
         const t = this.tabs.get(id)
         return (
@@ -2395,7 +2398,8 @@ export class TabManager {
           (!t.thumb ||
             (sharp && !t.thumbSharp) ||
             !this.thumbFits(id, t) ||
-            (t.dirty && now - t.thumbAt > THUMB_FRESH_MS))
+            t.dirty ||
+            t.media)
         )
       })
       if (stale.length > 0) {
@@ -2558,6 +2562,7 @@ export class TabManager {
       refresh()
     })
     wc.on('did-navigate-in-page', (_e, url, isMainFrame) => {
+      if (isMainFrame) tab.dirty = true // an app that changes page without loading one (Gmail, YouTube)
       if (isMainFrame && !tab.private) this.deps.history.add(url, wc.getTitle())
       refresh()
     })
@@ -3025,6 +3030,16 @@ export class TabManager {
   }
 
   /** Give a tab with no picture one from the disk cache (an unloaded tab after a restart). */
+  /** A picture of the page as it is right now (the canvas preview's, as it closes): the tab's picture from now on. */
+  takeThumb(id: number, dataUrl: string): void {
+    const t = this.tabs.get(id)
+    if (!t || t.private || t.tor) return
+    t.thumb = dataUrl
+    t.thumbAt = Date.now()
+    t.dirty = false
+    this.win.webContents.send('tabs:thumb', id, dataUrl)
+  }
+
   seedThumb(id: number, dataUrl: string): void {
     const t = this.tabs.get(id)
     if (!t || t.private || t.tor || t.thumb) return

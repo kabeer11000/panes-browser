@@ -64,7 +64,7 @@ export function cardMenu(f: CardFacts): MenuEntry[] {
   return tidyMenu([
     { id: 'open', label: 'Open', keys: 'Enter' },
     { id: 'live', label: 'Open live', disabled: !f.canLive },
-    { id: 'pop', label: 'Pop out to a tab', disabled: !f.canPop },
+    { id: 'pop', label: 'Pop out as a tab', disabled: !f.canPop },
     ...(f.split ? [{ id: 'unsplit', label: 'Unsplit' }] : []),
     'sep',
     ...(f.media

@@ -520,7 +520,11 @@ export function registerCanvas(d: {
     if (!wc || d.tabs.activeKind() !== 'normal' || !page || page.private || page.tor) return null
     try {
       const img = await wc.capturePage()
-      return img.isEmpty() ? null : 'data:image/jpeg;base64,' + img.toJPEG(82).toString('base64')
+      if (img.isEmpty()) return null
+      // the page as it is now is also its card's picture from now on (or the card would show it as it was before)
+      const small = img.getSize().width > 960 ? img.resize({ width: 960 }) : img
+      d.tabs.takeThumb(tabId as number, 'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64'))
+      return 'data:image/jpeg;base64,' + img.toJPEG(82).toString('base64')
     } catch {
       return null
     }
