@@ -173,6 +173,32 @@ export function useChat(active: TabInfo | null): ChatApi {
     [flushText, patchLast, finish]
   )
 
+  // The local model reads the start of the next turn ahead (the page, the conversation so far) whenever it changes,
+  // so a question sent a few seconds later has only itself left to read. Same chips and history as send() uses.
+  const primeKey = [
+    info?.target,
+    info?.weak,
+    currentOn && page ? `${page.id} ${page.url} ${page.loading}` : '',
+    mentions.map((m) => m.tabId).join(','),
+    files.map((f) => f.id).join(','),
+    messages.length,
+    turnId
+  ].join('|')
+  useEffect(() => {
+    if (info?.target !== 'local' || !info.weak || turnId || page?.loading) return
+    const t = window.setTimeout(() => {
+      const chips = [...(currentOn && page ? [page.id] : []), ...mentions.map((m) => m.tabId)]
+      window.api.chatPrime({
+        messages: live.current.messages.filter((m) => !m.error || m.role === 'user'),
+        chips: [...new Set(chips)],
+        files: files.map((f) => f.id)
+      })
+    }, 700)
+    return () => window.clearTimeout(t)
+    // primeKey holds everything the prime depends on
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primeKey])
+
   const run = useCallback((history: ChatMessage[], chips: number[], fileIds: string[]) => {
     const id = uid()
     const assistant: ChatMessage = { id: uid(), role: 'assistant', parts: [] }

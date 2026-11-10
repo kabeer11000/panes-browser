@@ -535,6 +535,7 @@ export class TabManager {
     active: boolean
     private: boolean
     tor: boolean
+    audible: boolean
     wc: WebContents | null
   }> {
     const out: ReturnType<TabManager['aiTabs']> = []
@@ -548,6 +549,7 @@ export class TabManager {
         active: id === this.activeId,
         private: t.private,
         tor: t.tor,
+        audible: !!wc && !wc.isDestroyed() && wc.isCurrentlyAudible(),
         wc
       })
     }

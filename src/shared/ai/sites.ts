@@ -1,5 +1,5 @@
 /**
- * Sites the assistant knows how to search, and the plain commands that need no model at all ("search nanou asmr on
+ * Sites the assistant knows how to search, and the plain commands that need no model at all ("search piano covers on
  * youtube", "play lofi on spotify", "open github"). Pure; no Electron.
  *
  * A small local model is poor at building a search address (encoding, the right path per site), so the address is
@@ -258,9 +258,9 @@ export type QuickAction =
   | { kind: 'search'; site: string; query: string; url: string; say: string }
   | { kind: 'open'; site: string; url: string; say: string }
 
-const POLITE =
+export const POLITE =
   /^(?:(?:hey|hi|ok|okay)[,\s]+)?(?:(?:can|could|would|will)\s+you\s+|please\s+|pls\s+|plz\s+|i\s+want\s+to\s+|i'?d\s+like\s+to\s+|let'?s\s+)*/i
-const TAIL = /[\s.!?]*(?:\s+(?:please|pls|plz|for\s+me|thanks|thank\s+you))*[\s.!?]*$/i
+export const TAIL = /[\s.!?]*(?:\s+(?:please|pls|plz|for\s+me|thanks|thank\s+you))*[\s.!?]*$/i
 const VERB = String.raw`(?:search(?:\s+for)?|look\s+up|look\s+for|find(?:\s+me)?|show(?:\s+me)?|play|watch|listen\s+to|put\s+on|pull\s+up|bring\s+up|get(?:\s+me)?)`
 const OPEN = String.raw`(?:open(?:\s+up)?|go\s+to|goto|launch|take\s+me\s+to|visit|navigate\s+to)`
 
@@ -291,7 +291,7 @@ export function quickAction(raw: string): QuickAction | null {
       say: `Searching ${site.name} for “${query}”.`
     }
   }
-  // "search nanou asmr on youtube", "play lofi beats on spotify", "find a pasta recipe on youtube"
+  // "search piano covers on youtube", "play lofi beats on spotify", "find a pasta recipe on youtube"
   let m = new RegExp(String.raw`^${VERB}\s+(.+?)\s+(?:on|in|at|from|over\s+on)\s+(.+)$`, 'i').exec(
     s
   )
@@ -308,7 +308,7 @@ export function quickAction(raw: string): QuickAction | null {
     const hit = search(m[1], m[2])
     if (hit) return hit
   }
-  // "search youtube for nanou asmr", "youtube search nanou asmr", "youtube: nanou asmr", "yt nanou asmr"
+  // "search youtube for piano covers", "youtube search piano covers", "youtube: piano covers", "yt piano covers"
   m = new RegExp(String.raw`^(?:${VERB}\s+)?(.+?)\s+(?:for|search(?:\s+for)?|:)\s*(.+)$`, 'i').exec(
     s
   )

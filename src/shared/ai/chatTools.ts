@@ -57,7 +57,10 @@ const obj = (properties: Record<string, unknown>, required: string[]): ToolSpec[
   additionalProperties: false
 })
 
-const TAB_ID = { type: 'integer', description: 'The id of a tab, from list_tabs' }
+const TAB_ID = {
+  type: 'integer',
+  description: 'Tab id; leave out for the current tab'
+}
 const REF = {
   type: 'integer',
   description: 'The number of a control, from the latest look_at_page'
@@ -69,7 +72,8 @@ export const TOOLS: readonly ToolSpec[] = [
     name: 'list_tabs',
     description: 'List the open tabs with their id, title and address.',
     readOnly: true,
-    local: true,
+    // the small model has them in its message already (tabsBlock)
+    local: false,
     confirm: false,
     schema: obj({}, [])
   },
@@ -79,7 +83,7 @@ export const TOOLS: readonly ToolSpec[] = [
     readOnly: true,
     local: true,
     confirm: false,
-    schema: obj({ tabId: TAB_ID }, ['tabId'])
+    schema: obj({ tabId: TAB_ID }, [])
   },
   {
     name: 'search_history',
@@ -157,9 +161,9 @@ export const TOOLS: readonly ToolSpec[] = [
     name: 'switch_to_tab',
     description: 'Bring an open tab to the front.',
     readOnly: false,
-    local: false,
+    local: true,
     confirm: false,
-    schema: obj({ tabId: TAB_ID }, ['tabId'])
+    schema: obj({ tabId: TAB_ID }, [])
   },
   {
     name: 'close_tabs',
@@ -176,10 +180,9 @@ export const TOOLS: readonly ToolSpec[] = [
     name: 'find_in_page',
     description: 'Highlight a word or phrase on an open tab.',
     readOnly: false,
-    local: false,
+    local: true,
     confirm: false,
     schema: obj({ tabId: TAB_ID, text: { type: 'string', description: 'The text to find' } }, [
-      'tabId',
       'text'
     ])
   },
@@ -190,7 +193,7 @@ export const TOOLS: readonly ToolSpec[] = [
     readOnly: true,
     local: false,
     confirm: false,
-    schema: obj({ tabId: TAB_ID }, ['tabId'])
+    schema: obj({ tabId: TAB_ID }, [])
   },
   {
     name: 'click',
@@ -199,7 +202,7 @@ export const TOOLS: readonly ToolSpec[] = [
     readOnly: false,
     local: false,
     confirm: false,
-    schema: obj({ tabId: TAB_ID, ref: REF }, ['tabId', 'ref'])
+    schema: obj({ tabId: TAB_ID, ref: REF }, ['ref'])
   },
   {
     name: 'type_text',
@@ -215,7 +218,7 @@ export const TOOLS: readonly ToolSpec[] = [
         text: { type: 'string', description: 'What to type' },
         submit: { type: 'boolean', description: 'Press Enter after typing' }
       },
-      ['tabId', 'ref', 'text']
+      ['ref', 'text']
     )
   },
   {
@@ -224,17 +227,17 @@ export const TOOLS: readonly ToolSpec[] = [
     readOnly: false,
     local: false,
     confirm: false,
-    schema: obj({ tabId: TAB_ID, key: { type: 'string', enum: [...KEYS] } }, ['tabId', 'key'])
+    schema: obj({ tabId: TAB_ID, key: { type: 'string', enum: [...KEYS] } }, ['key'])
   },
   {
     name: 'scroll_page',
     description: 'Scroll a tab up, down, to the top or to the bottom. Returns the page after.',
     readOnly: false,
-    local: false,
+    local: true,
     confirm: false,
     schema: obj(
       { tabId: TAB_ID, direction: { type: 'string', enum: ['up', 'down', 'top', 'bottom'] } },
-      ['tabId', 'direction']
+      ['direction']
     )
   },
   {
@@ -242,21 +245,21 @@ export const TOOLS: readonly ToolSpec[] = [
     description:
       'Scroll a tab to a part of the page by what it says: "comments", a heading, a section name or a few words of text. Returns the page after.',
     readOnly: false,
-    local: false,
+    local: true,
     confirm: false,
     schema: obj(
       {
         tabId: TAB_ID,
         target: { type: 'string', description: 'Words on the part of the page to show' }
       },
-      ['tabId', 'target']
+      ['target']
     )
   },
   {
     name: 'media_control',
     description: `Control the video or audio playing on a tab, on any site: ${MEDIA_ACTIONS.join(', ')}. For skip, amount is seconds (negative goes back, default 10); for speed, amount is the rate (1 is normal). Returns whether it is paused, muted and where it is.`,
     readOnly: false,
-    local: false,
+    local: true,
     confirm: false,
     schema: obj(
       {
@@ -264,7 +267,7 @@ export const TOOLS: readonly ToolSpec[] = [
         action: { type: 'string', enum: [...MEDIA_ACTIONS] },
         amount: { type: 'number', description: 'Seconds to skip, or the playback rate' }
       },
-      ['tabId', 'action']
+      ['action']
     )
   },
   {
@@ -275,7 +278,7 @@ export const TOOLS: readonly ToolSpec[] = [
     confirm: false,
     schema: obj(
       { tabId: TAB_ID, ref: REF, option: { type: 'string', description: 'The option text' } },
-      ['tabId', 'ref', 'option']
+      ['ref', 'option']
     )
   },
   {
@@ -284,7 +287,7 @@ export const TOOLS: readonly ToolSpec[] = [
     readOnly: false,
     local: false,
     confirm: false,
-    schema: obj({ tabId: TAB_ID, url: URL_ARG }, ['tabId', 'url'])
+    schema: obj({ tabId: TAB_ID, url: URL_ARG }, ['url'])
   },
   {
     name: 'go_back',
@@ -292,7 +295,7 @@ export const TOOLS: readonly ToolSpec[] = [
     readOnly: false,
     local: false,
     confirm: false,
-    schema: obj({ tabId: TAB_ID }, ['tabId'])
+    schema: obj({ tabId: TAB_ID }, [])
   }
 ]
 
@@ -313,12 +316,17 @@ export const AUTOMATION: ReadonlySet<ToolName> = new Set<ToolName>([
 ])
 
 /**
- * The tools offered to a model: a weak (small local) one gets the short ones marked `local` (lookups, and opening a
- * page it was asked for); the popover gets the read-only ones; the panel and the canvas board get everything.
+ * The tools offered to a model: a weak (small local) one gets the short ones marked `local` (lookups, opening a page,
+ * and one-call actions on a tab); the popover gets the read-only ones; the panel and the canvas board get everything.
  */
 export const toolsFor = (weak: boolean, mode: ChatMode = 'panel'): ToolSpec[] =>
   TOOLS.filter((t) => {
-    if (weak) return t.local
+    // the popover leaves the person's tabs as they are: a small model there may still open what it is asked for
+    if (weak)
+      return (
+        t.local &&
+        (mode !== 'popover' || t.readOnly || t.name === 'open_tab' || t.name === 'search_on_site')
+      )
     if (mode === 'popover') return t.readOnly && t.name !== 'look_at_page'
     // the canvas assistant may also work the browser, as the panel does, and has the board tools besides
     return true
@@ -378,10 +386,16 @@ export function safeWebUrl(raw: unknown): string | null {
   }
 }
 
-export function validateToolInput(name: string, input: unknown): Validated {
-  const a = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
+/**
+ * `currentTab` is the tab the person is looking at: a call that leaves its tabId out means that one. A tab id
+ * written as text ("12"), as small models do, is read as the number.
+ */
+export function validateToolInput(name: string, input: unknown, currentTab?: number): Validated {
+  const a = { ...(input && typeof input === 'object' ? input : {}) } as Record<string, unknown>
+  if (typeof a.tabId === 'string' && /^\d+$/.test(a.tabId.trim())) a.tabId = Number(a.tabId)
+  if ((a.tabId === undefined || a.tabId === null) && currentTab !== undefined) a.tabId = currentTab
   const bad = (error: string): Validated => ({ ok: false, error })
-  const tab = 'tabId must be a tab id from list_tabs'
+  const tab = 'tabId must be the id of an open tab (or left out for the current tab)'
   switch (name) {
     case 'list_tabs':
       return { ok: true, value: { name } }
@@ -498,8 +512,12 @@ export function validateToolInput(name: string, input: unknown): Validated {
 // ---- the prompt ----
 
 export const PAGE_CAP = 24_000
-/** The small local model has 4096 tokens in all: page text and tool results are cut to fit. */
-export const LOCAL_PAGE_CAP = 5_000
+/**
+ * What attached pages and files may take for the small local model, in characters (~1500 tokens): on a 4-core laptop
+ * CPU it reads 60-80 tokens a second, so this is speed, not context room. The opening is read ahead (prime); only the
+ * passages picked for the question are read when it is sent.
+ */
+export const LOCAL_PAGE_CAP = 6_000
 export const LOCAL_TOOL_CAP = 2_000
 export const CLOUD_TOOL_CAP = 12_000
 export const LOCAL_HISTORY_CHARS = 3_000
@@ -526,9 +544,10 @@ export function localBudget(
   const toolChars = LOCAL_STEPS * LOCAL_TOOL_CAP
   const room = Math.max(0, (contextTokens - reserved) * CHARS_PER_TOKEN - toolChars) * scale
   const typed = Math.min(typedChars, Math.floor(room * 0.6))
-  const rest = room - typed
-  const history = scale < 1 ? 0 : Math.floor(Math.min(LOCAL_HISTORY_CHARS, rest * 0.2))
-  const content = Math.max(0, rest - history)
+  const history = scale < 1 ? 0 : Math.floor(Math.min(LOCAL_HISTORY_CHARS, room * 0.15))
+  // the pages' share does not move with the question's length (up to a long paste), so the start of the prompt is
+  // the same from one question to the next and the server need not read it again
+  const content = Math.max(0, room - history - Math.max(typed, Math.floor(room * 0.12)))
   return { typed, history, content: Math.floor(content) }
 }
 
@@ -563,15 +582,20 @@ export function chatSystem(o: { weak: boolean; today: string; mode?: ChatMode })
   const canvasContext =
     'The person is on their canvas board. A <context> block in their message lists what is on the board right now and which tabs are open: answer questions about the board or their tabs from it, speaking to them as "you" ("your board has..."). Bring the board up only when they ask about it.'
   if (o.weak)
-    return `You are the assistant in the Panes web browser. You can open pages and searches for the person, and look at their tabs, history and downloads. Reply briefly, in plain sentences, in the person's language.
+    return `You are the assistant in the Panes web browser. You work the person's browser for them: open pages and searches, read, scroll and switch their tabs, control videos, and look at their history and downloads. Reply briefly, in plain sentences, in the person's language.
 ${VOICE}
-${mode === 'canvas' ? canvasContext + '\n' : ''}When they ask to search, play, watch, listen to or look up something on a site, call search_on_site at once. Never say you cannot open or play things: you can.
+${mode === 'canvas' ? canvasContext + '\n' : ''}The <tabs> block in the person's message lists their open tabs; the current tab is the one they are looking at. "This page", "my tab" and "the video" mean the current tab. Pages in <page> tags are already read: answer from them without calling read_tab.
+Do what is asked at once by calling the tool. Never ask whether you should, never offer to do it, never tell the person to call a tool, and never say you cannot open, read, scroll or play things: you can.
 How to handle some requests (always by calling the tool itself, never by writing its name or arguments in your reply):
-- "play nanou asmr on youtube": use the search_on_site tool, with site youtube and query nanou asmr.
-- "I want to watch a cooking video": use the search_on_site tool, with site youtube and query cooking video.
-- "find lofi playlists on spotify": use the search_on_site tool, with site spotify and query lofi playlists.
-- "open example.com": use the open_tab tool with that address.
-- "which tabs do I have about cooking?": use the list_tabs tool, then answer.
+- "play piano covers on youtube": the search_on_site tool, site youtube, query piano covers.
+- "open example.com": the open_tab tool with that address.
+- "what tabs do I have?" or "which tab am I on?": answer from <tabs>.
+- "what does my current tab say?": answer from its <page>. If there is no <page> for it, call the read_tab tool; never describe a page you have not read.
+- "find the word pricing on this page": the find_in_page tool with text pricing. Do not guess whether it is there.
+- "scroll to the comments": the scroll_to tool, target comments. "scroll down": the scroll_page tool, direction down.
+- "pause the video": the media_control tool on the tab playing it (from <tabs>).
+- "go to my YouTube tab": the switch_to_tab tool with that tab's id from <tabs>.
+- "what did I download?": the list_downloads tool. "what was that site I visited about X?": the search_history tool.
 After a tool, say in one short sentence what you did.
 ${RULES}
 Today is ${o.today}.`
@@ -616,6 +640,24 @@ Today is ${o.today}.`
 const esc = (s: string): string => s.replace(/<\/?\s*(page|document)\b/gi, '< $1')
 const attr = (s: string): string => s.replace(/["<>\r\n]/g, ' ').slice(0, 200)
 
+const MAX_TABS_LISTED = 25
+
+/**
+ * The open tabs in a few lines, current first, so "this tab" and "my YouTube tab" need no list_tabs call. Titles are
+ * page text, so they are cut and cannot close the block.
+ */
+export function tabsBlock(
+  tabs: ReadonlyArray<{ id: number; title: string; url: string; active: boolean }>
+): string {
+  if (tabs.length === 0) return '<tabs>\nNo tabs are open.\n</tabs>'
+  const line = (t: (typeof tabs)[number]): string =>
+    `${t.id}: ${attr(t.title || 'Untitled').slice(0, 80)} (${attr(t.url).slice(0, 80)})${t.active ? ' - current tab' : ''}`
+  const sorted = [...tabs].sort((a, b) => Number(b.active) - Number(a.active))
+  const shown = sorted.slice(0, MAX_TABS_LISTED).map(line)
+  const more = tabs.length > MAX_TABS_LISTED ? `\n...and ${tabs.length - MAX_TABS_LISTED} more` : ''
+  return `<tabs>\n${shown.join('\n')}${more}\n</tabs>`
+}
+
 /** Page text as the model sees it: delimited, cut to `cap`, and unable to close its own tag. */
 export function wrapPage(
   p: { tabId: number; title: string; url: string; text: string },
@@ -628,26 +670,58 @@ export function wrapPage(
 
 // ---- a small model that writes its call out instead of making it ----
 
-/** The calls a written-out reply may stand for: only ones that open what the person asked for. */
-const LEAKABLE = ['search_on_site', 'open_tab'] as const
+/** The small model's own tools (none of them closes or buys): what a written-out reply may be. */
+const LEAKABLE: readonly string[] = toolsFor(true).map((t) => t.name)
+/**
+ * Whether a tool only looks something up: one written out is run and its result handed back to the model to answer
+ * from, where an action is just carried out.
+ */
+export const isLookup = (name: string): boolean =>
+  TOOLS.find((t) => t.name === name)?.readOnly === true
+
+/** A reply with list or quote marks around it, as small models write a call out: "- `scroll_page ...`". */
+const unwrap = (s: string): string =>
+  s
+    .trim()
+    .replace(/^[-*>\s]+/, '')
+    .replace(/^`+|`+$/g, '')
+    .trim()
 
 /**
  * Whether the start of a small model's reply could still turn out to be a tool call written as text (a bare
- * `search_on_site {...}`, a JSON object, or Qwen's own `<tool_call>` tags): hold it back until it is clear.
+ * `search_on_site {...}`, `switch_to_tab with tabId 7`, a JSON object, or Qwen's own `<tool_call>` tags): hold it
+ * back until it is clear.
  */
-export function couldBeCall(start: string): boolean {
-  const t = start.trimStart()
+export function couldBeCall(start: string, names: readonly string[] = LEAKABLE): boolean {
+  const t = unwrap(start)
   if (t === '') return true
-  return [...LEAKABLE, '<tool_call>', '{'].some((k) => k.startsWith(t) || t.startsWith(k))
+  return [...names, '<tool_call>', '{'].some((k) => k.startsWith(t) || t.startsWith(k))
+}
+
+/** `scroll_page with tabId 7 and direction down`: the arguments, by the names the tool's schema has. */
+function proseArgs(name: string, rest: string): Record<string, unknown> | null {
+  const props = Object.keys(TOOLS.find((x) => x.name === name)?.schema.properties ?? {})
+  const out: Record<string, unknown> = {}
+  for (const part of rest.split(/,\s*(?:and\s+)?|\s+and\s+(?=[a-z_]+\s)/i)) {
+    const m = /^\s*([a-z_]+)\s*[=:]?\s*(.+?)\s*\.?$/i.exec(part)
+    if (!m || !props.includes(m[1])) return null
+    const raw = m[2].replace(/^["'“]|["'”]$/g, '')
+    out[m[1]] = /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : raw
+  }
+  return out
 }
 
 /**
  * The tool call a whole reply spells out instead of making, if that is all it is: the call, checked like any other
- * (so a malformed one is not run). Null for ordinary text.
+ * (so a malformed one is not run). Null for ordinary text. `names` are the tools the turn offered; `currentTab` fills
+ * a left-out tab id as for a real call.
  */
-export function leakedCall(reply: string): ToolInput | null {
-  const t = reply
-    .trim()
+export function leakedCall(
+  reply: string,
+  names: readonly string[] = LEAKABLE,
+  currentTab?: number
+): ToolInput | null {
+  const t = unwrap(reply)
     .replace(/^<tool_call>\s*/i, '')
     .replace(/\s*<\/tool_call>$/i, '')
     .trim()
@@ -661,9 +735,17 @@ export function leakedCall(reply: string): ToolInput | null {
   let name: string | null = null
   let args: unknown = null
   const bare = /^([a-z_]+)\s*[:(]?\s*(\{[\s\S]*\})\s*\)?$/i.exec(t)
+  const prose = /^([a-z_]+)\s+with\s+([^\n]+)$/i.exec(t)
+  const alone = /^([a-z_]+)(?:\s*\(\s*\))?$/i.exec(t)
   if (bare) {
     name = bare[1]
     args = parse(bare[2])
+  } else if (prose) {
+    name = prose[1]
+    args = proseArgs(name, prose[2])
+  } else if (alone) {
+    name = alone[1]
+    args = {}
   } else if (t.startsWith('{')) {
     const o = parse(t) as { name?: unknown; arguments?: unknown; parameters?: unknown } | null
     if (o && typeof o.name === 'string') {
@@ -671,7 +753,7 @@ export function leakedCall(reply: string): ToolInput | null {
       args = typeof o.arguments === 'string' ? parse(o.arguments) : (o.arguments ?? o.parameters)
     }
   }
-  if (!name || !(LEAKABLE as readonly string[]).includes(name) || !args) return null
-  const v = validateToolInput(name, args)
+  if (!name || !names.includes(name) || !args) return null
+  const v = validateToolInput(name, args, currentTab)
   return v.ok ? v.value : null
 }

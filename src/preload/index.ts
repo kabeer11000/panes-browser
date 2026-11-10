@@ -80,6 +80,7 @@ const api: PanesApi = {
   aiWarm: () => ipcRenderer.send('ai:warm'),
   chatInfo: () => ipcRenderer.invoke('ai:chat-info'),
   chatSend: (req) => ipcRenderer.invoke('ai:chat-send', req),
+  chatPrime: (req) => ipcRenderer.send('ai:chat-prime', { ...req, mode: 'panel' }),
   chatPickFiles: () => ipcRenderer.invoke('ai:chat-pick-files'),
   chatAttach: (files) =>
     ipcRenderer.invoke(

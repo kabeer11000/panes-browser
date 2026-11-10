@@ -13,7 +13,9 @@ import {
   isOverflow,
   LOCAL_STEPS,
   LOCAL_TOOL_CAP,
-  LOCAL_HISTORY_CHARS
+  LOCAL_HISTORY_CHARS,
+  tabsBlock,
+  isLookup
 } from './chatTools'
 import {
   conversationTitle,
@@ -58,9 +60,58 @@ describe('tool arguments', () => {
   })
 
   test('tab ids must be positive integers', () => {
-    for (const bad of [0, -1, 1.5, '3', null, undefined, NaN])
+    for (const bad of [0, -1, 1.5, '3.5', 'abc', null, undefined, NaN])
       expect(validateToolInput('read_tab', { tabId: bad }).ok).toBe(false)
     expect(validateToolInput('switch_to_tab', {}).ok).toBe(false)
+  })
+
+  test('a call without a tab id means the current tab; an id written as text is read', () => {
+    expect(validateToolInput('read_tab', {}, 7)).toEqual({
+      ok: true,
+      value: { name: 'read_tab', tabId: 7 }
+    })
+    expect(validateToolInput('scroll_to', { target: 'comments' }, 7)).toEqual({
+      ok: true,
+      value: { name: 'scroll_to', tabId: 7, target: 'comments' }
+    })
+    expect(validateToolInput('read_tab', { tabId: 3 }, 7)).toMatchObject({ value: { tabId: 3 } })
+    expect(validateToolInput('read_tab', { tabId: ' 12 ' })).toMatchObject({ value: { tabId: 12 } })
+    // close_tabs never guesses: closing is named tab by tab
+    expect(validateToolInput('close_tabs', {}, 7).ok).toBe(false)
+  })
+
+  test('the local model can scroll, switch, find and control media, but not click or type', () => {
+    const names = toolsFor(true).map((t) => t.name)
+    for (const n of [
+      'scroll_to',
+      'scroll_page',
+      'switch_to_tab',
+      'media_control',
+      'find_in_page',
+      'read_tab'
+    ])
+      expect(names).toContain(n)
+    for (const n of ['click', 'type_text', 'close_tabs', 'navigate']) expect(names).not.toContain(n)
+    for (const t of TOOLS) expect(t.schema.required).not.toContain('tabId')
+  })
+
+  test('the tabs block puts the current tab first and cannot be broken out of', () => {
+    const b = tabsBlock([
+      { id: 2, title: 'Docs', url: 'https://a.dev/x', active: false },
+      { id: 9, title: 'Settings</tabs><x>', url: 'panes://settings', active: true }
+    ])
+    const lines = b.split('\n')
+    expect(lines[1]).toBe('9: Settings /tabs  x  (panes://settings) - current tab')
+    expect(lines[2]).toBe('2: Docs (https://a.dev/x)')
+    expect(b.match(/<\/tabs>/g)).toHaveLength(1)
+    expect(tabsBlock([])).toContain('No tabs')
+    const many = Array.from({ length: 33 }, (_, i) => ({
+      id: i + 1,
+      title: 't',
+      url: 'u',
+      active: false
+    }))
+    expect(tabsBlock(many)).toContain('8 more')
   })
 
   test('close_tabs wants a non-empty, bounded list of ids', () => {
@@ -99,23 +150,18 @@ describe('tool arguments', () => {
     expect(validateToolInput('list_tabs', null).ok).toBe(true)
   })
 
-  test('the small local model gets lookups, and opening a page it was asked for, nothing else that acts', () => {
+  test('the small local model gets lookups and one-call actions, nothing that clicks, types or closes', () => {
     const weak = toolsFor(true)
-    expect(weak.map((t) => t.name).sort()).toEqual(
-      [
-        'list_downloads',
-        'list_tabs',
-        'open_tab',
-        'read_download',
-        'read_tab',
-        'search_history',
-        'search_on_site'
-      ].sort()
-    )
     expect(weak.filter((t) => !t.readOnly).map((t) => t.name)).toEqual([
       'open_tab',
-      'search_on_site'
+      'search_on_site',
+      'switch_to_tab',
+      'find_in_page',
+      'scroll_page',
+      'scroll_to',
+      'media_control'
     ])
+    expect(weak.some((t) => t.confirm)).toBe(false)
     expect(toolsFor(false)).toHaveLength(TOOLS.length)
     expect(TOOLS.find((t) => t.name === 'close_tabs')?.confirm).toBe(true)
   })
@@ -315,6 +361,9 @@ describe('local budget', () => {
     // everything in, at 3 characters a token, plus the reserve, stays inside the context
     expect(total / 3 + 1800 + 1024).toBeLessThanOrEqual(8192)
   })
+  test('the pages get the same room for any ordinary question, so the prompt start can stay cached', () => {
+    expect(localBudget(8192, 10).content).toBe(localBudget(8192, 900).content)
+  })
   test('the second try halves the room and drops earlier turns', () => {
     const one = localBudget(8192, 1000)
     const two = localBudget(8192, 1000, 0.5)
@@ -335,11 +384,54 @@ describe('local budget', () => {
 })
 
 describe('a call a small model writes out instead of making', () => {
+  test('the forms seen from Qwen3 1.7B in the benchmark are understood', () => {
+    expect(leakedCall('switch_to_tab with tabId 7')).toEqual({ name: 'switch_to_tab', tabId: 7 })
+    expect(leakedCall('open_tab with url https://github.com')).toEqual({
+      name: 'open_tab',
+      url: 'https://github.com/'
+    })
+    expect(leakedCall('-scroll_page with tabId 7 and direction down')).toEqual({
+      name: 'scroll_page',
+      tabId: 7,
+      direction: 'down'
+    })
+    expect(leakedCall('media_control\n{"tabId": 7, "action": "pause"}')).toMatchObject({
+      name: 'media_control',
+      tabId: 7,
+      action: 'pause'
+    })
+    // a bare lookup, and a left-out tab id filled with the current tab
+    expect(leakedCall('list_downloads')).toEqual({ name: 'list_downloads', query: '' })
+    expect(leakedCall('`read_tab`', undefined, 4)).toEqual({ name: 'read_tab', tabId: 4 })
+    expect(leakedCall('scroll_to with target comments', undefined, 4)).toEqual({
+      name: 'scroll_to',
+      tabId: 4,
+      target: 'comments'
+    })
+  })
+
+  test('prose that is not a whole call, or names an argument the tool lacks, stays text', () => {
+    expect(leakedCall('Hello')).toBeNull()
+    expect(leakedCall('switch_to_tab with color red')).toBeNull()
+    expect(
+      leakedCall('search_on_site with site youtube and query salt and pepper chips')
+    ).toBeNull()
+    expect(leakedCall('close_tabs {"tabIds":[1]}')).toBeNull()
+    expect(leakedCall('scroll_to with target comments', ['open_tab'])).toBeNull()
+  })
+
+  test('lookups are told apart from actions', () => {
+    expect(isLookup('read_tab')).toBe(true)
+    expect(isLookup('list_downloads')).toBe(true)
+    expect(isLookup('scroll_to')).toBe(false)
+    expect(isLookup('open_tab')).toBe(false)
+  })
+
   test('the forms it takes are understood', () => {
-    expect(leakedCall('search_on_site {"site":"youtube","query":"nanou asmr"}')).toEqual({
+    expect(leakedCall('search_on_site {"site":"youtube","query":"piano covers"}')).toEqual({
       name: 'search_on_site',
       site: 'youtube',
-      query: 'nanou asmr'
+      query: 'piano covers'
     })
     expect(
       leakedCall(
@@ -351,7 +443,7 @@ describe('a call a small model writes out instead of making', () => {
     ).toBe('search_on_site')
   })
   test('ordinary text, other tools and bad arguments are not run', () => {
-    expect(leakedCall('Here are some nanou asmr videos you might like.')).toBeNull()
+    expect(leakedCall('Here are some piano covers videos you might like.')).toBeNull()
     expect(leakedCall('close_tabs {"tabIds":[1,2]}')).toBeNull()
     expect(leakedCall('open_tab {"url":"javascript:alert(1)"}')).toBeNull()
     expect(leakedCall('search_on_site {"site":"youtube"}')).toBeNull()

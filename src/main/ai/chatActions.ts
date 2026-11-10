@@ -34,6 +34,8 @@ export interface ChatTab {
   active: boolean
   private: boolean
   tor: boolean
+  /** Playing sound now (which tab "pause the video" means). */
+  audible?: boolean
   wc: WebContents | null
 }
 
@@ -184,7 +186,8 @@ export function buildTools(env: ToolEnv): ToolSet {
           env.emit({ ...part, state, detail })
           return result
         }
-        const v = validateToolInput(spec.name, input)
+        const current = visibleTabs(env.host).find((t) => t.active)?.id
+        const v = validateToolInput(spec.name, input, current)
         if (!v.ok) return finish('error', v.error, `Error: ${v.error}`)
         env.emit(part)
         try {
@@ -201,8 +204,15 @@ export function buildTools(env: ToolEnv): ToolSet {
 
 type Finish = (state: ToolPart['state'], detail: string, result: string) => string
 
-const gone = (id: number): string =>
-  `Error: there is no open tab with id ${id}. Call list_tabs for the current ids.`
+/** A made-up or stale tab id: the real ones come back with the error, so the model can retry at once. */
+const gone = (id: number, tabs: ChatTab[]): string =>
+  `Error: there is no open tab with id ${id}. Leave tabId out for the current tab, or use one of these: ${tabs
+    .slice(0, 12)
+    .map(
+      (t) =>
+        `${t.id} (${short(t.title || displayHost(t.url) || 'Untitled', 40)}${t.active ? ', current' : ''})`
+    )
+    .join(', ')}.`
 
 const when = (t: number): string => new Date(t).toISOString().slice(0, 16).replace('T', ' ')
 
@@ -244,7 +254,7 @@ async function run(
   const lookCap = Math.min(cap, 3000)
 
   if (AUTOMATION.has(v.name) && 'tabId' in v) {
-    if (!find(v.tabId)) return finish('error', 'No such tab', gone(v.tabId))
+    if (!find(v.tabId)) return finish('error', 'No such tab', gone(v.tabId, tabs))
   }
 
   switch (v.name) {
@@ -257,7 +267,7 @@ async function run(
     }
     case 'read_tab': {
       const t = find(v.tabId)
-      if (!t) return finish('error', 'No such tab', gone(v.tabId))
+      if (!t) return finish('error', 'No such tab', gone(v.tabId, tabs))
       const r = await readTabText(host, t.id, cap)
       if (r === null)
         return finish(
@@ -378,13 +388,13 @@ async function run(
     }
     case 'switch_to_tab': {
       const t = find(v.tabId)
-      if (!t) return finish('error', 'No such tab', gone(v.tabId))
+      if (!t) return finish('error', 'No such tab', gone(v.tabId, tabs))
       host.activate(t.id)
       return finish('done', label(t), `Switched to tab ${t.id}.`)
     }
     case 'find_in_page': {
       const t = find(v.tabId)
-      if (!t) return finish('error', 'No such tab', gone(v.tabId))
+      if (!t) return finish('error', 'No such tab', gone(v.tabId, tabs))
       host.activate(t.id)
       host.find(v.text)
       return finish(

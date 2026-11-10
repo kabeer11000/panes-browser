@@ -7,9 +7,10 @@ import {
   type IpcMainInvokeEvent
 } from 'electron'
 import { quickAction, siteSearchUrl, type QuickAction } from '@shared/ai/sites'
+import { quickCommand, type Command } from '@shared/ai/commands'
 import { displayHost } from '@shared/url'
 import { randomUUID } from 'crypto'
-import { stepCountIs, streamText, type ToolSet } from 'ai'
+import { generateText, stepCountIs, streamText, type ModelMessage, type ToolSet } from 'ai'
 import { type ChatTarget } from '@shared/ai/policy'
 import { chatState, localUsable, type LocalFacts } from '@shared/ai/chatState'
 import { MODELS } from '@shared/ai/models'
@@ -27,8 +28,11 @@ import {
   LOCAL_STEPS,
   couldBeCall,
   leakedCall,
+  isLookup,
+  tabsBlock,
   type ToolInput
 } from '@shared/ai/chatTools'
+import { assemblePrompt, promptMessages, type PromptPage } from '@shared/ai/chatPrompt'
 import {
   describeChatError,
   sanitizeConversation,
@@ -48,7 +52,7 @@ import type {
 } from '@shared/types'
 import { JsonStore } from '../store'
 import { boardTools } from './canvasAssistant'
-import { buildTools, readTabText, visibleTabs, wrapTab, type ChatHost } from './chatActions'
+import { buildTools, readTabText, visibleTabs, type ChatHost } from './chatActions'
 import { fileText, type DocText } from './docText'
 import { PICKER_EXTENSIONS, wrapDoc } from '@shared/ai/docs'
 import type { ChatFile } from '@shared/ai/chatConv'
@@ -68,6 +72,8 @@ const MAX_TEXT = 8000
 const ATTACH_MAX = 30
 const ATTACH_TEXT = 400_000
 const MODEL_LIST_MS = 10 * 60_000
+/** How much of an attached tab is read; assemblePrompt picks what goes to the model. */
+const READ_ALL = 200_000
 
 export type { ChatInfo }
 
@@ -98,6 +104,10 @@ function saidFor(call: ToolInput): string {
   if (call.name === 'search_on_site')
     return `Searching ${siteSearchUrl(call.site, call.query).name} for “${call.query}”.`
   if (call.name === 'open_tab') return `Opened ${displayHost(call.url) || call.url}.`
+  if (call.name === 'scroll_to') return `Scrolled to “${call.target}”.`
+  if (call.name === 'scroll_page') return `Scrolled ${call.direction}.`
+  if (call.name === 'switch_to_tab') return 'Switched to that tab.'
+  if (call.name === 'find_in_page') return `Highlighted “${call.text}”.`
   return 'Done.'
 }
 
@@ -323,7 +333,7 @@ export class ChatService {
     const emit = (e: ChatEvent): void => {
       if (!win.isDestroyed()) win.webContents.send('ai:chat-event', { turnId: req.turnId, ...e })
     }
-    // A plain command ("search nanou asmr on youtube", "open github") is carried out at once, by any model or none:
+    // A plain command ("search piano covers on youtube", "open github") is carried out at once, by any model or none:
     // a small model is unreliable at building the address, and nothing needs thinking about.
     const quick = req.mode === 'popover' || (req.files ?? []).length ? null : this.quick(req)
     if (quick) {
@@ -340,6 +350,42 @@ export class ChatService {
       })
       emit({ kind: 'text', text: quick.say })
       emit({ kind: 'done', stopped: false })
+      return { dropped: [] }
+    }
+    // The same for the person's own tabs ("scroll down", "pause the video", "go to my youtube tab"): exact and
+    // instant, where a small model sometimes says it did without doing it.
+    const cmd = req.mode === 'popover' || (req.files ?? []).length ? null : this.command(req)
+    if (cmd) {
+      const { name, ...input } = cmd.call
+      const tools = buildTools({
+        host: this.d.host,
+        weak: false,
+        mode: 'panel',
+        turn: { opened: 0, shown: new Set() },
+        newId: () => randomUUID(),
+        emit: (part) => emit({ kind: 'tool', part }),
+        confirm: async () => false
+      })
+      void (async () => {
+        try {
+          // runs and shows itself like a model's call, with the same checks
+          const out: unknown = await tools[name]?.execute?.(
+            input as never,
+            {
+              toolCallId: randomUUID(),
+              messages: []
+            } as never
+          )
+          const failed = typeof out === 'string' && out.startsWith('Error:')
+          emit({ kind: 'text', text: failed ? out.replace(/^Error:\s*/, 'Could not: ') : cmd.say })
+        } catch (err) {
+          emit({
+            kind: 'text',
+            text: `Could not: ${err instanceof Error ? err.message : 'it failed'}`
+          })
+        }
+        emit({ kind: 'done', stopped: false })
+      })()
       return { dropped: [] }
     }
     if (!info.target) {
@@ -364,12 +410,119 @@ export class ChatService {
     return { dropped }
   }
 
+  private priming: AbortController | null = null
+
+  /**
+   * Have the local server read the start of the next turn's prompt now (instructions, tools, attached pages, the
+   * conversation so far), while the person is still typing: when they send, only the question is left to read. Only
+   * for the built-in local model, where reading is the slow part; a newer prime replaces an older one.
+   */
+  async prime(req: Pick<SendRequest, 'messages' | 'chips' | 'files' | 'mode'>): Promise<void> {
+    const info = this.info()
+    if (info.target !== 'local' || !info.weak || req.mode === 'canvas' || this.runs.size > 0) return
+    this.priming?.abort()
+    const ctrl = new AbortController()
+    this.priming = ctrl
+    try {
+      const visible = new Set(visibleTabs(this.d.host).map((t) => t.id))
+      const chips = [...new Set(req.chips)].filter((id) => visible.has(id)).slice(0, 6)
+      const p = await this.prepare(req, req.messages, '', chips, 'local', true, 1)
+      if (ctrl.signal.aborted) return
+      // the same tool definitions as a turn (they are part of the prompt), with nothing to run
+      const tools: ToolSet = {}
+      for (const [name, t] of Object.entries(
+        buildTools({
+          host: this.d.host,
+          weak: true,
+          mode: p.mode,
+          turn: { opened: 0, shown: new Set() },
+          newId: () => '',
+          emit: () => undefined,
+          confirm: async () => false
+        })
+      ))
+        tools[name] = { ...t, execute: undefined }
+      await generateText({
+        model: p.model,
+        system: p.system,
+        messages: p.messages,
+        tools,
+        temperature: 0.4,
+        maxOutputTokens: 1,
+        maxRetries: 0,
+        abortSignal: ctrl.signal
+      })
+    } catch {
+      // a prime is only a head start: the turn reads whatever it did not
+    } finally {
+      if (this.priming === ctrl) this.priming = null
+    }
+  }
+
+  /** The last message as typed, if it is a plain command about the person's tabs. */
+  private command(req: SendRequest): Command | null {
+    const last = req.messages[req.messages.length - 1]
+    if (!last || last.role !== 'user') return null
+    const text = last.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
+    return quickCommand(text, visibleTabs(this.d.host))
+  }
+
   /** The last message as typed, if it is a plain command the browser can carry out itself. */
   private quick(req: SendRequest): QuickAction | null {
     const last = req.messages[req.messages.length - 1]
     if (!last || last.role !== 'user') return null
     const text = last.parts.map((p) => (p.type === 'text' ? p.text : '')).join('')
     return quickAction(text)
+  }
+
+  /**
+   * The model and the prompt for a turn (see assemblePrompt for the order). `asked` is '' when priming: the start of
+   * the prompt comes out the same as it will for the real question.
+   */
+  private async prepare(
+    req: Pick<SendRequest, 'messages' | 'files' | 'mode' | 'context'>,
+    history: SendRequest['messages'],
+    asked: string,
+    chips: number[],
+    target: ChatTarget,
+    weak: boolean,
+    scale: number
+  ): Promise<{
+    model: Awaited<ReturnType<ChatService['modelFor']>>['model']
+    gpt: boolean
+    mode: ChatMode
+    system: string
+    messages: ModelMessage[]
+  }> {
+    const { model, gpt } = await this.modelFor(target)
+    // the local model's small context is shared out so a long page or paste is cut to fit, never refused
+    const fit = weak ? localBudget(CONTEXT_TOKENS, asked.length, scale) : null
+    const typed =
+      fit && asked.length > fit.typed ? `${asked.slice(0, fit.typed)}\n[cut to fit]` : asked
+    const prior = toModelHistory(history, fit ? fit.history : CLOUD_HISTORY_CHARS)
+    const mode: ChatMode = req.mode === 'popover' || req.mode === 'canvas' ? req.mode : 'panel'
+    const both = (req.files ?? []).length > 0 && chips.length > 0
+    // reading is the slow part on a laptop CPU (~60-80 tokens a second): pages get less than would fit
+    const content = fit ? Math.min(fit.content, LOCAL_PAGE_CAP) : undefined
+    const share = content !== undefined ? Math.floor(content / (both ? 2 : 1)) : undefined
+    // the canvas's view of the board and tabs, cut to what the local model can take; it lists the tabs itself
+    const ctxCap = fit ? Math.max(800, Math.floor(fit.content * 0.5)) : 16_000
+    const out = assemblePrompt({
+      system: chatSystem({ weak, mode, today: new Date().toISOString().slice(0, 10) }),
+      docs: this.docs(req.files ?? [], weak, share),
+      pages: await this.pages(chips),
+      pageCap: share ?? PAGE_CAP,
+      context: req.context?.trim().slice(0, ctxCap),
+      tabs: mode === 'canvas' ? '' : tabsBlock(visibleTabs(this.d.host)),
+      typed
+    })
+    return {
+      model,
+      gpt,
+      mode,
+      system: out.system,
+      messages: promptMessages<ModelMessage>(out, prior)
+    }
   }
 
   private async stream(
@@ -383,31 +536,21 @@ export class ChatService {
   ): Promise<void> {
     let said = false // text has reached the panel: a second try would repeat it
     try {
-      const { model, gpt } = await this.modelFor(target)
       const last = req.messages[req.messages.length - 1]
       if (!last || last.role !== 'user') throw new Error('Nothing to answer.')
       const asked = last.parts
         .map((p) => (p.type === 'text' ? p.text : ''))
         .join('')
         .slice(0, MAX_TEXT)
-      // the local model's small context is shared out so a long page or paste is cut to fit, never refused
-      const fit = weak ? localBudget(CONTEXT_TOKENS, asked.length, scale) : null
-      const typed =
-        fit && asked.length > fit.typed ? `${asked.slice(0, fit.typed)}\n[cut to fit]` : asked
-      const prior = toModelHistory(
+      const { model, gpt, mode, system, messages } = await this.prepare(
+        req,
         req.messages.slice(0, -1),
-        fit ? fit.history : CLOUD_HISTORY_CHARS
+        asked,
+        chips,
+        target,
+        weak,
+        scale
       )
-      const mode: ChatMode = req.mode === 'popover' || req.mode === 'canvas' ? req.mode : 'panel'
-      const both = (req.files ?? []).length > 0 && chips.length > 0
-      const share = fit ? Math.floor(fit.content / (both ? 2 : 1)) : undefined
-      const docs = this.docs(req.files ?? [], weak, share)
-      const pages = [docs, await this.pages(chips, weak, share)].filter(Boolean).join('\n\n')
-      // the canvas's view of the board and tabs: first in line, and cut to what the local model can take
-      const ctxCap = fit ? Math.max(800, Math.floor(fit.content * 0.5)) : 16_000
-      const context = req.context?.trim()
-        ? `<context>\n${req.context.trim().slice(0, ctxCap)}\n</context>`
-        : ''
       const tools: ToolSet = {
         ...(mode === 'canvas'
           ? boardTools({
@@ -434,11 +577,8 @@ export class ChatService {
       }
       const result = streamText({
         model,
-        system: chatSystem({ weak, mode, today: new Date().toISOString().slice(0, 10) }),
-        messages: [
-          ...prior,
-          { role: 'user', content: [context, pages, typed].filter(Boolean).join('\n\n') }
-        ],
+        system,
+        messages,
         tools,
         // driving a site takes many small steps: look, click, look, type...
         stopWhen: stepCountIs(
@@ -454,11 +594,12 @@ export class ChatService {
       // back while it could still be one; a whole reply that is one is carried out, anything else shown as it was.
       let held = ''
       let holding = weak
+      const names = Object.keys(tools)
       for await (const part of result.fullStream) {
         if (part.type === 'text-delta') {
           if (holding) {
             held += part.text
-            if (couldBeCall(held)) continue
+            if (couldBeCall(held, names)) continue
             holding = false
             part.text = held
             held = ''
@@ -468,12 +609,53 @@ export class ChatService {
         } else if (part.type === 'error') throw part.error
       }
       if (held) {
-        const call = leakedCall(held)
+        const current = visibleTabs(this.d.host).find((t) => t.active)?.id
+        const call = leakedCall(held, names, current)
         const run1 = call ? tools[call.name]?.execute : undefined
         if (call && run1) {
           // the tool checks its own input again, as for a call the model made
-          await run1(call as never, { toolCallId: randomUUID(), messages: [] } as never)
-          emit({ kind: 'text', text: saidFor(call) })
+          const toolCallId = randomUUID()
+          const { name, ...input } = call
+          const output: unknown = await run1(call as never, { toolCallId, messages: [] } as never)
+          if (!isLookup(name)) emit({ kind: 'text', text: saidFor(call) })
+          else {
+            // a lookup is only useful with its result: hand it back as a real call and let the model answer
+            const steps = (await result.response).messages
+            const again = streamText({
+              model,
+              system,
+              messages: [
+                ...messages,
+                ...steps,
+                {
+                  role: 'assistant',
+                  content: [{ type: 'tool-call', toolCallId, toolName: name, input }]
+                },
+                {
+                  role: 'tool',
+                  content: [
+                    {
+                      type: 'tool-result',
+                      toolCallId,
+                      toolName: name,
+                      output: { type: 'text', value: String(output) }
+                    }
+                  ]
+                }
+              ],
+              // the same tools as the first round: they are part of the prompt the server has cached
+              tools,
+              stopWhen: stepCountIs(2),
+              abortSignal: run.ctrl.signal,
+              maxRetries: 1,
+              temperature: 0.4,
+              maxOutputTokens: 1024
+            })
+            for await (const part of again.fullStream) {
+              if (part.type === 'text-delta') emit({ kind: 'text', text: part.text })
+              else if (part.type === 'error') throw part.error
+            }
+          }
         } else emit({ kind: 'text', text: held })
         said = true
       }
@@ -495,17 +677,15 @@ export class ChatService {
     }
   }
 
-  /** The attached tabs as delimited page text, sharing one budget. */
-  private async pages(chips: number[], weak: boolean, budget?: number): Promise<string> {
-    if (chips.length === 0) return ''
-    const cap = Math.floor((budget ?? (weak ? LOCAL_PAGE_CAP : PAGE_CAP)) / chips.length)
-    const out: string[] = []
+  /** The attached tabs' whole text (assemblePrompt cuts it to fit, keeping what matches the question). */
+  private async pages(chips: number[]): Promise<PromptPage[]> {
+    const out: PromptPage[] = []
     for (const id of chips) {
       const t = visibleTabs(this.d.host).find((x) => x.id === id)
-      const r = t ? await readTabText(this.d.host, id, cap) : null
-      if (t && r) out.push(wrapTab(t, r, cap))
+      const r = t ? await readTabText(this.d.host, id, READ_ALL) : null
+      if (t && r) out.push({ tabId: t.id, title: t.title, url: t.url, text: r.text, pdf: r.pdf })
     }
-    return out.join('\n\n')
+    return out
   }
 
   /** The attached files as delimited documents, sharing one budget. */
@@ -629,6 +809,18 @@ export class ChatService {
           })
         : { dropped: [] }
     )
+    ipcMain.on('ai:chat-prime', (e, req: Partial<SendRequest> | null) => {
+      if (!mine(e) || !req) return
+      void this.prime({
+        messages: (sanitizeConversation({ id: 'x', messages: req.messages ?? [] })?.messages ??
+          []) as ChatMessage[],
+        chips: Array.isArray(req.chips) ? req.chips.filter((n) => Number.isInteger(n)) : [],
+        files: Array.isArray(req.files)
+          ? req.files.filter((f): f is string => typeof f === 'string').slice(0, 10)
+          : [],
+        mode: req.mode === 'popover' ? 'popover' : 'panel'
+      })
+    })
     ipcMain.on('ai:chat-stop', (e, turnId: unknown) => {
       if (mine(e) && typeof turnId === 'string') this.stop(turnId)
     })

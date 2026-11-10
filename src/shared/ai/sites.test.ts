@@ -10,8 +10,8 @@ describe('site searches', () => {
     expect(siteNamed('my cooking blog')).toBeNull()
   })
   test('a search address is built and encoded here, never by the model', () => {
-    expect(siteSearchUrl('youtube', 'nanou asmr').url).toBe(
-      'https://www.youtube.com/results?search_query=nanou+asmr'
+    expect(siteSearchUrl('youtube', 'piano covers').url).toBe(
+      'https://www.youtube.com/results?search_query=piano+covers'
     )
     expect(siteSearchUrl('YouTube', 'rock & roll / 80s').url).toBe(
       'https://www.youtube.com/results?search_query=rock+%26+roll+%2F+80s'
@@ -24,18 +24,18 @@ describe('site searches', () => {
 })
 
 describe('quick commands', () => {
-  const yt = 'https://www.youtube.com/results?search_query=nanou+asmr'
+  const yt = 'https://www.youtube.com/results?search_query=piano+covers'
   test.each([
-    'search nanou asmr on youtube',
-    'Search nanou asmr on YouTube.',
-    'search for nanou asmr on youtube please',
-    'can you search nanou asmr on youtube',
-    'play nanou asmr on youtube',
-    'watch nanou asmr on yt',
-    'search youtube for nanou asmr',
-    'youtube nanou asmr',
-    'yt: nanou asmr',
-    'find "nanou asmr" on youtube'
+    'search piano covers on youtube',
+    'Search piano covers on YouTube.',
+    'search for piano covers on youtube please',
+    'can you search piano covers on youtube',
+    'play piano covers on youtube',
+    'watch piano covers on yt',
+    'search youtube for piano covers',
+    'youtube piano covers',
+    'yt: piano covers',
+    'find "piano covers" on youtube'
   ])('%s', (text) => {
     const a = quickAction(text)
     expect(a?.kind).toBe('search')

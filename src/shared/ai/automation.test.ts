@@ -126,11 +126,12 @@ describe('media and scroll_to', () => {
     expect(validateToolInput('scroll_to', { tabId: 3, target: 'comments' }).ok).toBe(true)
     expect(validateToolInput('scroll_to', { tabId: 3, target: '' }).ok).toBe(false)
   })
-  test('the page may act, the popover and the small model may not', () => {
-    expect(toolsFor(false).map((x) => x.name)).toEqual(
-      expect.arrayContaining(['media_control', 'scroll_to'])
-    )
-    expect(toolsFor(true).map((x) => x.name)).not.toContain('media_control')
+  test('the panel and the small model may control media and scroll, the popover may not', () => {
+    for (const weak of [false, true])
+      expect(toolsFor(weak).map((x) => x.name)).toEqual(
+        expect.arrayContaining(['media_control', 'scroll_to'])
+      )
+    expect(toolsFor(false, 'popover').map((x) => x.name)).not.toContain('media_control')
   })
   test('the media script pauses the playing video and reports where it is', async () => {
     const video = {

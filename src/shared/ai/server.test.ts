@@ -22,16 +22,25 @@ describe('serverArgs', () => {
     expect(after(serverArgs({ ...base, role: 'chat', gpu: true }), '-ngl')).toBe('99')
   })
 
-  test('the embed server embeds, the chat server does not and has an 8192 context with an 8-bit KV cache', () => {
+  test('the embed server embeds, the chat server does not and has an 8192 context with a 16-bit KV cache', () => {
     const e = serverArgs({ ...base, role: 'embed', gpu: false })
     const c = serverArgs({ ...base, role: 'chat', gpu: false })
     expect(e).toContain('--embeddings')
     expect(c).not.toContain('--embeddings')
     expect(after(c, '-c')).toBe('8192')
-    expect(after(c, '-ctk')).toBe('q8_0')
-    expect(after(c, '-ctv')).toBe('q8_0')
+    expect(c).not.toContain('-ctk')
+    expect(c).not.toContain('-ctv')
     expect(after(c, '-fa')).toBe('on')
     expect(e).not.toContain('-ctk')
+  })
+
+  test('prompts are read on every logical CPU; the prompt cache in RAM is bounded', () => {
+    const c = serverArgs({ ...base, role: 'chat', gpu: false, cpus: 8 })
+    expect(after(c, '-tb')).toBe('8')
+    expect(c).not.toContain('-t')
+    expect(Number(after(c, '--cache-ram'))).toBeLessThanOrEqual(1024)
+    expect(after(serverArgs({ ...base, role: 'embed', gpu: false }), '--cache-ram')).toBe('0')
+    expect(serverArgs({ ...base, role: 'chat', gpu: false })).not.toContain('-tb')
   })
 
   test('the chat server runs the jinja template so that tool calls work', () => {

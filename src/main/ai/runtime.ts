@@ -12,6 +12,7 @@ import {
   writeFileSync
 } from 'fs'
 import { copyFile, rename, rm } from 'fs/promises'
+import { availableParallelism } from 'os'
 import { basename, dirname, join, resolve } from 'path'
 import {
   MODELS,
@@ -420,7 +421,8 @@ export class LocalRuntime {
         modelPath: this.modelPath(MODELS[role]),
         port: s.port,
         apiKey: s.key,
-        gpu: b.gpu
+        gpu: b.gpu,
+        cpus: availableParallelism()
       })
       const proc = spawn(bin, args, {
         cwd: dirname(bin),

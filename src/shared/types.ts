@@ -249,6 +249,8 @@ export interface PanesApi {
   /** The chat panel: where it is answered (no keys or tokens), and the turn, saved conversations and events. */
   chatInfo(): Promise<ChatInfo>
   chatSend(req: ChatSendRequest): Promise<{ dropped: number[] }>
+  /** The local model reads the next turn's start (instructions, pages, conversation) ahead, while the person types. */
+  chatPrime(req: Pick<ChatSendRequest, 'messages' | 'chips' | 'files'>): void
   /** Pick files to attach (a system dialog). */
   chatPickFiles(): Promise<{ files: ChatFile[]; failed: string[] }>
   /** Attach files dropped on the chat (File objects; their paths are read in the preload). */
