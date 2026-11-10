@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { MODELS, RUNTIME_BUILDS, runtimeBuildsFor } from './models'
+import { cpuOnlyHolds, CPU_ONLY_DAYS, MODELS, RUNTIME_BUILDS, runtimeBuildsFor } from './models'
 
 const all = [...RUNTIME_BUILDS, ...Object.values(MODELS)]
 
@@ -30,5 +30,18 @@ describe('pinned downloads', () => {
 
   test('build ids are unique', () => {
     expect(new Set(RUNTIME_BUILDS.map((b) => b.id)).size).toBe(RUNTIME_BUILDS.length)
+  })
+})
+
+describe('cpuOnlyHolds', () => {
+  const now = 1_800_000_000_000
+  const day = 86_400_000
+  test('a recent GPU failure holds, an old one or one with no time does not', () => {
+    expect(cpuOnlyHolds({ cpuOnly: true, at: now - day }, now)).toBe(true)
+    expect(cpuOnlyHolds({ cpuOnly: true, at: now - CPU_ONLY_DAYS * day }, now)).toBe(false)
+    expect(cpuOnlyHolds({ cpuOnly: true }, now)).toBe(false)
+    expect(cpuOnlyHolds({ cpuOnly: false, at: now }, now)).toBe(false)
+    expect(cpuOnlyHolds(null, now)).toBe(false)
+    expect(cpuOnlyHolds({ cpuOnly: true, at: now + day }, now)).toBe(false) // a clock set back
   })
 })

@@ -117,3 +117,21 @@ export const MODELS: Record<ModelRole, ModelSpec> = {
     purpose: 'Writes short tab titles, file names and group names'
   }
 }
+
+/** How long "the GPU build did not start" holds before the GPU one is tried again (a driver can get fixed). */
+export const CPU_ONLY_DAYS = 7
+
+/**
+ * Whether to keep to the CPU build, from what state.json says. A record with no time (written before records had
+ * one) or an older one has run out: the GPU build gets another try.
+ */
+export function cpuOnlyHolds(state: unknown, now: number): boolean {
+  const s = state as { cpuOnly?: unknown; at?: unknown } | null
+  return (
+    !!s &&
+    s.cpuOnly === true &&
+    typeof s.at === 'number' &&
+    now - s.at >= 0 &&
+    now - s.at < CPU_ONLY_DAYS * 86_400_000
+  )
+}

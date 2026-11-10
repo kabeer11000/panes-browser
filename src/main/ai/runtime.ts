@@ -15,6 +15,7 @@ import { copyFile, rename, rm } from 'fs/promises'
 import { availableParallelism } from 'os'
 import { basename, dirname, join, resolve } from 'path'
 import {
+  cpuOnlyHolds,
   MODELS,
   RUNTIME_BUILDS,
   runtimeBuildsFor,
@@ -28,6 +29,8 @@ import { exe, fetchVerified, freePort, run, tarCommand } from '../fetchVerified'
 
 const ROLES: ModelRole[] = ['embed', 'chat']
 const GPU_HEALTH_MS = 15_000
+// a GPU build that is still running at GPU_HEALTH_MS gets this long in all before the CPU one takes over
+const GPU_SLOW_MS = 45_000
 const CPU_HEALTH_MS = 120_000
 // both servers give their RAM back when unused; the omnibox warms the embedder again on focus
 const IDLE_MS: Record<ModelRole, number> = { chat: 5 * 60_000, embed: 15 * 60_000 }
@@ -173,8 +176,7 @@ export class LocalRuntime {
 
   private cpuOnly(): boolean {
     try {
-      const state = JSON.parse(readFileSync(this.stateFile, 'utf8')) as { cpuOnly?: boolean }
-      return state.cpuOnly === true
+      return cpuOnlyHolds(JSON.parse(readFileSync(this.stateFile, 'utf8')), Date.now())
     } catch {
       return false
     }
@@ -183,7 +185,10 @@ export class LocalRuntime {
   private setCpuOnly(on: boolean): void {
     try {
       mkdirSync(aiRoot(), { recursive: true })
-      writeFileSync(this.stateFile, JSON.stringify({ cpuOnly: on }))
+      writeFileSync(
+        this.stateFile,
+        JSON.stringify(on ? { cpuOnly: true, at: Date.now() } : { cpuOnly: false })
+      )
     } catch (err) {
       this.warnOnce('state', err)
     }
@@ -434,13 +439,16 @@ export class LocalRuntime {
       proc.stderr?.on('data', (c: Buffer) => {
         tail = (tail + c.toString()).slice(-1500)
       })
+      let died = false
       const exited = new Promise<boolean>((resolve) => {
         proc.once('exit', (code) => {
+          died = true
           if (s.proc === proc) s.proc = null
           if (!s.stopping) this.onExit(role, code, tail)
           resolve(false)
         })
         proc.once('error', (err) => {
+          died = true
           this.warnOnce(`spawn ${role}`, err)
           resolve(false)
         })
@@ -449,7 +457,13 @@ export class LocalRuntime {
         ? runtimeBuildsFor(process.platform, process.arch).find((x) => !x.gpu)
         : undefined
       const limit = b.gpu && fallback ? GPU_HEALTH_MS : CPU_HEALTH_MS
-      const healthy = await Promise.race([this.waitHealthy(s.port, limit, proc), exited])
+      let healthy = await Promise.race([this.waitHealthy(s.port, limit, proc), exited])
+      // still starting, not failed (a cold disk, the first shader compile): a slow GPU start is still a GPU start
+      if (!healthy && !died && b.gpu && fallback)
+        healthy = await Promise.race([
+          this.waitHealthy(s.port, GPU_SLOW_MS - GPU_HEALTH_MS, proc),
+          exited
+        ])
       if (healthy) {
         s.state = 'ready'
         s.message = ''
