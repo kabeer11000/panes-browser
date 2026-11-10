@@ -338,7 +338,8 @@ export const CardView = memo(
           (selected ? ' sel' : '') +
           (m.current ? ' current' : '') +
           (fresh ? ' fresh' : '') +
-          (hidden ? ' away' : '')
+          (hidden ? ' away' : '') +
+          (m.asleep ? ' asleep' : '')
         }
         data-cid={m.id}
         style={

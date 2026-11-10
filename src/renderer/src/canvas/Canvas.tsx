@@ -115,9 +115,10 @@ import { tabTitle } from '@renderer/tabTitle'
 import { CardView, FrameBar, FrameView, NoteView } from './Cards'
 import { pickStreams, streamCap } from '@shared/ai/tabStream'
 import { isCapturing } from '@shared/capture'
+import { alreadyOpen, quickFind, type FindItem } from '@shared/ai/quickFind'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
-import { ExpandIcon, UnsplitIcon } from './icons'
+import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { HistoryIcon } from '@renderer/components/icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
@@ -396,6 +397,9 @@ export function Canvas({
   const [swap] = useState(() => boardSpace !== null && boardSpace !== spaceId)
   const phaseRef = useRef<Phase>('loading')
   const [vis, setVis] = useState<Set<number>>(new Set())
+  // the instant find's words (null: closed) and which of its matches is picked
+  const [quick, setQuick] = useState<string | null>(null)
+  const [quickAt, setQuickAt] = useState(0)
   const inViewTimer = useRef<number | undefined>(undefined)
   /** The tab cards on screen now (no margin), as last told to main: only these may play live (tab streams). */
   const [onScreen, setOnScreen] = useState<Set<number>>(new Set())
@@ -409,7 +413,12 @@ export function Canvas({
   const toolRef = useRef<Tool>('select')
   const [editing, setEditing] = useState<string | null>(null)
   const [zoomPct, setZoomPct] = useState(100)
-  const [toast, setToast] = useState<{ text: string; undo?: () => void; key: number } | null>(null)
+  const [toast, setToast] = useState<{
+    text: string
+    undo?: () => void
+    label?: string
+    key: number
+  } | null>(null)
   const [busy, setBusy] = useState(false)
   const spaceHeld = useRef(false)
   const [lod, setLod] = useState(false)
@@ -1291,8 +1300,8 @@ export function Canvas({
   }, [phase === 'loading', spaceId, edit])
 
   // ---- actions ----
-  const toastNow = useCallback((text: string, undo?: () => void): void => {
-    setToast({ text, undo, key: Date.now() })
+  const toastNow = useCallback((text: string, undo?: () => void, label = 'Undo'): void => {
+    setToast({ text, undo, label, key: Date.now() })
   }, [])
   useEffect(() => {
     if (!toast) return
@@ -1599,6 +1608,14 @@ export function Canvas({
           setSel(new Set([`c:${card.id}`]))
           reveal(cardBox(card))
         }
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'w') {
+        // Ctrl+W on the board closes the selected card's tab (with undo); nothing selected, nothing closes
+        e.preventDefault()
+        const cards = sel1.filter((k) => k[0] === 'c').map((k) => Number(k.slice(2)))
+        if (cards.length) closeCards(cards)
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        setQuick((q) => q ?? '')
       } else if ((e.key === '/' && !mod) || (mod && !e.shiftKey && e.key.toLowerCase() === 'k')) {
         setCmdOpen(true)
       } else if (!mod && !e.altKey && e.key.length === 1 && typeInto(e.key)) {
@@ -2773,6 +2790,7 @@ export function Canvas({
       tor: false,
       audible: !!tab?.audible,
       playing: !!(tab?.playing ?? tab?.audible),
+      asleep: !!tab?.unloaded,
       muted: !!tab?.muted,
       ringing: tab?.attention.call === 'ringing',
       current: !!tab && tab.id === activeId,
@@ -2829,6 +2847,46 @@ export function Canvas({
     }
   }
   const modelForRef = useRef<(card: { id: number }) => CardModel | null>(() => null)
+  /** Every card as words to find it by (title, site, address, the page's text when read). */
+  const findItems = (model: (card: { id: number }) => CardModel | null): FindItem[] =>
+    (st?.cards ?? []).flatMap((c) => {
+      const m = model(c)
+      if (!m || m.kind === 'pending') return []
+      const tab = byId.get(c.id)
+      return [
+        {
+          id: c.id,
+          title: m.title ?? '',
+          site: m.site ?? '',
+          url: tab?.url ?? c.url,
+          text: tab ? contents[tab.id]?.text?.slice(0, 4000) : undefined
+        }
+      ]
+    })
+  // ---- the instant find (Ctrl+F): matches light up as you type, the rest dims, the board glides to the one picked ----
+  const quickHits = useMemo(
+    () => (quick ? quickFind(findItems(modelFor), quick) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [quick, st, allTabs, contents]
+  )
+  const quickPick = quickHits.length ? quickHits[Math.min(quickAt, quickHits.length - 1)] : null
+  useEffect(() => {
+    const el = root.current
+    if (!el) return
+    const on = !!quick
+    el.classList.toggle('quick', on)
+    const hits = new Set(quickHits)
+    for (const c of el.querySelectorAll<HTMLElement>('[data-cid]'))
+      c.classList.toggle('hit', on && hits.has(Number(c.dataset.cid)))
+  }, [quick, quickHits, vis])
+  useEffect(() => {
+    if (quickPick === null) return
+    const card = stRef.current?.cards.find((c) => c.id === quickPick)
+    if (!card) return
+    reveal(cardBox(card))
+    setSel(new Set([`c:${card.id}`]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickPick])
   useLayoutEffect(() => {
     modelForRef.current = modelFor
   })
@@ -3794,8 +3852,27 @@ export function Canvas({
     },
     [edit, setSel, closeCards]
   )
-  const openNew = (text: string): void => {
+  const openNew = (text: string, again = false): void => {
     const at = newAt
+    if (!again) {
+      const dup = alreadyOpen(findItems(modelForRef.current), text)
+      const card = dup !== null ? stRef.current?.cards.find((c) => c.id === dup) : undefined
+      if (card) {
+        setNewAt(null)
+        reveal(cardBox(card))
+        setSel(new Set([`c:${card.id}`]))
+        window.setTimeout(() => pulse(root.current?.querySelector(`[data-cid="${card.id}"]`) ?? null), 380)
+        toastNow(
+          'Already on your board',
+          () => {
+            setNewAt(at)
+            openNewRef.current(text, true)
+          },
+          'Open a new one'
+        )
+        return
+      }
+    }
     setNewAt(null)
     if (!at) return
     // a blank tab's card that was clicked, when it is not the tab on screen: a new tab takes its place
@@ -4435,12 +4512,10 @@ export function Canvas({
       },
       {
         id: 'find',
-        label: 'Find',
-        also: 'search',
-        run: () => {
-          if (!aiAvailable) promptRef.current?.focus()
-          else askInDock()
-        }
+        label: 'Find a card',
+        also: 'search tab look for',
+        keys: 'Ctrl+F',
+        run: () => setQuick((q) => q ?? '')
       },
       { id: 'fit', label: 'Fit everything', also: 'zoom', keys: 'Shift+1', run: fitAll },
       {
@@ -4864,6 +4939,46 @@ export function Canvas({
       {s && s.cards.length === 0 && phase === 'open' && (
         <p className="cv-empty">Nothing here yet. Open a page, or find or ask something below.</p>
       )}
+      {quick !== null && (
+        <div className="cv-quick" role="search">
+          <SearchGlyph />
+          <input
+            autoFocus
+            value={quick}
+            placeholder="Find a card: title, site or words on the page"
+            aria-label="Find a card on the board"
+            spellCheck={false}
+            onChange={(e) => {
+              setQuick(e.target.value)
+              setQuickAt(0)
+            }}
+            onKeyDown={(e) => {
+              e.stopPropagation() // the board's own keys (tools, delete) stay out of it
+              const n = quickHits.length
+              if (e.key === 'Escape') setQuick(null)
+              else if (e.key === 'Enter' && quickPick !== null) {
+                const id = quickPick
+                setQuick(null)
+                expandRef.current(id)
+              } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') && n) {
+                e.preventDefault()
+                const back = e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)
+                setQuickAt((i) => (Math.min(i, n - 1) + (back ? n - 1 : 1)) % n)
+              }
+            }}
+            onBlur={() => {
+              if (!quick) setQuick(null)
+            }}
+          />
+          <span className="cv-quick-n" aria-live="polite">
+            {quick
+              ? quickHits.length
+                ? `${Math.min(quickAt, quickHits.length - 1) + 1} of ${quickHits.length}`
+                : 'No card has that'
+              : 'Enter opens, arrows move'}
+          </span>
+        </div>
+      )}
       {toast && (
         <div className="cv-toast" role="status" key={toast.key}>
           <span>{toast.text}</span>
@@ -4875,7 +4990,7 @@ export function Canvas({
                 setToast(null)
               }}
             >
-              Undo
+              {toast.label ?? 'Undo'}
             </button>
           )}
         </div>

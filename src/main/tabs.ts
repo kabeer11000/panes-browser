@@ -2219,6 +2219,19 @@ export class TabManager {
     this.previewTab = open ? tab : null
   }
 
+  /**
+   * Load a tab that was let go (restored, or unloaded by the memory saver) and wait until its page has loaded, for
+   * something to be done in it (play on its canvas card). Its page, or null if it did not come back in time.
+   */
+  async wake(id: number): Promise<WebContents | null> {
+    const t = this.tabs.get(id)
+    if (!t) return null
+    this.ensureLoaded(id, t)
+    const until = Date.now() + 10_000
+    while (!this.liveReady(id) && Date.now() < until) await new Promise((r) => setTimeout(r, 100))
+    return this.liveReady(id) ? liveContents(t) : null
+  }
+
   /** Whether the live tab has finished loading (the canvas waits for that before it swaps the snapshot out). */
   liveReady(id: number): boolean {
     const t = this.tabs.get(id)
@@ -2553,8 +2566,10 @@ export class TabManager {
               ? this.newPrivateTab(u)
               : this.create(u),
         openPrivate: (u) => this.newPrivateTab(u),
+        onBoard: this.canvasMode,
         openSplit: (u) => {
-          const base = this.activeId
+          // on the board: beside the page in the preview (it then shows the two side by side), not the tab view's
+          const base = this.canvasMode ? id : this.activeId
           const nid = this.create(u, false)
           if (base !== null) {
             this.activate(base)
@@ -2766,7 +2781,15 @@ export class TabManager {
 
     if (mod && !input.alt && !input.shift) {
       if (k === 't') this.newTabOrCard()
-      else if (k === 'w' && this.activeId !== null) this.close(this.activeId)
+      else if (k === 'w' && this.canvasMode) {
+        // on the board: the page in the preview closes (and the preview with it); with none open the board takes the
+        // key (it closes the selected card's tab). Never the tab view's tab, which is not on screen.
+        const id = this.previewOpen ? (this.liveId ?? this.previewTab) : null
+        if (id !== null) {
+          this.send('canvas:preview-key', 'close')
+          this.close(id)
+        } else handled = false
+      } else if (k === 'w' && this.activeId !== null) this.close(this.activeId)
       else if (k === 'f4' && this.activeId !== null) this.close(this.activeId)
       else if (k === 'l') this.command('focus-address')
       else if (k === 'r') this.reload()

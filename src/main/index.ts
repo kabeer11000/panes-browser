@@ -609,8 +609,13 @@ function createWindow(): void {
   ipcMain.on('tabs:toggle-mute', (_e, id: number) => tabs.toggleMute(id))
   // play or pause what a tab plays, from its card on the board (the tab stays where it is)
   ipcMain.handle('tabs:media', async (_e, id: unknown, action: unknown) => {
-    const wc = typeof id === 'number' ? tabs.contentsOf(id) : null
-    if (!wc || (action !== 'toggle' && action !== 'play' && action !== 'pause')) return null
+    if (typeof id !== 'number' || (action !== 'toggle' && action !== 'play' && action !== 'pause'))
+      return null
+    // play on a tab that was let go: it loads first, then plays (nothing to pause in a page that is not there)
+    const asleep = tabs.pageFor(id)?.unloaded === true
+    if (asleep && action === 'pause') return null
+    const wc = asleep ? await tabs.wake(id) : tabs.contentsOf(id)
+    if (!wc) return null
     const m = await media(wc, action, 0)
     return m ? { paused: m.paused } : null
   })

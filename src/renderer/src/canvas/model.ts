@@ -32,6 +32,8 @@ export interface CardModel {
   audible: boolean
   /** Its media plays, sound or not (see TabInfo.playing). */
   playing?: boolean
+  /** Its tab is not loaded (restored, or let go by the memory saver): it shows asleep until opened or played. */
+  asleep?: boolean
   muted: boolean
   ringing: boolean
   current: boolean

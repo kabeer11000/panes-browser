@@ -3593,3 +3593,63 @@
   top: 100%;
   cursor: nwse-resize;
 }
+
+/* ---- the instant find (Ctrl+F): a box at the top; matching cards stay, the rest step back ---- */
+.cv-quick {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(460px, calc(100% - 40px));
+  padding: 6px 12px;
+  border-radius: var(--r-5);
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 10px 30px rgb(0 0 0 / 0.25);
+  color: var(--fg-dim);
+  animation: cv-fade var(--dur-fast) ease-out both;
+}
+.cv-quick input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  padding: 4px 0;
+}
+.cv-quick input::placeholder {
+  color: var(--fg-dim);
+}
+.cv-quick-n {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.cv.quick [data-cid] {
+  transition: opacity var(--dur-fast);
+}
+.cv.quick [data-cid]:not(.hit) {
+  opacity: 0.22;
+}
+
+/* a card whose tab is not loaded (restored, or let go to save memory): its picture is from before, so it rests a
+   little faded; opening or playing it brings the page back */
+.cv-card.asleep > :first-child {
+  filter: saturate(0.55);
+  opacity: 0.78;
+  transition:
+    filter var(--dur-fast),
+    opacity var(--dur-fast);
+}
+.cv-card.asleep:hover > :first-child {
+  filter: none;
+  opacity: 1;
+}

@@ -16,6 +16,8 @@ interface Actions {
   /** Null in a private or Tor tab: chat does not read those. */
   askAi: ((text: string | null) => void) | null
   searchUrl: (text: string) => string
+  /** The page is on the canvas board (its preview): what opens becomes a card, so the words say so. */
+  onBoard?: boolean
 }
 
 /** Cut, copy, paste and spelling fixes for a text field. */
@@ -65,16 +67,25 @@ export function showContextMenu(
 
   if (p.linkURL) {
     items.push(
-      { label: 'Open link in new tab', click: () => a.openTab(p.linkURL) },
+      {
+        label: a.onBoard ? 'Open link as a new card' : 'Open link in new tab',
+        click: () => a.openTab(p.linkURL)
+      },
       { label: 'Open link in private tab', click: () => a.openPrivate(p.linkURL) },
-      { label: 'Open link in split view', click: () => a.openSplit(p.linkURL) },
+      {
+        label: a.onBoard ? 'Open link side by side' : 'Open link in split view',
+        click: () => a.openSplit(p.linkURL)
+      },
       { label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) },
       sep
     )
   }
   if (p.mediaType === 'image' && p.srcURL) {
     items.push(
-      { label: 'Open image in new tab', click: () => a.openTab(p.srcURL) },
+      {
+        label: a.onBoard ? 'Open image as a new card' : 'Open image in new tab',
+        click: () => a.openTab(p.srcURL)
+      },
       { label: 'Copy image', click: () => wc.copyImageAt(p.x, p.y) },
       { label: 'Save image as...', click: () => wc.downloadURL(p.srcURL) },
       sep
