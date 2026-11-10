@@ -36,6 +36,7 @@ import {
   mergeCapture,
   NO_CAPTURE,
   NO_HOLD,
+  isCapturing,
   parseCapture,
   stopCaptureScript,
   sameCapture,
@@ -675,6 +676,17 @@ export class TabManager {
     if (this.activeId === null) return []
     const group = this.layout ? leaves(this.layout) : []
     return group.includes(this.activeId) ? group : [this.activeId]
+  }
+
+  /**
+   * The tabs whose page the person sees now: the tab view's tab (or split), or on the canvas board only the page open
+   * in its preview and the cards playing live. The tab view's tab is not loaded or kept for the board's sake.
+   */
+  private onScreenIds(): number[] {
+    if (!this.canvasMode) return this.visibleIds()
+    const ids = new Set(this.streaming)
+    if (this.liveId !== null) ids.add(this.liveId)
+    return [...ids]
   }
 
   private isBlank(tab: Tab): boolean {
@@ -2164,7 +2176,7 @@ export class TabManager {
       this.setPreview(false, null)
       this.setStreaming([]) // the board's streams end with it: throttled and hidden again
     }
-    this.applyVisibility()
+    this.refresh() // what counts as on screen changed: the tab view's tab loads again if it was let go
   }
 
   /**
@@ -3303,7 +3315,7 @@ export class TabManager {
 
   private memoryFacts(): TabFacts[] {
     const facts: TabFacts[] = []
-    const visible = this.visibleIds()
+    const visible = this.onScreenIds()
     for (const [id, t] of this.tabs) {
       const wc = liveContents(t)
       const url = t.unloaded || !wc ? '' : wc.getURL()
@@ -3325,7 +3337,8 @@ export class TabManager {
             wc.isLoading() ||
             wc.isDevToolsOpened() ||
             this.pip.tabId === id ||
-            this.fullscreenId === id),
+            this.fullscreenId === id ||
+            isCapturing(t.capture)), // in a call: unloading it would hang up
         host,
         inActiveSpace: t.spaceId === this.activeSpaceId,
         lastShownAt: t.lastShownAt
@@ -3454,7 +3467,7 @@ export class TabManager {
   refresh(): void {
     if (this.win.isDestroyed()) return
     this.pruneGroups()
-    const visible = this.visibleIds()
+    const visible = this.onScreenIds()
     const now = Date.now()
     // A tab is "recently shown" while on screen and from the moment it leaves it, so idle time starts then.
     for (const id of new Set([...visible, ...this.shownBefore])) {
