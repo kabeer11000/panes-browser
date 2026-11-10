@@ -1760,7 +1760,7 @@ export function Canvas({
     const note =
       (t: string, q: { x: number; y: number }): Put =>
       (s0) => {
-        const n = addNote(s0, { x: q.x - 92, y: q.y - 66 }, 0)
+        const n = addNote(s0, { x: q.x - 92, y: q.y - 66 }, s0.notes.length)
         return { state: patchNote(n.state, n.id, { text: t.slice(0, 600) }), key: `n:${n.id}` }
       }
     const fileUrl = (path: string): string => `file:///${encodeURI(path.replace(/\\/g, '/'))}`
@@ -2247,7 +2247,7 @@ export function Canvas({
       root.current!.setPointerCapture(e.pointerId)
     } else if (toolRef.current === 'note') {
       e.preventDefault() // the click must not move focus off the note about to be written
-      const r = addNote(stRef.current!, { x: w.x - 92, y: w.y - 66 }, 0)
+      const r = addNote(stRef.current!, { x: w.x - 92, y: w.y - 66 }, stRef.current!.notes.length)
       edit(() => r.state, { undo: 'Added a note' })
       setSel(new Set([`n:${r.id}`]))
       setEditing(r.id)
@@ -4302,7 +4302,7 @@ export function Canvas({
       (act) => {
         if (act === 'page') askNew(at.x, at.y)
         else if (act === 'note') {
-          const made = addNote(stRef.current!, { x: w.x - 92, y: w.y - 66 }, 0)
+          const made = addNote(stRef.current!, { x: w.x - 92, y: w.y - 66 }, stRef.current!.notes.length)
           edit(() => made.state, { undo: 'Added a note' })
           setSel(new Set([`n:${made.id}`]))
           setEditing(made.id)
@@ -4372,7 +4372,7 @@ export function Canvas({
         also: 'sticky',
         keys: 'S',
         run: () => {
-          const r = addNote(stRef.current!, { x: mid.x - 92, y: mid.y - 66 }, 0)
+          const r = addNote(stRef.current!, { x: mid.x - 92, y: mid.y - 66 }, stRef.current!.notes.length)
           edit(() => r.state, { undo: 'Added a note' })
           setSel(new Set([`n:${r.id}`]))
           setEditing(r.id)

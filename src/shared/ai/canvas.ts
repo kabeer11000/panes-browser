@@ -48,7 +48,9 @@ export const NOTE_MIN_W = 160
 export const NOTE_MAX_W = 520
 export const NOTE_MIN_H = 72
 export const NOTE_MAX_H = 900
-export const NOTE_COLORS = 4
+/** Sticky-note colours, by name (canvas.css .cv-note.c0 to .c5). */
+export const NOTE_COLOR_NAMES = ['Yellow', 'Pink', 'Green', 'Blue', 'Purple', 'Orange'] as const
+export const NOTE_COLORS = NOTE_COLOR_NAMES.length
 export const OTHER_ID = 'other'
 export const PRIVATE_ID = 'private'
 export const MAX_COLS = 6

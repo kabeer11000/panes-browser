@@ -794,28 +794,36 @@
 }
 
 /* ---- notes: the theme's own colours ---- */
+/* sticky notes: paper colours of their own (not the space's), with dark ink, the same in light and dark */
 .cv-note {
-  --n: var(--space);
+  --n: #ffe27a;
   position: absolute;
   left: 0;
   top: 0;
   padding: 12px 14px;
   border-radius: 6px 6px 14px 6px;
-  background: color-mix(in srgb, var(--n) 26%, var(--card-bg));
+  background: var(--n);
+  color: #24211a;
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--n) 40%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--n) 70%, black),
     0 4px 14px rgb(0 0 0 / 0.16);
   font-size: 13.5px;
   line-height: 1.4;
 }
 .cv-note.c1 {
-  --n: var(--space2);
+  --n: #ffb3c7;
 }
 .cv-note.c2 {
-  --n: var(--accent);
+  --n: #b5e8a8;
 }
 .cv-note.c3 {
-  --n: var(--fg-dim);
+  --n: #a9d4ff;
+}
+.cv-note.c4 {
+  --n: #d4b8ff;
+}
+.cv-note.c5 {
+  --n: #ffc58a;
 }
 .cv-note.sel {
   box-shadow:
@@ -829,8 +837,9 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.cv-note-empty {
-  color: var(--fg-dim);
+.cv-note-empty,
+.cv-note textarea::placeholder {
+  color: rgb(36 33 26 / 0.5);
 }
 .cv-note textarea {
   width: 100%;
@@ -841,7 +850,7 @@
   padding: 0;
   background: transparent;
   font: inherit;
-  color: var(--fg);
+  color: inherit;
   user-select: text;
 }
 .cv-note-color {

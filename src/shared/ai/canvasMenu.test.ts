@@ -97,16 +97,23 @@ describe('section, note, mark and board menus', () => {
     expect(get(m, 'tidy')!.disabled).toBe(true)
     expect(get(m, 'delete')!.label).toBe('Delete section')
   })
-  test('note: four colours', () => {
-    expect(acts(get(noteMenu({ color: 5 }), 'color')!.items!).find((c) => c.checked)!.id).toBe(
-      'color:1'
-    )
+  test('note: six named colours, the current one checked (wrapping past the last)', () => {
+    const items = acts(get(noteMenu({ color: 7 }), 'color')!.items!)
+    expect(items.map((c) => c.label)).toEqual([
+      'Yellow',
+      'Pink',
+      'Green',
+      'Blue',
+      'Purple',
+      'Orange'
+    ])
+    expect(items.find((c) => c.checked)!.id).toBe('color:1')
   })
   test('marks: no fill only for shapes, delete disabled when locked', () => {
     const facts = { n: 1, editable: true, shapes: false, locked: false, grouped: false, color: 0 }
-    expect(get(markMenu(facts), 'color')!.items!.some((x) => x !== 'sep' && x.id === 'color:none')).toBe(
-      false
-    )
+    expect(
+      get(markMenu(facts), 'color')!.items!.some((x) => x !== 'sep' && x.id === 'color:none')
+    ).toBe(false)
     expect(get(markMenu({ ...facts, shapes: true }), 'color')!.items!.at(-1)).toMatchObject({
       id: 'color:none'
     })

@@ -1,5 +1,5 @@
 import { tidyMenu, type MenuAction, type MenuEntry } from '../menu'
-import { FRAME_COLORS, NOTE_COLORS } from './canvas'
+import { FRAME_COLORS, NOTE_COLOR_NAMES, NOTE_COLORS } from './canvas'
 import { MARK_COLORS } from './canvasMarks'
 
 /**
@@ -179,7 +179,7 @@ export function noteMenu(f: { color: number }): MenuEntry[] {
       label: 'Colour',
       items: Array.from({ length: NOTE_COLORS }, (_, c) => ({
         id: `color:${c}`,
-        label: `Colour ${c + 1}`,
+        label: NOTE_COLOR_NAMES[c],
         checked: f.color % NOTE_COLORS === c,
         swatch: { color: NOTE_SWATCH[c] }
       }))
