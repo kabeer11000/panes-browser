@@ -150,7 +150,11 @@ export function attachEnds(a: Box | Pt, b: Box | Pt, shiftA = 0, shiftB = 0): [A
 
 /** Control points of the curve: each leaves its end straight out of the side, further for longer lines. */
 export function curveControls(a: Attach, b: Attach): [Pt, Pt] {
-  const d = Math.min(220, Math.max(36, len(sub(b.p, a.p)) * 0.42))
+  let d = Math.min(220, Math.max(36, len(sub(b.p, a.p)) * 0.42))
+  // two ends facing each other across a small gap: the bend stays inside the gap, or the line overshoots and loops
+  const gap = (b.p.x - a.p.x) * a.n.x + (b.p.y - a.p.y) * a.n.y
+  const facing = a.n.x * b.n.x + a.n.y * b.n.y < -0.5
+  if (facing && gap > 0) d = Math.min(d, gap / 2)
   return [add(a.p, a.n, d), add(b.p, b.n, d)]
 }
 

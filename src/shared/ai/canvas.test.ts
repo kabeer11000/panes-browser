@@ -11,6 +11,7 @@ import {
   deleteFrame,
   dropCards,
   fitVideoCards,
+  linkedOrder,
   videoCardSize,
   emptyState,
   fitView,
@@ -406,5 +407,34 @@ describe('saving', () => {
     // a size set by hand outlives Arrange
     const s4 = tidy(s2, tabs(3), [{ name: 'Videos', ids: [1, 2, 3] }])
     expect(s4.cards.find((c) => c.id === 1)!.fit).toBe(false)
+  })
+})
+
+describe('linkedOrder (Arrange keeps arrows short)', () => {
+  test('a card is followed by the cards it is linked to; the rest keep their order', () => {
+    expect(linkedOrder([1, 2, 3, 4, 5], [[1, 4]])).toEqual([1, 4, 2, 3, 5])
+    expect(linkedOrder([1, 2, 3, 4, 5], [[5, 2], [2, 4]])).toEqual([1, 2, 4, 5, 3])
+    expect(linkedOrder([1, 2, 3], [])).toEqual([1, 2, 3])
+    expect(linkedOrder([1, 2], [[1, 9]])).toEqual([1, 2])
+  })
+  test('Arrange seats two linked cards side by side', () => {
+    const base = tidy(emptyState('b'), tabs(6), [{ name: 'G', ids: [1, 2, 3, 4, 5, 6] }])
+    const linked = {
+      ...base,
+      connectors: [
+        {
+          id: 'k1',
+          from: { kind: 'card' as const, id: 1 },
+          to: { kind: 'card' as const, id: 6 },
+          shape: 'curved' as const,
+          heads: 'end' as const,
+          label: ''
+        }
+      ]
+    }
+    const s = tidy(linked, tabs(6), [{ name: 'G', ids: [1, 2, 3, 4, 5, 6] }], true)
+    const a = s.cards.find((c) => c.id === 1)!
+    const b = s.cards.find((c) => c.id === 6)!
+    expect(Math.abs(a.y - b.y) < 1 && b.x > a.x).toBe(true)
   })
 })

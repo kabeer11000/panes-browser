@@ -98,6 +98,14 @@ describe('routes', () => {
     expect(c2.y).toBe(b.p.y)
     expect(c2.x).toBeLessThan(b.p.x)
   })
+  test('two cards facing each other across a small gap: the bend stays inside the gap (no loop)', () => {
+    const [p, q] = attachEnds({ x: 0, y: 0, w: 240, h: 300 }, { x: 0, y: 316, w: 240, h: 300 })
+    const [c1, c2] = curveControls(p, q)
+    // the first control is not past the second end, nor the second past the first
+    expect(c1.y).toBeLessThanOrEqual(q.p.y)
+    expect(c2.y).toBeGreaterThanOrEqual(p.p.y)
+    expect(c1.y).toBeLessThanOrEqual(c2.y)
+  })
   test('the label of a straight line sits at its middle', () => {
     const r = routeBetween(a, b, 'straight', 'end')
     expect(r.mid.x).toBeCloseTo((a.p.x + b.p.x) / 2)

@@ -895,6 +895,11 @@ export function tidy(
     const was = base.cards.filter((c) => c.frame === PRIVATE_ID).map((c) => c.id)
     plans.push({ frame, ids: priv, keep: !!pf && sameSet(was, priv) })
   }
+  // cards joined by an arrow sit next to each other in their section, so its line stays short and crosses nothing
+  const links = (prev.connectors ?? []).flatMap((k) =>
+    k.from.kind === 'card' && k.to.kind === 'card' ? [[k.from.id, k.to.id] as const] : []
+  )
+  if (links.length) for (const plan of plans) if (!plan.keep) plan.ids = linkedOrder(plan.ids, links)
 
   // sizes; frames that keep their cards keep their box; a pinned one keeps its corner
   const notesOf = new Map<string, CanvasNote[]>()
@@ -1206,6 +1211,31 @@ export function resizeCard(s: CanvasState, id: number, box: Box): CanvasState {
       return next
     })
   })
+}
+
+/**
+ * The same cards with every card followed by those it is linked to (and theirs), so linked cards come out next to
+ * each other in a grid; otherwise the order stays as it was.
+ */
+export function linkedOrder(ids: number[], links: ReadonlyArray<readonly [number, number]>): number[] {
+  const inHere = new Set(ids)
+  const next = new Map<number, number[]>()
+  for (const [a, b] of links) {
+    if (!inHere.has(a) || !inHere.has(b) || a === b) continue
+    next.set(a, [...(next.get(a) ?? []), b])
+    next.set(b, [...(next.get(b) ?? []), a])
+  }
+  const pos = new Map(ids.map((id, i) => [id, i]))
+  const out: number[] = []
+  const seen = new Set<number>()
+  const walk = (id: number): void => {
+    if (seen.has(id)) return
+    seen.add(id)
+    out.push(id)
+    for (const n of (next.get(id) ?? []).sort((x, y) => pos.get(x)! - pos.get(y)!)) walk(n)
+  }
+  for (const id of ids) walk(id)
+  return out
 }
 
 /** Reset a card's size: the default `CARD_W x CARD_H`, and no longer held to a size set by hand. */
