@@ -182,6 +182,8 @@ function createWindow(): void {
   const history = new HistoryStore()
   const bookmarks = new BookmarkStore()
   const downloads = new DownloadManager(tabSession, settings)
+  // a tab opened only to fetch a file closes once the download starts (tabs is made below; it is there by then)
+  tabSession.on('will-download', (_e, _item, wc) => setImmediate(() => tabs.downloadStarted(wc)))
   const passwords = new PasswordStore()
   registerPasswordIpc(win, passwords)
   const adblock = new Adblock(tabSession)

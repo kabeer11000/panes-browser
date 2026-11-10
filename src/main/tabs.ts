@@ -240,6 +240,22 @@ export class TabManager {
   }
 
   /** A loaded tab's page, without bringing it on screen (null for an unloaded or closed tab). */
+  /**
+   * A download began in a page. A tab that never showed a page of its own (opened just for that link or address) has
+   * nothing to show now: it closes, as in Chrome, so no blank tab or empty canvas card is left behind. The download
+   * carries on in Downloads.
+   */
+  downloadStarted(wc: WebContents | undefined): void {
+    if (!wc) return
+    for (const [id, t] of this.tabs) {
+      if (liveContents(t) !== wc) continue
+      const url = wc.getURL()
+      const shown = !!url && url !== 'about:blank' && !url.startsWith('panes://')
+      if (!shown && wc.navigationHistory.length() <= 1) this.close(id)
+      return
+    }
+  }
+
   contentsOf(id: number): WebContents | null {
     const t = this.tabs.get(id)
     return t ? liveContents(t) : null
