@@ -337,6 +337,8 @@ export class TabManager {
   /** The one tab whose real page is shown inside the canvas, and where. */
   private liveId: number | null = null
   private liveRect: Rect | null = null
+  /** The preview pane last clicked or typed in (a split shows several): where page actions and Ctrl+W go. */
+  private previewFocus: number | null = null
   /** The other panes of a split shown in the canvas preview beside the live page: their pages, at these rects. */
   private companions = new Map<number, Rect>()
   /**
@@ -692,9 +694,18 @@ export class TabManager {
   }
 
   /** The page that page actions are for: the canvas preview's while it is open (none if it has no tab), else current. */
+  /** pageTab's id (see pageTab). */
+  private pageTabId(): number | null {
+    const t = this.pageTab()
+    for (const [id, x] of this.tabs) if (x === t) return id
+    return null
+  }
+
   private pageTab(): Tab | null {
     if (!this.canvasMode || !this.previewOpen) return this.current()
-    const id = this.liveId ?? this.previewTab
+    const f = this.previewFocus
+    const id =
+      f !== null && (f === this.liveId || this.companions.has(f)) ? f : (this.liveId ?? this.previewTab)
     return id === null ? null : (this.tabs.get(id) ?? null)
   }
 
@@ -2064,6 +2075,11 @@ export class TabManager {
 
   /** A click inside a split pane moves focus (and the address bar) to that pane's tab. */
   private focusPane(id: number): void {
+    // a pane of the canvas preview (its page or a split's other page): page actions go to the one being used
+    if (this.canvasMode && (id === this.liveId || this.companions.has(id))) {
+      this.previewFocus = id
+      return
+    }
     if (this.overlay || this.activeId === id || !this.visibleIds().includes(id)) return
     this.activeId = id
     this.refresh()
@@ -2784,9 +2800,10 @@ export class TabManager {
       else if (k === 'w' && this.canvasMode) {
         // on the board: the page in the preview closes (and the preview with it); with none open the board takes the
         // key (it closes the selected card's tab). Never the tab view's tab, which is not on screen.
-        const id = this.previewOpen ? (this.liveId ?? this.previewTab) : null
+        const id = this.previewOpen ? (this.pageTab() ? this.pageTabId() : null) : null
         if (id !== null) {
-          this.send('canvas:preview-key', 'close')
+          // the preview's own page: the preview closes with it; a split's other pane: only that pane goes
+          if (!this.companions.has(id)) this.send('canvas:preview-key', 'close')
           this.close(id)
         } else handled = false
       } else if (k === 'w' && this.activeId !== null) this.close(this.activeId)
