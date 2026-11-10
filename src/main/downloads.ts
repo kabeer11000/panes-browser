@@ -1,5 +1,5 @@
 import { app, nativeImage, shell, type DownloadItem, type Session } from 'electron'
-import { existsSync, renameSync } from 'fs'
+import { existsSync, renameSync, statSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
 import type { DownloadAction, DownloadInfo } from '@shared/types'
 import { PAGE_SCRIPT, type PageHints } from '@shared/ai/evidence'
@@ -215,10 +215,53 @@ export class DownloadManager {
     }
   }
 
+  /** Where a new download goes: the folder picked in settings, or the system's Downloads if that one has gone. */
+  private folder(): string {
+    const { downloadDir } = this.settings.get()
+    return downloadDir && existsSync(downloadDir) ? downloadDir : app.getPath('downloads')
+  }
+
+  /** A free path for `filename` in the download folder ("name (2).png" when it is taken). */
+  pathFor(filename: string): string {
+    return uniquePath(this.folder(), filename)
+  }
+
+  /**
+   * A file Panes wrote itself (a board export), listed like a finished download: on the shelf, in panes://downloads,
+   * and flying to the bin.
+   */
+  record(savePath: string): void {
+    let size: number
+    try {
+      size = statSync(savePath).size
+    } catch {
+      return // nothing was written
+    }
+    const d = this.store.value
+    const info: DownloadInfo = {
+      id: d.nextId++,
+      filename: basename(savePath),
+      url: '',
+      savePath,
+      total: size,
+      received: size,
+      state: 'completed',
+      time: Date.now()
+    }
+    d.items.unshift(info)
+    for (const l of this.startListeners) l(info)
+    this.store.save()
+    this.changed(true)
+    void previewFor(savePath).then((preview) => {
+      if (!preview) return
+      this.previews.set(info.id, preview)
+      this.changed(true)
+    })
+  }
+
   private track(item: DownloadItem, page: DownloadPage): void {
-    const { downloadAsk, downloadDir } = this.settings.get()
-    const dir = downloadDir && existsSync(downloadDir) ? downloadDir : app.getPath('downloads')
-    const suggested = uniquePath(dir, item.getFilename())
+    const { downloadAsk } = this.settings.get()
+    const suggested = uniquePath(this.folder(), item.getFilename())
     if (!downloadAsk) {
       item.setSavePath(suggested)
       this.begin(item, page)

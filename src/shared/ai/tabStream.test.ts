@@ -47,6 +47,20 @@ describe('pickStreams', () => {
   })
 })
 
+describe('pickStreams with calls', () => {
+  test('a tab in a call streams even when silent, and before anything playing', () => {
+    const list = [
+      { id: 1, audible: true, muted: false },
+      { id: 2, audible: false, muted: false, call: true },
+      { id: 3, audible: false, muted: false }
+    ]
+    const on = new Set([1, 2, 3])
+    expect(pickStreams({ tabs: list, onScreen: on, open: null, zoomedOut: false, cap: 1 })).toEqual([2])
+    expect(pickStreams({ tabs: list, onScreen: on, open: null, zoomedOut: false, cap: 4 })).toEqual([2, 1])
+    expect(pickStreams({ tabs: list, onScreen: on, open: 2, zoomedOut: false, cap: 4 })).toEqual([1])
+  })
+})
+
 describe('captureWidth', () => {
   test('sized to the card, more when only part of the page is the video', () => {
     expect(captureWidth(240, 1, 1)).toBe(320) // floor

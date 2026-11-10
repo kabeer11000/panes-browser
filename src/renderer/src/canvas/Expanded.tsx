@@ -43,6 +43,8 @@ interface Props extends ExpandSource {
   stage: { w: number; h: number }
   reduced: boolean
   answerLinks: (text: string) => void
+  /** Where the card is on screen now (it may have moved since: the board glided to it), for the morph back. */
+  cardBox?: () => { x: number; y: number; w: number; h: number } | null
   onClose: () => void
   onGoToTab: () => void
   /** A tab was made for the live page: the card should remember it. */
@@ -598,6 +600,7 @@ function slotBox(el: HTMLElement | null): Rect | null {
 export function Expanded({
   m,
   from,
+  cardBox,
   stage,
   tab,
   url,
@@ -733,15 +736,17 @@ export function Expanded({
       if (body.current && live === 'off')
         void animate(body.current, { opacity: 0 }, { duration: 0.1 })
       if (scrim.current) void animate(scrim.current, { opacity: 0 }, { duration: 0.2 })
+      const to = cardBox?.() ?? from
+      const toTf = `translate(${to.x - left}px, ${to.y - top}px) scale(${to.w / w}, ${to.h / h})`
       await animate(
         panel.current,
-        { transform: ['translate(0px, 0px) scale(1, 1)', fromTf] },
+        { transform: ['translate(0px, 0px) scale(1, 1)', toTf] },
         { type: 'spring', stiffness: 340, damping: 34 }
       ).finished
     }
     onClose()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hideLive, reduced, onClose, fromTf, live])
+  }, [hideLive, reduced, onClose, from, cardBox, w, h, live])
   const closeRef = useRef(close)
   useLayoutEffect(() => {
     closeRef.current = close

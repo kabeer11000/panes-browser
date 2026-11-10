@@ -95,6 +95,8 @@ export interface CanvasCard {
   /** The person put it here by hand: Tidy up leaves it in its frame. */
   manual: boolean
   private: boolean
+  /** Size: true when fitted to its video's shape, false when set by hand; missing: never sized. */
+  fit?: boolean
 }
 export interface CanvasNote extends Box {
   id: string
@@ -988,6 +990,7 @@ export function tidy(
       }
       if (sz?.w !== undefined) card.w = sz.w
       if (sz?.h !== undefined) card.h = sz.h
+      if (c?.fit !== undefined) card.fit = c.fit
       cards.set(id, card)
     })
   }
@@ -1193,7 +1196,7 @@ export function resizeCard(s: CanvasState, id: number, box: Box): CanvasState {
     ...s,
     cards: s.cards.map((item) => {
       if (item.id !== id) return item
-      const next: CanvasCard = { ...item, x, y, w, h, manual: true }
+      const next: CanvasCard = { ...item, x, y, w, h, manual: true, fit: false }
       if (w === CARD_W && h === CARD_H) {
         delete next.w
         delete next.h
@@ -1203,17 +1206,56 @@ export function resizeCard(s: CanvasState, id: number, box: Box): CanvasState {
   })
 }
 
-/** Reset a card's size to default `CARD_W x CARD_H` (or to `size`, such as 16:9 for a video card). */
-export function resetCardSize(
-  s: CanvasState,
-  id: number,
-  size?: { w: number; h: number }
-): CanvasState {
+/** Reset a card's size: the default `CARD_W x CARD_H`, and no longer held to a size set by hand. */
+export function resetCardSize(s: CanvasState, id: number): CanvasState {
   const c = s.cards.find((x) => x.id === id)
   if (!c) return s
-  const w = size ? size.w : CARD_W
-  const h = size ? size.h : CARD_H
-  return resizeCard(s, id, { x: c.x, y: c.y, w, h })
+  const next = resizeCard(s, id, { x: c.x, y: c.y, w: CARD_W, h: CARD_H })
+  return {
+    ...next,
+    cards: next.cards.map((x) => {
+      if (x.id !== id) return x
+      const out = { ...x }
+      delete out.fit
+      return out
+    })
+  }
+}
+
+/** A video card's size for its video's aspect: 320 wide when landscape, 300 tall when portrait. */
+export function videoCardSize(ar: number): { w: number; h: number } {
+  return ar >= 1
+    ? { w: 320, h: Math.max(CARD_MIN_H, Math.min(CARD_MAX_H, Math.round(320 / ar))) }
+    : { w: Math.max(CARD_MIN_W, Math.min(CARD_MAX_W, Math.round(300 * ar))), h: 300 }
+}
+
+/**
+ * Fit video cards to their video's shape (`aspect`: null for a card that is not a video). Never a card sized by hand.
+ * Returns `s` itself when nothing changes.
+ */
+export function fitVideoCards(
+  s: CanvasState,
+  aspect: (c: CanvasCard) => number | null
+): CanvasState {
+  const touched = new Set<string>()
+  let changed = false
+  const cards = s.cards.map((c) => {
+    if (c.fit === false) return c
+    const ar = aspect(c)
+    if (ar === null) return c
+    const want = videoCardSize(ar)
+    if (c.fit && c.w === want.w && c.h === want.h) return c
+    changed = true
+    if (c.frame) touched.add(c.frame)
+    return { ...c, w: want.w, h: want.h, fit: true }
+  })
+  if (!changed) return s
+  let next: CanvasState = { ...s, cards }
+  for (const fid of touched) {
+    const f = next.frames.find((x) => x.id === fid)
+    if (f) next = regridFrame(next, fid, !!f.sized)
+  }
+  return next
 }
 
 /** Remember how a page card shows (by its address). */
@@ -1244,13 +1286,7 @@ export function setPreview(s: CanvasState, url: string, live: boolean): CanvasSt
 export function placeCard(s: CanvasState, id: number, at: { x: number; y: number }): CanvasState {
   const c = s.cards.find((x) => x.id === id)
   if (!c) return s
-  return dropCards(
-    s,
-    [id],
-    at.x - (c.w ?? CARD_W) / 2 - c.x,
-    at.y - (c.h ?? CARD_H) / 2 - c.y,
-    at
-  )
+  return dropCards(s, [id], at.x - (c.w ?? CARD_W) / 2 - c.x, at.y - (c.h ?? CARD_H) / 2 - c.y, at)
 }
 
 export function renameFrame(s: CanvasState, id: string, name: string): CanvasState {

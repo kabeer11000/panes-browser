@@ -15,7 +15,8 @@ import {
   SelectIcon,
   ShapeIcon,
   TextIcon,
-  TidyIcon
+  TidyIcon,
+  GearIcon
 } from './icons'
 
 export type Tool =
@@ -41,26 +42,28 @@ const SHAPE_LABEL: Record<ShapeKind, string> = {
   bubble: 'Speech bubble'
 }
 
-const TOOLS: Array<{ id: Tool; label: string; key: string; icon: React.JSX.Element }> = [
-  {
-    id: 'select',
-    label: 'Select (Shift and drag inside a section to select in it)',
-    key: 'V',
-    icon: <SelectIcon />
-  },
-  { id: 'hand', label: 'Hand (or hold Space)', key: 'H', icon: <HandIcon /> },
-  { id: 'frame', label: 'Frame (or Alt and drag)', key: 'F', icon: <FrameIcon /> },
-  { id: 'note', label: 'Sticky note', key: 'S', icon: <NoteIcon /> },
-  { id: 'text', label: 'Text', key: 'T', icon: <TextIcon /> },
-  {
-    id: 'connector',
-    label: 'Connector (or drag a dot on an object)',
-    key: 'C',
-    icon: <ConnectorIcon />
-  },
-  { id: 'line', label: 'Line', key: 'L', icon: <LineIcon /> },
-  { id: 'pen', label: 'Pen', key: 'P', icon: <PenIcon /> },
-  { id: 'marker', label: 'Highlighter', key: 'M', icon: <MarkerIcon /> }
+type ToolDef = { id: Tool; label: string; key: string; icon: React.JSX.Element }
+const def = (id: Tool, label: string, key: string, icon: React.JSX.Element): ToolDef => ({
+  id,
+  label,
+  key,
+  icon
+})
+// the bar: moving about, then putting things down; drawing tools share one button (the last one picked)
+const NAV: ToolDef[] = [
+  def('select', 'Select (Shift and drag inside a section to select in it)', 'V', <SelectIcon />),
+  def('hand', 'Hand (or hold Space)', 'H', <HandIcon />)
+]
+const PUT: ToolDef[] = [
+  def('note', 'Sticky note', 'S', <NoteIcon />),
+  def('text', 'Text', 'T', <TextIcon />)
+]
+const FRAME = def('frame', 'Section (or Alt and drag)', 'F', <FrameIcon />)
+const DRAW: ToolDef[] = [
+  def('pen', 'Pen', 'P', <PenIcon />),
+  def('marker', 'Highlighter', 'M', <MarkerIcon />),
+  def('line', 'Line', 'L', <LineIcon />),
+  def('connector', 'Connector (or drag a dot on an object)', 'C', <ConnectorIcon />)
 ]
 
 interface Props {
@@ -84,6 +87,7 @@ interface Props {
   onPrompt: (query: string) => void
   onTool: (t: Tool) => void
   onTidy: () => void
+  onSettings: () => void
   onFit: () => void
   onZoom: (factor: number) => void
 }
@@ -105,19 +109,29 @@ export function Toolbar({
   onPrompt,
   onTool,
   onTidy,
+  onSettings,
   onFit,
   onZoom
 }: Props): React.JSX.Element {
   const [shapes, setShapes] = useState(false)
   const [blocks, setBlocks] = useState(false)
+  const [draws, setDraws] = useState(false)
+  const [lastDraw, setLastDraw] = useState<ToolDef>(DRAW[0])
+  const draw = DRAW.find((d) => d.id === tool) ?? lastDraw
   const [at, setAt] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const shapesBox = useRef<HTMLDivElement>(null)
   const blocksBox = useRef<HTMLDivElement>(null)
+  const drawsBox = useRef<HTMLDivElement>(null)
   useDismiss(
     shapes,
     shapesBox,
     useCallback(() => setShapes(false), [])
+  )
+  useDismiss(
+    draws,
+    drawsBox,
+    useCallback(() => setDraws(false), [])
   )
   useDismiss(
     blocks,
@@ -126,19 +140,9 @@ export function Toolbar({
   )
   return (
     <div className="cv-bar" role="toolbar" aria-label="Canvas tools" ref={box}>
-      {TOOLS.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          className={'cv-tool' + (tool === t.id ? ' on' : '')}
-          aria-pressed={tool === t.id}
-          aria-label={t.label}
-          title={`${t.label} (${t.key})`}
-          onClick={() => onTool(t.id)}
-        >
-          {t.icon}
-        </button>
-      ))}
+      {NAV.map(toolButton)}
+      <span className="cv-sep" aria-hidden="true" />
+      {PUT.map(toolButton)}
       <div className="cv-split" ref={shapesBox}>
         <button
           type="button"
@@ -180,6 +184,41 @@ export function Toolbar({
           </div>
         )}
       </div>
+      <div className="cv-split" ref={drawsBox}>
+        {toolButton(draw)}
+        <button
+          type="button"
+          className="cv-tool cv-more"
+          aria-label="Choose a drawing tool"
+          aria-haspopup="menu"
+          aria-expanded={draws}
+          onClick={() => setDraws((m) => !m)}
+        >
+          <ChevronIcon />
+        </button>
+        {draws && (
+          <div className="cv-menu rows" role="menu">
+            {DRAW.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={d.id === draw.id}
+                onClick={() => {
+                  setDraws(false)
+                  setLastDraw(d)
+                  onTool(d.id)
+                }}
+              >
+                {d.icon}
+                <span>{d.label.replace(/ \(.*\)$/, '')}</span>
+                <kbd>{d.key}</kbd>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {toolButton(FRAME)}
       <div className="cv-split" ref={blocksBox}>
         <button
           type="button"
@@ -276,12 +315,12 @@ export function Toolbar({
       )}
       <button
         type="button"
-        className={'cv-tidy' + (busy ? ' busy' : '')}
-        title="Tidy: arrange everything neatly (Shift+T)"
+        className={'cv-tool' + (busy ? ' busy' : '')}
+        aria-label="Arrange by topic"
+        title="Arrange: group the cards into sections by topic; your own sections stay (Shift+T)"
         onClick={onTidy}
       >
         <TidyIcon />
-        <span>Tidy</span>
       </button>
       <span className="cv-sep" aria-hidden="true" />
       <button
@@ -305,6 +344,32 @@ export function Toolbar({
       >
         <span aria-hidden="true">+</span>
       </button>
+      <span className="cv-sep" aria-hidden="true" />
+      <button
+        type="button"
+        className="cv-tool"
+        aria-label="Settings"
+        title="Settings"
+        onClick={onSettings}
+      >
+        <GearIcon />
+      </button>
     </div>
   )
+
+  function toolButton(t: ToolDef): React.JSX.Element {
+    return (
+      <button
+        key={t.id}
+        type="button"
+        className={'cv-tool' + (tool === t.id ? ' on' : '')}
+        aria-pressed={tool === t.id}
+        aria-label={t.label}
+        title={`${t.label} (${t.key})`}
+        onClick={() => onTool(t.id)}
+      >
+        {t.icon}
+      </button>
+    )
+  }
 }

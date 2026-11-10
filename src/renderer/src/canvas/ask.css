@@ -2,17 +2,19 @@
 .cv-dock {
   /* a column on the board's right edge, full height: the board makes room for it (see .cv.docked), so it never
      sits over cards; its width is the person's, per space */
+  /* looks like the tab view's chat panel (components/chat/chat.css .chat-card): a card inset from the edge */
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
   z-index: 11;
-  width: min(var(--dock-w, 380px), calc(100% - 120px));
+  width: min(calc(var(--dock-w, 380px) - 8px), calc(100% - 128px));
   display: flex;
   flex-direction: column;
-  border-radius: 0 var(--radius-m) var(--radius-m) 0;
-  background: var(--popover-bg);
-  box-shadow: -1px 0 0 var(--border);
+  border-radius: var(--radius-m);
+  background: var(--stage-bg);
+  box-shadow: 0 0 0 1px var(--border);
+  color: var(--fg);
   overflow: hidden;
 }
 /* its left edge resizes it */
@@ -29,17 +31,19 @@
 .cv-dock-rz::after {
   content: '';
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--accent);
+  left: 2px;
+  top: 50%;
+  width: 3px;
+  height: 36px;
+  margin-top: -18px;
+  border-radius: 2px;
+  background: var(--fg);
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--dur-fast);
 }
 .cv-dock-rz:hover::after,
 .cv-dock-rz.on::after {
-  opacity: 0.8;
+  opacity: 0.3;
 }
 /* the board's own controls keep to the room left beside it */
 .cv.docked .cv-bar {
@@ -112,7 +116,7 @@
   font-size: 12.5px;
   color: var(--fg);
   background: var(--surface);
-  transition: background 0.12s;
+  transition: background var(--dur-fast);
 }
 .cv-dock-hints button:hover {
   background: var(--surface-hover);
@@ -121,11 +125,14 @@
   margin-top: 14px;
 }
 .cv-dock-q {
-  margin: 0 0 4px;
-  padding: 7px var(--in);
-  border-radius: 12px 12px 4px 12px;
-  background: var(--surface-active);
-  font-size: 13px;
+  width: fit-content;
+  max-width: 92%;
+  margin: 0 0 4px auto;
+  padding: 7px 11px;
+  border-radius: var(--r-4) var(--r-4) var(--r-1) var(--r-4);
+  background: var(--surface-hover);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: 1.4;
 }
 .cv-dock-row {
@@ -197,7 +204,7 @@
   border-radius: 7px;
   color: var(--fg-dim);
   opacity: 0;
-  transition: opacity 0.12s;
+  transition: opacity var(--dur-fast);
 }
 .cv-part:hover .cv-part-add,
 .cv-part-add:focus-visible {
@@ -227,7 +234,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 0 12px 10px;
+  padding: 4px 12px 12px;
 }
 .cv-dock-status {
   display: flex;
@@ -368,28 +375,35 @@
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  padding: 5px 5px 5px 11px;
-  border-radius: 14px;
-  background: var(--surface);
+  padding: 6px 6px 6px 12px;
+  border-radius: var(--r-5);
+  background: var(--surface-hover);
   box-shadow: inset 0 0 0 1px var(--border);
+  transition: box-shadow var(--dur-fast);
+}
+.cv-dock-input:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.cv-dock-input.ai-edge.on {
+  box-shadow: inset 0 0 0 1px transparent;
 }
 .cv-dock-input textarea {
   flex: 1;
   min-width: 0;
-  max-height: 140px;
-  padding: 5px 0;
+  max-height: 168px;
+  padding: 4px 0;
   resize: none;
   border: 0;
   outline: none;
   background: none;
   font: inherit;
-  font-size: 13px;
   line-height: 1.4;
   color: var(--fg);
   user-select: text;
 }
 .cv-dock-input textarea::placeholder {
   color: var(--fg-dim);
+  opacity: 0.8;
 }
 .cv-dock-send {
   flex: none;
@@ -400,10 +414,15 @@
   border-radius: 50%;
   color: #fff;
   background: var(--accent);
-  transition: opacity 0.12s;
+  transition:
+    opacity var(--dur-fast),
+    filter var(--dur-fast);
 }
 .cv-dock-send:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
+}
+.cv-dock-send:not(:disabled):hover {
+  filter: brightness(1.1);
 }
 .cv-dock-handle {
   position: absolute;
@@ -445,7 +464,7 @@
   box-shadow: inset 0 0 0 1px var(--border);
   color: var(--fg);
   font-size: 11.5px;
-  transition: background 0.15s;
+  transition: background var(--dur-fast);
 }
 .cv-ask-src:hover {
   background: var(--surface-active);
@@ -483,7 +502,7 @@
   text-decoration: underline;
 }
 
-/* no thinking orb: while the canvas AI works, its status words shimmer instead */
+/* no thinking orb: while the canvas AI works, its status words shimmer instead (as in the tab view's chat) */
 .cv-dock-dot,
 .cv-prompt-dot {
   display: none !important;

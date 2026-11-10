@@ -53,6 +53,8 @@ export interface CardFacts {
   link: boolean
   section: string | null
   sections: readonly SectionRef[]
+  /** Its tab is in the split view: it can be taken apart. */
+  split?: boolean
 }
 
 export function cardMenu(f: CardFacts): MenuEntry[] {
@@ -61,6 +63,7 @@ export function cardMenu(f: CardFacts): MenuEntry[] {
     { id: 'open', label: 'Open', keys: 'Enter' },
     { id: 'live', label: 'Open live', disabled: !f.canLive },
     { id: 'pop', label: 'Pop out to a tab', disabled: !f.canPop },
+    ...(f.split ? [{ id: 'unsplit', label: 'Unsplit' }] : []),
     'sep',
     ...(f.media
       ? [
@@ -72,9 +75,7 @@ export function cardMenu(f: CardFacts): MenuEntry[] {
           }
         ]
       : []),
-    ...(f.toggle
-      ? [{ id: 'view', label: f.reader ? 'Show the page' : 'Show as reader' }]
-      : []),
+    ...(f.toggle ? [{ id: 'view', label: f.reader ? 'Show the page' : 'Show as reader' }] : []),
     'sep',
     { id: 'ask', label: 'Ask about this', disabled: !ai },
     { id: 'note', label: 'Make a note of it', disabled: !ai || f.note },
@@ -115,7 +116,7 @@ export function selectionMenu(f: SelectionFacts): MenuEntry[] {
     'sep',
     { id: 'group', label: 'Group into a section', disabled: f.private > 0 },
     { ...moveTo(f.sections, null, f.n), disabled: f.private > 0 },
-    { id: 'tidy', label: 'Tidy their sections', disabled: !f.inSection },
+    { id: 'tidy', label: 'Arrange their sections', disabled: !f.inSection },
     { id: 'fit', label: 'Zoom to fit', keys: 'Shift+2' },
     'sep',
     {
@@ -150,7 +151,7 @@ export function sectionMenu(f: SectionFacts): MenuEntry[] {
       }))
     },
     'sep',
-    { id: 'tidy', label: 'Tidy', disabled: f.inside < 2 },
+    { id: 'tidy', label: 'Arrange', disabled: f.inside < 2 },
     { id: 'shrink', label: 'Shrink to fit its cards', disabled: !f.sized },
     { id: 'ungroup', label: 'Ungroup', disabled: f.inside === 0 },
     'sep',
@@ -213,16 +214,13 @@ export function markMenu(f: MarkFacts): MenuEntry[] {
           swatch: { color: `var(--m${c})` }
         })),
         ...(f.shapes
-          ? [
-              'sep' as const,
-              { id: 'color:none', label: 'No fill', checked: f.color === -1 }
-            ]
+          ? ['sep' as const, { id: 'color:none', label: 'No fill', checked: f.color === -1 }]
           : [])
       ]
     },
     {
       id: 'arrange',
-      label: 'Arrange',
+      label: 'Order',
       items: [
         { id: 'front', label: 'Bring to front' },
         { id: 'back', label: 'Send to back' }
@@ -234,7 +232,13 @@ export function markMenu(f: MarkFacts): MenuEntry[] {
     ...(f.grouped ? [{ id: 'ungroup', label: 'Ungroup', keys: 'Ctrl+Shift+G' }] : []),
     { id: 'lock', label: f.locked ? 'Unlock' : 'Lock' },
     'sep',
-    { id: 'delete', label: f.n > 1 ? `Delete ${f.n}` : 'Delete', keys: 'Del', disabled: f.locked, danger: true }
+    {
+      id: 'delete',
+      label: f.n > 1 ? `Delete ${f.n}` : 'Delete',
+      keys: 'Del',
+      disabled: f.locked,
+      danger: true
+    }
   ])
 }
 
@@ -254,12 +258,19 @@ export function boardMenu(f: BoardFacts): MenuEntry[] {
     { id: 'note', label: 'Note here', keys: 'S' },
     { id: 'text', label: 'Text here', keys: 'T' },
     { id: 'section', label: 'Section here', keys: 'F' },
-    ...(f.paste ? [{ id: 'paste', label: 'Paste here', keys: 'Ctrl+V', disabled: !f.canPaste }] : []),
+    ...(f.paste
+      ? [{ id: 'paste', label: 'Paste here', keys: 'Ctrl+V', disabled: !f.canPaste }]
+      : []),
     'sep',
-    { id: 'tidy', label: 'Tidy up', keys: 'Shift+T', disabled: f.empty },
+    { id: 'tidy', label: 'Arrange by topic', keys: 'Shift+T', disabled: f.empty },
     { id: 'fit', label: 'Fit everything', keys: 'Shift+1', disabled: f.empty },
     { id: 'all', label: 'Select all', keys: 'Ctrl+A', disabled: f.empty },
-    { id: 'undo', label: f.undo ? `Undo ${f.undo.toLowerCase()}` : 'Undo', keys: 'Ctrl+Z', disabled: !f.undo },
+    {
+      id: 'undo',
+      label: f.undo ? `Undo ${f.undo.toLowerCase()}` : 'Undo',
+      keys: 'Ctrl+Z',
+      disabled: !f.undo
+    },
     'sep',
     // the conversation is also where AI is turned on, so it is never disabled here
     { id: 'ask', label: 'Ask about the board' },
@@ -272,6 +283,8 @@ export function boardMenu(f: BoardFacts): MenuEntry[] {
         { id: 'export:pdf', label: 'PDF' },
         { id: 'export:md', label: 'Markdown digest' }
       ]
-    }
+    },
+    'sep',
+    { id: 'settings', label: 'Settings' }
   ])
 }

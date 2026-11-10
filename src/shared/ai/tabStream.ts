@@ -25,21 +25,27 @@ export function streamFps(cap: number): number {
   return cap <= 2 ? 24 : 30
 }
 
+/** The whole page, for a tab in a call: its people are many videos, not one to crop to. */
+export const WHOLE_PAGE: VideoRegion = { x: 0, y: 0, w: 1, h: 1 }
+
 /**
- * The tabs that stream now: playing (or muted) tabs whose card is on screen, not the one open in the preview (its
- * real page is shown then), none while zoomed out to dots, at most `cap`, the ones making sound first.
+ * The tabs that stream now: tabs in a call (using the camera, microphone or screen) and playing (or muted) tabs
+ * whose card is on screen, not the one open in the preview (its real page is shown then), none while zoomed out to
+ * dots, at most `cap`: calls first, then the ones making sound.
  */
 export function pickStreams(o: {
-  tabs: Array<{ id: number; audible: boolean; muted: boolean }>
+  tabs: Array<{ id: number; audible: boolean; muted: boolean; call?: boolean }>
   onScreen: ReadonlySet<number>
   open: number | null
   zoomedOut: boolean
   cap: number
 }): number[] {
   if (o.zoomedOut || o.cap <= 0) return []
+  const rank = (t: { audible: boolean; muted: boolean; call?: boolean }): number =>
+    t.call ? 2 : t.audible && !t.muted ? 1 : 0
   return o.tabs
-    .filter((t) => (t.audible || t.muted) && t.id !== o.open && o.onScreen.has(t.id))
-    .sort((a, b) => Number(b.audible && !b.muted) - Number(a.audible && !a.muted))
+    .filter((t) => (t.call || t.audible || t.muted) && t.id !== o.open && o.onScreen.has(t.id))
+    .sort((a, b) => rank(b) - rank(a))
     .slice(0, o.cap)
     .map((t) => t.id)
 }

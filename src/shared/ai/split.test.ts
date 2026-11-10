@@ -10,6 +10,7 @@ import {
   GAP,
   intersects,
   liftSections,
+  resizeCard,
   seatSplit,
   SPLIT_CLEAR,
   syncTabs,
@@ -248,5 +249,43 @@ describe('a section with a split view looks like any other section', () => {
       const bottom = below.length ? Math.min(...below.map((c) => c.y)) : g.y + g.h
       expect(bottom - (box.y + box.h)).toBe(SPLIT_CLEAR)
     }
+  })
+})
+
+describe('resized cards in a split view', () => {
+  const noOverlap = (cs: Array<{ x: number; y: number; w?: number; h?: number }>): void => {
+    for (const c of cs)
+      for (const d of cs) if (c !== d) expect(intersects(cardBox(c), cardBox(d))).toBe(false)
+  }
+  test('loose on the board: members sit side by side at their own sizes, inside the outline, and it settles', () => {
+    let s = tidy(emptyState('b'), [tab(1), tab(2), tab(3)], [{ name: 'G', ids: [1, 2, 3] }])
+    s = arrangeSplit(s, [1, 2], { x: 2000, y: 2000 })
+    const c1 = s.cards.find((c) => c.id === 1)!
+    s = resizeCard(s, 1, { x: c1.x, y: c1.y, w: 480, h: 300 })
+    s = arrangeSplit(s, [1, 2], { x: 2000, y: 2000 })
+    const a = s.cards.find((c) => c.id === 1)!
+    const b = s.cards.find((c) => c.id === 2)!
+    expect(b.x - a.x).toBe(480 + SPLIT_GAP)
+    noOverlap([a, b])
+    const box = splitBox(s, [1, 2])!
+    expect(contains(box, cardBox(a))).toBe(true)
+    expect(contains(box, cardBox(b))).toBe(true)
+    expect(arrangeSplit(s, [1, 2], { x: 2000, y: 2000 })).toBe(s)
+  })
+  test('in a section: a resized member keeps the section laid out round it, and it settles', () => {
+    let s = tidy(
+      emptyState('b'),
+      [tab(1), tab(2), tab(3), tab(4)],
+      [{ name: 'G', ids: [1, 2, 3, 4] }]
+    )
+    s = arrangeSplit(s, [1, 2])
+    const c1 = s.cards.find((c) => c.id === 1)!
+    s = resizeCard(s, 1, { x: c1.x, y: c1.y, w: 420, h: 340 })
+    s = arrangeSplit(s, [1, 2])
+    const g = s.frames.find((f) => f.name === 'G')!
+    const inG = s.cards.filter((c) => c.frame === g.id)
+    noOverlap(inG)
+    for (const c of inG) expect(contains(g, cardBox(c))).toBe(true)
+    expect(arrangeSplit(s, [1, 2])).toBe(s)
   })
 })

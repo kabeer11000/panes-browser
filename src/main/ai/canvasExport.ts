@@ -1,6 +1,7 @@
-import { app, BrowserWindow, dialog, ipcMain, type Rectangle } from 'electron'
+import { BrowserWindow, dialog, ipcMain, type Rectangle } from 'electron'
 import { writeFile } from 'fs/promises'
-import { join } from 'path'
+import type { DownloadManager } from '../downloads'
+import type { SettingsStore } from '../settings'
 
 const TYPES = {
   png: { name: 'Image', ext: 'png' },
@@ -39,10 +40,15 @@ async function pngToPdf(png: Buffer, w: number, h: number): Promise<Buffer> {
 
 /**
  * Exporting the canvas board: a picture of what the board shows (the renderer fits the board and hides its own
- * controls first), as PNG or a one-page PDF, or the Markdown digest the renderer wrote. Always through a save dialog
- * the person answers; nothing for a private or Tor window.
+ * controls first), as PNG or a one-page PDF, or the Markdown digest the renderer wrote. It goes where downloads go,
+ * and is listed with them (asked where, only if downloads are set to ask); nothing for a private or Tor window.
  */
-export function registerCanvasExport(win: BrowserWindow, allowed: () => boolean): void {
+export function registerCanvasExport(
+  win: BrowserWindow,
+  allowed: () => boolean,
+  downloads: DownloadManager,
+  settings: SettingsStore
+): void {
   const mine = (e: { sender: unknown }): boolean => e.sender === win.webContents && allowed()
   ipcMain.handle('canvas:capture', async (e, rect: unknown) => {
     const r = rect as Partial<Rectangle> | null
@@ -61,23 +67,31 @@ export function registerCanvasExport(win: BrowserWindow, allowed: () => boolean)
     if (!mine(e) || typeof q.kind !== 'string' || !(q.kind in TYPES)) return false
     const kind = q.kind as Kind
     const t = TYPES[kind]
-    const res = await dialog.showSaveDialog(win, {
-      defaultPath: join(app.getPath('downloads'), `${safeName(q.name)}.${t.ext}`),
-      filters: [{ name: t.name, extensions: [t.ext] }]
-    })
-    if (res.canceled || !res.filePath) return false
-    if (kind === 'md') {
-      if (typeof q.text !== 'string') return false
-      await writeFile(res.filePath, q.text.slice(0, 5_000_000), 'utf8')
-      return true
+    if (
+      kind === 'md'
+        ? typeof q.text !== 'string'
+        : !(q.data instanceof Uint8Array) || q.data.byteLength < 24
+    )
+      return false
+    let path = downloads.pathFor(`${safeName(q.name)}.${t.ext}`)
+    if (settings.get().downloadAsk) {
+      const res = await dialog.showSaveDialog(win, {
+        defaultPath: path,
+        filters: [{ name: t.name, extensions: [t.ext] }]
+      })
+      if (res.canceled || !res.filePath) return false
+      path = res.filePath
     }
-    if (!(q.data instanceof Uint8Array) || q.data.byteLength < 24) return false
-    const png = Buffer.from(q.data)
-    if (kind === 'png') await writeFile(res.filePath, png)
+    if (kind === 'md') await writeFile(path, (q.text as string).slice(0, 5_000_000), 'utf8')
     else {
-      const size = { w: png.readUInt32BE(16), h: png.readUInt32BE(20) } // the PNG header's IHDR
-      await writeFile(res.filePath, await pngToPdf(png, size.w, size.h))
+      const png = Buffer.from(q.data as Uint8Array)
+      if (kind === 'png') await writeFile(path, png)
+      else {
+        const size = { w: png.readUInt32BE(16), h: png.readUInt32BE(20) } // the PNG header's IHDR
+        await writeFile(path, await pngToPdf(png, size.w, size.h))
+      }
     }
+    downloads.record(path)
     return true
   })
 }

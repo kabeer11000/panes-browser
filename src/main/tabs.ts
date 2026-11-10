@@ -2171,8 +2171,7 @@ export class TabManager {
     if (this.canvasMode === open) return
     this.canvasMode = open
     if (!open) {
-      this.liveId = null
-      this.liveRect = null
+      this.setLive(null) // its page goes back to being throttled, like any hidden one
       this.setPreview(false, null)
       this.setStreaming([]) // the board's streams end with it: throttled and hidden again
     }
@@ -2196,8 +2195,15 @@ export class TabManager {
       if (wc && id !== this.liveId && next.has(id) !== this.streaming.has(id))
         wc.setBackgroundThrottling(!next.has(id))
     }
+    const started = [...next].filter((id) => !this.streaming.has(id))
     this.streaming = next
     this.applyVisibility()
+    // a page that was hidden has no new frame to send until it repaints: ask for one, so the stream starts at once
+    for (const id of started) {
+      const t = this.tabs.get(id)
+      const wc = t && liveContents(t)
+      if (wc && !wc.isDestroyed()) wc.invalidate()
+    }
   }
 
   /**

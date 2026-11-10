@@ -69,6 +69,22 @@ export function splitBox(s: CanvasState, ids: number[]): (Box & { inFrame: boole
   }
 }
 
+// a card's own size: a resized card keeps it in a split, and its neighbours make room
+const wOf = (c: CanvasCard): number => c.w ?? CARD_W
+const hOf = (c: CanvasCard): number => c.h ?? CARD_H
+
+/** Where each member starts along the row, from the first: their own widths and the gap between them. */
+function offsets(s: CanvasState, ids: number[]): number[] {
+  const out: number[] = []
+  let x = 0
+  for (const id of ids) {
+    out.push(x)
+    const c = s.cards.find((k) => k.id === id)
+    x += (c ? wOf(c) : CARD_W) + SPLIT_GAP
+  }
+  return out
+}
+
 /** Whether a split's cards already sit side by side, in order, in one row of the same section, with room for its lip. */
 const together = (s: CanvasState, ids: number[]): boolean => {
   const cs = ids.map((id) => s.cards.find((c) => c.id === id))
@@ -87,8 +103,8 @@ const together = (s: CanvasState, ids: number[]): boolean => {
   // the card above it (or the section's title) is a lip's height away
   const home = s.frames.find((f) => f.id === first.frame)
   const above = s.cards
-    .filter((c) => c.frame === first.frame && !ids.includes(c.id) && c.y + CARD_H <= first.y + 0.5)
-    .map((c) => c.y + CARD_H)
+    .filter((c) => c.frame === first.frame && !ids.includes(c.id) && c.y + hOf(c) <= first.y + 0.5)
+    .map((c) => c.y + hOf(c))
   const top = above.length ? Math.max(...above) + GAP : home ? home.y + HEAD : first.y
   if (first.y - top < (above.length ? SPLIT_ROW_EXTRA : SPLIT_TOP_EXTRA) - 0.5) return false
   // the section is widened round it
@@ -97,20 +113,22 @@ const together = (s: CanvasState, ids: number[]): boolean => {
   const last = cs[cs.length - 1]!
   const others = s.cards.filter((c) => c.frame === first.frame && !ids.includes(c.id))
   if (others.some((c) => Math.abs(c.y - first.y) < 0.5 && c.x > last.x)) return false
-  const below = others.filter((c) => c.y >= first.y + CARD_H - 0.5).map((c) => c.y)
-  return !below.length || Math.min(...below) - (first.y + CARD_H) >= GAP + SPLIT_ROW_BELOW - 0.5
+  const bottom = first.y + Math.max(...cs.map((c) => hOf(c!)))
+  // nothing reaches into its row (a member grown taller than the row was laid out for)
+  if (others.some((c) => c.y < bottom - 0.5 && c.y + hOf(c) > first.y + 0.5)) return false
+  const below = others.filter((c) => c.y >= bottom - 0.5).map((c) => c.y)
+  return !below.length || Math.min(...below) - bottom >= GAP + SPLIT_ROW_BELOW - 0.5
 }
 
-const placed = (s: CanvasState, ids: number[], at: { x: number; y: number }): boolean =>
-  ids.every((id, i) => {
+const placed = (s: CanvasState, ids: number[], at: { x: number; y: number }): boolean => {
+  const xs = offsets(s, ids)
+  return ids.every((id, i) => {
     const c = s.cards.find((x) => x.id === id)
     return (
-      !!c &&
-      c.frame === null &&
-      Math.abs(c.x - (at.x + i * (CARD_W + SPLIT_GAP))) < 0.5 &&
-      Math.abs(c.y - at.y) < 0.5
+      !!c && c.frame === null && Math.abs(c.x - (at.x + xs[i])) < 0.5 && Math.abs(c.y - at.y) < 0.5
     )
   })
+}
 
 /**
  * Lay a split's cards side by side, loose on the board, starting where its first card is (`at` to start elsewhere),
@@ -137,9 +155,14 @@ export function arrangeSplit(
     return s.split?.length === ids.length && s.split.every((id, i) => id === ids[i])
       ? s
       : { ...s, split: ids }
+  const members = ids.map((id) => s.cards.find((c) => c.id === id))
+  const xs = offsets(s, ids)
   const size = {
-    w: ids.length * CARD_W + (ids.length - 1) * SPLIT_GAP + SPLIT_PAD * 2,
-    h: CARD_H + SPLIT_HEAD + SPLIT_PAD
+    w:
+      members.reduce((a, c) => a + (c ? wOf(c) : CARD_W), 0) +
+      (ids.length - 1) * SPLIT_GAP +
+      SPLIT_PAD * 2,
+    h: Math.max(...members.map((c) => (c ? hOf(c) : CARD_H))) + SPLIT_HEAD + SPLIT_PAD
   }
   const set = new Set(ids)
   const obstacles: Box[] = [
@@ -155,9 +178,7 @@ export function arrangeSplit(
     split: ids,
     cards: s.cards.map((c): CanvasCard => {
       const i = ids.indexOf(c.id)
-      return i < 0
-        ? c
-        : { ...c, frame: null, manual: true, x: origin.x + i * (CARD_W + SPLIT_GAP), y: origin.y }
+      return i < 0 ? c : { ...c, frame: null, manual: true, x: origin.x + xs[i], y: origin.y }
     })
   }
   for (const f of from) next = closeUp(next, f)

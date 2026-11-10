@@ -14,6 +14,8 @@ interface Props {
   ask: AskApi
   /** Whether AI is enabled for this canvas board. */
   enabled?: boolean
+  /** Whether AI is currently thinking/working on the board. */
+  busy?: boolean
   /** Open the dock and focus its input box. */
   onShow?: () => void
   /** Submit a message or query from the dock's input box. */
@@ -113,6 +115,7 @@ function Answer({
 export function AskDock({
   ask,
   enabled = true,
+  busy = false,
   onShow,
   onSubmit,
   mentionable = [],
@@ -126,6 +129,7 @@ export function AskDock({
   onResize,
   inputRef
 }: Props): React.JSX.Element {
+  const working = ask.streaming || busy
   const [draft, setDraft] = useState('')
   const [at, setAt] = useState<string | null>(null)
   const sendDraft = (): void => {
@@ -162,7 +166,7 @@ export function AskDock({
           <motion.button
             key="handle"
             type="button"
-            className="cv-dock-handle"
+            className={'cv-dock-handle ai-edge' + (working ? ' on' : '')}
             aria-label="Show the conversation"
             title="Ask AI"
             initial={{ opacity: 0, x: 12 }}
@@ -171,7 +175,7 @@ export function AskDock({
             onClick={() => (onShow ? onShow() : ask.show())}
           >
             Ask
-            {ask.streaming && <i className="cv-dock-dot" aria-hidden="true" />}
+            {working && <i className="cv-dock-dot" aria-hidden="true" />}
           </motion.button>
         )}
       </AnimatePresence>
@@ -443,7 +447,7 @@ export function AskDock({
               )}
               {/* the conversation's own box: the board's toolbar may be out of the way (a page is open) */}
               <form
-                className="cv-dock-input ai-edge"
+                className={'cv-dock-input ai-edge' + (working ? ' on' : '')}
                 onSubmit={(e) => {
                   e.preventDefault()
                   sendDraft()
@@ -464,7 +468,7 @@ export function AskDock({
                     setAt(m ? m[1].toLowerCase() : null)
                     const el = e.target
                     el.style.height = 'auto'
-                    el.style.height = `${Math.min(140, el.scrollHeight)}px`
+                    el.style.height = `${Math.min(168, el.scrollHeight)}px`
                   }}
                   onKeyDown={(e) => {
                     // the board's own keys (delete, tools) stay out of the text

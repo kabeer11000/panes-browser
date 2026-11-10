@@ -19,7 +19,6 @@ import {
   ExpandIcon,
   MiniPauseIcon,
   MiniPlayIcon,
-  PlayIcon,
   ReaderIcon,
   SnapshotIcon,
   TrashIcon
@@ -52,6 +51,12 @@ interface CardProps {
   onPlace?: (id: number, x: number, y: number) => void
   /** The card's on-screen width when its tab plays live on it (a tab stream), else 0. */
   live?: number
+  /** Reported aspect ratio of a live video stream on the card. */
+  onVideoAspect?: (id: number, aspect: number) => void
+  /** The last frame a live card showed, kept as its picture once the stream stops. */
+  onStill?: (id: number, src: string) => void
+  /** Its tab is in a call: the live picture is the whole page (all its people), not one video. */
+  call?: boolean
 }
 
 function PdfFace({
@@ -112,13 +117,11 @@ function PdfFace({
 function Face({
   m,
   lod,
-  cardAspect,
   onPdf,
   onLink
 }: {
   m: CardModel
   lod: boolean
-  cardAspect: number
   onPdf: CardProps['onPdf']
   onLink: CardProps['onLink']
 }): React.JSX.Element {
@@ -156,29 +159,13 @@ function Face({
         </div>
       )
     case 'video':
-      if (cardAspect < 1.15) {
-        return (
-          <div className="cv-video carded">
-            <div className="cv-video-stage">
-              {m.image && !lod ? <Img src={m.image} /> : null}
-              <span className="cv-play" aria-hidden="true">
-                <PlayIcon />
-              </span>
-            </div>
-            <div className="cv-doc-body">
-              {m.site ? <span className="cv-site">{m.site}</span> : null}
-              <h3>{m.title}</h3>
-            </div>
-          </div>
-        )
-      }
       return (
         <div className="cv-video">
-          {m.image && !lod ? <Img src={m.image} /> : null}
-          <span className="cv-play" aria-hidden="true">
-            <PlayIcon />
+          {(m.image || m.snap) && !lod ? <Img src={m.image ?? m.snap!} /> : null}
+          <span className="cv-hover-cap">
+            {m.title}
+            {m.site ? <small>{m.site}</small> : null}
           </span>
-          <span className="cv-cap">{m.title}</span>
         </div>
       )
     case 'answer':
@@ -335,7 +322,10 @@ export const CardView = memo(
     onView,
     onLink,
     onPlace,
-    live = 0
+    live = 0,
+    onVideoAspect,
+    onStill,
+    call = false
   }: CardProps): React.JSX.Element {
     const label = `${m.title}${m.site ? `, ${m.site}` : ''}${m.kind === 'pdf' ? ', PDF' : m.kind === 'image' ? ', image' : m.kind === 'video' ? ', video' : m.kind === 'answer' ? ', answer' : ''}${m.current ? ', current tab' : ''}`
     const cardAspect = w / h
@@ -362,14 +352,18 @@ export const CardView = memo(
         aria-pressed={selected}
         aria-label={label}
       >
-        <Face m={m} lod={lod} cardAspect={cardAspect} onPdf={onPdf} onLink={onLink} />
+        <Face m={m} lod={lod} onPdf={onPdf} onLink={onLink} />
         {live > 0 && m.isTab && (
           <LiveTab
+            key={call ? 'call' : 'video'}
+            whole={call}
             id={m.id}
             cardPx={live}
             cardAspect={cardAspect}
             site={m.site}
             title={m.title}
+            onAspect={onVideoAspect}
+            onStill={onStill}
           />
         )}
         {m.kind !== 'pending' && (
@@ -455,6 +449,9 @@ export const CardView = memo(
     a.onView === b.onView &&
     a.onPlace === b.onPlace &&
     a.onLink === b.onLink &&
+    a.onVideoAspect === b.onVideoAspect &&
+    a.onStill === b.onStill &&
+    a.call === b.call &&
     a.live === b.live &&
     sameModel(a.m, b.m)
 )

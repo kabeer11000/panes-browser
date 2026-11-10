@@ -10,6 +10,8 @@ import {
   clusterable,
   deleteFrame,
   dropCards,
+  fitVideoCards,
+  videoCardSize,
   emptyState,
   fitView,
   forDisk,
@@ -384,5 +386,25 @@ describe('saving', () => {
     const s2 = resetCardSize(s1, 1)
     expect(cardBox(s2.cards[0]).w).toBe(CARD_W)
     expect(cardBox(s2.cards[0]).h).toBe(CARD_H)
+  })
+  test('fitVideoCards fits videos to their shape, never a card sized by hand, and is stable', () => {
+    const s0 = tidy(emptyState('b1'), tabs(3), [{ name: 'Videos', ids: [1, 2, 3] }])
+    const aspect = ({ id }: { id: number }): number | null =>
+      id === 1 ? 16 / 9 : id === 2 ? 9 / 16 : null
+    const s1 = fitVideoCards(s0, aspect)
+    expect(cardBox(s1.cards.find((c) => c.id === 1)!)).toMatchObject(videoCardSize(16 / 9))
+    expect(cardBox(s1.cards.find((c) => c.id === 2)!)).toMatchObject(videoCardSize(9 / 16))
+    expect(s1.cards.find((c) => c.id === 3)!.w).toBeUndefined()
+    expect(fitVideoCards(s1, aspect)).toBe(s1)
+    // sized by hand: kept, even when the video's shape changes
+    const c1 = s1.cards.find((c) => c.id === 1)!
+    const s2 = resizeCard(s1, 1, { x: c1.x, y: c1.y, w: 400, h: 260 })
+    expect(fitVideoCards(s2, (c) => (c.id === 1 ? 4 / 3 : aspect(c)))).toBe(s2)
+    // reset: fitted again
+    const s3 = fitVideoCards(resetCardSize(s2, 1), aspect)
+    expect(cardBox(s3.cards.find((c) => c.id === 1)!)).toMatchObject(videoCardSize(16 / 9))
+    // a size set by hand outlives Arrange
+    const s4 = tidy(s2, tabs(3), [{ name: 'Videos', ids: [1, 2, 3] }])
+    expect(s4.cards.find((c) => c.id === 1)!.fit).toBe(false)
   })
 })

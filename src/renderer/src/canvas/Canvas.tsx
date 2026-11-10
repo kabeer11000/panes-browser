@@ -43,6 +43,7 @@ import {
   patchNote,
   placeCard,
   resetCardSize,
+  fitVideoCards,
   resizeCard,
   resizeNote,
   unsizeFrame,
@@ -113,6 +114,7 @@ import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
 import { CardView, FrameBar, FrameView, NoteView } from './Cards'
 import { pickStreams, streamCap } from '@shared/ai/tabStream'
+import { isCapturing } from '@shared/capture'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
 import { ExpandIcon, UnsplitIcon } from './icons'
@@ -493,8 +495,9 @@ export function Canvas({
   // first, then the most recent.
   const [heard, setHeard] = useState<number[]>([])
   const [forgot, setForgot] = useState<Set<number>>(new Set())
+  // a tab in a call (camera, microphone or screen in use) is listed like one playing, silent or not
   const audibleKey = tabs
-    .filter((t) => t.audible)
+    .filter((t) => t.audible || isCapturing(t.capture))
     .map((t) => t.id)
     .join(',')
   const [lastAudible, setLastAudible] = useState('')
@@ -513,7 +516,11 @@ export function Canvas({
     return heard
       .map((id) => live.get(id))
       .filter((t): t is TabInfo => !!t && !forgot.has(t.id))
-      .sort((a, b) => Number(b.audible && !b.muted) - Number(a.audible && !a.muted))
+      .sort(
+        (a, b) =>
+          Number(isCapturing(b.capture)) - Number(isCapturing(a.capture)) ||
+          Number(b.audible && !b.muted) - Number(a.audible && !a.muted)
+      )
   }, [tabs, heard, forgot])
   const [playList, setPlayList] = useState(false)
   const playBox = useRef<HTMLDivElement>(null)
@@ -530,15 +537,34 @@ export function Canvas({
     tabsRef.current = allTabs
   }, [allTabs])
   const byId = useMemo(() => new Map(allTabs.map((t) => [t.id, t])), [allTabs])
+  // Video cards take their video's shape: what its stream reports, 16:9 until then; never one sized by hand (see
+  // fitVideoCards). Applied with every change to the board, and when a stream reports a new shape.
+  const videoAspects = useRef<Record<number, number>>({})
+  const videoAspectOf = useCallback(
+    (c: { id: number; url: string }): number | null =>
+      videoAspects.current[c.id] ?? (kindOf(c.url) === 'video' ? 16 / 9 : null),
+    []
+  )
+  // the last frame each live card showed, by tab, with the address it was at (a page that moved on drops it)
+  const [stills, setStills] = useState<Record<number, { url: string; src: string }>>({})
+  const onStill = useCallback((id: number, src: string): void => {
+    const url = tabsRef.current.find((t) => t.id === id)?.url ?? ''
+    setStills((prev) => ({ ...prev, [id]: { url, src } }))
+  }, [])
   // Playing tabs play live on their cards (tab streams): on screen only, capped, never the tab open in the preview
-  // (its real page shows there), none zoomed out. Main keeps exactly these pages painting.
+  // (its real page shows there), none zoomed out. Main keeps exactly these pages painting. A paused one keeps the
+  // last frame it streamed (stills).
   const openTab = expanded
     ? isVirtual(expanded.id)
       ? (st?.items[String(expanded.id)]?.tab ?? null)
       : expanded.id
     : null
+  const calls = useMemo(
+    () => new Set(tabs.filter((t) => isCapturing(t.capture)).map((t) => t.id)),
+    [tabs]
+  )
   const streamKey = pickStreams({
-    tabs,
+    tabs: tabs.map((t) => ({ ...t, call: calls.has(t.id) })),
     onScreen,
     open: openTab,
     zoomedOut: lod,
@@ -636,12 +662,7 @@ export function Canvas({
     for (const c of s.cards) {
       const cw = c.w ?? CARD_W
       const ch = c.h ?? CARD_H
-      if (
-        c.x < view.x + view.w &&
-        c.x + cw > view.x &&
-        c.y < view.y + view.h &&
-        c.y + ch > view.y
-      )
+      if (c.x < view.x + view.w && c.x + cw > view.x && c.y < view.y + view.h && c.y + ch > view.y)
         next.add(c.id)
     }
     setVis((prev) => {
@@ -715,7 +736,7 @@ export function Canvas({
       const cur = stRef.current
       if (!cur) return false
       // sections hug what is in them after every change; connectors to what went go too
-      const next = pruneConnectors(fitFrames(fn(cur)))
+      const next = pruneConnectors(fitFrames(fitVideoCards(fn(cur), videoAspectOf)))
       if (next === cur) return false
       if (o.undo) record(o.undo, cur, o.merge)
       if (o.flip) pendingFlip.current = { before: positionsOf(cur, o.off), stagger: !!o.stagger }
@@ -724,7 +745,33 @@ export function Canvas({
       saveSoon()
       return true
     },
-    [saveSoon, record]
+    [saveSoon, record, videoAspectOf]
+  )
+
+  const onVideoAspect = useCallback(
+    (id: number, ar: number): void => {
+      const was = videoAspects.current[id]
+      if (was !== undefined && Math.abs(was - ar) < 0.03) return
+      videoAspects.current[id] = ar
+      edit((s) => s) // the change itself is the fit, in edit
+    },
+    [edit]
+  )
+  /** A card back to its natural size: its video's shape for a video, else the default (a click on its edge). */
+  const fitCardSize = useCallback(
+    (id: number): void => {
+      const s = stRef.current
+      const c = s?.cards.find((x) => x.id === id)
+      if (!s || !c) return
+      // already at it (the second click of a double click): no step to undo
+      const n = fitVideoCards(resetCardSize(s, id), videoAspectOf).cards.find((x) => x.id === id)
+      if (n && n.w === c.w && n.h === c.h && n.fit === c.fit) return
+      edit((s0) => resetCardSize(s0, id), {
+        flip: true,
+        undo: videoAspectOf(c) !== null ? 'Fitted video card' : 'Reset card size'
+      })
+    },
+    [edit, videoAspectOf]
   )
 
   const pushUndo = useCallback(
@@ -887,7 +934,7 @@ export function Canvas({
         edit((s) => tidy(s, lite(), res.groups, rearrange), {
           flip: true,
           stagger: true,
-          undo: 'Tidied the board'
+          undo: 'Arranged the board'
         })
         const next = stRef.current
         if (next) {
@@ -931,7 +978,7 @@ export function Canvas({
         : emptyState(boot)
       const had = s.frames.length > 0
       const synced = syncTabs(s, tabsNow)
-      s = pruneConnectors(synced.state)
+      s = fitVideoCards(pruneConnectors(synced.state), videoAspectOf)
       let firstNames: string[] = []
       if (!had) {
         const res = await window.api.canvas.cluster(spaceId)
@@ -1365,13 +1412,18 @@ export function Canvas({
     const { w, h } = size()
     if (boxes.length) vp.animateTo(fitView(boundsOf(boxes), w, h, 120, 1.2))
   }
-  const reveal = (b: Box): void => {
+  /** Bring `b` into sight if it is not; returns the view the board ends at (it glides there). */
+  const reveal = (b: Box): Viewport => {
     const { w, h } = size()
     const v = vp.get()
     const x = b.x * v.k + v.x
     const y = b.y * v.k + v.y
-    if (x < 40 || y < 40 || x + b.w * v.k > w - 40 || y + b.h * v.k > h - 120)
-      vp.animateTo(centerOn(b), 320)
+    if (x < 40 || y < 40 || x + b.w * v.k > w - 40 || y + b.h * v.k > h - 120) {
+      const to = centerOn(b)
+      vp.animateTo(to, 320)
+      return to
+    }
+    return v
   }
   const stepZoom = (f: number): void => {
     const { w, h } = size()
@@ -1824,8 +1876,7 @@ export function Canvas({
       const files = [...(e.clipboardData?.files ?? [])]
       const text = e.clipboardData?.getData('text/plain') ?? ''
       // cards held with Ctrl+C / Ctrl+X, or several addresses: see useBoardClip
-      if (files.length === 0 && boardClip.onPaste(text, pointOrMiddle()))
-        return e.preventDefault()
+      if (files.length === 0 && boardClip.onPaste(text, pointOrMiddle())) return e.preventDefault()
       if (files.length === 0 && !text.trim()) return
       e.preventDefault()
       void putRef.current(pointOrMiddle(), files.map(incomingRef.current), text)
@@ -2557,7 +2608,11 @@ export function Canvas({
     } else if (g.kind === 'cresize') {
       el.classList.remove('resizing')
       const box = g.box
-      if (!edit((s) => resizeCard(s, g.id, box), { undo: 'Resized a card' }) && g.el) {
+      // a click on the edge, not a drag: the card takes its natural size (a video its video's shape)
+      if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) < DRAG_PX) {
+        fitCardSize(g.id)
+        setSel(new Set([`c:${g.id}`]))
+      } else if (!edit((s) => resizeCard(s, g.id, box), { undo: 'Resized a card' }) && g.el) {
         const c = stRef.current?.cards.find((x) => x.id === g.id)
         if (c) {
           const cb = cardBox(c)
@@ -2742,7 +2797,11 @@ export function Canvas({
       kind === 'image'
         ? (local ?? (item?.file ? undefined : url))
         : kind === 'video'
-          ? (item?.image ?? c?.image ?? posterFor(url) ?? undefined)
+          ? ((tab && stills[tab.id]?.url === tab.url ? stills[tab.id].src : undefined) ??
+            item?.image ??
+            c?.image ??
+            posterFor(url) ??
+            undefined)
           : c?.image || item?.image || undefined
     return {
       ...base,
@@ -2871,8 +2930,7 @@ export function Canvas({
     const card = stRef.current?.cards.find((c) => c.id === want.id)
     if (!card) return // its card comes with the next sync of the tabs
     showTab.current = null
-    reveal(cardBox(card))
-    const v = vp.get()
+    const v = reveal(cardBox(card)) // the card's place once the board has glided to it
     setSel(new Set([`c:${card.id}`]))
     setExpanded({
       id: card.id,
@@ -2905,11 +2963,11 @@ export function Canvas({
       setNewAt({ sx: wx * v.k + v.x, sy: wy * v.k + v.y, wx, wy, fill: id })
       return
     }
-    // a page last looked at live opens live again
+    // a page last looked at live opens live again, and a call always does (its reader text is no use)
     const url = isVirtual(id) ? s.items[String(id)]?.url : byId.get(id)?.url
     setExpanded({
       id,
-      live: forceLive ?? (!!url && s.previews?.[url] === 'live'),
+      live: forceLive ?? (calls.has(id) || (!!url && s.previews?.[url] === 'live')),
       from: {
         x: card.x * v.k + v.x,
         y: card.y * v.k + v.y,
@@ -3208,7 +3266,7 @@ export function Canvas({
   useEffect(() => {
     const look = (): void =>
       void window.api.chatInfo().then((i) => {
-        chatReadyRef.current = !!i.target && !i.block
+        chatReadyRef.current = !!i.enabled && !!i.target && !i.block
         setChatReady(chatReadyRef.current)
       })
     look()
@@ -3292,9 +3350,9 @@ export function Canvas({
         return result
       }
       if (r.effect?.kind === 'tidy') {
-        pushUndo('AI: tidied the board')
+        pushUndo('AI: arranged the board')
         await runTidy(r.effect.all)
-        return done(r.said, 'Tidied the board by topic.')
+        return done(r.said, 'Arranged the board by topic.')
       }
       if (r.effect?.kind === 'arrange') {
         pushUndo(`AI: arranged by ${r.effect.by}`)
@@ -3433,21 +3491,24 @@ export function Canvas({
   const goToPlaying = (id: number): void => {
     const c = stRef.current?.cards.find((x) => x.id === id)
     if (!c) return
+    if (calls.has(id)) return expandRef.current(id, true) // a call: straight into it
     reveal(cardBox(c))
     setSel(new Set([`c:${c.id}`]))
     window.setTimeout(() => pulse(root.current?.querySelector(`[data-cid="${c.id}"]`) ?? null), 380)
   }
 
-  // AI off is not a dead end: finding by words and grouping by site still work, and one button turns AI on
+  // AI off or unconfigured is not a dead end: finding by words and grouping by site still work, and one button turns AI on
   const [aiOff, setAiOff] = useState(false)
   useEffect(() => {
     const ask = (): void => void window.api.chatInfo().then((i) => setAiOff(!i.enabled))
     ask()
     return window.api.onChatChanged(ask)
   }, [])
+  const aiAvailable = !aiOff && chatReady && !privateWin
   useEffect(() => {
-    if ((aiOff || privateWin) && asker.open) asker.close()
-  }, [aiOff, privateWin, asker])
+    if (!aiAvailable && asker.open) asker.close()
+  }, [aiAvailable, asker])
+
   const firstMsRef = useRef<number | null>(null)
   useEffect(() => {
     firstMsRef.current = finder.firstMs
@@ -4031,18 +4092,18 @@ export function Canvas({
             if (act === 'ask') ask()
             else if (act === 'note') {
               for (const cid of selCards) if (!isPriv(cid)) void placeAs(cid, 'note')
-            } else if (act === 'split') void joinOnBoard(selCards[0], { id: selCards[1], edge: 'left' })
+            } else if (act === 'split')
+              void joinOnBoard(selCards[0], { id: selCards[1], edge: 'left' })
             else if (act === 'group') moveCards(selCards, 'new')
             else if (act.startsWith('move:')) moveCards(selCards, act.slice(5))
             else if (act === 'tidy') {
               edit(
                 (cur) =>
                   framesOf.reduce(
-                    (s, fid) =>
-                      regridFrame(s, fid, !!s.frames.find((x) => x.id === fid)?.sized),
+                    (s, fid) => regridFrame(s, fid, !!s.frames.find((x) => x.id === fid)?.sized),
                     cur
                   ),
-                { flip: true, undo: 'Tidied sections' }
+                { flip: true, undo: 'Arranged sections' }
               )
             } else if (act === 'fit') fitSelection()
             else if (act === 'close') closeCards(selCards)
@@ -4081,12 +4142,14 @@ export function Canvas({
           canDocument: !!item && (item.kind === 'page' || (item.kind === 'answer' && !!item.url)),
           link: web,
           section: card?.frame ?? null,
-          sections
+          sections,
+          split: splitRef.current.includes(id)
         }),
         (act) => {
           if (act === 'open') expandRef.current(id, false)
           else if (act === 'live') expandRef.current(id, true)
           else if (act === 'pop') leaveRef.current(id)
+          else if (act === 'unsplit') window.api.unsplit()
           else if (act === 'play')
             void window.api.mediaPlay?.(m.id, m.audible ? 'pause' : 'play').catch(() => undefined)
           else if (act === 'mute') window.api.toggleMute(m.id)
@@ -4158,7 +4221,9 @@ export function Canvas({
                 ids.reduce((n, i) => {
                   const cur = marksOf(n).find((x) => x.id === i)
                   const p: MarkPatch =
-                    cur && isShape(cur.kind) && cur.fill === -1 ? { color: c, fill: c } : { color: c }
+                    cur && isShape(cur.kind) && cur.fill === -1
+                      ? { color: c, fill: c }
+                      : { color: c }
                   return patchMark(n, i, p)
                 }, s1),
               { undo: 'Restyled' }
@@ -4196,7 +4261,7 @@ export function Canvas({
             const v = act.slice(6)
             onFrameColor(f.id, v === 'none' ? null : Number(v))
           } else if (act === 'tidy')
-            edit((s1) => regridFrame(s1, f.id, !!f.sized), { flip: true, undo: 'Tidied a section' })
+            edit((s1) => regridFrame(s1, f.id, !!f.sized), { flip: true, undo: 'Arranged a section' })
           else if (act === 'shrink')
             edit((s1) => unsizeFrame(s1, f.id), { flip: true, undo: 'Fitted a section' })
           else if (act === 'ungroup')
@@ -4236,6 +4301,7 @@ export function Canvas({
           setEditing(made.id)
         } else if (act === 'paste') void boardClip.pasteAt(w)
         else if (act === 'tidy') void runTidy(false)
+        else if (act === 'settings') window.api.openInternal('settings')
         else if (act === 'fit') fitAll()
         else if (act === 'all') {
           const cur = stRef.current
@@ -4337,18 +4403,25 @@ export function Canvas({
       shape('bubble', 'Speech bubble'),
       {
         id: 'tidy',
-        label: 'Tidy',
-        also: 'arrange rearrange sort group reset',
+        label: 'Arrange by topic',
+        also: 'tidy rearrange sort group reset',
         keys: 'Shift+T',
         run: () => void runTidy(false)
       },
       { id: 'ask', label: 'Ask', also: 'question chat ai', keys: '', run: () => askInDock() },
       {
+        id: 'settings',
+        label: 'Settings',
+        also: 'preferences options',
+        keys: '',
+        run: () => window.api.openInternal('settings')
+      },
+      {
         id: 'find',
         label: 'Find',
         also: 'search',
         run: () => {
-          if (aiOff || privateWin) promptRef.current?.focus()
+          if (!aiAvailable) promptRef.current?.focus()
           else askInDock()
         }
       },
@@ -4463,14 +4536,7 @@ export function Canvas({
         const crz = t.closest<HTMLElement>('[data-crz]')
         if (crz?.dataset.crzc) {
           const cid = Number(crz.dataset.crzc)
-          const c = stRef.current?.cards.find((x) => x.id === cid)
-          const m = modelForRef.current({ id: cid })
-          const isVid = m?.kind === 'video' || streams.has(cid)
-          const wantVid = isVid && (c?.w ?? CARD_W) === CARD_W && (c?.h ?? CARD_H) === CARD_H
-          edit(
-            (s0) => resetCardSize(s0, cid, wantVid ? { w: 320, h: 180 } : undefined),
-            { flip: true, undo: wantVid ? 'Fitted video card' : 'Reset card size' }
-          )
+          fitCardSize(cid)
           return
         }
         const rz = t.closest<HTMLElement>('[data-rz]')
@@ -4611,11 +4677,12 @@ export function Canvas({
               onView={onCardView}
               onLink={onCardLink}
               onPlace={onPlace}
+              onVideoAspect={onVideoAspect}
+              onStill={onStill}
               live={
-                streams.has(c.id)
-                  ? Math.max(40, Math.round((cw * zoomPct) / 100 / 40) * 40)
-                  : 0
+                streams.has(c.id) ? Math.max(40, Math.round((cw * zoomPct) / 100 / 40) * 40) : 0
               }
+              call={calls.has(c.id)}
             />
           )
         })}
@@ -4761,7 +4828,7 @@ export function Canvas({
       {cmdOpen && (
         <CommandMenu
           commands={commands}
-          canAsk={chatReady && !privateWin}
+          canAsk={aiAvailable}
           onAsk={(q) => asker.ask(q)}
           onFind={(q) => {
             asker.close()
@@ -4836,6 +4903,13 @@ export function Canvas({
           file={st?.items[String(expanded.id)]?.file}
           reduced={reduced}
           answerLinks={(href) => finder.openLink(href)}
+          cardBox={() => {
+            const c = stRef.current?.cards.find((x) => x.id === expanded.id)
+            if (!c) return null
+            const v = vp.get()
+            const b = cardBox(c)
+            return { x: b.x * v.k + v.x, y: b.y * v.k + v.y, w: b.w * v.k, h: b.h * v.k }
+          }}
           onClose={() => setExpanded(null)}
           onGoToTab={() => goToTab(expanded.id)}
           onTab={(tabId) => {
@@ -4857,7 +4931,9 @@ export function Canvas({
           title={ctx.title}
           items={ctx.items}
           avoid={
-            asker.open ? [{ x: Math.max(0, stage.w - dockShown), y: 0, w: dockShown, h: stage.h }] : []
+            asker.open
+              ? [{ x: Math.max(0, stage.w - dockShown), y: 0, w: dockShown, h: stage.h }]
+              : []
           }
           onPick={ctx.onPick}
           onClose={closeContext}
@@ -4865,7 +4941,8 @@ export function Canvas({
       )}
       <AskDock
         ask={asker}
-        enabled={!aiOff && !privateWin}
+        enabled={aiAvailable}
+        busy={asker.streaming || finder.busy || busy}
         onShow={askInDock}
         onSubmit={onPrompt}
         mentionable={allTabs
@@ -4922,7 +4999,7 @@ export function Canvas({
         busy={busy}
         finding={finder.busy || asker.streaming}
         asking={asker.open}
-        showPrompt={aiOff || privateWin}
+        showPrompt={!aiAvailable}
         promptRef={promptRef}
         shapeKind={shapeKind}
         onShapeKind={setShapeKind}
@@ -4934,6 +5011,7 @@ export function Canvas({
         onPrompt={onPrompt}
         onTool={setToolBoth}
         onTidy={() => void runTidy(false)}
+        onSettings={() => window.api.openInternal('settings')}
         onFit={fitAll}
         onZoom={stepZoom}
       />

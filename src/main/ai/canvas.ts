@@ -316,7 +316,7 @@ export function registerCanvas(d: {
   const svc = new CanvasService(d)
   canvasBridge.win = d.win
   canvasBridge.allowed = () => d.tabs.activeKind() === 'normal'
-  registerCanvasExport(d.win, () => d.tabs.activeKind() === 'normal')
+  registerCanvasExport(d.win, () => d.tabs.activeKind() === 'normal', d.downloads, d.settings)
   const mine = (e: { sender: unknown }): boolean => e.sender === d.win.webContents
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : -1)
   const ids = (v: unknown): number[] =>
@@ -325,8 +325,17 @@ export function registerCanvas(d: {
   ipcMain.on('canvas:save', (e, spaceId: unknown, state: unknown) => {
     if (mine(e)) svc.save(num(spaceId), state)
   })
+  // Boards up. On a space switch the new board can open before the old one has closed (its exit still
+  // running): canvas mode follows whether any board is up, so the old board's late close does not end the new one's.
+  let boards = 0
+  // the interface reloaded (or crashed) with a board up: that board never says it closed
+  d.win.webContents.on('did-start-loading', () => {
+    boards = 0
+    d.tabs.setCanvasMode(false)
+  })
   ipcMain.on('canvas:open', (e, spaceId: unknown) => {
     if (!mine(e)) return
+    boards++
     d.tabs.setCanvasMode(true)
     // after the board's entrance: captures are GPU read-backs and would cost it frames
     setTimeout(() => void svc.refreshThumbs(num(spaceId)), 700)
@@ -347,7 +356,8 @@ export function registerCanvas(d: {
   ipcMain.on('canvas:close', (e, spaceId: unknown) => {
     if (!mine(e)) return
     svc.inView(num(spaceId), [])
-    d.tabs.setCanvasMode(false)
+    boards = Math.max(0, boards - 1)
+    d.tabs.setCanvasMode(boards > 0)
     svc.cacheThumbs(num(spaceId))
   })
   ipcMain.handle('canvas:cluster', (e, spaceId: unknown) =>
