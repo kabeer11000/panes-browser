@@ -134,6 +134,12 @@ function Face({
         <div className="cv-private" aria-hidden="true">
           {m.tor ? <TorIcon /> : <IncognitoIcon />}
           <span>{m.tor ? 'Tor tab' : 'Private tab'}</span>
+          {(m.title || m.site) && (
+            <span className="cv-private-what">
+              {m.title && !/^(Private|Tor) tab$/.test(m.title) && <b>{m.title}</b>}
+              {m.site && <small>{m.site}</small>}
+            </span>
+          )}
         </div>
       )
     case 'pdf':

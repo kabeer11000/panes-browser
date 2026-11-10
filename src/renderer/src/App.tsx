@@ -330,7 +330,8 @@ function App(): React.JSX.Element {
 
   const toggleCanvas = useCallback(() => {
     if (modeRef.current === 'canvas') window.dispatchEvent(new Event('panes:canvas-exit'))
-    else if (modeRef.current === null) void openOverlay('canvas')
+    // from nothing, or from another overlay (the address popover a new tab opens, the overview): to the board
+    else void openOverlay('canvas')
   }, [openOverlay])
 
   const nudgeStack = useCallback(

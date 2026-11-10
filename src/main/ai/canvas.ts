@@ -315,8 +315,8 @@ export function registerCanvas(d: {
 }): CanvasService {
   const svc = new CanvasService(d)
   canvasBridge.win = d.win
-  canvasBridge.allowed = () => d.tabs.activeKind() === 'normal'
-  registerCanvasExport(d.win, () => d.tabs.activeKind() === 'normal', d.downloads, d.settings)
+  canvasBridge.allowed = () => d.tabs.boardKind() === 'normal'
+  registerCanvasExport(d.win, () => d.tabs.boardKind() === 'normal', d.downloads, d.settings)
   const mine = (e: { sender: unknown }): boolean => e.sender === d.win.webContents
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : -1)
   const ids = (v: unknown): number[] =>
@@ -418,7 +418,7 @@ export function registerCanvas(d: {
   // a file dropped or pasted onto the board: kept as a copy, never for a private or Tor window
   ipcMain.handle('canvas:store', (e, req: unknown) => {
     const r = (req ?? {}) as { path?: unknown; name?: unknown; data?: unknown }
-    if (!mine(e) || d.tabs.activeKind() !== 'normal') return null
+    if (!mine(e) || d.tabs.boardKind() !== 'normal') return null
     return d.content.store({
       path: typeof r.path === 'string' ? r.path : undefined,
       name: typeof r.name === 'string' ? r.name : undefined,
@@ -517,7 +517,7 @@ export function registerCanvas(d: {
     const wc = mine(e) && typeof tabId === 'number' ? d.tabs.contentsOf(tabId) : null
     const page = typeof tabId === 'number' ? d.tabs.pageFor(tabId) : null
     // never a picture of a private or Tor page, whichever tab is active
-    if (!wc || d.tabs.activeKind() !== 'normal' || !page || page.private || page.tor) return null
+    if (!wc || d.tabs.boardKind() !== 'normal' || !page || page.private || page.tor) return null
     try {
       const img = await wc.capturePage()
       if (img.isEmpty()) return null
@@ -533,7 +533,8 @@ export function registerCanvas(d: {
   // and Tor (the reader never reads them, and nothing is asked of a model in such a window).
   ipcMain.handle('canvas:summarize', async (e, req: unknown) => {
     const r = (req ?? {}) as { tab?: unknown; url?: unknown }
-    if (!mine(e) || d.tabs.activeKind() !== 'normal') return null
+    const asked = typeof r.tab === 'number' ? d.tabs.pageFor(r.tab) : null
+    if (!mine(e) || d.tabs.boardKind() !== 'normal' || asked?.private || asked?.tor) return null
     const doc = await content.reader({
       tab: typeof r.tab === 'number' ? r.tab : undefined,
       url: typeof r.url === 'string' ? r.url : undefined
@@ -550,7 +551,7 @@ export function registerCanvas(d: {
   })
   ipcMain.handle('canvas:placement', async (e, req: unknown) => {
     const r = (req ?? {}) as { url?: unknown; title?: unknown; text?: unknown }
-    if (!mine(e) || d.tabs.activeKind() !== 'normal' || typeof r.url !== 'string') return null
+    if (!mine(e) || d.tabs.boardKind() !== 'normal' || typeof r.url !== 'string') return null
     return svc.placement(
       r.url.slice(0, 300),
       String(r.title ?? '').slice(0, 160),

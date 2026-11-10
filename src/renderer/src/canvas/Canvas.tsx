@@ -2889,7 +2889,14 @@ export function Canvas({
     }
     if (virtual && !item) return { ...base, kind: 'pending' }
     if (tab && (tab.private || tab.tor)) {
-      return { ...base, kind: 'private', tor: tab.tor, title: 'Private tab' }
+      // its own title and site, on this screen only: never saved, never given to a model, never in an export
+      return {
+        ...base,
+        kind: 'private',
+        tor: tab.tor,
+        title: tab.title || (tab.tor ? 'Tor tab' : 'Private tab'),
+        site: tab.url ? displayHost(tab.url) : ''
+      }
     }
     const url = item?.url ?? tab?.url ?? ''
     const c = tab ? contents[tab.id] : undefined
@@ -3306,8 +3313,15 @@ export function Canvas({
       }),
     [sel, st]
   )
+  // private while a private or Tor page is the one open in the preview (not because the tab view's tab behind the
+  // board is one): AI and saved conversations step aside for it
   const privateWin = (() => {
-    const a = allTabs.find((t) => t.id === activeId)
+    const open = expanded
+      ? isVirtual(expanded.id)
+        ? (st?.items[String(expanded.id)]?.tab ?? null)
+        : expanded.id
+      : null
+    const a = open === null ? undefined : allTabs.find((t) => t.id === open)
     return !!a && (a.private || a.tor)
   })()
   const asker = useAsk({

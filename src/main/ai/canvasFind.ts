@@ -152,7 +152,7 @@ export class CanvasFinder {
     }
     try {
       const tabs = this.d.tabs.canvasTabs(req.spaceId)
-      const kind = this.d.tabs.activeKind()
+      const kind = this.d.tabs.boardKind()
       const guess = guessIntent(req.query)
       // a private or Tor window: the open tabs, by words, and that is all
       if (kind !== 'normal') {

@@ -238,6 +238,16 @@ export class TabManager {
     return kindOf(this.current())
   }
 
+  /**
+   * What the canvas board works with: while it is up, the page open in its preview (private, Tor or normal), else
+   * normal: a private tab left active in the tab view behind the board does not make the whole board private. Out
+   * of the board, the active tab's kind.
+   */
+  boardKind(): TabKind {
+    if (!this.canvasMode) return this.activeKind()
+    return this.previewOpen ? kindOf(this.pageTab()) : 'normal'
+  }
+
   /** A loaded tab's page, without bringing it on screen (null for an unloaded or closed tab). */
   /**
    * A download began in a page. A tab that never showed a page of its own (opened just for that link or address) has
