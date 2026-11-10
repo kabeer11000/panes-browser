@@ -51,3 +51,12 @@ the repo's own node_modules sits above `dist/win-unpacked`, and Node found it th
 - Small models copy the surface form of prompt examples: prose like "scroll_to with target X" came back as that text,
   and `<tool_call>` examples got the request lines echoed. Worked turns as real messages (LOCAL_EXAMPLES) are the
   form that holds.
+
+## Native view state: ask main, not the page (2026-11-10)
+
+- `document.visibilityState` of a tab page is no proof it is on screen: a page with background throttling off reports
+  "visible" while hidden or parked. Read the truth from main: start dev with `-- --inspect <port>` and list
+  `BrowserWindow.getAllWindows()[0].contentView.children` (getVisible, getBounds, webContents URL; last child is on
+  top). That showed the canvas preview parked at x=-20000 in one call, after reading code had found nothing.
+- Keyed React remounts (a board per space) can deliver the new instance's "open" before the old one's "close" (exit
+  animations). A main-side on/off flag driven by such pairs must count, not toggle, or the late close wins.

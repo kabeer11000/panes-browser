@@ -254,3 +254,66 @@ visible, safe, quick and recovers by itself. Test against the local Qwen and fix
 - [ ] Speed: wait for the page to go quiet instead of fixed sleeps
 - [ ] Visible: an agent cursor glides to the control and ripples on click (the ring stays)
 - [ ] Tests on stubbed pages; a fixture page driven over CDP
+
+# beta.14: canvas polish, restart feel, RAM (plan, awaiting go-ahead)
+
+## Review of the Gemini diff (uncommitted, 8 files)
+
+Keep: AI-off/unconfigured gating (`aiAvailable`), busy ring on the dock, video face without fake play icon.
+Rewrite:
+- [ ] `streamExtra` streams every video tab on screen even when paused: each one is a painting, unthrottled page plus a capture. Stream only playing tabs; paused ones keep their last frame (capture once on pause, already done via `media-paused` -> `captureHidden`).
+- [ ] LiveTab captures at least 960 px wide whatever the card size: back to `captureWidth(cardPx, dpr)`.
+- [ ] `streamSource` setTimeout(invalidate, 60): hack to force a first frame; replace with one `invalidate()` when streaming starts in `setStreaming`.
+- [ ] Video auto-fit effect: runs on every board change, `manuallySized` is a ref (lost on reload, so a resized video card snaps back), and the size math is copied in two places. Store "fitted" on the card (or only fit cards that still have the default size), one `videoCardSize(ar)` helper in shared/ai/canvas.ts with a test.
+- [ ] `VIDEO_RECT_SCRIPT` now accepts paused videos: a paused hover-preview or ad video elsewhere on the page wins when nothing plays, so the card crops page content. Require visible + reasonably large (>= 25% of viewport area or the largest), ignore opacity 0 / hidden.
+
+## Bugs
+
+- [ ] Live video card shows page contents: the crop comes from a rect polled every REGION_MS; between polls the player moves (scroll, theater, reflow when the hidden view is resized to 800x600 min), and the stream turns `on` at first frame before a fresh rect. Fix: show the stream only with a rect newer than the stream start; drop to the picture when the rect is null or jumps; give the hidden streamed view the tab's real page size so the player does not reflow.
+- [ ] Preview shows only the blurred picture after switching space / tab mode: board remounts per space and main resets canvas mode; reproduce first (scratch profile), then fix where the live view loses its place (suspects: `setLive` only re-adds the view to the window when the id changes, settle/awaiting gating in `applyVisibility`, the 7 s `liveReady` wait).
+
+## Canvas UI
+
+- [ ] Ask dock looks like the tab-view chat panel: reuse the chat panel's message/composer styles (components/chat/chat.css) instead of the dock's own; keep canvas-only bits (mentions, add to board).
+- [ ] Unsplit from the canvas: split tabs get an "Unsplit" item in the card context menu (and the preview's bar), calling the same unsplit the tab view uses.
+- [ ] Tidy: rename to "Arrange" with the tooltip "Tidy the board: group cards into sections by topic (your own sections stay)"; icon only in the bar.
+- [ ] Bottom toolbar calmer (now ~15 controls): Select, Hand, Note, Text, Shape (menu), Draw (menu: pen, highlighter, line, connector), Frame, Block (menu) | Arrange | zoom pill. All letter shortcuts unchanged.
+- [ ] Consistency pass: canvas context menus vs the app's (item height, padding, radius, shortcut hints, separators, disabled), canvas easings/durations vs styles.css tokens; fix mismatches, remove any emoji found.
+
+## Restart feel and RAM
+
+- [ ] Default startup to `restore` for new installs (now `newtab`: a restart loses every tab unless changed in settings).
+- [ ] Save and restore per space: split layouts, last active tab, active space, canvas mode (open the board again if it was open).
+- [ ] Restore each tab's back/forward history (`navigationHistory.restore`) when it is first loaded.
+- [ ] Restored tabs not yet loaded show their last picture (canvas already caches thumbs) instead of a placeholder.
+- [ ] Measure with scripts/perf-report.ts before/after: idle RAM with 20 restored tabs, cold start to first paint.
+- [ ] AI: config already sound (lazy start, idle unload 5/15 min, 1 slot, -fa, GPU offload, no warm at startup); no change.
+
+## Check list before release
+
+- [ ] bun test, typecheck, lint
+- [ ] Canvas: open/close (Ctrl+Shift+K), space switch with preview open, tab mode switch with preview open, preview of a video card, play/pause on card, resize video card then reload, unsplit, Arrange, toolbar menus open/close (Esc, click outside), context menu on card/frame/empty board, Ask dock open/close/send/streaming, AI off state
+- [ ] Tab view: chat panel still fine, split/unsplit, context menu
+- [ ] Quit and reopen: tabs, splits, active tab per space, active space, canvas reopened, back history works, only the active tab loaded (RAM)
+- [ ] Packaged build started from a copy outside the repo with a fresh PANES_USERDATA (lessons.md)
+- [ ] Release: commit per change with Notes: trailers, then `bun run release:win prerelease` (needs your go)
+
+## beta.14 review (2026-11-10)
+
+Done and checked in a scratch dev instance (CDP + main-process inspector), tests 1058 pass, typecheck clean:
+- [x] Preview showed only the blurred picture after a space switch. Root cause: the new board's `canvas:open` came before the old board's `canvas:close`, so canvas mode ended under the open board and main parked the page off-screen. Main now counts open boards (main/ai/canvas.ts) and resets on a UI reload. Verified: live view SHOWN at the slot after switches, preview closed or left open.
+- [x] Old live page left unthrottled after a switch with the preview open (setCanvasMode bypassed setLive).
+- [x] Video cards: only playing tabs stream; paused ones keep their last cropped frame (LiveTab still grab), stream shows only with a crop asked after it began; capture sized to the card again; Gemini hacks removed.
+- [x] Video card size: fitted to the video's shape unless sized by hand (`fit` on the card, saved), click on the edge fits, title on hover only.
+- [x] Toolbar: Draw menu, Arrange (was Tidy), Settings gear; Settings in board menu and command menu; shape submenu renamed Order.
+- [x] Unsplit in a split card's menu.
+- [x] Ask dock matches the tab view's chat panel; orb removed.
+- [x] Calls: a tab using camera/mic/screen streams first (whole page), is listed in the playing pill, opens live, and is never unloaded by the memory saver (it was before, which would hang up a silent call).
+- [x] Restore: default startup is restore (new installs; existing settings files keep their value), split views and last tab per space, back/forward history per tab (also kept across memory unloads).
+- [x] Canvas mode: memory saver and loading count only what is on screen (preview, live cards), not the tab view's tab; leaving the board reloads it.
+- [x] AI: GPU start that is slow but alive is no longer marked failed; the CPU-only verdict expires after 7 days (this machine was stuck on CPU though Vulkan starts in 2 s).
+- [x] Board exports go to the download folder and are listed in Downloads.
+- [x] Preview opened by a new tab grows from and closes back to its card.
+- [x] Canvas CSS hover/fade durations use --dur-fast (reduced motion respected).
+
+Not verified: a real video call (needs camera permission), packaged build on a clean machine, the user's own profile.
