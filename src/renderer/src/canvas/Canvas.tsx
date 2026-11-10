@@ -437,6 +437,8 @@ export function Canvas({
   } | null>(null)
   const closeContext = useCallback(() => setCtx(null), [])
   // `live`: open straight onto the live page (something the assistant just opened for the person)
+  // the open preview covers its card (it has grown over it): only then is the card hidden, so the two cross-fade
+  const [expandedCovers, setExpandedCovers] = useState(false)
   const [expanded, setExpanded] = useState<{
     id: number
     from: ExpandSource['from']
@@ -3316,9 +3318,11 @@ export function Canvas({
         [],
         2500
       )
+      // background to look things up in, not news to report: a small model given counts and lists recites them
+      // ("the user has 5 tabs about ..."), so it gets no counts, no "nothing is selected", and is told how to use it
       const context = [
-        `On your canvas board right now:\n${board || 'Nothing yet.'}`,
-        `Your open tabs (${open.length}):\n${
+        `On your canvas board right now:\n${board.replace(/\n?Nothing is selected\.$/, '') || 'Nothing yet.'}`,
+        `Your open tabs:\n${
           open
             .slice(0, 40)
             .map(
@@ -3338,6 +3342,9 @@ export function Canvas({
           )
       }
       if (lines.length) context.push(`Cards you have selected on the board:\n${lines.join('\n')}`)
+      context.push(
+        'Use the above only to look things up. Answer the question itself, briefly, talking to the person as "you". Do not describe, list or count the board or the tabs unless that is what was asked.'
+      )
       return context.join('\n\n')
     }
   })
@@ -4830,7 +4837,7 @@ export function Canvas({
               selected={sel.has(`c:${c.id}`)}
               fresh={fresh.has(c.id)}
               lod={lod}
-              hidden={expanded?.id === c.id}
+              hidden={expanded?.id === c.id && expandedCovers}
               rank={ranks.get(c.id) ?? 0}
               onClose={onClose}
               onExpand={onExpand}
@@ -5116,7 +5123,11 @@ export function Canvas({
               ? splitIds.map((id) => ({ tab: id, snap: thumbs[id] }))
               : undefined
           }
-          onClose={() => setExpanded(null)}
+          onCover={setExpandedCovers}
+          onClose={() => {
+            setExpandedCovers(false)
+            setExpanded(null)
+          }}
           onGoToTab={() => goToTab(expanded.id)}
           onTab={(tabId) => {
             const it = st?.items[String(expanded.id)]

@@ -64,7 +64,6 @@
 }
 .cv-dock-head button,
 .cv-dock-acts button,
-.cv-dock-status button,
 .cv-dock-queue-head button {
   height: 26px;
   padding: 0 9px;
@@ -76,7 +75,6 @@
 }
 .cv-dock-head button:hover:not(:disabled),
 .cv-dock-acts button:hover,
-.cv-dock-status button:hover,
 .cv-dock-queue-head button:hover {
   background: var(--surface-hover);
   color: var(--fg);
@@ -235,23 +233,6 @@
   flex-direction: column;
   gap: 6px;
   padding: 4px 12px 12px;
-}
-.cv-dock-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 4px 4px 10px;
-  border-radius: 10px;
-  background: var(--surface);
-  font-size: 12px;
-  color: var(--fg-dim);
-}
-.cv-dock-status span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .cv-dock-dot {
   display: inline-block;
@@ -421,6 +402,14 @@
 .cv-dock-send:disabled {
   opacity: 0.3;
 }
+.cv-dock-send.stop {
+  background: var(--surface-active);
+  color: var(--fg);
+}
+.cv-dock-working {
+  padding: 6px 2px 2px;
+  font-size: 13px;
+}
 .cv-dock-send:not(:disabled):hover {
   filter: brightness(1.1);
 }
@@ -506,36 +495,4 @@
 .cv-dock-dot,
 .cv-prompt-dot {
   display: none !important;
-}
-.cv-dock-status > span,
-.cv-dock-status > :not(button):not(i) {
-  background: linear-gradient(
-      90deg,
-      var(--fg-dim) 0%,
-      var(--fg-dim) 40%,
-      var(--fg) 50%,
-      var(--fg-dim) 60%,
-      var(--fg-dim) 100%
-    )
-    0 0 / 300% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: cv-shimmer-text 1.8s linear infinite;
-}
-@keyframes cv-shimmer-text {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0% 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cv-dock-status > span,
-  .cv-dock-status > :not(button):not(i) {
-    animation: none;
-    color: var(--fg-dim);
-    background: none;
-  }
 }

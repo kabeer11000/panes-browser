@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { cpuOnlyHolds, CPU_ONLY_DAYS, MODELS, RUNTIME_BUILDS, runtimeBuildsFor } from './models'
+import {
+  cpuOnlyHolds,
+  CPU_ONLY_DAYS,
+  MODELS,
+  RUNTIME_BUILDS,
+  runtimeBuildsFor,
+  slowForLocal
+} from './models'
 
 const all = [...RUNTIME_BUILDS, ...Object.values(MODELS)]
 
@@ -43,5 +50,15 @@ describe('cpuOnlyHolds', () => {
     expect(cpuOnlyHolds({ cpuOnly: false, at: now }, now)).toBe(false)
     expect(cpuOnlyHolds(null, now)).toBe(false)
     expect(cpuOnlyHolds({ cpuOnly: true, at: now + day }, now)).toBe(false) // a clock set back
+  })
+})
+
+describe('slowForLocal', () => {
+  const GB = 2 ** 30
+  test('under 8 GB or fewer than 4 threads is slow; an ordinary laptop is not', () => {
+    expect(slowForLocal(4 * GB, 8)).toBe(true)
+    expect(slowForLocal(16 * GB, 2)).toBe(true)
+    expect(slowForLocal(8 * GB, 8)).toBe(false)
+    expect(slowForLocal(7.8 * GB, 4)).toBe(false) // 8 GB as the system reports it
   })
 })

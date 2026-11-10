@@ -171,6 +171,8 @@ export interface AiStatus {
   installBytes: number
   /** The runtime flavour in use: GPU (Vulkan) or CPU. Null before the first start. */
   accel: 'gpu' | 'cpu' | null
+  /** This computer is on the slow side for the local model (see slowForLocal): a short note says so. */
+  slowDevice?: boolean
   /** The last failure, for a retry prompt. */
   error: string | null
   keys: AiKeyInfo[]

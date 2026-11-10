@@ -13,6 +13,8 @@ import { ChatService } from './chat'
 import { KeyStore } from './providers'
 import { checkGeminiKey, SignIn } from './signin'
 import { AiRouter } from './router'
+import { totalmem, availableParallelism } from 'os'
+import { slowForLocal } from '@shared/ai/models'
 import { aiRoot, defaultModelsDir, dirSize, LocalRuntime } from './runtime'
 import { CanvasContent } from './canvasContent'
 import { webSearch } from './canvasFind'
@@ -157,7 +159,8 @@ export function registerAi(d: {
       signIn: signin.status,
       chatgptLimited: signin.limited,
       chatgptReauth: signin.reauth,
-      dataBytes: size.bytes
+      dataBytes: size.bytes,
+      slowDevice: slowForLocal(totalmem(), availableParallelism())
     }
   }
   runtime.onChange(() => {

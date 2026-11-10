@@ -130,7 +130,7 @@ function describe(
   return {
     tone: 'ok',
     label: 'Local model ready',
-    hint: `Running ${accel}. Nothing leaves this computer.`
+    hint: `Running ${accel}. Nothing leaves this computer.${st.slowDevice ? ' Answers may be slow on this computer; an online model is quicker.' : ''}`
   }
 }
 

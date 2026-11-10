@@ -6,6 +6,8 @@ import { queueLabel } from '@shared/ai/canvasQueue'
 import { displayHost } from '@shared/url'
 import { Markdown } from '@renderer/components/chat/Markdown'
 import { workingLabel } from '@renderer/components/chat/workingLabel'
+import { Working } from '@renderer/components/chat/Working'
+import { StopSquareIcon } from '@renderer/components/icons'
 import '@renderer/components/chat/chat.css'
 import type { AskApi, AskTurn } from './useAsk'
 import './ask.css'
@@ -307,6 +309,13 @@ export function AskDock({
                           </p>
                         ))}
                         {t.text && <Answer turn={t} onAdd={onAdd} onOpen={onOpen} />}
+                        {/* while it works: what it is doing, shimmering where the answer will appear (as in the
+                            tab view's chat); the answer's own words take over once they come */}
+                        {ask.streaming && t === last && !t.text && !confirm && (
+                          <div className="cv-dock-working" role="status">
+                            <Working label={statusOf(t)} />
+                          </div>
+                        )}
                         {t.error && <p className="cv-dock-err">{t.error}</p>}
                         {cites.length > 0 && (
                           <div className="cv-ask-sources" aria-label="Sources">
@@ -346,15 +355,6 @@ export function AskDock({
               })}
             </div>
             <div className="cv-dock-foot">
-              {ask.streaming && last && (
-                <div className="cv-dock-status" role="status">
-                  <i className="cv-dock-dot" aria-hidden="true" />
-                  <span>{confirm ? 'Waiting for your answer' : statusOf(last)}</span>
-                  <button type="button" onClick={ask.stop}>
-                    Stop
-                  </button>
-                </div>
-              )}
               {confirm && (
                 <div className="cv-dock-confirm" role="alertdialog" aria-label="Confirm">
                   <span>{confirm.text}</span>
@@ -510,28 +510,40 @@ export function AskDock({
                       ))}
                   </div>
                 )}
-                <button
-                  type="submit"
-                  className="cv-dock-send"
-                  aria-label={ask.streaming ? 'Send after this answer' : 'Send'}
-                  title={
-                    ask.streaming
-                      ? 'Send after this answer (it waits in the queue)'
-                      : 'Send (Enter)'
-                  }
-                  disabled={!draft.trim()}
-                >
-                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                    <path
-                      d="M8 13V3M3.5 7.5 8 3l4.5 4.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
+                {ask.streaming && !draft.trim() ? (
+                  <button
+                    type="button"
+                    className="cv-dock-send stop"
+                    aria-label="Stop"
+                    title="Stop the answer"
+                    onClick={ask.stop}
+                  >
+                    <StopSquareIcon />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    className="cv-dock-send"
+                    aria-label={ask.streaming ? 'Send after this answer' : 'Send'}
+                    title={
+                      ask.streaming
+                        ? 'Send after this answer (it waits in the queue)'
+                        : 'Send (Enter)'
+                    }
+                    disabled={!draft.trim()}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                      <path
+                        d="M8 13V3M3.5 7.5 8 3l4.5 4.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                )}
               </form>
             </div>
           </motion.aside>

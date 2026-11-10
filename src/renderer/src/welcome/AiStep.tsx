@@ -56,7 +56,7 @@ export function AiStep({
               Where it runs
               <em>
                 {where === 'local'
-                  ? `On this computer: a ${size} download, once, checked before use. After that it works without the internet and pages never leave this computer.`
+                  ? `On this computer: a ${size} download, once, checked before use. After that it works without the internet and pages never leave this computer.${st?.slowDevice ? ' This computer is on the slow side for it, so answers may take a while; Online is quicker.' : ''}`
                   : 'Online: a model from ChatGPT or OpenRouter. Faster and smarter on most computers; what you ask goes to that service.'}
               </em>
             </span>

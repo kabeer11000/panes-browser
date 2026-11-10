@@ -135,3 +135,11 @@ export function cpuOnlyHolds(state: unknown, now: number): boolean {
     now - s.at < CPU_ONLY_DAYS * 86_400_000
   )
 }
+
+/**
+ * A computer on the slow side for the local model: under 8 GB of memory (with a little slack for what the system
+ * keeps back) or fewer than four threads. It still runs; answers take a while, so the person is told once.
+ */
+export function slowForLocal(memBytes: number, cpus: number): boolean {
+  return memBytes < 7.5 * 2 ** 30 || cpus < 4
+}

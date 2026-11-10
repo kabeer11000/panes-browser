@@ -25,7 +25,8 @@ import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
 
-const SPRING = { type: 'spring', stiffness: 300, damping: 31, mass: 0.9 } as const
+/** Opening and closing move alike: one smooth ease, no spring overshoot (the card it grows from must line up). */
+const MORPH = { duration: 0.32, ease: [0.32, 0.72, 0, 1] } as const
 /** Room kept under the panel for the canvas toolbar, which stays above it. */
 /** PDF pages stop growing here: wider than this they read worse, and Ctrl+wheel zooms past it. */
 const PDF_W = 940
@@ -46,6 +47,8 @@ interface Props extends ExpandSource {
   /** Where the card is on screen now (it may have moved since: the board glided to it), for the morph back. */
   cardBox?: () => { x: number; y: number; w: number; h: number } | null
   onClose: () => void
+  /** The panel now covers its card (true, once it has grown) or is about to uncover it (false, as it closes). */
+  onCover?: (covered: boolean) => void
   onGoToTab: () => void
   /** A tab was made for the live page: the card should remember it. */
   onTab: (tab: number) => void
@@ -617,6 +620,7 @@ export function Expanded({
   reduced,
   answerLinks,
   onClose,
+  onCover,
   onGoToTab,
   onTab,
   onText,
@@ -692,8 +696,11 @@ export function Expanded({
     // the live page is a native view and cannot grow with the panel: it waits for this (see goLive)
     const ctrl = animate(
       panel.current,
-      { transform: [fromTf, 'translate(0px, 0px) scale(1, 1)'] },
-      SPRING
+      {
+        transform: [fromTf, 'translate(0px, 0px) scale(1, 1)'],
+        opacity: [0, 1, 1]
+      },
+      { ...MORPH, opacity: { duration: MORPH.duration, times: [0, 0.35, 1] } }
     )
     openDone.current = Promise.race([
       ctrl.finished.then(
@@ -702,6 +709,7 @@ export function Expanded({
       ),
       new Promise<void>((r) => setTimeout(r, 450))
     ])
+    void openDone.current.then(() => onCover?.(true))
     const sCtrl = scrim.current
       ? animate(scrim.current, { opacity: [0, 1] }, { duration: 0.22 })
       : null
@@ -748,12 +756,13 @@ export function Expanded({
       if (scrim.current) void animate(scrim.current, { opacity: 0 }, { duration: 0.2 })
       const to = cardBox?.() ?? from
       const toTf = `translate(${to.x - left}px, ${to.y - top}px) scale(${to.w / w}, ${to.h / h})`
+      onCover?.(false)
       await animate(
         panel.current,
-        { transform: ['translate(0px, 0px) scale(1, 1)', toTf] },
-        { type: 'spring', stiffness: 340, damping: 34 }
+        { transform: ['translate(0px, 0px) scale(1, 1)', toTf], opacity: [1, 1, 0] },
+        { ...MORPH, opacity: { duration: MORPH.duration, times: [0, 0.55, 1] } }
       ).finished
-    }
+    } else onCover?.(false)
     onClose()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hideLive, reduced, onClose, from, cardBox, w, h, live])
