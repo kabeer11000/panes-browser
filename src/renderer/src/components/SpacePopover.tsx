@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Space } from '@shared/types'
+import type { BrowseWith, Space } from '@shared/types'
 import { SpaceIdentity } from './SpaceIdentity'
 import { ThemePicker } from './ThemePicker'
+
+const BROWSE: Array<{ value: BrowseWith | null; label: string; title: string }> = [
+  { value: null, label: 'Default', title: 'As set in Settings' },
+  { value: 'tabs', label: 'Tabs', title: 'Tabs in the sidebar or along the top' },
+  { value: 'canvas', label: 'Canvas', title: 'The canvas board is the whole window' }
+]
 
 interface Props {
   space: Space
@@ -67,6 +73,25 @@ export function SpacePopover({
           mode={space.mode}
           onChange={(patch) => window.api.updateSpace(space.id, patch)}
         />
+        <div className="sp-divider" />
+        <div className="tp-head">
+          <span className="tp-title">Browse with</span>
+          <div className="tp-modes" role="radiogroup" aria-label="Browse with">
+            {BROWSE.map((b) => (
+              <button
+                key={b.label}
+                type="button"
+                role="radio"
+                aria-checked={space.browseWith === b.value}
+                title={b.title}
+                className={'tp-mode text' + (space.browseWith === b.value ? ' on' : '')}
+                onClick={() => window.api.updateSpace(space.id, { browseWith: b.value })}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="space-actions">
           <button
             type="button"

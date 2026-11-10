@@ -257,6 +257,21 @@ export function siteSearchUrl(
 export type QuickAction =
   | { kind: 'search'; site: string; query: string; url: string; say: string }
   | { kind: 'open'; site: string; url: string; say: string }
+  /** Play the thing itself: `url` is the site's search page, opened if the thing cannot be found. */
+  | {
+      kind: 'play'
+      site: string
+      /** The site's address, for a web search limited to it. */
+      domain: string
+      youtube: boolean
+      query: string
+      url: string
+      say: string
+    }
+
+/** Sites where "play X" means a page that plays it, not a page of results. */
+const MEDIA = new Set(['youtube', 'youtube-music', 'spotify', 'soundcloud', 'twitch', 'tiktok'])
+const PLAY = /^(?:play|watch|listen\s+to|put\s+on)\b/i
 
 export const POLITE =
   /^(?:(?:hey|hi|ok|okay)[,\s]+)?(?:(?:can|could|would|will)\s+you\s+|please\s+|pls\s+|plz\s+|i\s+want\s+to\s+|i'?d\s+like\s+to\s+|let'?s\s+)*/i
@@ -279,10 +294,21 @@ export function quickAction(raw: string): QuickAction | null {
   if (!t || t.length > 200 || t.includes('\n')) return null
   const s = t.replace(POLITE, '').replace(TAIL, '').trim()
   if (!s || /\?$/.test(t)) return null
+  const play = PLAY.test(s)
   const search = (siteName: string, q: string): QuickAction | null => {
     const site = siteNamed(siteName)
     const query = clean(q)
     if (!site || !query || query.length > 160) return null
+    if (play && MEDIA.has(site.id))
+      return {
+        kind: 'play',
+        site: site.name,
+        domain: new URL(site.home).hostname.replace(/^(?:www|open)\./, ''),
+        youtube: site.id === 'youtube',
+        query,
+        url: site.search(query),
+        say: `Playing “${query}” on ${site.name}.`
+      }
     return {
       kind: 'search',
       site: site.name,

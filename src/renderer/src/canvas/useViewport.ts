@@ -8,7 +8,7 @@ const ease = (t: number): number => 1 - Math.pow(1 - t, 3)
 
 /**
  * The board's pan and zoom. The view lives in a ref and is written straight to the DOM (one transform on the board
- * layer, and three custom properties on the root for the dotted background and label scale), so a pan never
+ * layer, the dots' position on the grid element, and the label scale on the root when the zoom changes), so a pan never
  * re-renders React. `onMove` is told after every change, throttled to one call per frame.
  */
 export function useViewport(
@@ -16,6 +16,8 @@ export function useViewport(
   onMove: (v: Viewport) => void
 ): {
   root: React.RefObject<HTMLDivElement | null>
+  /** The dotted background: it alone gets the per-pan properties. */
+  grid: React.RefObject<HTMLDivElement | null>
   layer: React.RefObject<HTMLDivElement | null>
   get: () => Viewport
   set: (v: Viewport) => void
@@ -27,6 +29,10 @@ export function useViewport(
 } {
   const root = useRef<HTMLDivElement>(null)
   const layer = useRef<HTMLDivElement>(null)
+  const grid = useRef<HTMLDivElement>(null)
+  const lastK = useRef(NaN)
+  /** The coarse grid's tile, in screen px (the dots repeat every this far). */
+  const tile = useRef(96)
   const view = useRef<Viewport>(initial)
   const raf = useRef(0)
   const anim = useRef(0)
@@ -47,19 +53,35 @@ export function useViewport(
       r.classList.add('moving')
       window.clearTimeout(idle.current)
       idle.current = window.setTimeout(() => r.classList.remove('moving'), 180)
-      // whole pixels: dots that land between pixels shimmer as the board moves
-      r.style.setProperty('--vx', `${Math.round(v.x)}px`)
-      r.style.setProperty('--vy', `${Math.round(v.y)}px`)
-      r.style.setProperty('--vk', String(v.k))
-      // the fine grid keeps between 12 and 48 screen px apart (steps of 4, as the coarse grid is 4 of it), and
-      // fades out as it gets dense, so the density on screen stays even and nothing pops or moires
-      let ds = 24 * v.k
-      while (ds < 12) ds *= 4
-      while (ds >= 48) ds /= 4
-      r.style.setProperty('--ds', `${ds}px`)
-      r.style.setProperty('--ds2', `${ds * 4}px`)
-      r.style.setProperty('--da', String(Math.min(1, Math.max(0, (ds - 10) / 14)).toFixed(3)))
-      r.style.setProperty('--hs', String(Math.min(2.6, Math.max(1, 0.62 / v.k))))
+      // Custom properties inherit: one set on the root makes every card, label and arrow under it recompute its
+      // style, every frame of a pan (most of a pan's cost on a slow CPU). The dots' position goes on the grid
+      // alone, and what the board's contents read (--vk, --hs) is set only when the zoom changes.
+      const g = grid.current
+      if (v.k !== lastK.current) {
+        lastK.current = v.k
+        r.style.setProperty('--vk', String(v.k))
+        r.style.setProperty('--hs', String(Math.min(2.6, Math.max(1, 0.62 / v.k))))
+        if (g) {
+          // the fine grid keeps between 12 and 48 screen px apart (steps of 4, as the coarse grid is 4 of it), and
+          // fades out as it gets dense, so the density on screen stays even and nothing pops or moires
+          let ds = 24 * v.k
+          while (ds < 12) ds *= 4
+          while (ds >= 48) ds /= 4
+          tile.current = ds * 4
+          g.style.setProperty('--ds', `${ds}px`)
+          g.style.setProperty('--ds2', `${ds * 4}px`)
+          g.style.setProperty('--da', String(Math.min(1, Math.max(0, (ds - 10) / 14)).toFixed(3)))
+        }
+      }
+      if (g) {
+        // The dots slide as one layer, by the pan modulo one coarse tile (the grid is a tile bigger than the board on
+        // each side), so a pan never repaints them: moving a painted background was a full-screen repaint a frame.
+        // Whole pixels: dots that land between pixels shimmer as the board moves.
+        const t = tile.current
+        const ox = ((Math.round(v.x) % t) + t) % t
+        const oy = ((Math.round(v.y) % t) + t) % t
+        g.style.transform = `translate3d(${ox}px, ${oy}px, 0)`
+      }
     }
     if (!pending.current) {
       pending.current = true
@@ -146,7 +168,18 @@ export function useViewport(
   }, [paint, stop])
 
   return useMemo(
-    () => ({ root, layer, get: () => view.current, set, panBy, zoomAt, animateTo, fling, stop }),
+    () => ({
+      root,
+      grid,
+      layer,
+      get: () => view.current,
+      set,
+      panBy,
+      zoomAt,
+      animateTo,
+      fling,
+      stop
+    }),
     [set, panBy, zoomAt, animateTo, fling, stop]
   )
 }

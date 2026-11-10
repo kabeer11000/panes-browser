@@ -65,6 +65,20 @@ export function quickCommand(raw: string, tabs: readonly CommandTab[]): Command 
   const here = current(tabs)
   let m: RegExpExecArray | null
 
+  // "find the dragon book of compilers pdf and open it", "search for X then open the first result",
+  // "open the X pdf": search the web and open the best result, in one step
+  if (
+    (m =
+      /^(?:find|search(?: for)?|look up|look for|get(?: me)?|google)\s+(?:me\s+)?(.{3,140}?)\s*(?:,|\band then\b|\band\b|\bthen\b)\s*open(?: it| that| one| the (?:first|top|best|right) (?:one|result|link|hit)| the (?:pdf|link|page|file))?$/.exec(
+        s
+      )) ||
+    (m = /^open (?:the |a |an )?(.{3,140}?\bpdf)$/.exec(s))
+  )
+    return {
+      call: { name: 'find_and_open', query: m[1].replace(/[\s,;:.]+$/, '') },
+      say: 'Opened it.'
+    }
+
   // "scroll down", "scroll up a bit", "scroll to the top", "go to the bottom of the page"
   if ((m = /^scroll(?: (down|up))?(?: a bit| a little| more| some)?$/.exec(s)) && here)
     return {

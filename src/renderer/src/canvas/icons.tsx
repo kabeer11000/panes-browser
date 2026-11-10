@@ -61,6 +61,17 @@ export const PlayIcon = (): React.JSX.Element => (
     <path d="M5.6 3.6v8.8a.6.6 0 0 0 .92.5l7-4.4a.6.6 0 0 0 0-1l-7-4.4a.6.6 0 0 0-.92.5Z" />
   </svg>
 )
+export const MiniPlayIcon = (): React.JSX.Element => (
+  <svg width={14} height={14} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M5 3.4v9.2a.6.6 0 0 0 .92.5l7.3-4.6a.6.6 0 0 0 0-1L5.92 2.9A.6.6 0 0 0 5 3.4Z" />
+  </svg>
+)
+export const MiniPauseIcon = (): React.JSX.Element => (
+  <svg width={14} height={14} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <rect x="3.8" y="3" width="3" height="10" rx="0.9" />
+    <rect x="9.2" y="3" width="3" height="10" rx="0.9" />
+  </svg>
+)
 export const LiveIcon = (): React.JSX.Element => (
   <Svg>
     <rect x="2" y="3" width="12" height="9" rx="2" />

@@ -1,3 +1,4 @@
+import { isBrowseWith } from '@shared/browse'
 import { MAIL_HANDLERS } from '@shared/mailto'
 import { PHOTO_IDS } from '@shared/photos'
 import {
@@ -53,6 +54,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (patch.tabLayout === 'vertical' || patch.tabLayout === 'horizontal') {
     out.tabLayout = patch.tabLayout
   }
+  if (isBrowseWith(patch.browseWith)) out.browseWith = patch.browseWith
   if (typeof patch.newTabPhoto === 'boolean') out.newTabPhoto = patch.newTabPhoto
   if (typeof patch.newTabDither === 'boolean') out.newTabDither = patch.newTabDither
   if (patch.newTabPhotoId === null || PHOTO_IDS.includes(patch.newTabPhotoId as number)) {

@@ -30,8 +30,6 @@ describe('quick commands', () => {
     'Search piano covers on YouTube.',
     'search for piano covers on youtube please',
     'can you search piano covers on youtube',
-    'play piano covers on youtube',
-    'watch piano covers on yt',
     'search youtube for piano covers',
     'youtube piano covers',
     'yt: piano covers',
@@ -40,6 +38,13 @@ describe('quick commands', () => {
     const a = quickAction(text)
     expect(a?.kind).toBe('search')
     expect(a && 'url' in a ? a.url : '').toBe(yt)
+  })
+  test('play and watch play the thing, the search page kept as the fallback', () => {
+    for (const text of ['play piano covers on youtube', 'watch piano covers on yt']) {
+      const a = quickAction(text)
+      expect(a?.kind).toBe('play')
+      expect(a?.url).toBe(yt)
+    }
   })
   test('other sites', () => {
     expect(quickAction('play lofi beats on spotify')?.url).toBe(

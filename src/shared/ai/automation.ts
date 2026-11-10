@@ -312,6 +312,60 @@ export const MEDIA_SCRIPT = (action: MediaAction, amount: number): string => `((
   }))
 })()`
 
+/** Words that say where, not what: left out when a scroll target is matched word by word ("the AI settings"). */
+const SCROLL_FILLER = [
+  'the',
+  'a',
+  'an',
+  'my',
+  'to',
+  'of',
+  'on',
+  'in',
+  'for',
+  'and',
+  'page',
+  'part',
+  'section',
+  'sections',
+  'area',
+  'setting',
+  'settings',
+  'option',
+  'options',
+  'preference',
+  'preferences',
+  'panel',
+  'menu',
+  'bit',
+  'stuff',
+  'thing',
+  'where',
+  'about',
+  'heading',
+  'there',
+  'down',
+  'up',
+  'please',
+  'go',
+  'scroll',
+  'bottom',
+  'top',
+  'list'
+]
+/** Other names a heading may use for a few common things. */
+const SCROLL_ALSO: Record<string, string[]> = {
+  ai: ['assistant', 'artificial intelligence', 'model'],
+  assistant: ['ai'],
+  privacy: ['private', 'security'],
+  appearance: ['theme', 'look'],
+  theme: ['appearance'],
+  download: ['downloads'],
+  password: ['passwords', 'autofill'],
+  shortcut: ['keyboard', 'keys', 'shortcuts'],
+  notification: ['notifications', 'alerts']
+}
+
 /** Where a page keeps its comments: tried in turn when the model asks to scroll to "comments". */
 const COMMENT_SELECTORS = [
   '#comments',
@@ -341,18 +395,48 @@ export const SCROLL_TO_SCRIPT = (target: string): string => `(() => {
       if (el) return show(el, 'the comments')
     }
   }
-  // the smallest visible element whose own text holds the words (a heading before a whole section)
+  const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 || r.height > 0 }
+  // 1. the words as they are: the smallest visible element whose own text holds them (a heading before a section)
   let best = null
   let bestLen = Infinity
   for (const el of document.querySelectorAll('h1,h2,h3,h4,h5,h6,summary,button,a,label,legend,th,p,span,div,li,section,article')) {
     const t = norm(el.textContent)
     if (!t.includes(want) || t.length >= bestLen || t.length > 400) continue
-    const r = el.getBoundingClientRect()
-    if (r.width === 0 && r.height === 0) continue
+    if (!visible(el)) continue
     best = el
     bestLen = t.length
   }
-  return best ? show(best, norm(best.textContent)) : { ok: false }
+  if (best) return show(best, norm(best.textContent))
+  // 2. how people say it ("the AI settings", "tor setting", "privacy section"): the words that name the thing, each
+  // as a whole word (plurals and a few other names for it too), on headings first, then labels, then links
+  const FILLER = new Set(${JSON.stringify(SCROLL_FILLER)})
+  const ALSO = ${JSON.stringify(SCROLL_ALSO)}
+  // letters and digits only, so each is safe in a pattern as it is
+  const keys = want.split(/[^a-z0-9]+/).filter((w) => w && !FILLER.has(w))
+  // what the page does have, for another try with the right name
+  const heads = () => [...new Set([...document.querySelectorAll('h1,h2,h3,[role=heading],legend,summary')].filter(visible).map((h) => norm(h.textContent)).filter((t) => t && t.length < 60))].slice(0, 40)
+  if (!keys.length) return { ok: false, heads: heads() }
+  const forms = keys.map((k) => {
+    const base = k.length > 3 && k.endsWith('s') ? k.slice(0, -1) : k
+    return [base, ...(ALSO[base] || [])].map((w) => new RegExp('(^|[^a-z0-9])' + w + 's?($|[^a-z0-9])'))
+  })
+  const RANK = [['h1,h2,h3,h4,h5,h6,[role=heading]', 0], ['legend,summary,th,[role=tab]', 1], ['label', 2], ['button,a', 3], ['p,li,span,div,section,article,fieldset', 4]]
+  let pick = null
+  for (const [sel, rank] of RANK) {
+    for (const el of document.querySelectorAll(sel)) {
+      const own = norm(el.textContent)
+      if (own.length > 200 && rank < 4) continue
+      const hay = own + ' ' + norm(el.id).replace(/[-_]/g, ' ') + ' ' + norm(el.getAttribute?.('aria-label'))
+      const hits = forms.filter((f) => f.some((re) => re.test(hay))).length
+      if (!hits || !visible(el)) continue
+      // all the words before some of them, then the kind of element, then the shortest text
+      const score = [keys.length - hits, rank, own.length]
+      if (!pick || score[0] < pick.score[0] || (score[0] === pick.score[0] && (score[1] < pick.score[1] || (score[1] === pick.score[1] && score[2] < pick.score[2])))) pick = { el, score, own }
+    }
+  }
+  // a link or button with only some of the words is too weak a guess
+  if (!pick || (pick.score[0] > 0 && pick.score[1] >= 3)) return { ok: false, heads: heads() }
+  return show(pick.el, pick.own || keys.join(' '))
 })()`
 
 /** Click a numbered control from inside the page: for one something else covers, where a real click would hit the cover. */

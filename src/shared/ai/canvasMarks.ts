@@ -168,7 +168,8 @@ export function addShape(
           kind,
           ...box,
           color: colorOf(o.color ?? 0),
-          fill: colorOf(o.fill ?? -1, true),
+          // filled with a light wash of its own colour unless asked otherwise (-1: no fill)
+          fill: colorOf(o.fill ?? o.color ?? 0, true),
           stroke: true,
           text: (o.text ?? '').slice(0, MARK_TEXT_MAX) || undefined
         }
@@ -178,7 +179,18 @@ export function addShape(
 export type MarkPatch = Partial<
   Pick<
     CanvasMark,
-    'text' | 'color' | 'fill' | 'stroke' | 'size' | 'rot' | 'x' | 'y' | 'w' | 'h' | 'locked' | 'wrap'
+    | 'text'
+    | 'color'
+    | 'fill'
+    | 'stroke'
+    | 'size'
+    | 'rot'
+    | 'x'
+    | 'y'
+    | 'w'
+    | 'h'
+    | 'locked'
+    | 'wrap'
   >
 >
 
@@ -439,8 +451,11 @@ export function distributeMarks(
 }
 
 /** Everything on the board as boxes (frames, notes, cards outside frames, drawings): what "fit" shows. */
+/** A section's title sits above its top edge, this tall: fitting the board to the screen keeps it in view. */
+export const FRAME_TITLE = 36
+
 export const contentBoxes = (s: CanvasState): Box[] => [
-  ...s.frames,
+  ...s.frames.map((f) => ({ x: f.x, y: f.y - FRAME_TITLE, w: f.w, h: f.h + FRAME_TITLE })),
   ...s.notes,
   ...s.cards.filter((c) => !c.frame).map(cardBox),
   ...marksOf(s).map(markBox)

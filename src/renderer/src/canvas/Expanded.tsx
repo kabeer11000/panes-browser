@@ -5,15 +5,28 @@ import { flushSync } from 'react-dom'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseMarkdown, type Block, type Inline } from '@shared/ai/markdown'
 import type { CanvasReaderDoc } from '@shared/ai/canvasItems'
+import type { PageMenuPick, Rect, TabInfo } from '@shared/types'
+import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
 import { LiveIcon } from './icons'
+import {
+  BackIcon,
+  ForwardIcon,
+  MoreIcon,
+  ReloadIcon,
+  SearchIcon,
+  SiteIcon,
+  SpeakerIcon,
+  StarIcon,
+  StopIcon
+} from '@renderer/components/icons'
+import { FindBar } from '@renderer/components/FindBar'
+import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 31, mass: 0.9 } as const
-const READ_W = 1280
 /** Room kept under the panel for the canvas toolbar, which stays above it. */
-const TOOLBAR_GAP = 84
 /** PDF pages stop growing here: wider than this they read worse, and Ctrl+wheel zooms past it. */
 const PDF_W = 940
 
@@ -38,16 +51,14 @@ interface Props extends ExpandSource {
   onText?: (text: string) => void
   /** The previous or next card of the same section (arrow keys). */
   onStep?: (dir: -1 | 1) => void
-  /** Open straight onto the live page (something the assistant just opened for the person). */
+  /** Open straight onto the live page (something the assistant just opened, or a page last looked at live). */
   startLive?: boolean
-  /**
-   * The sidebar or top bar is out over the board (it slides and blurs the board). The live page is a native view
-   * that cannot slide or blur with it, so it steps aside for its picture until the chrome is gone.
-   */
-  covered?: boolean
-  /** The live tab can go back or forward (its history). */
-  canBack?: boolean
-  canForward?: boolean
+  /** The person switched between the live page and its words (remembered for the next time it opens). */
+  onLive?: (url: string, live: boolean) => void
+  /** Open the conversation about this page (the board's Ask handle is under the preview). */
+  onAsk?: () => void
+  /** The card's tab as the browser knows it (address, loading, history, bookmark, sound), when it has one. */
+  page?: TabInfo
   /** Where it sits among its section's cards, for the "2 / 5" in the header. */
   place?: { at: number; of: number }
 }
@@ -216,9 +227,6 @@ const PopOutGlyph = (): React.JSX.Element => (
 const CloseGlyph = (): React.JSX.Element => <Glyph d="m4.5 4.5 7 7m0-7-7 7" />
 const PrevGlyph = (): React.JSX.Element => <Glyph d="M9.8 3.6 5.4 8l4.4 4.4" />
 const NextGlyph = (): React.JSX.Element => <Glyph d="M6.2 3.6 10.6 8l-4.4 4.4" />
-const ReloadGlyph = (): React.JSX.Element => (
-  <Glyph d="M12.6 8a4.6 4.6 0 1 1-1.4-3.3M12.4 2.6v2.3H10.1" />
-)
 
 // ---- reader view ----
 
@@ -563,11 +571,10 @@ function PdfReader({
 
 /**
  * Where the live page goes: the slot's box in the window, from layout, so the panel's opening animation (a scale
- * from its card) does not shrink it. A native view sized from the animated box stays small once it ends.
+ * from its card) does not shrink it. A native view sized from the animated box stays small once it ends. It is the
+ * box at rest (no sidebar or top bar slide): main adds the slide to the view as it moves, frame by frame.
  */
-function slotBox(
-  el: HTMLElement | null
-): { x: number; y: number; width: number; height: number } | null {
+function slotBox(el: HTMLElement | null): Rect | null {
   const root = el?.closest<HTMLElement>('.cv-expand')
   if (!el || !root) return null
   let x = 0
@@ -577,7 +584,10 @@ function slotBox(
     y += n.offsetTop
   }
   const r = root.getBoundingClientRect()
-  return { x: r.x + x, y: r.y + y, width: el.offsetWidth, height: el.offsetHeight }
+  return restRect(
+    { x: r.x + x, y: r.y + y, width: el.offsetWidth, height: el.offsetHeight },
+    { x: getSlide(), y: getSlideY() }
+  )
 }
 
 /**
@@ -600,33 +610,63 @@ export function Expanded({
   onText,
   onStep,
   place,
-  covered = false,
-  canBack = false,
-  canForward = false,
-  startLive = false
+  page,
+  startLive = false,
+  onLive,
+  onAsk
 }: Props): React.JSX.Element {
   const panel = useRef<HTMLDivElement>(null)
   const scrim = useRef<HTMLDivElement>(null)
   const body = useRef<HTMLDivElement>(null)
   const slot = useRef<HTMLDivElement>(null)
   const closing = useRef(false)
-  const [live, setLive] = useState<'off' | 'loading' | 'on'>('off')
+  const [live, setLiveState] = useState<'off' | 'loading' | 'on'>('off')
+  // the same, for callbacks that outlive a render (IPC answers, observers, timers)
+  const liveRef = useRef(live)
+  const setLive = (v: 'off' | 'loading' | 'on'): void => {
+    liveRef.current = v
+    setLiveState(v)
+  }
   const [articleEmpty, setArticleEmpty] = useState(false)
   // the address: the site name (or Ctrl+L) opens the address bar's search popover over the header
   const titleEl = useRef<HTMLDivElement>(null)
+  const siteBtn = useRef<HTMLButtonElement>(null)
   const asking = useRef(false)
+  const [addressOpen, setAddressOpen] = useState(false)
+  const addressOpenRef = useRef(false)
+  const tabRef = useRef<number | null>(tab ?? null)
+  // find in the live page: the browser's own find box, in the header (the page view would cover anything below)
+  const [findKey, setFindKey] = useState<number | null>(null)
+  // the live page as it was last seen: always under the native view, so whenever the view is away (moving, loading,
+  // a popover over it, closing) the page is still there in picture, never an empty slot
+  const [shot, setShot] = useState<string | null>(null)
+  const takeShot = async (): Promise<boolean> => {
+    const id = tabRef.current
+    if (liveRef.current !== 'on' || id === null) return false
+    const pic = await Promise.race([
+      window.api.canvas.liveShot?.(id) ?? Promise.resolve(null),
+      new Promise<null>((r) => setTimeout(() => r(null), 400))
+    ]).catch(() => null)
+    if (pic) flushSync(() => setShot(pic))
+    return !!pic
+  }
+  // the address the page is at now (it moves on as the person browses in it), else the card's
+  const href = page?.url || url
+  const caps = pageCaps(href, !!page && (page.private || page.tor))
   const canEditUrl = (m.kind === 'page' || m.kind === 'video') && (tab !== undefined || !!url)
   const editRef = useRef<() => void>(() => undefined)
   const toReader = (): void => {
     if (live === 'off') return
     hideLive()
     setLive('off')
+    if (url) onLive?.(url, false)
   }
-  // as much of the board as it can take: a thin margin round it, and the toolbar left clear below
-  const w = Math.min(READ_W, stage.w - 48)
-  const top = 16
-  const h = Math.max(320, stage.h - top - TOOLBAR_GAP)
-  const left = Math.round((stage.w - w) / 2)
+  // the whole board, edge to edge: the board's toolbars step away while it is open, and the reader keeps its own
+  // column of text inside
+  const w = Math.max(320, stage.w)
+  const top = 0
+  const h = Math.max(320, stage.h)
+  const left = 0
   const fromTf = `translate(${from.x - left}px, ${from.y - top}px) scale(${from.w / w}, ${from.h / h})`
 
   useLayoutEffect(() => {
@@ -649,17 +689,29 @@ export function Expanded({
   }, [])
 
   const openDone = useRef<Promise<void>>(Promise.resolve())
-  // closing with the live page up: the slot shows its picture, which shrinks with the panel
-  const [shrinking, setShrinking] = useState(false)
   const hideLive = useCallback((): void => {
     window.api.canvas.liveHide()
   }, [])
   useEffect(() => () => hideLive(), [hideLive])
+  // main sends page shortcuts (Ctrl+F, Ctrl+L, Ctrl+D, zoom, back) to this card's page while it is open
+  useEffect(() => {
+    window.api.canvas.preview?.(true, tab ?? null)
+  }, [tab])
+  useEffect(() => () => window.api.canvas.preview?.(false, null), [])
+  /** Put the live page over the slot as it is now (unless something has it stepped aside). */
+  const placeLive = useCallback((): void => {
+    const r = slotBox(slot.current)
+    const id = tabRef.current
+    if (!r || id === null || liveRef.current !== 'on' || addressOpenRef.current || closing.current)
+      return
+    window.api.canvas.liveMove(id, r)
+  }, [])
 
   const close = useCallback(async (): Promise<void> => {
     if (closing.current) return
     closing.current = true
-    if (live !== 'off') flushSync(() => setShrinking(true))
+    // a fresh picture stands in for the page while the panel shrinks back into its card
+    if (live !== 'off') await takeShot()
     hideLive()
     if (!reduced && panel.current) {
       if (body.current && live === 'off')
@@ -673,21 +725,55 @@ export function Expanded({
     }
     onClose()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hideLive, reduced, onClose, fromTf, live, setShrinking])
+  }, [hideLive, reduced, onClose, fromTf, live])
+  const closeRef = useRef(close)
+  useLayoutEffect(() => {
+    closeRef.current = close
+  })
+  const openFind = (): void => {
+    if (liveRef.current === 'on') setFindKey((k) => (k ?? 0) + 1)
+  }
+  const openFindRef = useRef(openFind)
+  useLayoutEffect(() => {
+    openFindRef.current = openFind
+  })
+  const [zoom, setZoom] = useState<{ level: number; base: number } | null>(null)
+  const readZoom = useCallback((): void => {
+    if (liveRef.current !== 'on') return setZoom(null)
+    void window.api.siteInfo().then((i) => setZoom(i ? { level: i.zoom, base: i.defaultZoom } : null))
+  }, [])
+  // the keys main routes here: pressed in the live page (which holds the keyboard) or caught before the board
+  useEffect(
+    () =>
+      window.api.canvas.onPreviewKey?.((k) => {
+        if (asking.current) return
+        if (k === 'address') editRef.current()
+        else if (k === 'find') openFindRef.current()
+        else if (k === 'zoom') readZoom()
+        else if (findKeyRef.current !== null) {
+          // Esc in the page with find open: find goes first
+          window.api.stopFind()
+          setFindKey(null)
+        } else void closeRef.current()
+      }),
+    [readZoom]
+  )
+  const findKeyRef = useRef(findKey)
+  useEffect(() => {
+    findKeyRef.current = findKey
+  }, [findKey])
 
   useEffect(() => {
     const key = (e: KeyboardEvent): void => {
       const typing =
         e.target instanceof HTMLElement &&
         (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))
-      // the search popover is open over the preview: its keys are its own
-      if (asking.current || (e.target instanceof Element && e.target.closest('.pal'))) return
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l' && canEditUrl) {
-        e.preventDefault()
-        e.stopPropagation()
-        editRef.current()
+      // the search popover, the find box and the dock have keys of their own (Esc closes them, not the preview)
+      if (
+        asking.current ||
+        (e.target instanceof Element && e.target.closest('.pal, .findbar, .cv-dock'))
+      )
         return
-      }
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()
@@ -708,8 +794,8 @@ export function Expanded({
 
   const [copied, setCopied] = useState(false)
   const copy = (): void => {
-    if (!url) return
-    void navigator.clipboard.writeText(url).then(() => {
+    if (!href) return
+    void navigator.clipboard.writeText(href).then(() => {
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1400)
     })
@@ -721,6 +807,7 @@ export function Expanded({
     if (live !== 'off' && to === undefined) {
       hideLive()
       setLive('off')
+      if (url) onLive?.(url, false)
       return
     }
     setLive('loading')
@@ -736,20 +823,19 @@ export function Expanded({
     if (id === null) return setLive('off')
     if (tab === undefined && to === undefined) onTab(id)
     setLive('on')
+    if (url) onLive?.(url, true)
   }
   const editAddress = async (): Promise<void> => {
     if (asking.current || !titleEl.current) return
     asking.current = true
-    // the live page is a native view over the board: it would hide the popover
-    const wasLive = live !== 'off'
-    if (wasLive) {
-      hideLive()
-      setLive('off')
-    }
+    // the live page is a native view over the board and would hide the popover: it steps aside for its picture
+    // while the popover is up (still live, not the reader), and comes back where it was
+    await takeShot()
+    flushSync(() => setAddressOpen(true))
     const text = await askSearch(anchorOver(titleEl.current), url ?? '')
     asking.current = false
+    setAddressOpen(false)
     if (text) void submitUrl(text)
-    else if (wasLive) void goLive()
   }
   const submitUrl = async (input: string): Promise<void> => {
     const text = input.trim()
@@ -772,8 +858,15 @@ export function Expanded({
   })
   useEffect(() => {
     if (autoLive.current || (!startLive && !(m.kind === 'video' && canLive))) return
-    autoLive.current = true
-    const t = window.setTimeout(() => void goLiveRef.current(), reduced ? 0 : 420)
+    // marked done only when it runs: a change meanwhile (the card's details settling) re-arms it, not cancels it
+    const t = window.setTimeout(
+      () => {
+        if (autoLive.current) return
+        autoLive.current = true
+        void goLiveRef.current()
+      },
+      reduced ? 0 : 420
+    )
     return () => window.clearTimeout(t)
   }, [startLive, reduced, m.kind, canLive])
   // a page with no article to read (an app, a map) is a snapshot in the reader: it opens live instead
@@ -783,22 +876,22 @@ export function Expanded({
     void goLiveRef.current()
   }, [articleEmpty, live, canLive])
   // the live page follows the slot if the window is resized
-  const tabRef = useRef<number | null>(tab ?? null)
   useEffect(() => {
     tabRef.current = tab ?? tabRef.current
   }, [tab])
-  // chrome brought out over the board: the live page steps aside for its picture, and comes back where the slot is
+  // the address popover over the header: the live page steps aside for its picture, and comes back where the slot
+  // is. (The hover sidebar and top bar no longer move it aside: main slides the view with them, frame by frame.)
   useEffect(() => {
+    addressOpenRef.current = addressOpen
     if (live !== 'on') return
-    if (covered) {
-      hideLive()
-      return
-    }
-    const r = slotBox(slot.current)
-    const id = tabRef.current
-    if (r && id !== null)
-      window.api.canvas.liveMove(id, { x: r.x, y: r.y, width: r.width, height: r.height })
-  }, [covered, live, hideLive])
+    if (addressOpen) hideLive()
+    else placeLive()
+  }, [addressOpen, live, hideLive, placeLive])
+  // the zoom level shows in the bar while it is not the site's usual one
+  useEffect(() => {
+    if (live === 'on') readZoom()
+    else setZoom(null)
+  }, [live, readZoom])
   useEffect(() => {
     if (live !== 'on' || !slot.current) return
     const el = slot.current
@@ -815,6 +908,33 @@ export function Expanded({
     ro.observe(el)
     return () => ro.disconnect()
   }, [live])
+
+  /** What was picked in the page menu (the header's More button, or a right-click on the header). */
+  const onPagePick = (what: PageMenuPick | null): void => {
+    if (what === 'popout') onGoToTab()
+    else if (what === 'ask') onAsk?.()
+    else if (what === 'find') openFind()
+    else if (what === 'site') openSite()
+    else if (what === 'reader') toReader()
+    else if (what === 'live') void goLive()
+    else if (what === 'close') void close()
+  }
+  const pageMenu = (x: number, y: number): void => {
+    const id = tabRef.current
+    if (id === null || !window.api.pageMenu) return
+    void window.api.pageMenu(id, x, y, canLive ? live === 'on' : undefined).then(onPagePick)
+  }
+  /** The site's settings (permissions, blocker, data): the address bar's own panel, a native view over the page. */
+  const openSite = (): void => {
+    const r = (siteBtn.current ?? titleEl.current)?.getBoundingClientRect()
+    if (r) window.api.toggleSitePanel({ x: r.x, y: r.y, width: r.width, height: r.height })
+  }
+  const nav = (how: 'back' | 'forward' | 'reload' | 'stop'): void => {
+    const id = tabRef.current
+    if (id !== null) window.api.canvas.liveNav(id, how)
+  }
+  const zoomLabel =
+    zoom && Math.abs(zoom.level - zoom.base) > 0.01 ? `${zoomPercent(zoom.level)}%` : null
 
   const src = m.pdf ?? { url, file }
   const bodyView =
@@ -866,7 +986,15 @@ export function Expanded({
       <div className="cv-scrim" ref={scrim} onPointerDown={() => void close()} />
       <div className="cv-panel" ref={panel} style={{ left, top, width: w, height: h }}>
         {/* one slim row: what it is on the left, how to see it in the middle, what to do with it on the right */}
-        <header className="cv-panel-head">
+        <header
+          className="cv-panel-head"
+          onContextMenu={(e) => {
+            // the board's own menu would sit under the live page: the page's menu is a native one, over it
+            e.preventDefault()
+            e.stopPropagation()
+            pageMenu(e.clientX, e.clientY)
+          }}
+        >
           <span className="cv-panel-icon" aria-hidden="true">
             <Favicon m={m} />
           </span>
@@ -875,36 +1003,43 @@ export function Expanded({
               <button
                 type="button"
                 aria-label="Back"
-                title="Back"
-                disabled={!canBack}
-                onClick={() =>
-                  tabRef.current !== null && window.api.canvas.liveNav(tabRef.current, 'back')
-                }
+                title="Back (Alt+Left)"
+                disabled={!page?.canGoBack}
+                onClick={() => nav('back')}
               >
-                <PrevGlyph />
+                <BackIcon />
               </button>
               <button
                 type="button"
                 aria-label="Forward"
-                title="Forward"
-                disabled={!canForward}
-                onClick={() =>
-                  tabRef.current !== null && window.api.canvas.liveNav(tabRef.current, 'forward')
-                }
+                title="Forward (Alt+Right)"
+                disabled={!page?.canGoForward}
+                onClick={() => nav('forward')}
               >
-                <NextGlyph />
+                <ForwardIcon />
               </button>
-              <button
-                type="button"
-                aria-label="Reload"
-                title="Reload"
-                onClick={() =>
-                  tabRef.current !== null && window.api.canvas.liveNav(tabRef.current, 'reload')
-                }
-              >
-                <ReloadGlyph />
-              </button>
+              {page?.loading ? (
+                <button type="button" aria-label="Stop" title="Stop loading" onClick={() => nav('stop')}>
+                  <StopIcon />
+                </button>
+              ) : (
+                <button type="button" aria-label="Reload" title="Reload (Ctrl+R)" onClick={() => nav('reload')}>
+                  <ReloadIcon />
+                </button>
+              )}
             </div>
+          )}
+          {live === 'on' && caps.site && (
+            <button
+              type="button"
+              ref={siteBtn}
+              className="cv-hbtn cv-sitebtn"
+              aria-label="Site settings"
+              title="Site settings: permissions, blocker, data"
+              onClick={openSite}
+            >
+              <SiteIcon />
+            </button>
           )}
           <div className="cv-panel-title" title={m.title} ref={titleEl}>
             <strong>{m.title}</strong>
@@ -912,10 +1047,10 @@ export function Expanded({
               <button
                 type="button"
                 className="cv-panel-site"
-                title={`${url ?? m.site} (Ctrl+L to change)`}
+                title={`${href ?? m.site} (Ctrl+L to change)`}
                 onClick={() => void editAddress()}
               >
-                {m.site || url}
+                {m.site || href}
               </button>
             ) : (
               m.site && <span>{m.site}</span>
@@ -1001,7 +1136,54 @@ export function Expanded({
                 <PopOutGlyph />
               </button>
             ) : null}
-            {url && /^https?:/i.test(url) ? (
+            {m.isTab && (m.audible || m.muted) ? (
+              <button
+                type="button"
+                className={'cv-hbtn' + (m.muted ? ' on' : '')}
+                aria-label={m.muted ? 'Unmute' : 'Mute'}
+                title={m.muted ? 'Unmute' : 'Mute'}
+                onClick={() => window.api.toggleMute(m.id)}
+              >
+                <SpeakerIcon muted={m.muted} />
+              </button>
+            ) : null}
+            {zoomLabel && (
+              <button
+                type="button"
+                className="cv-hzoom"
+                title="Page zoom (Ctrl+0 for the usual size)"
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  pageMenu(r.left, r.bottom + 4)
+                }}
+              >
+                {zoomLabel}
+              </button>
+            )}
+            {live === 'on' && (
+              <button
+                type="button"
+                className={'cv-hbtn' + (findKey !== null ? ' on' : '')}
+                aria-label="Find in page"
+                title="Find in page (Ctrl+F)"
+                onClick={openFind}
+              >
+                <SearchIcon />
+              </button>
+            )}
+            {caps.bookmark && page ? (
+              <button
+                type="button"
+                className={'cv-hbtn' + (page.bookmarked ? ' on' : '')}
+                aria-label={page.bookmarked ? 'Remove bookmark' : 'Bookmark this page'}
+                aria-pressed={page.bookmarked}
+                title={page.bookmarked ? 'Remove bookmark (Ctrl+D)' : 'Bookmark this page (Ctrl+D)'}
+                onClick={() => window.api.toggleBookmark()}
+              >
+                <StarIcon filled={page.bookmarked} />
+              </button>
+            ) : null}
+            {href && /^https?:/i.test(href) ? (
               <button
                 type="button"
                 className={'cv-hbtn' + (copied ? ' on' : '')}
@@ -1012,6 +1194,32 @@ export function Expanded({
                 {copied ? <CheckGlyph /> : <LinkGlyph />}
               </button>
             ) : null}
+            {onAsk && (
+              <button
+                type="button"
+                className="cv-hbtn cv-hask"
+                aria-label="Ask about this page"
+                title="Ask about this page"
+                onClick={onAsk}
+              >
+                Ask
+              </button>
+            )}
+            {tab !== undefined && (
+              <button
+                type="button"
+                className="cv-hbtn"
+                aria-label="More"
+                aria-haspopup="menu"
+                title="More: zoom, site settings, page source..."
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  pageMenu(r.left, r.bottom + 4)
+                }}
+              >
+                <MoreIcon />
+              </button>
+            )}
             <button
               type="button"
               className="cv-hbtn"
@@ -1023,13 +1231,20 @@ export function Expanded({
             </button>
           </div>
         </header>
+        {findKey !== null && live === 'on' && (
+          <div className="cv-findrow">
+            <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
+          </div>
+        )}
         <div className="cv-panel-body" ref={body}>
           {live === 'off' ? (
             bodyView
           ) : (
             <div className="cv-live-slot" ref={slot}>
-              {live === 'on' && (covered || shrinking) && m.snap && (
-                <img src={m.snap} alt="" draggable={false} />
+              {/* always under the native view: whenever it is away (moving, a popover over it, closing), the page
+                  is still there in picture, never an empty slot */}
+              {live === 'on' && (shot ?? m.snap) && (
+                <img src={shot ?? m.snap} alt="" draggable={false} />
               )}
               {live === 'loading' && (
                 <>

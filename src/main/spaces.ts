@@ -1,4 +1,5 @@
 import { nativeTheme } from 'electron'
+import { isBrowseWith } from '@shared/browse'
 import { APPEARANCE_LIMITS, SPACE_COLORS, type AppearanceKey } from '@shared/settings'
 import { defaultSpaceIcon, isSpaceIcon, type SpaceIcon } from '@shared/spaceicons'
 import { MAX_SITES_PER_SPACE, sanitizeSiteTheme } from '@shared/sitetheme'
@@ -45,6 +46,7 @@ const newSpace = (id: number, name: string, color: string, icon: SpaceIcon): Spa
   grain: DEFAULT_GRAIN,
   mode: 'system',
   ui: {},
+  browseWith: null,
   sites: {}
 })
 
@@ -66,6 +68,7 @@ export class SpaceStore {
       sp.grain ??= DEFAULT_GRAIN
       sp.mode ??= 'system'
       sp.ui ??= {}
+      sp.browseWith ??= null
       sp.sites ??= {}
       // boosts saved by an older version gain the newer fields (and a broken one is dropped)
       for (const [key, theme] of Object.entries(sp.sites)) {
@@ -147,6 +150,9 @@ export class SpaceStore {
       space.mode = patch.mode
     }
     if (patch.ui !== undefined) space.ui = sanitizeUi(patch.ui)
+    if (patch.browseWith === null || isBrowseWith(patch.browseWith)) {
+      space.browseWith = patch.browseWith
+    }
     this.store.save()
     this.applyTheme()
   }

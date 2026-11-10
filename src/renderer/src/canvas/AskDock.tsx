@@ -24,6 +24,10 @@ interface Props {
   onUndo: () => void
   /** A step the person must answer first, from the assistant's tools. */
   confirm: { text: string; answer: (ok: boolean) => void } | null
+  /** Its width was dragged (px; the board keeps it for the space). */
+  onResize?: (w: number) => void
+  /** Its message box, for the board to put the cursor in ("Ask about this"). */
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>
 }
 
 const SPRING = { type: 'spring', stiffness: 420, damping: 36, mass: 0.9 } as const
@@ -106,8 +110,16 @@ export function AskDock({
   onExample,
   confirm,
   canUndo,
-  onUndo
+  onUndo,
+  onResize,
+  inputRef
 }: Props): React.JSX.Element {
+  const [draft, setDraft] = useState('')
+  const sendDraft = (): void => {
+    if (!draft.trim()) return
+    ask.ask(draft)
+    setDraft('')
+  }
   const reduced = useReducedMotion()
   const scroller = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
@@ -157,6 +169,31 @@ export function AskDock({
             exit={reduced ? { opacity: 0 } : { opacity: 0, x: 40, transition: { duration: 0.18 } }}
             transition={reduced ? { duration: 0.12 } : SPRING}
           >
+            <div
+              className="cv-dock-rz"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize the conversation"
+              onPointerDown={(e) => {
+                if (e.button !== 0) return
+                e.preventDefault()
+                e.stopPropagation()
+                const el = e.currentTarget
+                const right = el.parentElement!.getBoundingClientRect().right
+                el.setPointerCapture(e.pointerId)
+                el.classList.add('on')
+                const move = (ev: PointerEvent): void => onResize?.(Math.round(right - ev.clientX))
+                const up = (): void => {
+                  el.classList.remove('on')
+                  el.removeEventListener('pointermove', move)
+                  el.removeEventListener('pointerup', up)
+                  el.removeEventListener('pointercancel', up)
+                }
+                el.addEventListener('pointermove', move)
+                el.addEventListener('pointerup', up)
+                el.addEventListener('pointercancel', up)
+              }}
+            />
             <header className="cv-dock-head">
               <strong>Ask</strong>
               <span className="cv-dock-sp" />
@@ -387,6 +424,63 @@ export function AskDock({
                   ))}
                 </div>
               )}
+              {/* the conversation's own box: the board's toolbar may be out of the way (a page is open) */}
+              <form
+                className="cv-dock-input ai-edge"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  sendDraft()
+                }}
+              >
+                <textarea
+                  ref={inputRef}
+                  rows={1}
+                  value={draft}
+                  placeholder={
+                    ask.turns.length ? 'Ask a follow-up' : 'Ask about the board or your tabs'
+                  }
+                  aria-label="Message"
+                  onChange={(e) => {
+                    setDraft(e.target.value)
+                    const el = e.target
+                    el.style.height = 'auto'
+                    el.style.height = `${Math.min(140, el.scrollHeight)}px`
+                  }}
+                  onKeyDown={(e) => {
+                    // the board's own keys (delete, tools) stay out of the text
+                    e.stopPropagation()
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault()
+                      sendDraft()
+                    } else if (e.key === 'Escape') {
+                      e.currentTarget.blur()
+                      ask.close()
+                    }
+                  }}
+                />
+                <button
+                  type="submit"
+                  className="cv-dock-send"
+                  aria-label={ask.streaming ? 'Send after this answer' : 'Send'}
+                  title={
+                    ask.streaming
+                      ? 'Send after this answer (it waits in the queue)'
+                      : 'Send (Enter)'
+                  }
+                  disabled={!draft.trim()}
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path
+                      d="M8 13V3M3.5 7.5 8 3l4.5 4.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </form>
             </div>
           </motion.aside>
         )}

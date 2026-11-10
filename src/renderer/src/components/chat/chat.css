@@ -29,6 +29,10 @@
   outline: var(--ring);
   outline-offset: 1px;
 }
+/* the message box shows its focus on the whole field around it (its edge), not as a box drawn round the text */
+.chat-card .chat-field textarea:focus-visible {
+  outline: none;
+}
 .chat-edge {
   position: absolute;
   z-index: 3;
@@ -946,6 +950,12 @@
   animation: ai-spin 3s linear infinite;
   opacity: 0;
   transition: opacity var(--dur-slow) ease;
+}
+/* Hidden, the ring holds still: a running one repaints its gradient and three blurred shadows every frame, unseen, for
+   as long as the box is on screen. */
+.ai-edge:not(.on)::before,
+.ai-edge:not(.on)::after {
+  animation-play-state: paused;
 }
 .ai-edge.on::after {
   opacity: 1;

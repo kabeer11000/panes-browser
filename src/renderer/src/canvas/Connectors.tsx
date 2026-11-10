@@ -3,6 +3,7 @@ import type { CanvasState } from '@shared/ai/canvas'
 import {
   anchorOn,
   connectorsOf,
+  endKey,
   endBox,
   routeAll,
   routeDraft,
@@ -61,6 +62,20 @@ interface Props {
 }
 
 const SIDES: Side[] = ['top', 'right', 'bottom', 'left']
+
+/** Whether moving these objects changes any connector's route. */
+const movesLines = (s: CanvasState, o: Offsets): boolean => {
+  const list = connectorsOf(s)
+  if (!list.length) return false
+  if (list.some((c) => c.shape === 'elbow')) return true
+  for (const k of o.keys()) if (!/^[cnfm]./.test(k)) return true
+  // a section's connectors hang off it; a card in a section is moved under its own key
+  return list.some((c) => {
+    const a = endKey(c.from)
+    const b = endKey(c.to)
+    return (a !== null && o.has(a)) || (b !== null && o.has(b))
+  })
+}
 const NX: Record<Side, [number, number]> = {
   top: [0, -1],
   right: [1, 0],
@@ -91,10 +106,16 @@ export const Connectors = memo(function Connectors({
   const [draft, setDraft] = useState<Draft | null>(null)
   const [hover, setHover] = useState<End | null>(null)
   const svg = useRef<SVGSVGElement>(null)
+  const stateRef = useRef(state)
+  useLayoutEffect(() => {
+    stateRef.current = state
+  })
   useImperativeHandle(
     ref,
     () => ({
-      drag: (o) => setOff(o),
+      // A drag redraws the lines only when it moves one of their ends, or something an elbow goes around: most
+      // drags touch no connector, and routing them all on every pointer move is the most of a drag's script.
+      drag: (o) => setOff(o && movesLines(stateRef.current, o) ? o : null),
       draft: (d) => setDraft(d),
       hover: (e) =>
         setHover((cur) =>

@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   Menu,
   nativeTheme,
@@ -26,6 +27,7 @@ import {
   TAB_GROUPS,
   type TabGroup
 } from '@shared/tabgroups'
+import { browseWith } from '@shared/browse'
 import { stageBackground } from '@shared/color'
 import { siteListed, ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '@shared/memory'
 import { siteKey, siteThemeCss } from '@shared/sitetheme'
@@ -64,6 +66,7 @@ import { ZAP_PREFIX, ZAP_SCRIPT } from '@shared/zap'
 import { errorPageUrl } from '@shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
 import { totalmem } from 'os'
+import { VIDEO_RECT_SCRIPT, videoRegion, type VideoRegion } from '@shared/ai/tabStream'
 import { applyIdentity, followIdentity } from './identity'
 import { PdfViewerHelper } from './pdf'
 import { runningMode } from './performance'
@@ -89,6 +92,7 @@ import type {
   InitialData,
   MemoryStats,
   OpenItem,
+  PageMenuPick,
   Rect,
   SpacePatch,
   TabCardInfo,
@@ -97,6 +101,7 @@ import type {
   UiCommand
 } from '@shared/types'
 import { displayHost, resolveInput } from '@shared/url'
+import { pageCaps, zoomPercent } from '@shared/ai/previewBar'
 import { isWelcome, kindOf, type TabKind } from '@shared/tabkind'
 import { showContextMenu } from './contextMenu'
 import { feedbackMailto } from './feedback'
@@ -219,6 +224,12 @@ export class TabManager {
     return kindOf(this.current())
   }
 
+  /** A loaded tab's page, without bringing it on screen (null for an unloaded or closed tab). */
+  contentsOf(id: number): WebContents | null {
+    const t = this.tabs.get(id)
+    return t ? liveContents(t) : null
+  }
+
   /** The page on screen, for printing. */
   activeContents(): WebContents | null {
     const t = this.current()
@@ -295,6 +306,14 @@ export class TabManager {
   /** The one tab whose real page is shown inside the canvas, and where. */
   private liveId: number | null = null
   private liveRect: Rect | null = null
+  /**
+   * The canvas preview is open (live or reader) and which tab it shows, if any: page shortcuts and actions (Ctrl+D,
+   * Ctrl+F, zoom, site settings, back) go to that page instead of the hidden active tab.
+   */
+  private previewOpen = false
+  private previewTab: number | null = null
+  /** Tabs streaming live to their canvas card (setStreaming). */
+  private streaming = new Set<number>()
   private closedUrls: string[] = []
   private pdf = new PdfViewerHelper()
   private groups = new Map<number, TabGroup & { spaceId: number }>()
@@ -558,7 +577,7 @@ export class TabManager {
 
   /** The active tab's page, space and session: what the site settings panel is about. */
   activeSite(): ActiveSite | null {
-    const tab = this.current()
+    const tab = this.pageTab()
     const wc = tab && liveContents(tab)
     if (!tab || !wc) return null
     return {
@@ -628,6 +647,13 @@ export class TabManager {
 
   private current(): Tab | null {
     return this.activeId === null ? null : (this.tabs.get(this.activeId) ?? null)
+  }
+
+  /** The page that page actions are for: the canvas preview's while it is open (none if it has no tab), else current. */
+  private pageTab(): Tab | null {
+    if (!this.canvasMode || !this.previewOpen) return this.current()
+    const id = this.liveId ?? this.previewTab
+    return id === null ? null : (this.tabs.get(id) ?? null)
   }
 
   /** Tabs whose views are on screen: the whole tiled group when the active tab is in one, else just the active tab. */
@@ -741,8 +767,11 @@ export class TabManager {
         this.go(tab, url)
       }
     }
-    if (activate) this.activate(id, true)
+    // a space browsed with the canvas has no tab to put on screen: the page lands on the board, in its preview
+    const toBoard = activate && !!url && !tab.private && this.boardBrowsing(spaceId)
+    if (activate && !toBoard) this.activate(id, true)
     else this.refresh()
+    if (toBoard) this.send('canvas:show-tab', id)
     return id
   }
 
@@ -1273,6 +1302,7 @@ export class TabManager {
           void wc
             .executeJavaScript(`location.hash = ${JSON.stringify(hash)}`)
             .catch(() => undefined)
+        if (this.boardBrowsing()) return this.send('canvas:show-tab', id)
         return this.activate(id)
       }
     }
@@ -1280,7 +1310,7 @@ export class TabManager {
   }
 
   toggleBookmark(): void {
-    const tab = this.current()
+    const tab = this.pageTab()
     if (!tab) return
     const wc = tab.view.webContents
     if (!/^https?:/i.test(wc.getURL())) return
@@ -1289,7 +1319,7 @@ export class TabManager {
   }
 
   find(text: string, forward = true): void {
-    const wc = this.current()?.view.webContents
+    const wc = this.pageTab()?.view.webContents
     if (!wc) return
     if (!text) return this.stopFind()
     const isNew = text !== this.lastFind
@@ -1299,16 +1329,17 @@ export class TabManager {
 
   stopFind(): void {
     this.lastFind = ''
-    this.current()?.view.webContents.stopFindInPage('clearSelection')
+    this.pageTab()?.view.webContents.stopFindInPage('clearSelection')
   }
 
-  private zoom(delta: number | null): void {
-    const wc = this.current()?.view.webContents
+  private zoom(delta: number | null, tab = this.pageTab()): void {
+    const wc = tab?.view.webContents
     if (!wc) return
-    const base = this.defaultZoom(this.current()?.spaceId)
+    const base = this.defaultZoom(tab?.spaceId)
     const next = delta === null ? base : wc.getZoomLevel() + delta
     const level = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next))
     wc.setZoomLevel(level)
+    if (this.canvasMode && this.previewOpen) this.send('canvas:preview-key', 'zoom') // its bar shows the level
     // the zoom belongs to the site: it comes back whenever the site is opened (none kept when it is the default)
     const key = siteKey(wc.getURL())
     if (!key) return
@@ -1409,13 +1440,13 @@ export class TabManager {
   }
 
   back(): void {
-    this.current()?.view.webContents.navigationHistory.goBack()
+    this.pageTab()?.view.webContents.navigationHistory.goBack()
   }
   forward(): void {
-    this.current()?.view.webContents.navigationHistory.goForward()
+    this.pageTab()?.view.webContents.navigationHistory.goForward()
   }
   reload(hard = false): void {
-    const tab = this.current()
+    const tab = this.pageTab()
     if (!tab) return
     // Reloading an error page means trying the address that failed, not showing the error again.
     if (tab.failed) void tab.view.webContents.loadURL(tab.failed.url).catch(() => {})
@@ -1424,12 +1455,13 @@ export class TabManager {
   }
 
   /** Back, forward or reload for one tab, whether or not it is the one on screen (the canvas preview's buttons). */
-  navTab(id: number, what: 'back' | 'forward' | 'reload'): void {
+  navTab(id: number, what: 'back' | 'forward' | 'reload' | 'stop'): void {
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
     if (!tab || !wc) return
     if (what === 'back') wc.navigationHistory.goBack()
     else if (what === 'forward') wc.navigationHistory.goForward()
+    else if (what === 'stop') wc.stop()
     else if (tab.failed) void wc.loadURL(tab.failed.url).catch(() => {})
     else wc.reload()
   }
@@ -1449,11 +1481,12 @@ export class TabManager {
     this.moveTab(this.activeId, delta > 0 ? to + 1 : to)
   }
 
-  private viewSource(): void {
-    const url = this.current()?.view.webContents.getURL()
+  private viewSource(url = this.pageTab()?.view.webContents.getURL()): void {
     if (!url || !/^https?:/i.test(url)) return
-    const id = this.create('')
+    // on the board the source opens as a card, shown in the preview (the board stays up)
+    const id = this.canvasMode ? this.create('', false) : this.create('')
     void this.tabs.get(id)?.view.webContents.loadURL(`view-source:${url}`)
+    if (this.canvasMode) this.send('canvas:show-tab', id)
   }
 
   private async savePage(): Promise<void> {
@@ -1993,6 +2026,18 @@ export class TabManager {
     this.applyVisibility()
   }
 
+  /** Start loading a tab that is about to go live (an unloaded one would otherwise only start once shown). */
+  prepareLive(id: number): void {
+    const t = this.tabs.get(id)
+    if (t) this.ensureLoaded(id, t)
+  }
+
+  /** The canvas preview opened, changed card or closed (see pageTab). */
+  setPreview(open: boolean, tab: number | null): void {
+    this.previewOpen = open
+    this.previewTab = open ? tab : null
+  }
+
   /** Whether the live tab has finished loading (the canvas waits for that before it swaps the snapshot out). */
   liveReady(id: number): boolean {
     const t = this.tabs.get(id)
@@ -2024,8 +2069,62 @@ export class TabManager {
     if (!open) {
       this.liveId = null
       this.liveRect = null
+      this.setPreview(false, null)
+      this.setStreaming([]) // the board's streams end with it: throttled and hidden again
     }
     this.applyVisibility()
+  }
+
+  /**
+   * The canvas cards showing their tab live (a tab stream into the board's own page). Those tabs keep painting and
+   * are not throttled while hidden; the rest go back to normal. Never private or Tor tabs, whose cards show nothing.
+   */
+  setStreaming(ids: number[]): void {
+    const next = new Set(
+      ids.filter((id) => {
+        const t = this.tabs.get(id)
+        return this.canvasMode && !!t && !t.private && !t.tor && !t.unloaded
+      })
+    )
+    for (const id of new Set([...this.streaming, ...next])) {
+      const t = this.tabs.get(id)
+      const wc = t && liveContents(t)
+      if (wc && next.has(id) !== this.streaming.has(id)) wc.setBackgroundThrottling(!next.has(id))
+    }
+    this.streaming = next
+    this.applyVisibility()
+  }
+
+  /**
+   * A stream id of a streaming tab's page, registered to the window's own interface: only that renderer can open it,
+   * and only for 10 seconds.
+   */
+  streamSource(id: number): string | null {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (!wc || !this.streaming.has(id)) return null
+    try {
+      return wc.getMediaSourceId(this.win.webContents)
+    } catch {
+      return null
+    }
+  }
+
+  /** Where the playing video is in a streaming tab's page (null: none, so its card keeps its picture). */
+  async videoRegion(id: number): Promise<VideoRegion | null> {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (!t || !wc || t.private || t.tor) return null
+    try {
+      return videoRegion(
+        await Promise.race([
+          wc.executeJavaScript(VIDEO_RECT_SCRIPT),
+          new Promise((res) => setTimeout(() => res(null), 1500))
+        ])
+      )
+    } catch {
+      return null
+    }
   }
 
   /** Something is drawn over the page (the space editor, the command bar, a tab being dragged). */
@@ -2036,6 +2135,18 @@ export class TabManager {
   /** The canvas board is up (it holds the overlay for as long as it is open). */
   inCanvas(): boolean {
     return this.canvasMode
+  }
+
+  /**
+   * The board is up in a space browsed with the canvas (not one opened by hand over tabs): what the person opens
+   * shows on the board instead of taking the window as a tab.
+   */
+  private boardBrowsing(spaceId = this.activeSpaceId): boolean {
+    return (
+      this.canvasMode &&
+      spaceId === this.activeSpaceId &&
+      browseWith(this.deps.settings.get().browseWith, this.deps.spaces.get(spaceId)) === 'canvas'
+    )
   }
 
   async setOverlay(open: boolean, snapshot = true, sharp = false): Promise<void> {
@@ -2089,9 +2200,22 @@ export class TabManager {
       // a live page that went full screen (a video) is no longer held to the slot: it takes the window
       const liveFull = this.canvasMode && id === this.liveId && this.fullscreenId === id
       const live = this.canvasMode && id === this.liveId && this.liveRect !== null && !liveFull
-      const rect = live
-        ? this.liveRect
-        : placed && this.overlay && !liveFull
+      // A tab streaming to its card must keep painting. Like captureHidden: shown with only its top-left pixels
+      // inside the window's bottom-right corner, which its rounded corner leaves transparent, so none of it is seen.
+      const streamed =
+        this.canvasMode && !live && !liveFull && !tab.unloaded && this.streaming.has(id)
+      const pageRect = streamed ? (this.rects[id] ?? this.activeRect()) : null
+      // the live rect is the slot at rest: it rides the hover sidebar's and top bar's slide like any page view
+      const rect = live && this.liveRect
+        ? { ...this.liveRect, x: this.liveRect.x + this.slideX, y: this.liveRect.y + this.slideY }
+        : streamed
+          ? {
+              x: w - 3,
+              y: h - 3,
+              width: Math.max(800, pageRect?.width ?? w),
+              height: Math.max(600, pageRect?.height ?? h)
+            }
+          : placed && this.overlay && !liveFull
           ? { ...placed, x: PARKED_X }
           : placed && this.fullscreenId === null
             ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
@@ -2102,7 +2226,7 @@ export class TabManager {
         !tab.awaiting &&
         !tab.torTarget &&
         !this.settling &&
-        (live || liveFull || !this.canvasMode)
+        (live || liveFull || streamed || !this.canvasMode)
       // A full-screen page has no window edge to be rounded against.
       const flat = this.fullscreenId === id
       if (flat !== tab.flat && !tab.unloaded) {
@@ -2203,7 +2327,8 @@ export class TabManager {
       refresh()
     })
     wc.on('found-in-page', (_e, r) => {
-      if (id === this.activeId) {
+      // the page find runs in: the active tab, or the canvas preview's
+      if (this.pageTab() === tab) {
         this.send('ui:find-result', { active: r.activeMatchOrdinal, matches: r.matches })
       }
     })
@@ -2315,6 +2440,18 @@ export class TabManager {
     })
     wc.on('before-input-event', (e, input) => {
       if (input.type === 'keyDown') tab.dirty = true
+      // Esc in the canvas preview's live page closes the preview (the page still sees the key)
+      if (
+        input.type === 'keyDown' &&
+        input.key === 'Escape' &&
+        !input.control &&
+        !input.meta &&
+        !input.alt &&
+        this.canvasMode &&
+        id === this.liveId &&
+        this.fullscreenId === null
+      )
+        this.send('canvas:preview-key', 'close')
       this.handleKey(e, input)
     })
     wc.on('focus', () => this.focusPane(id))
@@ -2426,7 +2563,8 @@ export class TabManager {
       else if (k === 'b') this.command('toggle-sidebar')
       else if (k === '\\') this.toggleSplit()
       else if (k === 'f') this.command('find')
-      else if (k === 'd') this.toggleBookmark()
+      // on the board Ctrl+D duplicates the selected cards (the board's own key handler)
+      else if (k === 'd' && !this.canvasMode) this.toggleBookmark()
       else if (k === 'h') this.openInternal('history')
       else if (k === 'j') this.openInternal('downloads')
       else if (k === ',') this.openInternal('settings')
@@ -2956,6 +3094,83 @@ export class TabManager {
     ]).popup({ window: this.win, x, y })
   }
 
+  /**
+   * The usual things to do with a page, for one tab wherever it is shown (the canvas preview): a native menu, so it
+   * draws over the live page. What the board does itself (pop out, ask) comes back as the picked item's id.
+   */
+  pageMenu(id: number, x?: number, y?: number, live?: boolean): Promise<PageMenuPick | null> {
+    const tab = this.tabs.get(id)
+    const wc = tab && liveContents(tab)
+    if (!tab || !wc) return Promise.resolve(null)
+    const url = wc.getURL()
+    const priv = tab.private || tab.tor
+    const caps = pageCaps(url, priv)
+    const shown = live === true
+    const sep: MenuItemConstructorOptions = { type: 'separator' }
+    const when = (ok: boolean, ...items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] =>
+      ok ? items : []
+    return new Promise((resolve) => {
+      // what the board does itself comes back at once: on some platforms the click lands after the close callback
+      const pick = (what: PageMenuPick) => (): void => resolve(what)
+      const items: MenuItemConstructorOptions[] = [
+        {
+          label: 'Back',
+          accelerator: 'Alt+Left',
+          enabled: wc.navigationHistory.canGoBack(),
+          click: () => wc.navigationHistory.goBack()
+        },
+        {
+          label: 'Forward',
+          accelerator: 'Alt+Right',
+          enabled: wc.navigationHistory.canGoForward(),
+          click: () => wc.navigationHistory.goForward()
+        },
+        { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => this.navTab(id, 'reload') },
+        sep,
+        ...when(caps.bookmark, {
+          label: this.deps.bookmarks.has(url) ? 'Remove bookmark' : 'Bookmark this page',
+          accelerator: 'CmdOrCtrl+D',
+          click: () => {
+            this.deps.bookmarks.toggle(url, wc.getTitle(), tab.favicon)
+            this.refresh()
+          }
+        }),
+        ...when(caps.copy, { label: 'Copy link', click: () => clipboard.writeText(url) }),
+        ...when(shown, { label: 'Find in page...', accelerator: 'CmdOrCtrl+F', click: pick('find') }),
+        ...when(shown, {
+          label: `Zoom (${zoomPercent(wc.getZoomLevel())}%)`,
+          submenu: [
+            { label: 'Zoom in', accelerator: 'CmdOrCtrl+=', click: () => this.zoom(ZOOM_STEP, tab) },
+            { label: 'Zoom out', accelerator: 'CmdOrCtrl+-', click: () => this.zoom(-ZOOM_STEP, tab) },
+            { label: 'Actual size', accelerator: 'CmdOrCtrl+0', click: () => this.zoom(null, tab) }
+          ]
+        }),
+        sep,
+        ...when(caps.site, { label: 'Site settings...', click: pick('site') }),
+        { label: wc.audioMuted ? 'Unmute tab' : 'Mute tab', click: () => this.toggleMute(id) },
+        sep,
+        ...when(live !== undefined, {
+          label: shown ? 'Show as reader' : 'Show the live page',
+          click: pick(shown ? 'reader' : 'live')
+        }),
+        { label: 'Pop out as a tab', click: pick('popout') },
+        ...when(!priv, { label: 'Ask about this page', click: pick('ask') }),
+        ...when(caps.source, sep, {
+          label: 'View page source',
+          accelerator: 'CmdOrCtrl+U',
+          click: () => this.viewSource(url)
+        }),
+        sep,
+        { label: 'Close preview', accelerator: 'Esc', click: pick('close') }
+      ]
+      Menu.buildFromTemplate(items).popup({
+        window: this.win,
+        ...(x !== undefined && y !== undefined ? { x: Math.round(x), y: Math.round(y) } : {}),
+        callback: () => setTimeout(() => resolve(null), 0)
+      })
+    })
+  }
+
   groupMenu(id: number): void {
     const group = this.groups.get(id)
     if (!group) return
@@ -3053,14 +3268,22 @@ export class TabManager {
     tab.darkened = false
   }
 
-  /** Open the same page again in a new tab beside this one, of the same kind (a private tab gives a private one). */
-  duplicate(id: number): void {
+  /**
+   * Open the same page again in a new tab beside this one, of the same kind (a private tab gives a private one).
+   * `spaceId` (a paste): the copy is made in that space, not shown, and left for the caller to place.
+   */
+  duplicate(id: number, spaceId?: number): number | null {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
-    if (!t || !wc) return
+    if (!t || !wc) return null
     const url = t.failed ? t.failed.url : wc.getURL() || t.pending?.url || t.firstUrl
+    if (spaceId !== undefined) {
+      if (!this.deps.spaces.get(spaceId)) return null
+      return this.create(url, false, spaceId, undefined, t.private, t.tor)
+    }
     const copy = this.create(url, true, t.spaceId, undefined, t.private, t.tor)
     this.moveTab(copy, this.own().indexOf(id) + 1)
+    return copy
   }
 
   /** Feedback by email: the email app, or a Gmail page in a tab when there is no email app. */
@@ -3179,6 +3402,11 @@ export class TabManager {
     // The page view holds the keyboard when the shortcut is pressed; the find box can only take typing once the
     // window's own page does.
     if (cmd === 'find' && !this.win.isDestroyed()) this.win.webContents.focus()
+    // the canvas preview has its own address and find box: these keys are its, not the board's or the top bar's
+    if (this.canvasMode && this.previewOpen && (cmd === 'find' || cmd === 'focus-address')) {
+      if (!this.win.isDestroyed()) this.win.webContents.focus()
+      return this.send('canvas:preview-key', cmd === 'find' ? 'find' : 'address')
+    }
     this.send('ui:command', cmd)
   }
 

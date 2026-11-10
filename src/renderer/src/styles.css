@@ -1878,6 +1878,11 @@ button {
 .tp-mode:hover {
   color: var(--fg);
 }
+.tp-mode.text {
+  width: auto;
+  padding: 0 9px;
+  font-size: var(--fs-s);
+}
 .tp-mode.on {
   background: var(--popover-bg);
   color: var(--fg);
@@ -4155,24 +4160,25 @@ kbd {
 .search-drop.bar-over .strip .address {
   visibility: hidden;
 }
-/* top tabs in canvas: the tab strip and the toolbar are one bar that tucks away above the window and slides out
-   together (the strip inside it no longer moves on its own); outside canvas the box is not there for layout */
+/* the tab strip and the toolbar: one box in the markup, not there for layout */
 .topbars {
   display: contents;
 }
-.topbars.tucked {
-  display: block;
+/* the canvas board is the whole window: its top margin is where the window is dragged from */
+.board-drag {
   position: absolute;
-  z-index: 30;
+  z-index: 1;
   top: 0;
   left: 0;
   right: 0;
-  transform: translateY(calc(var(--slide-y, 0px) - 100%));
-  will-change: transform;
+  height: max(var(--edge), 6px);
+  -webkit-app-region: drag;
 }
-.bar-over .topbars.tucked .strip {
-  position: static;
-  transform: none;
+.popover-open .board-drag {
+  -webkit-app-region: no-drag;
+}
+.cv-top .winctl {
+  align-self: center;
 }
 .bar-over .stage-wrap {
   transform: translateY(var(--slide-y, 0px));

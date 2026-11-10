@@ -21,6 +21,7 @@ import {
   conversationTitle,
   describeChatError,
   groupSteps,
+  namingPrompt,
   sanitizeConversation,
   suggestionsFor,
   toModelHistory,
@@ -154,6 +155,7 @@ describe('tool arguments', () => {
     const weak = toolsFor(true)
     expect(weak.filter((t) => !t.readOnly).map((t) => t.name)).toEqual([
       'open_tab',
+      'find_and_open',
       'search_on_site',
       'switch_to_tab',
       'find_in_page',
@@ -454,5 +456,24 @@ describe('a call a small model writes out instead of making', () => {
     expect(couldBeCall('<tool')).toBe(true)
     expect(couldBeCall('Sure')).toBe(false)
     expect(couldBeCall('Your board has')).toBe(false)
+  })
+})
+
+describe('naming a conversation', () => {
+  const msg = (role: 'user' | 'assistant', text: string, error?: string): ChatMessage => ({
+    id: Math.random().toString(36),
+    role,
+    parts: [{ type: 'text', text }],
+    ...(error ? { error } : {})
+  })
+  test('waits for an answer, and asks with the first question and answer', () => {
+    expect(namingPrompt([msg('user', 'cheap flights to tokyo?')])).toBeNull()
+    expect(namingPrompt([msg('user', 'hi'), msg('assistant', '', 'failed')])).toBeNull()
+    const p = namingPrompt([
+      msg('user', 'cheap   flights\nto tokyo?'),
+      msg('assistant', 'Try ZIPAIR.'),
+      msg('user', 'and hotels?')
+    ])
+    expect(p).toBe('Question: cheap flights to tokyo?\nAnswer: Try ZIPAIR.')
   })
 })

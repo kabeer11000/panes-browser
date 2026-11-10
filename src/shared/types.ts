@@ -22,9 +22,13 @@ import type { ChatBlock } from './ai/chatState'
 import type { CanvasState, Group } from './ai/canvas'
 import type { Placement } from './ai/canvasItems'
 import type { CanvasFoundEvent } from './ai/canvasFind'
+import type { VideoRegion } from './ai/tabStream'
 import type { CanvasPageContent, CanvasReaderDoc } from './ai/canvasItems'
 
 export type SpaceMode = 'system' | 'dark' | 'light'
+
+/** How a space is browsed: tabs (sidebar or top bar) or the canvas board as the whole window. */
+export type BrowseWith = 'tabs' | 'canvas'
 
 export interface TabInfo {
   id: number
@@ -87,6 +91,8 @@ export interface Space {
   /** Light or dark interface while in this space; 'system' follows the operating system. */
   mode: SpaceMode
   ui: SpaceUi
+  /** Tabs or canvas for this space; null follows the global setting. */
+  browseWith: BrowseWith | null
   /** Page recolouring for individual sites, only while browsing in this space. Keyed by siteKey(). */
   sites: Record<string, SiteTheme>
 }
@@ -122,6 +128,7 @@ export interface SpacePatch {
   icon?: SpaceIcon
   mode?: SpaceMode
   ui?: SpaceUi
+  browseWith?: BrowseWith | null
 }
 
 export interface TabsState {
@@ -151,6 +158,11 @@ export interface Rect {
 }
 
 /** Commands main sends to the renderer UI (usually from keyboard shortcuts). */
+/** What the canvas preview's page menu hands back for the board to do itself. */
+export type PageMenuPick = 'popout' | 'ask' | 'find' | 'site' | 'reader' | 'live' | 'close'
+/** Shortcuts main routes to the open canvas preview ('zoom': its page zoom changed, read it again). */
+export type PreviewKey = 'find' | 'address' | 'close' | 'zoom'
+
 export type UiCommand =
   | 'focus-address'
   | 'toggle-taskview'
@@ -195,6 +207,8 @@ export interface PanesApi {
   closePane(id: number): void
   /** Native right-click menus; their choices come back as state changes (and rename requests). */
   tabMenu(id: number, picked?: number[]): void
+  /** The usual page menu for one tab (native, over everything); what the caller does itself comes back. */
+  pageMenu(id: number, x?: number, y?: number, live?: boolean): Promise<PageMenuPick | null>
   /** The pointer rests on a tab (with where it is) or has left it (null): show or hide its card. */
   tabHover(id: number | null, anchor?: TabHoverAnchor): void
   /** Open the email app with a message to the developer. */
@@ -220,6 +234,8 @@ export interface PanesApi {
   /** End what a tab is capturing (camera, microphone or screen). */
   stopCapture(id: number, kinds: CaptureKind[]): void
   toggleMute(id: number): void
+  /** Play or pause the video or audio on a tab's page, wherever it is; null when it has none. */
+  mediaPlay(id: number, action: 'toggle' | 'play' | 'pause'): Promise<{ paused: boolean } | null>
   /** Keep this photo on the new tab page (null goes back to the daily one). */
   setNewTabPhoto(id: number | null): void
   /** Float the current tab's video in a small window (or bring it back). */
@@ -268,6 +284,8 @@ export interface PanesApi {
   /** Something that decides where chat goes changed (settings, a download, a sign-in): ask chatInfo again. */
   onChatChanged(cb: () => void): () => void
   onChatEvent(cb: (e: ChatStreamEvent) => void): () => void
+  /** A kept conversation got its name from the model (the list should be read again). */
+  onChatNamed(cb: (id: string) => void): () => void
   /** Canvas mode (AI phase 3): the saved board, thumbnails, and the AI parts of arranging it. */
   canvas: {
     load(spaceId: number): Promise<{ state: CanvasState | null; boot: string } | null>
@@ -275,6 +293,14 @@ export interface PanesApi {
     /** The board opens: refresh old thumbnails in the background. */
     open(spaceId: number): void
     close(spaceId: number): void
+    /** The cards on screen now: only their old pictures are taken again (each is a GPU read-back). */
+    inView(spaceId: number, tabIds: number[]): void
+    /** The tabs whose cards play live now (main keeps those pages painting); [] when none. */
+    streaming(tabIds: number[]): void
+    /** A tab-capture id of a streaming tab for getUserMedia (valid 10 s, this page only); null if not allowed. */
+    streamSource(tabId: number): Promise<string | null>
+    /** Where the playing video is in a tab's page; null when nothing plays there. */
+    videoRegion(tabId: number): Promise<VideoRegion | null>
     cluster(spaceId: number): Promise<{ groups: Group[]; semantic: boolean }>
     name(spaceId: number, tabIds: number[]): Promise<string | null>
     assign(spaceId: number, tabId: number, frames: Record<string, number[]>): Promise<string | null>
@@ -309,8 +335,14 @@ export interface PanesApi {
     liveOpen(req: { tab?: number; url?: string; rect: Rect }): Promise<number | null>
     liveMove(tabId: number, rect: Rect): void
     liveHide(): void
+    /** A picture of a tab's live page as it is now (stands in for it while it steps aside); null when it has none. */
+    liveShot(tabId: number): Promise<string | null>
     /** Back, forward or reload in the live page of the preview. */
-    liveNav(tabId: number, what: 'back' | 'forward' | 'reload'): void
+    liveNav(tabId: number, what: 'back' | 'forward' | 'reload' | 'stop'): void
+    /** The preview opened, moved to another card (its tab, if any) or closed: page shortcuts follow it. */
+    preview(open: boolean, tab: number | null): void
+    /** A page shortcut meant for the open preview (pressed in its live page, or anywhere while it is open). */
+    onPreviewKey(cb: (key: PreviewKey) => void): () => void
     /** Load an address or search in a card's tab (null: a new background tab); the tab's id, or null. */
     navigate(tab: number | null, input: string): Promise<number | null>
     /** The assistant asks the board to do something; answer with `toolResult`. */
@@ -337,10 +369,12 @@ export interface PanesApi {
   moveTab(id: number, index: number, groupId?: number | null): void
   /** Move several picked tabs together to the drop slot. */
   moveTabs(ids: number[], index: number, groupId?: number | null): void
+  /** Copies of these tabs made in a space, not shown; ids in the same order (null: that one could not be copied). */
+  duplicateTabs(ids: number[], spaceId: number): Promise<Array<number | null>>
+  /** Open web addresses as tabs in a space, not shown; the new ids. */
+  openTabs(urls: string[], spaceId: number): Promise<number[]>
   /** Hide the native page view (so renderer overlays can show); snapshots the active tab first. */
   setOverlay(open: boolean, snapshot?: boolean, sharp?: boolean): Promise<void>
-  /** Something other than the window's own mode (the canvas board) is over the page: a space editor, a drag. */
-  setOverlayPins(pinned: boolean): void
   /** Shift the page views right by x and down by y pixels, keeping their size (the hover sidebar or top bar sliding out). */
   setSlide(x: number, y: number): void
   minimizeWindow(): void
@@ -441,6 +475,8 @@ export interface Settings {
   sidebarHover: boolean
   /** Tabs down the side (a sidebar) or along the top. */
   tabLayout: 'vertical' | 'horizontal'
+  /** Browse with tabs or with the canvas board; each space can override it (Space.browseWith). */
+  browseWith: BrowseWith
   /** With tabs along the top, the address bar spans the whole row rather than sitting in the middle of it. */
   fullWidthAddress: boolean
   /** Where the command bar appears: grown out of the address bar, or centred on the page. */

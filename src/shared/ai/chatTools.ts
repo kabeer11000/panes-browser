@@ -29,6 +29,7 @@ export type ToolName =
   | 'go_back'
   | 'media_control'
   | 'scroll_to'
+  | 'find_and_open'
 
 /** Where the chat runs: the docked panel and the canvas board (both may act), or the read-only popover. */
 export type ChatMode = 'panel' | 'popover' | 'canvas'
@@ -140,6 +141,18 @@ export const TOOLS: readonly ToolSpec[] = [
     schema: obj({ url: URL_ARG }, ['url'])
   },
   {
+    name: 'find_and_open',
+    description:
+      'Search the web and open the best result in a new tab, in one step: "find X and open it", "open the X pdf", "get me the X paper". Say pdf in the query when a PDF is wanted; the PDF file itself is then opened. Returns what was opened and the other results.',
+    readOnly: false,
+    local: true,
+    confirm: false,
+    schema: obj(
+      { query: { type: 'string', description: 'What to find, e.g. "dragon book compilers pdf"' } },
+      ['query']
+    )
+  },
+  {
     name: 'search_on_site',
     description:
       'Search a website in a new tab: YouTube, Spotify, Wikipedia, Google, Google Maps, Reddit, Amazon, GitHub, X, Netflix, IMDb and others, or any site by its domain. Give just the site and the words; the browser builds the address. Use it whenever the person asks to search, play, watch, listen to or look something up on a site.',
@@ -243,14 +256,18 @@ export const TOOLS: readonly ToolSpec[] = [
   {
     name: 'scroll_to',
     description:
-      'Scroll a tab to a part of the page by what it says: "comments", a heading, a section name or a few words of text. Returns the page after.',
+      'Scroll a tab to a part of the page by what it is called: "comments", a heading, a section name or a few words of text. Give the name itself ("AI", "Tor", "comments"), not words like "settings" or "section". If nothing matches, the error lists the sections of the page: call it again with the right one. Returns the page after.',
     readOnly: false,
     local: true,
     confirm: false,
     schema: obj(
       {
         tabId: TAB_ID,
-        target: { type: 'string', description: 'Words on the part of the page to show' }
+        target: {
+          type: 'string',
+          description:
+            'The name of the part to show, as the page may write it (e.g. "AI", "Privacy", "comments")'
+        }
       },
       ['target']
     )
@@ -325,7 +342,11 @@ export const toolsFor = (weak: boolean, mode: ChatMode = 'panel'): ToolSpec[] =>
     if (weak)
       return (
         t.local &&
-        (mode !== 'popover' || t.readOnly || t.name === 'open_tab' || t.name === 'search_on_site')
+        (mode !== 'popover' ||
+          t.readOnly ||
+          t.name === 'open_tab' ||
+          t.name === 'search_on_site' ||
+          t.name === 'find_and_open')
       )
     if (mode === 'popover') return t.readOnly && t.name !== 'look_at_page'
     // the canvas assistant may also work the browser, as the panel does, and has the board tools besides
@@ -346,6 +367,7 @@ export type ToolInput =
   | { name: 'list_downloads'; query: string }
   | { name: 'read_download'; downloadId: number }
   | { name: 'search_web'; query: string }
+  | { name: 'find_and_open'; query: string }
   | { name: 'read_web_page'; url: string }
   | { name: 'open_tab'; url: string }
   | { name: 'search_on_site'; site: string; query: string }
@@ -405,7 +427,8 @@ export function validateToolInput(name: string, input: unknown, currentTab?: num
     case 'go_back':
       return isId(a.tabId) ? { ok: true, value: { name, tabId: a.tabId } } : bad(tab)
     case 'search_history':
-    case 'search_web': {
+    case 'search_web':
+    case 'find_and_open': {
       const query = shortText(a.query)
       return query
         ? { ok: true, value: { name, query } }
@@ -589,6 +612,7 @@ Do what is asked at once by calling the tool. Never ask whether you should, neve
 How to handle some requests (always by calling the tool itself, never by writing its name or arguments in your reply):
 - "play piano covers on youtube": the search_on_site tool, site youtube, query piano covers.
 - "open example.com": the open_tab tool with that address.
+- "find the dragon book pdf and open it" or "open the attention is all you need paper": the find_and_open tool with those words.
 - "what tabs do I have?" or "which tab am I on?": answer from <tabs>.
 - "what does my current tab say?": answer from its <page>. If there is no <page> for it, call the read_tab tool; never describe a page you have not read.
 - "find the word pricing on this page": the find_in_page tool with text pricing. Do not guess whether it is there.
@@ -610,7 +634,7 @@ ${VOICE}`
 
   const opening = `Opening things (do it, do not describe it, and never say you cannot):
 - To search, play, watch, listen to or look up something on a site (YouTube, Spotify, Wikipedia, Google Maps, Amazon, Reddit, GitHub...), call search_on_site with the site and the words. The browser builds the address.
-- To open one particular page you know the address of, call open_tab. For one particular video or article you do not know the address of, search_web first, then open_tab the best result.
+- To open one particular page you know the address of, call open_tab. For one particular thing you do not know the address of ("find X and open it", "open the X pdf"), call find_and_open with its name; it searches and opens the best result in one step.
 - At most ${MAX_OPEN} tabs per answer; list any further links instead. Afterwards say in one short sentence what you opened.`
 
   if (mode === 'popover')

@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useMotionValue } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { boardStep, browseWith, type BrowseSeen } from '@shared/browse'
 import { applyDrop, leaves } from '@shared/layout'
 import { NONE, click, type Selection } from '@shared/selection'
 import { stackEntries } from '@shared/stack'
@@ -40,6 +41,7 @@ import { useTabDrag, type ClickMods } from './hooks/useTabDrag'
 import { useTabHover } from './hooks/useTabHover'
 import { useTabSlide } from './hooks/useTabSlide'
 import { useTabs } from './hooks/useTabs'
+import { useSidebarClip } from '@renderer/tabClip'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '@shared/settings'
 import type { LoginEdits, PasswordPrompt, Settings } from '@shared/types'
 import { chromeVars } from '@shared/color'
@@ -90,6 +92,7 @@ function App(): React.JSX.Element {
   }, [setSidebar])
   const [mode, setModeState] = useState<Mode>(null)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
+  const [settingsReady, setSettingsReady] = useState(false)
   const [findKey, setFindKey] = useState<number | null>(null)
   // The chat panel: docked beside the page, so the page views are laid out smaller while it is open.
   const [chatOpen, setChatOpen] = useState(false)
@@ -105,11 +108,14 @@ function App(): React.JSX.Element {
     setChatDraft(null)
     setChatFocus((k) => k + 1)
   }, [])
-  // Canvas is immersive: the chat panel and the sidebar fold away and the top bar hides (the window edges bring
-  // them back for a moment), and leaving the canvas puts every one of them back as it was.
+  // Canvas is immersive: the chat panel and the sidebar fold away and the top bar goes (none of them is mounted on
+  // the board), and leaving the canvas puts every one of them back as it was.
   // Any switch to a tab while canvas is shown (sidebar, Ctrl+Tab, Ctrl+1..9, the command bar, a link) leaves canvas
   // for that tab with the exit transition.
   const canvasTab = useRef<number | null>(null)
+  // in a space browsed with the canvas the board is the window: a tab change there (a card closed, Ctrl+Tab) is not
+  // a pick, only Pop out leaves it
+  const browseRef = useRef<'tabs' | 'canvas'>('tabs')
   // switching space while on the board shows that space's board: the tab change that comes with it is not a pick
   const spaceSwitchAt = useRef(0)
   const lastSpace = useRef(activeSpaceId)
@@ -122,7 +128,7 @@ function App(): React.JSX.Element {
       canvasTab.current = null
       return
     }
-    if (canvasTab.current === null) canvasTab.current = activeId
+    if (canvasTab.current === null || browseRef.current === 'canvas') canvasTab.current = activeId
     else if (activeId !== null && performance.now() - spaceSwitchAt.current < 1500)
       canvasTab.current = activeId
     else if (activeId !== null && activeId !== canvasTab.current) {
@@ -432,10 +438,27 @@ function App(): React.JSX.Element {
   // Global settings, overridden per space; everything visual hangs off CSS variables on the root.
   useEffect(() => {
     const merge = (s: Settings): Settings => ({ ...DEFAULT_SETTINGS, ...s }) // older saved files lack newer keys
-    void window.api.getSettings().then((s) => setSettings(merge(s)))
+    void window.api.getSettings().then((s) => {
+      setSettings(merge(s))
+      setSettingsReady(true)
+    })
     return window.api.onSettings((s) => setSettings(merge(s)))
   }, [])
   const effective = { ...settings, ...activeSpace?.ui }
+  // Browse with tabs or the canvas: a canvas space opens straight into its board, and one switched to tabs leaves it
+  const browse = browseWith(settings.browseWith, activeSpace)
+  const browseSeen = useRef<BrowseSeen | null>(null)
+  const spaceKnown = activeSpace !== null
+  useEffect(() => {
+    browseRef.current = browse
+    if (!settingsReady || !spaceKnown) return // the defaults before the real settings and spaces are not a choice
+    const next = { space: activeSpaceId, browse }
+    const step = boardStep(browseSeen.current, next)
+    browseSeen.current = next
+    if (step === 'open') void openOverlay('canvas')
+    else if (step === 'close' && modeRef.current === 'canvas')
+      window.dispatchEvent(new Event('panes:canvas-exit'))
+  }, [settingsReady, spaceKnown, activeSpaceId, browse, openOverlay])
   useEffect(() => {
     releaseRef.current = settings.paneViewRelease
   }, [settings.paneViewRelease])
@@ -444,7 +467,10 @@ function App(): React.JSX.Element {
   const horizontal = effective.tabLayout === 'horizontal'
   // the welcome tour is shown on its own: dark, with no sidebar or bars, so the whole window is the page
   const immersive = isWelcome(active?.url)
-  const showSidebar = !horizontal && sidebarOpen && !immersive
+  // The canvas board is a way to browse of its own, not a layer over the tabs: while it is up the sidebar, the top
+  // bar(s), the tab stack and the edge watchers that bring them out are not there at all.
+  const board = mode === 'canvas'
+  const showSidebar = !horizontal && sidebarOpen && !immersive && !board
   // The search popover hangs off the address bar, which moves when the sidebar opens or closes: it ends with it.
   useEffect(() => {
     if (modeRef.current === 'search') closeOverlay()
@@ -480,9 +506,7 @@ function App(): React.JSX.Element {
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
   }, [openedByHover, showSidebar, effective.sidebarWidth])
-  // canvas is full screen in both layouts: with top tabs, the tab strip and the toolbar tuck away together
-  const barAutoHidden =
-    !pushed && (horizontal ? mode === 'canvas' : settings.autoHideTopBar || mode === 'canvas')
+  const barAutoHidden = !pushed && !horizontal && !board && settings.autoHideTopBar
   // the sidebar and the top bar are never both brought out by the pointer: whichever came first keeps the stage
   const peeking = peekBar && !openedByHover
   const peekRef = useRef(false)
@@ -533,18 +557,18 @@ function App(): React.JSX.Element {
   useEffect(() => window.api.onPeekBar(setPeekBar), [])
   useEffect(() => {
     window.api.watchSidebar(
-      (settings.sidebarHover || mode === 'canvas') && !horizontal,
+      settings.sidebarHover && !horizontal && !board,
       sidebarOpen,
       openedByHover,
       effective.sidebarWidth
     )
-  }, [settings.sidebarHover, mode, horizontal, sidebarOpen, openedByHover, effective.sidebarWidth])
+  }, [settings.sidebarHover, board, horizontal, sidebarOpen, openedByHover, effective.sidebarWidth])
   useEffect(
     () =>
       window.api.onSideHover((action) => {
         // The search popover hangs off the address bar, which moves when the sidebar does; leave the
         // layout alone until it is dismissed (the pointer keeps asking, so a close still follows).
-        if (modeRef.current !== null && modeRef.current !== 'canvas') return
+        if (modeRef.current !== null) return
         if (action === 'open' && peekRef.current) return // the top bar is out: leave the sidebar for later
         setSidebarOpen(action === 'open')
         setOpenedByHover(action === 'open')
@@ -681,6 +705,7 @@ function App(): React.JSX.Element {
   }, [pickedIds])
 
   useTabHover()
+  useSidebarClip({ tabs, activeId, picked: pickedIds, spaceId: activeSpaceId, off: mode !== null })
   // the downloads bin is tucked off the window while the pane view is open over that edge, and during the welcome tour
   useEffect(() => {
     window.api.hideDock(mode === 'stack' || mode === 'grid' || immersive)
@@ -743,171 +768,174 @@ function App(): React.JSX.Element {
       style={{ '--sidebar-w': pushed ? 'var(--sidebar-full)' : '0px' } as React.CSSProperties}
     >
       <aside className="sidebar" inert={!showSidebar}>
-        <Sidebar
-          tor={tor}
-          notice={notice}
-          tabs={tabs}
-          tabGroups={tabGroups}
-          activeId={mode === 'canvas' ? null : activeId}
-          active={active}
-          layout={layout}
-          spaces={spaces}
-          activeSpaceId={activeSpaceId}
-          urlDisplay={effective.urlDisplay}
-          dragId={drag?.id ?? null}
-          dropIndex={
-            // a dragged tab is shown by the others sliding aside; a pane dragged in gets the line
-            drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
-          }
-          dropGroupId={dropGroupId}
-          dir={spaceDir}
-          onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
-          picked={pickedIds}
-          onOpenSearch={() => void openOverlay('search')}
-          rowH={rowH}
-          findKey={showSidebar ? findKey : null}
-          onCloseFind={() => setFindKey(null)}
-          passwordPrompt={passwordPrompt}
-          onAnswerPassword={answerPassword}
-          updateVersion={updateVersion}
-          // the welcome tour asks first, on its last step
-          defaultPrompt={settings.askDefaultBrowser && settings.onboarded && !isDefault}
-          peeking={openedByHover}
-          onToggle={toggleSidebar}
-          onTaskView={GRID_VIEW ? toggleGrid : undefined}
-          onChat={toggleChat}
-          chatOpen={chatOpen}
-          onCanvas={toggleCanvas}
-          canvasOpen={mode === 'canvas'}
-          onWheel={swipe}
-        />
+        {!board && (
+          <Sidebar
+            tor={tor}
+            notice={notice}
+            tabs={tabs}
+            tabGroups={tabGroups}
+            activeId={activeId}
+            active={active}
+            layout={layout}
+            spaces={spaces}
+            activeSpaceId={activeSpaceId}
+            urlDisplay={effective.urlDisplay}
+            dragId={drag?.id ?? null}
+            dropIndex={
+              // a dragged tab is shown by the others sliding aside; a pane dragged in gets the line
+              drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
+            }
+            dropGroupId={dropGroupId}
+            dir={spaceDir}
+            onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
+            picked={pickedIds}
+            onOpenSearch={() => void openOverlay('search')}
+            rowH={rowH}
+            findKey={showSidebar ? findKey : null}
+            onCloseFind={() => setFindKey(null)}
+            passwordPrompt={passwordPrompt}
+            onAnswerPassword={answerPassword}
+            updateVersion={updateVersion}
+            // the welcome tour asks first, on its last step
+            defaultPrompt={settings.askDefaultBrowser && settings.onboarded && !isDefault}
+            peeking={openedByHover}
+            onToggle={toggleSidebar}
+            onTaskView={GRID_VIEW ? toggleGrid : undefined}
+            onChat={toggleChat}
+            chatOpen={chatOpen}
+            onCanvas={toggleCanvas}
+            canvasOpen={false}
+            onWheel={swipe}
+          />
+        )}
       </aside>
 
       <main className="main">
-        {/* only a box in canvas with top tabs (they come out as one); otherwise it adds nothing to the layout */}
-        <div className={'topbars' + (horizontal && barAutoHidden ? ' tucked' : '')}>
-          {horizontal && (
-            <HorizontalTabs
-              tabs={tabs}
-              tabGroups={tabGroups}
-              activeId={mode === 'canvas' ? null : activeId}
-              layout={layout}
-              spaces={spaces}
-              activeSpaceId={activeSpaceId}
-              dir={spaceDir}
-              dropGroupId={dropGroupId}
-              dragId={drag?.id ?? null}
-              dropIndex={
-                drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
+        {board && <div className="board-drag" aria-hidden="true" />}
+        {!board && (
+          <div className="topbars">
+            {horizontal && (
+              <HorizontalTabs
+                tabs={tabs}
+                tabGroups={tabGroups}
+                activeId={activeId}
+                layout={layout}
+                spaces={spaces}
+                activeSpaceId={activeSpaceId}
+                dir={spaceDir}
+                dropGroupId={dropGroupId}
+                dragId={drag?.id ?? null}
+                dropIndex={
+                  drag?.source === 'pane' && drag.target?.kind === 'list' ? drag.target.index : null
+                }
+                onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
+                picked={pickedIds}
+              />
+            )}
+            <div
+              className={
+                'strip drag' +
+                (stripHidden ? ' hidden' : '') +
+                (barAutoHidden && peeking ? ' peeking' : '') +
+                (horizontal ? ' hstrip' : '') +
+                (horizontal && effective.fullWidthAddress ? ' full' : '')
               }
-              onTabPointerDown={(e, id) => startDrag(e, id, 'tab')}
-              picked={pickedIds}
-            />
-          )}
-          <div
-            className={
-              'strip drag' +
-              (stripHidden ? ' hidden' : '') +
-              (barAutoHidden && peeking ? ' peeking' : '') +
-              (horizontal ? ' hstrip' : '') +
-              (horizontal && effective.fullWidthAddress ? ' full' : '')
-            }
-            inert={stripHidden}
-          >
-            {/* controls on the left, buttons on the right, and the address bar in the true middle of the window */}
-            <div className="strip-side start">
-              {!horizontal && window.api.platform !== 'darwin' && <WindowControls />}
-              {!horizontal && (
+              inert={stripHidden}
+            >
+              {/* controls on the left, buttons on the right, and the address bar in the true middle of the window */}
+              <div className="strip-side start">
+                {!horizontal && window.api.platform !== 'darwin' && <WindowControls />}
+                {!horizontal && (
+                  <button
+                    className="icon-btn no-drag"
+                    onClick={() => setSidebar(true)}
+                    title="Show sidebar (Ctrl+B)"
+                  >
+                    <SidebarIcon />
+                  </button>
+                )}
+                {!horizontal && <span className="tabbar-sep" aria-hidden="true" />}
+                {!horizontal && (
+                  <SpaceSwitcher
+                    spaces={spaces}
+                    activeSpaceId={activeSpaceId}
+                    placement="down"
+                    dir={spaceDir}
+                    size={22}
+                  />
+                )}
+                <NavButtons active={active} />
+              </div>
+              <AddressBar
+                active={active}
+                onOpen={() => void openOverlay('search')}
+                urlDisplay={effective.urlDisplay}
+                paneFocus={!!layout && leaves(layout).includes(activeId ?? -1)}
+                onWheel={swipe}
+              />
+              <div className="strip-side end">
+                {!showSidebar && <StatusChips tor={tor} notice={notice} />}
+                {!showSidebar && <SharingBar tabs={tabs} activeId={activeId} />}
+                {!showSidebar && findKey !== null && (
+                  <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
+                )}
                 <button
                   className="icon-btn no-drag"
-                  onClick={() => setSidebar(true)}
-                  title="Show sidebar (Ctrl+B)"
+                  onClick={window.api.toggleSplit}
+                  title="Split view (Ctrl+\)"
                 >
-                  <SidebarIcon />
+                  <SplitIcon />
                 </button>
-              )}
-              {!horizontal && <span className="tabbar-sep" aria-hidden="true" />}
-              {!horizontal && (
-                <SpaceSwitcher
-                  spaces={spaces}
-                  activeSpaceId={activeSpaceId}
-                  placement="down"
-                  dir={spaceDir}
-                  size={22}
-                />
-              )}
-              <NavButtons active={active} />
-            </div>
-            <AddressBar
-              active={active}
-              onOpen={() => void openOverlay('search')}
-              urlDisplay={effective.urlDisplay}
-              paneFocus={!!layout && leaves(layout).includes(activeId ?? -1)}
-              onWheel={swipe}
-            />
-            <div className="strip-side end">
-              {!showSidebar && <StatusChips tor={tor} notice={notice} />}
-              {!showSidebar && <SharingBar tabs={tabs} activeId={activeId} />}
-              {!showSidebar && findKey !== null && (
-                <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
-              )}
-              <button
-                className="icon-btn no-drag"
-                onClick={window.api.toggleSplit}
-                title="Split view (Ctrl+\)"
-              >
-                <SplitIcon />
-              </button>
-              <button
-                className={'icon-btn no-drag' + (mode === 'canvas' ? ' active' : '')}
-                onClick={toggleCanvas}
-                title="Canvas (Ctrl+Shift+K)"
-                aria-label="Canvas"
-                aria-pressed={mode === 'canvas'}
-              >
-                <CanvasIcon />
-              </button>
-              <button
-                className={'icon-btn no-drag' + (chatOpen ? ' active' : '')}
-                onClick={toggleChat}
-                title="Chat (Ctrl+Shift+L)"
-                aria-label="Chat"
-                aria-pressed={chatOpen}
-              >
-                <ChatIcon />
-              </button>
-              {GRID_VIEW && (
                 <button
                   className="icon-btn no-drag"
-                  onClick={toggleGrid}
-                  title="All tabs (Ctrl+Shift+A)"
+                  onClick={toggleCanvas}
+                  title="Canvas (Ctrl+Shift+K)"
+                  aria-label="Canvas"
                 >
-                  <GridIcon />
+                  <CanvasIcon />
                 </button>
-              )}
-              <button
-                className="icon-btn no-drag"
-                title="Send feedback"
-                aria-label="Send feedback"
-                onClick={window.api.sendFeedback}
-              >
-                <FeedbackIcon />
-              </button>
-              <button
-                className="icon-btn no-drag"
-                title="Menu: bookmarks, history, downloads, settings"
-                aria-label="Menu"
-                aria-haspopup="menu"
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect()
-                  window.api.appMenu(r.left, r.bottom + 4)
-                }}
-              >
-                <MoreIcon />
-              </button>
+                <button
+                  className={'icon-btn no-drag' + (chatOpen ? ' active' : '')}
+                  onClick={toggleChat}
+                  title="Chat (Ctrl+Shift+L)"
+                  aria-label="Chat"
+                  aria-pressed={chatOpen}
+                >
+                  <ChatIcon />
+                </button>
+                {GRID_VIEW && (
+                  <button
+                    className="icon-btn no-drag"
+                    onClick={toggleGrid}
+                    title="All tabs (Ctrl+Shift+A)"
+                  >
+                    <GridIcon />
+                  </button>
+                )}
+                <button
+                  className="icon-btn no-drag"
+                  title="Send feedback"
+                  aria-label="Send feedback"
+                  onClick={window.api.sendFeedback}
+                >
+                  <FeedbackIcon />
+                </button>
+                <button
+                  className="icon-btn no-drag"
+                  title="Menu: bookmarks, history, downloads, settings"
+                  aria-label="Menu"
+                  aria-haspopup="menu"
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect()
+                    window.api.appMenu(r.left, r.bottom + 4)
+                  }}
+                >
+                  <MoreIcon />
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
         <div
           className={
             'stage-wrap' +
@@ -915,7 +943,7 @@ function App(): React.JSX.Element {
             (horizontal ? ' hlayout' : '') +
             (pushed && !horizontal ? ' plane' : '') +
             (!pushed && hoverShown && !horizontal ? ' plane-hover' : '') +
-            ((stripHidden || barOver) && !pushed ? ' no-bar' : '')
+            ((stripHidden || barOver || board) && !pushed ? ' no-bar' : '')
           }
         >
           {/* With the top bar tucked away, its loading bar is gone too: show progress on the window's top edge. */}
@@ -987,7 +1015,6 @@ function App(): React.JSX.Element {
                   spaces={spaces}
                   spaceDir={spaceDir}
                   layout={layout}
-                  dim={openedByHover || barOver}
                   onExit={(pick) => {
                     if (pick !== null) window.api.activateTab(pick)
                     closeOverlay()

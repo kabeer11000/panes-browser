@@ -202,9 +202,15 @@ export async function media(
 }
 
 /** Scroll to a heading, section or words on a page (or its comments); false when nothing matches. */
-export async function scrollTo(wc: WebContents, target: string): Promise<string | null> {
-  const r = await exec<{ ok: boolean; what?: string }>(wc, SCROLL_TO_SCRIPT(target))
-  if (!r?.ok) return null
+export async function scrollTo(
+  wc: WebContents,
+  target: string
+): Promise<{ what: string } | { heads: string[] }> {
+  const r = await exec<{ ok: boolean; what?: string; heads?: string[] }>(
+    wc,
+    SCROLL_TO_SCRIPT(target)
+  )
+  if (!r?.ok) return { heads: r?.heads ?? [] }
   await sleep(500) // lazy parts (comments) load as they come into view
-  return r.what ?? target
+  return { what: r.what ?? target }
 }

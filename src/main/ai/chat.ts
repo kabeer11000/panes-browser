@@ -36,6 +36,8 @@ import { assemblePrompt, promptMessages, type PromptPage } from '@shared/ai/chat
 import {
   describeChatError,
   sanitizeConversation,
+  namingPrompt,
+  CHAT_TITLE_SYSTEM,
   toModelHistory,
   upsertConversation,
   type ChatMessage,
@@ -52,10 +54,11 @@ import type {
 } from '@shared/types'
 import { JsonStore } from '../store'
 import { boardTools } from './canvasAssistant'
-import { buildTools, readTabText, visibleTabs, type ChatHost } from './chatActions'
+import { buildTools, playQuick, readTabText, visibleTabs, type ChatHost } from './chatActions'
 import { fileText, type DocText } from './docText'
 import { PICKER_EXTENSIONS, wrapDoc } from '@shared/ai/docs'
 import type { ChatFile } from '@shared/ai/chatConv'
+import { sanitizeModelTitle } from '@shared/ai/titles'
 import {
   CHATGPT_PROVIDER_OPTIONS,
   chatgptChat,
@@ -336,6 +339,24 @@ export class ChatService {
     // A plain command ("search piano covers on youtube", "open github") is carried out at once, by any model or none:
     // a small model is unreliable at building the address, and nothing needs thinking about.
     const quick = req.mode === 'popover' || (req.files ?? []).length ? null : this.quick(req)
+    if (quick?.kind === 'play') {
+      const part = { type: 'tool' as const, id: randomUUID(), name: 'find_and_open' as const }
+      const detail = `${quick.site}: ${quick.query}`
+      emit({ kind: 'tool', part: { ...part, state: 'running', detail } })
+      const r = await playQuick(this.d.host, quick)
+      emit({ kind: 'tool', part: { ...part, state: 'done', detail } })
+      const ok = await r.playing
+      emit({
+        kind: 'text',
+        text: !r.found
+          ? `I could not find “${quick.query}” on ${quick.site}, so I opened its search for it.`
+          : ok
+            ? quick.say
+            : `Opened it on ${quick.site}. Press play if it has not started.`
+      })
+      emit({ kind: 'done', stopped: false })
+      return { dropped: [] }
+    }
     if (quick) {
       this.d.host.open(quick.url)
       emit({
@@ -731,7 +752,54 @@ export class ChatService {
   // ---- saved conversations ----
 
   list(): Array<{ id: string; title: string; updated: number }> {
-    return this.store.value.list.map(({ id, title, updated }) => ({ id, title, updated }))
+    // conversations kept before they were named get their names now, in the background
+    for (const c of this.store.value.list) if (!c.aiTitle) this.queueName(c.id)
+    return this.store.value.list.map(({ id, title, aiTitle, updated }) => ({
+      id,
+      title: aiTitle || title,
+      updated
+    }))
+  }
+
+  // ---- naming conversations ----
+
+  private naming: string[] = []
+  private nameTried = new Set<string>()
+  private namingNow = false
+
+  /** Name a kept conversation once it has an answer (each is asked once per run; one at a time). */
+  private queueName(id: string): void {
+    if (this.nameTried.has(id) || this.naming.includes(id)) return
+    this.naming.push(id)
+    void this.nameNext()
+  }
+
+  private async nameNext(): Promise<void> {
+    if (this.namingNow) return
+    this.namingNow = true
+    try {
+      for (let id = this.naming.shift(); id !== undefined; id = this.naming.shift()) {
+        const conv = this.store.value.list.find((c) => c.id === id)
+        const prompt = conv && !conv.aiTitle ? namingPrompt(conv.messages) : null
+        if (!prompt) continue
+        this.nameTried.add(id)
+        const raw = await this.d.router.generate({
+          task: 'title',
+          ctx: { private: false, tor: false },
+          system: CHAT_TITLE_SYSTEM,
+          prompt,
+          field: 'title'
+        })
+        const name = sanitizeModelTitle(raw)
+        const now = this.store.value.list.find((c) => c.id === id)
+        if (!name || name.length > 60 || !now) continue
+        now.aiTitle = name
+        this.store.save()
+        if (this.win && !this.win.isDestroyed()) this.win.webContents.send('ai:chat-named', id)
+      }
+    } finally {
+      this.namingNow = false
+    }
   }
 
   load(id: string): Conversation | null {
@@ -747,8 +815,12 @@ export class ChatService {
       return
     }
     if (conv.messages.length === 0) return
+    // the name the model gave it stays (the page sends the messages only)
+    const prev = this.store.value.list.find((c) => c.id === conv.id)
+    if (prev?.aiTitle) conv.aiTitle = prev.aiTitle
     this.store.value.list = upsertConversation(this.store.value.list, conv)
     this.store.save()
+    if (!conv.aiTitle) this.queueName(conv.id)
   }
 
   remove(id: string): void {

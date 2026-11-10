@@ -45,6 +45,8 @@ export interface ChatMessage {
 export interface Conversation {
   id: string
   title: string
+  /** A short name the model gave it after its first answer (kept by main; the list shows it over `title`). */
+  aiTitle?: string
   updated: number
   messages: ChatMessage[]
 }
@@ -57,6 +59,20 @@ export const messageText = (m: ChatMessage): string =>
     .filter((p): p is Extract<ChatPart, { type: 'text' }> => p.type === 'text')
     .map((p) => p.text)
     .join('')
+
+/** The first question and the first answer, for naming a conversation; null until there is an answer. */
+export function namingPrompt(messages: ChatMessage[]): string | null {
+  const q = messages.find((m) => m.role === 'user')
+  const a = messages.find((m) => m.role === 'assistant' && !m.error && messageText(m).trim())
+  if (!q || !a) return null
+  const clip = (t: string): string => t.replace(/\s+/g, ' ').trim().slice(0, 500)
+  return `Question: ${clip(messageText(q))}\nAnswer: ${clip(messageText(a))}`
+}
+
+export const CHAT_TITLE_SYSTEM = `You name a conversation for a list of past chats. Answer with JSON: {"title": "..."}.
+Use 2 to 5 words naming what it is about, the way a person would label it, in the language of the question.
+No quotes and no full stop. Never start with "Chat", "Question", "Help with" or "Conversation".
+Examples: a question on cheap flights to Tokyo -> {"title": "Cheap flights to Tokyo"}; how to undo a git commit -> {"title": "Undoing a git commit"}.`
 
 export function conversationTitle(messages: ChatMessage[]): string {
   const first = messages.find((m) => m.role === 'user')
@@ -109,6 +125,7 @@ const VERB: Record<ToolName, [one: string, many: string]> = {
   search_history: ['Searched history', 'Searched history {n} times'],
   open_tab: ['Opened 1 tab', 'Opened {n} tabs'],
   search_on_site: ['Searched a site', 'Searched {n} sites'],
+  find_and_open: ['Found and opened 1 result', 'Found and opened {n} results'],
   switch_to_tab: ['Switched tab', 'Switched tabs {n} times'],
   close_tabs: ['Closed tabs', 'Closed tabs'],
   find_in_page: ['Searched a page', 'Searched pages {n} times'],

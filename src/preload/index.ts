@@ -9,6 +9,7 @@ import type {
   Settings,
   TabsState,
   PasswordPrompt,
+  PreviewKey,
   UiCommand
 } from '@shared/types'
 
@@ -44,6 +45,7 @@ const api: PanesApi = {
   dropTab: (id, targetId, edge) => ipcRenderer.send('tabs:drop', id, targetId, edge),
   closePane: (id) => ipcRenderer.send('tabs:close-pane', id),
   tabMenu: (id, picked) => ipcRenderer.send('tabs:tab-menu', id, picked),
+  pageMenu: (id, x, y, live) => ipcRenderer.invoke('tabs:page-menu', id, x, y, live),
   tabHover: (id, anchor) => ipcRenderer.send('tabs:hover', id, anchor),
   hideDock: (hide) => ipcRenderer.send('ui:dock-hide', hide),
   sendFeedback: () => ipcRenderer.send('app:feedback'),
@@ -62,6 +64,7 @@ const api: PanesApi = {
   stopCapture: (id, kinds) => ipcRenderer.send('tabs:stop-capture', id, kinds),
   setNewTabPhoto: (id) => ipcRenderer.send('settings:newtab-photo', id),
   toggleMute: (id) => ipcRenderer.send('tabs:toggle-mute', id),
+  mediaPlay: (id, action) => ipcRenderer.invoke('tabs:media', id, action),
   togglePip: () => ipcRenderer.send('pip:toggle'),
   exitPip: () => ipcRenderer.send('pip:exit'),
   watchTopBar: (enabled, barPx) => ipcRenderer.send('ui:bar-watch', enabled, barPx),
@@ -106,10 +109,19 @@ const api: PanesApi = {
     ipcRenderer.on('ai:chat-event', listener)
     return () => ipcRenderer.removeListener('ai:chat-event', listener)
   },
+  onChatNamed: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, id: string): void => cb(id)
+    ipcRenderer.on('ai:chat-named', listener)
+    return () => ipcRenderer.removeListener('ai:chat-named', listener)
+  },
   canvas: {
     load: (spaceId) => ipcRenderer.invoke('canvas:load', spaceId),
     save: (spaceId, state) => ipcRenderer.send('canvas:save', spaceId, state),
     open: (spaceId) => ipcRenderer.send('canvas:open', spaceId),
+    inView: (spaceId, tabIds) => ipcRenderer.send('canvas:in-view', spaceId, tabIds),
+    streaming: (tabIds) => ipcRenderer.send('canvas:streaming', tabIds),
+    streamSource: (tabId) => ipcRenderer.invoke('canvas:stream-source', tabId),
+    videoRegion: (tabId) => ipcRenderer.invoke('canvas:video-region', tabId),
     close: (spaceId) => ipcRenderer.send('canvas:close', spaceId),
     cluster: (spaceId) => ipcRenderer.invoke('canvas:cluster', spaceId),
     name: (spaceId, tabIds) => ipcRenderer.invoke('canvas:name', spaceId, tabIds),
@@ -136,7 +148,10 @@ const api: PanesApi = {
     liveOpen: (req) => ipcRenderer.invoke('canvas:live-open', req),
     liveMove: (tabId, rect) => ipcRenderer.send('canvas:live-move', tabId, rect),
     liveHide: () => ipcRenderer.send('canvas:live-hide'),
+    liveShot: (tabId) => ipcRenderer.invoke('canvas:live-shot', tabId),
     liveNav: (tabId, what) => ipcRenderer.send('canvas:live-nav', tabId, what),
+    preview: (open, tab) => ipcRenderer.send('canvas:preview', open, tab),
+    onPreviewKey: (cb) => subscribe<[PreviewKey]>('canvas:preview-key', cb),
     navigate: (tab, input) => ipcRenderer.invoke('canvas:navigate', tab, input),
     onTool: (cb) => subscribe<[string, string, unknown]>('canvas:tool', cb),
     toolResult: (id, text) => ipcRenderer.send('canvas:tool-result', id, text),
@@ -154,10 +169,11 @@ const api: PanesApi = {
   setRatios: (path, ratios) => ipcRenderer.send('tabs:ratios', path, ratios),
   moveTab: (id, index, groupId) => ipcRenderer.send('tabs:move', id, index, groupId),
   moveTabs: (ids, index, groupId) => ipcRenderer.send('tabs:move-many', ids, index, groupId),
+  duplicateTabs: (ids, spaceId) => ipcRenderer.invoke('tabs:duplicate', ids, spaceId),
+  openTabs: (urls, spaceId) => ipcRenderer.invoke('tabs:open-many', urls, spaceId),
   setSlide: (x, y) => ipcRenderer.send('ui:slide', x, y),
   setOverlay: (open, snapshot, sharp) =>
     ipcRenderer.invoke('ui:overlay', open, snapshot, sharp) as Promise<void>,
-  setOverlayPins: (pinned) => ipcRenderer.send('ui:overlay-pins', pinned),
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,
   onSettings: (cb) => subscribe<[Settings]>('settings:changed', cb),
   openInternal: (page) => ipcRenderer.send('tabs:open-internal', page),

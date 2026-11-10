@@ -6,18 +6,27 @@
   border-radius: var(--radius-m);
   /* opaque: the page's picture under the board (the stage keeps it) must not show through */
   background-color: var(--overlay-solid);
-  /* the dots follow the pan and zoom (set on the root by the viewport) */
+  color: var(--fg);
+  user-select: none;
+  touch-action: none;
+  cursor: default;
+}
+/* the dots follow the pan and zoom: the viewport slides this layer by the pan modulo one coarse tile, so it starts one
+   tile up and left of the board (see useViewport) */
+.cv-grid {
+  position: absolute;
+  left: calc(-1 * var(--ds2, 96px));
+  top: calc(-1 * var(--ds2, 96px));
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  will-change: transform;
   background-image: radial-gradient(
     circle,
     color-mix(in srgb, var(--fg) 20%, transparent) 1.1px,
     transparent 1.7px
   );
   background-size: var(--ds, 28px) var(--ds, 28px);
-  background-position: var(--vx, 0) var(--vy, 0);
-  color: var(--fg);
-  user-select: none;
-  touch-action: none;
-  cursor: default;
 }
 .cv.loading {
   opacity: 0;
@@ -30,17 +39,20 @@
 .cv.hand * {
   cursor: grab;
 }
-.cv.grabbing,
-.cv.grabbing * {
+/* A gesture's cursor comes from a sheet over the board, not from every element in it: a rule on '.cv.x *' restyles the
+   whole board when the class comes and goes, a long frame at the start and end of every drag on a slow CPU. The board
+   holds the pointer for the gesture, and a pseudo-element's events go to it anyway. */
+.cv.grabbing::before,
+.cv.dragging::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
   cursor: grabbing;
 }
 .cv.draw,
 .cv.draw * {
   cursor: crosshair;
-}
-.cv.dragging,
-.cv.dragging * {
-  cursor: grabbing;
 }
 .cv-board {
   position: absolute;
@@ -159,18 +171,20 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
+/* the title sits outside, just above the section's top edge, lined up with its first card; zoomed out it grows
+   upward, away from the section */
 .cv-frame-head {
   position: absolute;
   left: 0;
-  top: 0;
-  height: 44px;
+  bottom: 100%;
+  height: 36px;
   width: calc(100% / var(--hs, 1));
-  padding: 0 14px 0 20px;
+  padding: 0 14px 4px 24px;
   display: flex;
   align-items: center;
   gap: 9px;
   transform: scale(var(--hs, 1));
-  transform-origin: 0 50%;
+  transform-origin: 0 100%;
   pointer-events: auto;
   cursor: grab;
 }
@@ -729,15 +743,45 @@
   gap: 6px;
   pointer-events: none;
 }
-.cv-audio {
+/* sound and video on the card: one dark pill, shown while it plays or is muted, else on hover */
+.cv-media {
+  display: flex;
+  padding: 2px;
+  gap: 1px;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.cv-media.on,
+.cv-card:hover .cv-media,
+.cv-media:focus-within {
+  opacity: 1;
+}
+.cv-mbtn {
   display: grid;
-  padding: 3px;
+  place-items: center;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
   color: #fff;
-  background: rgb(0 0 0 / 0.55);
+  transition: background-color 0.12s;
 }
-.cv-audio.muted {
-  opacity: 0.7;
+.cv-mbtn:hover {
+  background: rgb(255 255 255 / 0.16);
+}
+.cv-mbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.cv-mbtn.muted {
+  color: rgb(255 255 255 / 0.65);
+}
+.cv-mbtn svg {
+  width: 15px;
+  height: 15px;
 }
 .cv-acts {
   position: absolute;
@@ -983,6 +1027,123 @@
 }
 
 /* ---- toast, empty ---- */
+/* ---- what plays on the board: one pill, top right (clear of the conversation column) ---- */
+.cv-playing {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: max-content;
+  max-width: min(360px, 42%);
+  padding: 3px;
+  border-radius: 12px;
+  color: #fff;
+  background: rgb(0 0 0 / 0.66);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+  animation: cv-fade 0.2s ease-out both;
+}
+.cv.docked .cv-playing {
+  right: calc(min(var(--dock-w, 380px), calc(100% - 120px)) + 14px);
+}
+/* one line each: the latest on top (with how many more), the rest below it when opened */
+.cv-playing-row,
+.cv-playing-item {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+}
+.cv-playing-row > .cv-playing-item {
+  flex: 1;
+}
+.cv-playing.open .cv-playing-row {
+  padding-bottom: 2px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
+}
+.cv-playing-more {
+  flex: none;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.8);
+}
+.cv-playing-more:hover,
+.cv-playing-more[aria-expanded='true'] {
+  background: rgb(255 255 255 / 0.14);
+  color: #fff;
+}
+.cv-playing-x svg {
+  width: 11px;
+  height: 11px;
+}
+.cv-playing-go {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: inherit;
+}
+.cv-playing-go:hover {
+  background: rgb(255 255 255 / 0.14);
+}
+.cv-playing-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* three bars that move while something plays (still under reduced motion) */
+.cv-eq {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+.cv-eq i {
+  width: 2.5px;
+  height: 100%;
+  border-radius: 1px;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: cv-eq 0.9s ease-in-out infinite alternate;
+}
+.cv-eq i:nth-child(2) {
+  animation-delay: -0.3s;
+}
+.cv-eq i:nth-child(3) {
+  animation-delay: -0.6s;
+}
+.cv-eq.still i {
+  animation-play-state: paused;
+}
+@keyframes cv-eq {
+  from {
+    transform: scaleY(0.3);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-eq i {
+    animation: none;
+    transform: scaleY(0.7);
+  }
+}
+
 .cv-toast {
   position: absolute;
   left: 20px;
@@ -2016,40 +2177,87 @@
 .cv-chip-place:hover b {
   background: rgb(255 255 255 / 0.2);
 }
-.cv-place-menu {
+/* ---- the right-click menu ---- */
+.cv-ctx {
   position: absolute;
   z-index: 15;
-  min-width: 250px;
+  min-width: 220px;
+  max-width: 300px;
   padding: 5px;
   border-radius: 12px;
   background: var(--popover-bg);
   box-shadow:
     0 0 0 1px var(--border),
     0 12px 32px rgb(0 0 0 / 0.32);
-  animation: cv-fade 0.14s ease-out both;
+  animation: cv-ctx-in 0.12s var(--ease) both;
+  transform-origin: 0 0;
 }
-.cv-place-menu button {
+@keyframes cv-ctx-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.cv-ctx-title {
+  padding: 5px 10px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-dim);
+}
+.cv-ctx button[role='menuitem'] {
   width: 100%;
+  height: 30px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 7px 10px;
+  align-items: center;
+  gap: 16px;
+  padding: 0 10px;
   border-radius: 8px;
   font-size: 13px;
   text-align: left;
+  color: var(--fg);
 }
-.cv-place-menu button:hover,
-.cv-place-menu button:focus-visible {
+.cv-ctx button[role='menuitem'] span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-ctx button[role='menuitem']:hover,
+.cv-ctx button[role='menuitem']:focus-visible {
   background: var(--surface-hover);
   outline: none;
 }
-.cv-place-menu button.on {
-  color: var(--accent);
+.cv-ctx button[role='menuitem']:disabled {
+  opacity: 0.45;
 }
-.cv-place-menu small {
+.cv-ctx button.danger {
+  color: var(--danger, #e5484d);
+}
+.cv-ctx kbd {
+  flex: none;
+  font: inherit;
   font-size: 11.5px;
   color: var(--fg-dim);
+}
+.cv-ctx-sep {
+  height: 1px;
+  margin: 4px 6px;
+  border: 0;
+  background: var(--border);
+}
+.cv-ctx-swatches {
+  display: flex;
+  gap: 5px;
+  padding: 6px 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-ctx {
+    animation: none;
+  }
 }
 .cv-note-edit {
   width: 100%;
@@ -2256,6 +2464,8 @@
   --board: var(--overlay-solid);
   --dot: rgb(255 255 255 / 0.13);
   background-color: var(--board);
+}
+.cv-grid {
   background-image:
     radial-gradient(
       circle,
@@ -2266,9 +2476,6 @@
   background-size:
     var(--ds, 24px) var(--ds, 24px),
     var(--ds2, 96px) var(--ds2, 96px);
-  background-position:
-    var(--vx, 0) var(--vy, 0),
-    var(--vx, 0) var(--vy, 0);
 }
 [data-scheme='light'] .cv {
   --board: color-mix(in srgb, var(--space) calc(var(--tint, 0%) * 0.08), #fafafb);
@@ -2399,16 +2606,18 @@
   position: absolute;
   left: 0;
   top: 0;
-  border-radius: 20px;
+  /* concentric with the cards inside (their 14px radius plus the 12px padding) */
+  border-radius: 26px;
   background: color-mix(in srgb, var(--accent) 9%, var(--board));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 34%, var(--board));
   pointer-events: none;
 }
-/* the split view's title row: the label is its drag handle, and Unsplit takes it apart */
+/* the split view's title row, in its 32px lip: the label is its drag handle, and Unsplit takes it apart */
 .cv-splithead {
   position: absolute;
-  left: 14px;
-  top: 7px;
+  left: 18px;
+  top: 2px;
+  height: 28px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2450,15 +2659,9 @@
   color: var(--fg);
   background: color-mix(in srgb, var(--fg) 10%, transparent);
 }
-/* inside a section: a tight outline in the grid's gaps, its label sitting on the top edge */
+/* inside a section: the same shape, a little lighter over the section's colour */
 .cv-splitbox.framed {
-  border-radius: 18px;
   background: color-mix(in srgb, var(--accent) 7%, transparent);
-}
-.cv-splitbox.framed .cv-splithead {
-  left: 12px;
-  top: 0;
-  height: 28px;
 }
 /* a page dragged over another: the whole card is the target */
 .cv-card.split-into {
@@ -2660,6 +2863,30 @@
   outline-offset: -2px;
 }
 
+/* an open card takes the whole board, edge to edge: no sheet edge or shadow, the board's own corners */
+.cv-panel {
+  border-radius: var(--radius-m);
+  box-shadow: none;
+}
+/* the toolbar steps out of its way, down and out, and back when it closes */
+.cv-bar {
+  transition:
+    opacity 0.18s ease,
+    translate 0.22s var(--ease);
+}
+.cv.reading .cv-bar {
+  opacity: 0;
+  translate: -50% 24px;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-bar {
+    transition: opacity 0.12s;
+  }
+  .cv.reading .cv-bar {
+    translate: -50% 0;
+  }
+}
 /* the board's own top bar steps back while a card is open (Esc still closes the card first) */
 .cv-top {
   transition: opacity 0.16s;
@@ -3146,4 +3373,35 @@
 .cv-nav button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* A playing tab live on its card (LiveTab.tsx): the video, whole and centered on a dark ground, over the face.
+   It fades in on its first frame, so the picture underneath shows until then; clicks go through to the card. */
+.cv-live {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.cv-live.on {
+  opacity: 1;
+}
+.cv-live-clip {
+  position: relative;
+  overflow: hidden;
+}
+.cv-live video {
+  position: absolute;
+  max-width: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-live {
+    transition: none;
+  }
 }

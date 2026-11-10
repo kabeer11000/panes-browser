@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { useDismiss } from './useDismiss'
 import { SHAPE_KINDS, type BlockKind, type ShapeKind } from '@shared/ai/canvasMarks'
 import {
   BlockIcon,
@@ -108,6 +109,18 @@ export function Toolbar({
   const [blocks, setBlocks] = useState(false)
   const [at, setAt] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
+  const shapesBox = useRef<HTMLDivElement>(null)
+  const blocksBox = useRef<HTMLDivElement>(null)
+  useDismiss(
+    shapes,
+    shapesBox,
+    useCallback(() => setShapes(false), [])
+  )
+  useDismiss(
+    blocks,
+    blocksBox,
+    useCallback(() => setBlocks(false), [])
+  )
   return (
     <div className="cv-bar" role="toolbar" aria-label="Canvas tools" ref={box}>
       {TOOLS.map((t) => (
@@ -123,7 +136,7 @@ export function Toolbar({
           {t.icon}
         </button>
       ))}
-      <div className="cv-split">
+      <div className="cv-split" ref={shapesBox}>
         <button
           type="button"
           className={'cv-tool' + (tool === 'shape' ? ' on' : '')}
@@ -164,7 +177,7 @@ export function Toolbar({
           </div>
         )}
       </div>
-      <div className="cv-split">
+      <div className="cv-split" ref={blocksBox}>
         <button
           type="button"
           className="cv-tool"

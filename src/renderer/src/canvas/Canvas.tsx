@@ -23,6 +23,7 @@ import {
   emptyState,
   fitView,
   frameAt,
+  FRAME_COLORS,
   freeSpot,
   isVirtual,
   moveFrame,
@@ -59,7 +60,9 @@ import {
   type CanvasState,
   type TabLite,
   type Viewport,
-  seatSplit
+  seatSplit,
+  setPreview,
+  liftSections
 } from '@shared/ai/canvas'
 import { arrangeSplit, splitBox, splitEdge, splitMembers } from '@shared/ai/split'
 import { leaves, type LayoutNode } from '@shared/layout'
@@ -91,18 +94,24 @@ import {
 import { keepAspect, snapAngle, snapBox, type Snap } from '@shared/ai/snap'
 import type { Space, TabInfo } from '@shared/types'
 import { SpaceSwitcher } from '@renderer/components/SpaceSwitcher'
+import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
 import { CardView, FrameBar, FrameView, NoteView } from './Cards'
+import { pickStreams, streamCap } from '@shared/ai/tabStream'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
 import { BackIcon, ExpandIcon, UnsplitIcon } from './icons'
 import { HistoryIcon } from '@renderer/components/icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
-import { PlaceMenu } from './PlaceMenu'
+import { ContextMenu, type MenuItem } from './ContextMenu'
+import { PlayingItem } from './PlayingItem'
+import { useDismiss } from './useDismiss'
 import { Expanded, type ExpandSource } from './Expanded'
 import { useFinder } from './useFinder'
+import { useBoardClip } from './useBoardClip'
+import { dispatchClip, getClip } from '@renderer/tabClip'
 import { useAsk } from './useAsk'
 import { AskDock } from './AskDock'
 import { Marks } from './Marks'
@@ -287,6 +296,9 @@ const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 const UNDO_MAX = 60
 const DRAG_PX = 4
 const MARGIN = 360
+const DOCK_W = 380
+const DOCK_MIN = 300
+const DOCK_MAX = 720
 const LOD_K = 0.22
 const SAVE_MS = 700
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
@@ -346,7 +358,7 @@ export function Canvas({
     moveRef.current(v)
     shutRef.current()
   })
-  const { root, layer } = vp
+  const { root, grid, layer } = vp
   const lastView = useRef<Viewport | null>(null)
   const ghost = useRef<HTMLDivElement>(null)
   const marquee = useRef<HTMLDivElement>(null)
@@ -357,6 +369,13 @@ export function Canvas({
   const [swap] = useState(() => boardSpace !== null && boardSpace !== spaceId)
   const phaseRef = useRef<Phase>('loading')
   const [vis, setVis] = useState<Set<number>>(new Set())
+  const inViewTimer = useRef<number | undefined>(undefined)
+  /** The tab cards on screen now (no margin), as last told to main: only these may play live (tab streams). */
+  const [onScreen, setOnScreen] = useState<Set<number>>(new Set())
+  const spaceIdRef = useRef(spaceId)
+  useLayoutEffect(() => {
+    spaceIdRef.current = spaceId
+  }, [spaceId])
   const [sel, setSelState] = useState<Set<string>>(new Set())
   const selRef = useRef(sel)
   const [tool, setTool] = useState<Tool>('select')
@@ -370,7 +389,13 @@ export function Canvas({
   const [ghostId, setGhostId] = useState<number | null>(activeId)
   const [fresh, setFresh] = useState<Set<number>>(new Set())
   const [chips, setChips] = useState<Set<number>>(new Set())
-  const [placeMenu, setPlaceMenu] = useState<{ id: number; x: number; y: number } | null>(null)
+  const [ctx, setCtx] = useState<{
+    x: number
+    y: number
+    title?: string
+    items: MenuItem[]
+  } | null>(null)
+  const closeContext = useCallback(() => setCtx(null), [])
   // `live`: open straight onto the live page (something the assistant just opened for the person)
   const [expanded, setExpanded] = useState<{
     id: number
@@ -378,7 +403,7 @@ export function Canvas({
     live?: boolean
   } | null>(null)
   const expandedRef = useRef(false)
-  const expandRef = useRef<(id: number) => void>(() => undefined)
+  const expandRef = useRef<(id: number, live?: boolean) => void>(() => undefined)
   const [stage, setStage] = useState({ w: 0, h: 0 })
   const [contents, setContents] = useState<Record<number, CanvasPageContent>>({})
   const asked = useRef(new Map<number, string>())
@@ -392,7 +417,7 @@ export function Canvas({
   const bootRef = useRef('')
   const tries = useRef(new Map<string, number>())
   const conn = useRef<ConnectorsHandle>(null)
-  const [shapeKind, setShapeKind] = useState<ShapeKind>('rect')
+  const [shapeKind, setShapeKind] = useState<ShapeKind>('rounded')
   const shapeKindRef = useRef(shapeKind)
   useEffect(() => {
     shapeKindRef.current = shapeKind
@@ -406,7 +431,10 @@ export function Canvas({
     setHistory(undoStack.current.map((x) => ({ label: x.label, t: x.t })).reverse())
   const draft = useRef<SVGPathElement>(null)
   /** Steps that can be taken back, newest last: what was done, when, and the board before it. */
-  const undoStack = useRef<Array<{ label: string; state: CanvasState; t: number }>>([])
+  // `revert`: what the step did outside the board (tabs pasted or moved), taken back with it
+  const undoStack = useRef<
+    Array<{ label: string; state: CanvasState; t: number; revert?: () => void }>
+  >([])
   const [undoDepth, setUndoDepth] = useState(0)
   const [toolConfirm, setToolConfirm] = useState<{
     text: string
@@ -434,11 +462,72 @@ export function Canvas({
 
   const [bench, setBench] = useState<TabInfo[]>([])
   const allTabs = useMemo(() => (bench.length ? [...tabs, ...bench] : tabs), [tabs, bench])
+  // What plays on this board: every tab that has made sound since the board opened stays listed while it is paused
+  // (a paused video is silent, yet you want it back), until its tab closes or it is dismissed; the one playing now
+  // first, then the most recent.
+  const [heard, setHeard] = useState<number[]>([])
+  const [forgot, setForgot] = useState<Set<number>>(new Set())
+  const audibleKey = tabs
+    .filter((t) => t.audible)
+    .map((t) => t.id)
+    .join(',')
+  const [lastAudible, setLastAudible] = useState('')
+  if (audibleKey !== lastAudible) {
+    // a tab that starts playing again is listed again, at the front
+    setLastAudible(audibleKey)
+    const now = audibleKey ? audibleKey.split(',').map(Number) : []
+    if (now.length) {
+      setHeard((h) => [...now, ...h.filter((id) => !now.includes(id))].slice(0, 12))
+      if (now.some((id) => forgot.has(id)))
+        setForgot((f) => new Set([...f].filter((id) => !now.includes(id))))
+    }
+  }
+  const playing = useMemo(() => {
+    const live = new Map(tabs.map((t) => [t.id, t]))
+    return heard
+      .map((id) => live.get(id))
+      .filter((t): t is TabInfo => !!t && !forgot.has(t.id))
+      .sort((a, b) => Number(b.audible && !b.muted) - Number(a.audible && !a.muted))
+  }, [tabs, heard, forgot])
+  const [playList, setPlayList] = useState(false)
+  const playBox = useRef<HTMLDivElement>(null)
+  useDismiss(
+    playList,
+    playBox,
+    useCallback(() => setPlayList(false), [])
+  )
+  const forgetPlaying = useCallback((id: number): void => {
+    setForgot((f) => new Set(f).add(id))
+  }, [])
   const tabsRef = useRef(allTabs)
   useLayoutEffect(() => {
     tabsRef.current = allTabs
   }, [allTabs])
   const byId = useMemo(() => new Map(allTabs.map((t) => [t.id, t])), [allTabs])
+  // Playing tabs play live on their cards (tab streams): on screen only, capped, never the tab open in the preview
+  // (its real page shows there), none zoomed out. Main keeps exactly these pages painting.
+  const openTab = expanded
+    ? isVirtual(expanded.id)
+      ? (st?.items[String(expanded.id)]?.tab ?? null)
+      : expanded.id
+    : null
+  const streamKey = pickStreams({
+    tabs,
+    onScreen,
+    open: openTab,
+    zoomedOut: lod,
+    cap: streamCap(navigator)
+  }).join(',')
+  const streams = useMemo(
+    () => new Set(streamKey ? streamKey.split(',').map(Number) : []),
+    [streamKey]
+  )
+  useEffect(() => {
+    window.api.canvas.streaming?.([...streams])
+  }, [streams])
+  useEffect(() => () => window.api.canvas.streaming?.([]), [])
+  // the card's width on screen, in 40 px steps so zooming re-renders streaming cards rarely
+  const liveCardPx = Math.max(40, Math.round((CARD_W * zoomPct) / 100 / 40) * 40)
   const markFresh = useCallback((ids: number[]): void => {
     if (ids.length === 0) return
     setFresh((prev) => new Set([...prev, ...ids]))
@@ -486,9 +575,26 @@ export function Canvas({
       .filter((t) => !backing.has(t.id))
       .map((t) => ({ id: t.id, url: t.url, private: t.private || t.tor }))
   }, [])
-  const size = (): { w: number; h: number } => {
+  // Where the board is on screen. Measuring it during a pan or drag, right after the board was moved, makes the
+  // browser lay the whole board out again then and there; so it is measured when it resizes (after layout, free)
+  // and when a gesture starts, and read from here.
+  const rootRect = useRef({ left: 0, top: 0, w: 0, h: 0 })
+  const measureRoot = (): void => {
     const r = root.current?.getBoundingClientRect()
-    return { w: r?.width ?? 0, h: r?.height ?? 0 }
+    if (r) rootRect.current = { left: r.left, top: r.top, w: r.width, h: r.height }
+  }
+  useEffect(() => {
+    const el = root.current
+    if (!el) return
+    const ro = new ResizeObserver(measureRoot)
+    ro.observe(el)
+    return () => ro.disconnect()
+    // measureRoot only reads refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const size = (): { w: number; h: number } => {
+    if (rootRect.current.w === 0) measureRoot()
+    return rootRect.current
   }
 
   // ---- visibility (only cards near the screen are mounted) ----
@@ -516,6 +622,20 @@ export function Canvas({
       if (prev.size === next.size && [...next].every((i) => prev.has(i))) return prev
       return next
     })
+    // main takes fresh pictures only of the tabs on screen; told once the view has settled
+    window.clearTimeout(inViewTimer.current)
+    inViewTimer.current = window.setTimeout(() => {
+      const shown = new Set(
+        (stRef.current?.cards ?? [])
+          .filter((c) => c.id > 0 && c.x < view.x + view.w && c.x + CARD_W > view.x)
+          .filter((c) => c.y < view.y + view.h && c.y + CARD_H > view.y)
+          .map((c) => c.id)
+      )
+      window.api.canvas.inView?.(spaceIdRef.current, [...shown])
+      setOnScreen((prev) =>
+        prev.size === shown.size && [...shown].every((i) => prev.has(i)) ? prev : shown
+      )
+    }, 300)
   }, [])
 
   const saveSoon = useCallback((): void => {
@@ -545,16 +665,22 @@ export function Canvas({
   // ---- state edits ----
   /** Keep `state` as the board before a step called `label`. `merge`: the same step again right away (a key held
    * down, nudging) adds to the last one instead of making another. */
-  const record = useCallback((label: string, state: CanvasState, merge = false): void => {
-    const now = Date.now()
-    const top = undoStack.current[undoStack.current.length - 1]
-    if (merge && top && top.label === label && now - top.t < 1200) {
-      top.t = now
-      return
-    }
-    undoStack.current = [...undoStack.current.slice(-(UNDO_MAX - 1)), { label, state, t: now }]
-    setUndoDepth(undoStack.current.length)
-  }, [])
+  const record = useCallback(
+    (label: string, state: CanvasState, merge = false, revert?: () => void): void => {
+      const now = Date.now()
+      const top = undoStack.current[undoStack.current.length - 1]
+      if (merge && top && top.label === label && now - top.t < 1200) {
+        top.t = now
+        return
+      }
+      undoStack.current = [
+        ...undoStack.current.slice(-(UNDO_MAX - 1)),
+        { label, state, t: now, revert }
+      ]
+      setUndoDepth(undoStack.current.length)
+    },
+    []
+  )
   const edit = useCallback(
     (
       fn: (s: CanvasState) => CanvasState,
@@ -592,7 +718,10 @@ export function Canvas({
       const at = undoStack.current.length - steps
       if (steps < 1 || at < 0 || !cur) return null
       const top = undoStack.current[at]
-      undoStack.current.splice(at)
+      undoStack.current
+        .splice(at)
+        .reverse()
+        .forEach((x) => x.revert?.())
       setUndoDepth(undoStack.current.length)
       pendingFlip.current = { before: positionsOf(cur), stagger: false }
       const back = pruneConnectors(fitFrames(syncTabs(top.state, lite()).state))
@@ -758,7 +887,9 @@ export function Canvas({
       const boot = saved?.boot ?? ''
       bootRef.current = boot
       const tabsNow = lite()
-      let s = saved?.state ? reconcileSaved(saved.state, tabsNow, boot) : emptyState(boot)
+      let s = saved?.state
+        ? reconcileSaved(liftSections(saved.state), tabsNow, boot)
+        : emptyState(boot)
       const had = s.frames.length > 0
       const synced = syncTabs(s, tabsNow)
       s = pruneConnectors(synced.state)
@@ -1080,6 +1211,19 @@ export function Canvas({
     const t = window.setTimeout(() => setToast(null), 6500)
     return () => window.clearTimeout(t)
   }, [toast])
+  // cut, copy, duplicate, paste (keys below; pasteAt and canPaste are also for the board menu)
+  const boardClip = useBoardClip({
+    spaceId,
+    root,
+    st,
+    stRef,
+    edit,
+    record,
+    selRef,
+    setSel,
+    byId,
+    toastNow
+  })
 
   const closeCards = useCallback(
     (all: number[]): void => {
@@ -1262,11 +1406,17 @@ export function Canvas({
     edit((s0) => ids.reduce((n, id) => patchMark(n, id, p), s0), { undo: label })
   }
   /** A block, a heading or a body text in the middle of what is on screen, selected and (for text) being typed. */
-  const addBlockAt = (kind: BlockKind | 'heading' | 'body'): void => {
+  const addBlockAt = (
+    kind: BlockKind | 'heading' | 'body',
+    where?: { x: number; y: number }
+  ): void => {
     const s0 = stRef.current
     if (!s0 || phaseRef.current !== 'open') return
     const v = vp.get()
-    const at = { x: (size().w / 2 - v.x) / v.k - 150, y: (size().h * 0.42 - v.y) / v.k - 60 }
+    const at = where ?? {
+      x: (size().w / 2 - v.x) / v.k - 150,
+      y: (size().h * 0.42 - v.y) / v.k - 60
+    }
     const made =
       kind === 'heading' || kind === 'body' ? addShape(s0, 'text', at, at) : addBlock(s0, kind, at)
     if (!made) return toastNow('The board has as many drawings as it can hold')
@@ -1332,8 +1482,10 @@ export function Canvas({
         ArrowDown: 'down'
       }
       if (e.key === 'Escape') {
-        // Esc clears the selection or the tool; leaving the board is the Back to tabs button's job
-        if (selRef.current.size > 0) setSel(new Set())
+        // Esc forgets a pending cut, then clears the selection or the tool; leaving the board is the Back to tabs
+        // button's job
+        if (getClip()?.mode === 'cut') dispatchClip({ type: 'escape' })
+        else if (selRef.current.size > 0) setSel(new Set())
         else if (toolRef.current !== 'select') setToolBoth('select')
       } else if (arrows[e.key] && !mod && selMarks.length > 0) {
         // drawings selected: the arrows nudge them (Shift: 10), one undo step for a run of presses
@@ -1397,7 +1549,7 @@ export function Canvas({
         else if (k === 'm') setToolBoth('marker')
         else if (k === 't') setToolBoth('text')
         else if (k === 'r') {
-          setShapeKind('rect')
+          setShapeKind('rounded')
           setToolBoth('shape')
         } else if (k === 'o') {
           setShapeKind('ellipse')
@@ -1408,12 +1560,24 @@ export function Canvas({
         } else return
       } else if (!mod && !e.altKey && e.shiftKey && e.key.toLowerCase() === 't') {
         void runTidy(true)
+      } else if (!mod && !e.altKey && e.shiftKey && e.key.toLowerCase() === 'm') {
+        // everything playing on the board goes quiet (or, when nothing plays, what was muted comes back)
+        window.api.muteSpace(spaceId)
+      } else if (
+        mod &&
+        !e.shiftKey &&
+        !e.altKey &&
+        (e.key.toLowerCase() === 'c' || e.key.toLowerCase() === 'x')
+      ) {
+        // selected text keeps its own copy; Ctrl+V arrives as the paste event below
+        if (window.getSelection()?.toString() || !boardClip.copy(e.key.toLowerCase() === 'x'))
+          return
       } else if (mod && e.key.toLowerCase() === 'z') {
         const said = undo()
         toastNow(said ? `Undid: ${said}` : 'Nothing to undo')
       } else if (mod && e.key.toLowerCase() === 'd') {
-        // the browser's Ctrl+D (bookmark) never applies on the board
-        if (selMarks.length) duplicateSel()
+        // the browser's Ctrl+D (bookmark) never applies on the board (main leaves it to the board)
+        if (!boardClip.duplicate() && selMarks.length) duplicateSel()
       } else return
       e.preventDefault()
     }
@@ -1619,6 +1783,9 @@ export function Canvas({
       if (isEditable(e.target) || phaseRef.current !== 'open' || expandedRef.current) return
       const files = [...(e.clipboardData?.files ?? [])]
       const text = e.clipboardData?.getData('text/plain') ?? ''
+      // cards held with Ctrl+C / Ctrl+X, or several addresses: see useBoardClip
+      if (files.length === 0 && boardClip.onPaste(text, pointOrMiddle()))
+        return e.preventDefault()
       if (files.length === 0 && !text.trim()) return
       e.preventDefault()
       void putRef.current(pointOrMiddle(), files.map(incomingRef.current), text)
@@ -1640,7 +1807,8 @@ export function Canvas({
       vp.stop()
       const unit = e.deltaMode === 1 ? 16 : 1
       if (e.ctrlKey || e.metaKey) {
-        const r = el.getBoundingClientRect()
+        if (rootRect.current.w === 0) measureRoot()
+        const r = rootRect.current
         vp.zoomAt(
           Math.exp(-clamp(e.deltaY * unit, -40, 40) * 0.0095),
           e.clientX - r.left,
@@ -1658,7 +1826,8 @@ export function Canvas({
 
   // ---- pointer gestures ----
   const world = (cx: number, cy: number): { x: number; y: number; sx: number; sy: number } => {
-    const r = root.current!.getBoundingClientRect()
+    if (rootRect.current.w === 0) measureRoot()
+    const r = rootRect.current
     const v = vp.get()
     const sx = cx - r.left
     const sy = cy - r.top
@@ -1667,10 +1836,12 @@ export function Canvas({
 
   const onDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
     if (phaseRef.current !== 'open' || e.button === 2) return
+    // the board may have moved without resizing (top bar, sidebar): once per gesture, before anything moves
+    measureRoot()
     const t = e.target as HTMLElement
     if (
       t.closest(
-        '.cv-bar,.cv-toast,.cv-confirm,.cv-expand,.cv-top,.cv-new,.cv-fbar,button,input,textarea,a[href]'
+        '.cv-bar,.cv-toast,.cv-confirm,.cv-expand,.cv-top,.cv-new,.cv-fbar,.cv-dock,.cv-dock-handle,.cv-playing,.cv-ctx,button,input,textarea,a[href]'
       )
     )
       return
@@ -2042,7 +2213,7 @@ export function Canvas({
           patchMark(st, g.id, m.kind === 'text' ? { w: w2, wrap: true } : { w: w2, h: h2 })
         )
       } else {
-        const r = root.current!.getBoundingClientRect()
+        const r = rootRect.current
         const cx = (m.x + m.w / 2) * v.k + v.x + r.left
         const cy = (m.y + m.h / 2) * v.k + v.y + r.top
         let deg = (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI + 90
@@ -2534,10 +2705,7 @@ export function Canvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [edit, markFresh, toastNow]
   )
-  const onPlace = useCallback((id: number, x: number, y: number): void => {
-    const r = document.querySelector('.cv')?.getBoundingClientRect()
-    setPlaceMenu({ id, x: x - (r?.left ?? 0), y: Math.max(8, y - (r?.top ?? 0) - 130) })
-  }, [])
+
   // a new card the prompt made gets the quiet chip for a while, and an unsure page may ask a model
   useEffect(() => {
     const items = st?.items
@@ -2600,7 +2768,7 @@ export function Canvas({
   useEffect(() => {
     showNowRef.current()
   }, [st])
-  const expand = (id: number): void => {
+  const expand = (id: number, forceLive?: boolean): void => {
     const s = stRef.current
     const card = s?.cards.find((c) => c.id === id)
     const m = modelForRef.current({ id })
@@ -2614,8 +2782,11 @@ export function Canvas({
       setNewAt({ sx: wx * v.k + v.x, sy: wy * v.k + v.y, wx, wy, fill: id })
       return
     }
+    // a page last looked at live opens live again
+    const url = isVirtual(id) ? s.items[String(id)]?.url : byId.get(id)?.url
     setExpanded({
       id,
+      live: forceLive ?? (!!url && s.previews?.[url] === 'live'),
       from: { x: card.x * v.k + v.x, y: card.y * v.k + v.y, w: CARD_W * v.k, h: CARD_H * v.k }
     })
   }
@@ -2627,6 +2798,10 @@ export function Canvas({
     expandedNow.current = expanded?.id ?? null
   }, [expanded])
   const onExpand = useCallback((id: number): void => expandRef.current(id), [])
+  const onPreviewLive = useCallback(
+    (url: string, live: boolean): void => void edit((s0) => setPreview(s0, url, live)),
+    [edit]
+  )
   const goToTab = (id: number): void => {
     const item = stRef.current?.items[String(id)]
     const tabId = isVirtual(id) ? item?.tab : id
@@ -2851,6 +3026,51 @@ export function Canvas({
       return context.join('\n\n')
     }
   })
+
+  // ---- the conversation as a column the board makes room for ----
+  const dockInput = useRef<HTMLTextAreaElement>(null)
+  /** Open the conversation with the cursor in its box (it mounts with the dock: focused once it is there). */
+  const askInDock = (): void => {
+    asker.show()
+    requestAnimationFrame(() => requestAnimationFrame(() => dockInput.current?.focus()))
+  }
+  // its width is the person's, per space (a convenience: kept in this browser only)
+  const dockKey = `panes.canvas.dockW.${spaceId}`
+  const [dockW, setDockW] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem(dockKey))
+      return v >= DOCK_MIN && v <= DOCK_MAX ? v : DOCK_W
+    } catch {
+      return DOCK_W
+    }
+  })
+  const dockShown = Math.min(dockW, Math.max(0, stage.w - 120))
+  const resizeDock = useCallback(
+    (w: number): void => {
+      const v = Math.min(DOCK_MAX, Math.max(DOCK_MIN, w))
+      setDockW(v)
+      try {
+        localStorage.setItem(dockKey, String(v))
+      } catch {
+        // kept for this visit only
+      }
+    },
+    [dockKey]
+  )
+  // opening it glides the board left by half its width (what was in the middle stays in the middle of the room
+  // left), closing glides it back; the board itself keeps its size, so nothing is laid out again
+  const dockWas = useRef(false)
+  useEffect(() => {
+    if (asker.open === dockWas.current) return
+    dockWas.current = asker.open
+    if (phaseRef.current !== 'open') return
+    const v = vp.get()
+    const dx = (asker.open ? -1 : 1) * Math.round(dockShown / 2)
+    if (reduced) vp.set({ ...v, x: v.x + dx })
+    else vp.animateTo({ ...v, x: v.x + dx }, 320)
+    // only the opening and closing move the board
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asker.open])
   const askerRef = useRef(asker)
   useEffect(() => {
     askerRef.current = asker
@@ -2880,16 +3100,23 @@ export function Canvas({
       finder.run(q)
     } else asker.ask(q)
   }
+  // a source or link in the conversation opens in the board's own preview, live: the board stays the place you are
   const openSource = (url: string, tab?: number): void => {
-    const card = tab !== undefined ? stRef.current?.cards.find((c) => c.id === tab) : undefined
+    const s0 = stRef.current
+    const card =
+      tab !== undefined
+        ? s0?.cards.find((c) => c.id === tab)
+        : s0?.cards.find((c) => {
+            const it = isVirtual(c.id) ? s0.items[String(c.id)] : undefined
+            return (it?.url ?? byId.get(c.id)?.url) === url
+          })
     if (card) {
-      setSel(new Set([`c:${card.id}`]))
-      showBox({ x: card.x, y: card.y, w: 240, h: 300 })
-      window.setTimeout(
-        () => pulse(root.current?.querySelector(`[data-cid="${card.id}"]`) ?? null),
-        380
-      )
-    } else finder.openLink(url)
+      reveal(cardBox(card))
+      expandRef.current(card.id, true)
+      return
+    }
+    const id = finder.openLink(url)
+    if (id !== null) window.setTimeout(() => expandRef.current(id, true), 420)
   }
   // ---- the assistant works the board: each tool call is one step that can be taken back ----
   const toolConfirmRef = useRef<((ok: boolean) => void) | null>(null)
@@ -3072,6 +3299,15 @@ export function Canvas({
     if (!el) return
     el.classList.add('pulse')
     window.setTimeout(() => el.classList.remove('pulse'), 1600)
+  }
+
+  // the pill's title: its card comes into view, selected, with a pulse
+  const goToPlaying = (id: number): void => {
+    const c = stRef.current?.cards.find((x) => x.id === id)
+    if (!c) return
+    reveal(cardBox(c))
+    setSel(new Set([`c:${c.id}`]))
+    window.setTimeout(() => pulse(root.current?.querySelector(`[data-cid="${c.id}"]`) ?? null), 380)
   }
 
   // AI off is not a dead end: finding by words and grouping by site still work, and one button turns AI on
@@ -3452,6 +3688,7 @@ export function Canvas({
     [st, layout]
   )
   const splitKey = splitIds.join(',')
+  const splitTries = useRef(0)
   useLayoutEffect(() => {
     splitRef.current = splitIds
   }, [splitIds])
@@ -3462,10 +3699,20 @@ export function Canvas({
       if (stRef.current?.split) edit((s0) => ({ ...s0, split: undefined }))
       return
     }
+    // Checked on every change to the board, not only when the split changes: whatever laid its section out last
+    // (a card added or taken out, a board from an older layout), the split keeps its room. Settles at once: an
+    // arranged split comes back as the same state.
     const ids = splitKey.split(',').map(Number)
-    edit((s0) => arrangeSplit(s0, ids), { flip: true })
+    const s0 = stRef.current
+    if (!s0 || arrangeSplit(s0, ids) === s0) {
+      splitTries.current = 0
+      return
+    }
+    // never a loop: if arranging does not settle in a few goes, leave the board as it is
+    if (++splitTries.current > 3) return
+    edit((s1) => arrangeSplit(s1, ids), { flip: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [splitKey, phase === 'loading'])
+  }, [splitKey, phase === 'loading', st])
   /** Real tab ids for cards (a found page or answer is opened as a tab first), in the same order. */
   const asTabs = async (ids: number[]): Promise<number[] | null> => {
     const out: number[] = []
@@ -3579,6 +3826,204 @@ export function Canvas({
     const frames = made.state.frames.filter((f) => made.ids.includes(f.id))
     asker.ask(presetAsk(id, topic, frames))
   }
+  // ---- the right-click menu: what can be done with what is under the pointer ----
+  const openContextRef = useRef<(t: HTMLElement, cx: number, cy: number) => void>(() => undefined)
+  const openContext = (t: HTMLElement, cx: number, cy: number): void => {
+    const s0 = stRef.current
+    const r = root.current?.getBoundingClientRect()
+    if (!s0 || !r) return
+    const w = world(cx, cy)
+    const at = { x: cx - r.left, y: cy - r.top }
+    // no separator first, last or twice in a row
+    const show = (items: MenuItem[], title?: string): void => {
+      const out: MenuItem[] = []
+      for (const x of items)
+        if (x !== 'sep' || (out.length && out[out.length - 1] !== 'sep')) out.push(x)
+      while (out[out.length - 1] === 'sep') out.pop()
+      setCtx({ ...at, title, items: out })
+    }
+    const ask = (): void => askInDock()
+
+    const cardEl = t.closest<HTMLElement>('[data-cid]')
+    if (cardEl) {
+      const id = Number(cardEl.dataset.cid)
+      const selCards = [...selRef.current]
+        .filter((k) => k[0] === 'c')
+        .map((k) => Number(k.slice(2)))
+      // a card of a bigger selection: what is done to them all
+      if (selCards.length > 1 && selCards.includes(id)) {
+        const n = selCards.length
+        return show(
+          [
+            { label: `Ask about these ${n}`, run: ask },
+            'sep',
+            {
+              label: `Close ${n} cards`,
+              keys: 'Del',
+              danger: true,
+              run: () => closeCards(selCards)
+            }
+          ],
+          `${n} cards`
+        )
+      }
+      const m = modelForRef.current({ id })
+      if (!m || m.kind === 'pending') return
+      setSel(new Set([`c:${id}`]))
+      const item = isVirtual(id) ? s0.items[String(id)] : undefined
+      const tab = isVirtual(id)
+        ? item?.tab !== undefined
+          ? byId.get(item.tab)
+          : undefined
+        : byId.get(id)
+      const url = item?.url ?? tab?.url ?? ''
+      const priv = !!(tab && (tab.private || tab.tor))
+      const web = /^https?:/i.test(url)
+      const canLive = (m.kind === 'page' || m.kind === 'video') && (!!tab || web)
+      const media = m.isTab && (m.audible || m.muted || m.kind === 'video')
+      const items: MenuItem[] = [
+        { label: 'Open', keys: 'Enter', run: () => expandRef.current(id, false) }
+      ]
+      if (canLive) items.push({ label: 'Open live', run: () => expandRef.current(id, true) })
+      if (m.isTab || tab || web)
+        items.push({ label: 'Pop out as a tab', run: () => leaveRef.current(id) })
+      items.push('sep')
+      if (media) {
+        items.push({
+          label: m.audible ? 'Pause' : 'Play',
+          run: () =>
+            void window.api.mediaPlay?.(m.id, m.audible ? 'pause' : 'play').catch(() => undefined)
+        })
+        if (m.audible || m.muted)
+          items.push({ label: m.muted ? 'Unmute' : 'Mute', run: () => window.api.toggleMute(m.id) })
+      }
+      if (m.toggle)
+        items.push({
+          label: m.reader ? 'Show the page' : 'Show as reader',
+          run: () => onCardView(id)
+        })
+      items.push('sep')
+      if (!priv) {
+        items.push({ label: 'Ask about this', run: ask })
+        items.push({ label: 'Make a note of it', run: () => void placeAs(id, 'note') })
+        if (item && item.kind === 'page')
+          items.push({ label: 'Show as document', run: () => void placeAs(id, 'document') })
+      }
+      items.push('sep')
+      if (web && !priv)
+        items.push({ label: 'Copy link', run: () => void navigator.clipboard.writeText(url) })
+      items.push({
+        label: m.isTab ? 'Close tab' : 'Remove from the board',
+        keys: 'Del',
+        danger: true,
+        run: () => closeCards([id])
+      })
+      return show(items, priv ? 'Private tab' : m.title || m.site)
+    }
+
+    const noteEl = t.closest<HTMLElement>('[data-nid]')
+    if (noteEl) {
+      const nid = noteEl.dataset.nid!
+      setSel(new Set([`n:${nid}`]))
+      return show(
+        [
+          { label: 'Edit', keys: 'Enter', run: () => setEditing(nid) },
+          'sep',
+          {
+            label: 'Delete note',
+            keys: 'Del',
+            danger: true,
+            run: () => {
+              edit((s1) => deleteNote(s1, nid), { undo: 'Deleted 1 item' })
+              setSel(new Set())
+            }
+          }
+        ],
+        'Note'
+      )
+    }
+
+    const headEl = t.closest<HTMLElement>('[data-fhead]')
+    const f = headEl
+      ? s0.frames.find((x) => x.id === headEl.dataset.fhead)
+      : t.closest('[data-mid]')
+        ? undefined
+        : frameAt(s0, w.x, w.y)
+    if (f) {
+      setSel(new Set([`f:${f.id}`]))
+      const inside = s0.cards.filter((c) => c.frame === f.id).length
+      const items: MenuItem[] = [{ label: 'Rename', keys: 'F2', run: () => startRename(f.id) }]
+      if (f.sized)
+        items.push({
+          label: 'Fit to what is in it',
+          run: () => edit((s1) => unsizeFrame(s1, f.id), { flip: true, undo: 'Fitted a section' })
+        })
+      items.push({
+        swatches: [null, ...Array.from({ length: FRAME_COLORS }, (_, i) => i)].map((c) => ({
+          label: c === null ? 'Space colour' : `Colour ${c + 1}`,
+          cls: 'cv-swatch' + (c === null ? '' : ` fc${c}`),
+          on: (f.color ?? null) === c,
+          run: () => onFrameColor(f.id, c)
+        }))
+      })
+      items.push('sep')
+      items.push({
+        label: inside
+          ? `Delete section and close its ${inside} tab${inside === 1 ? '' : 's'}`
+          : 'Delete section',
+        danger: true,
+        run: () => onFrameDelete(f.id)
+      })
+      return show(items, f.name)
+    }
+
+    // the board itself: what is made goes where it was clicked
+    setSel(new Set())
+    show([
+      { label: 'New page here', keys: 'Ctrl+T', run: () => askNew(at.x, at.y) },
+      {
+        label: 'Note here',
+        keys: 'S',
+        run: () => {
+          const made = addNote(stRef.current!, { x: w.x - 92, y: w.y - 66 }, 0)
+          edit(() => made.state, { undo: 'Added a note' })
+          setSel(new Set([`n:${made.id}`]))
+          setEditing(made.id)
+        }
+      },
+      { label: 'Text here', keys: 'T', run: () => addBlockAt('body', { x: w.x, y: w.y }) },
+      {
+        label: 'Section here',
+        keys: 'F',
+        run: () => {
+          const made = addFrame(
+            stRef.current!,
+            { x: w.x - 280, y: w.y - 40, w: 560, h: 400 },
+            'Section'
+          )
+          flushSync(() => edit(() => made.state, { flip: true, undo: 'Made a section' }))
+          setSel(new Set([`f:${made.id}`]))
+          setEditing(made.id)
+        }
+      },
+      'sep',
+      { label: 'Tidy up', keys: 'Shift+T', run: () => void runTidy(true) },
+      { label: 'Fit everything', keys: 'Shift+1', run: fitAll },
+      { label: 'Ask', run: () => asker.show() },
+      'sep',
+      { label: 'Export as picture', run: () => void exportBoard('png') }
+    ])
+  }
+  useLayoutEffect(() => {
+    openContextRef.current = openContext
+  })
+  // a card's own menu button (and a right-click on it) open the same menu
+  const onPlace = useCallback((id: number, x: number, y: number): void => {
+    const el = root.current?.querySelector<HTMLElement>(`[data-cid="${id}"]`)
+    if (el) openContextRef.current(el, x, y)
+    // root is a ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   /** What the command menu offers; built when it opens, so it sees the board as it is. */
   const commands = (): Command[] => {
     const v = vp.get()
@@ -3640,7 +4085,8 @@ export function Canvas({
         run: () => addBlockAt('checklist')
       },
       { id: 'code', label: 'Code block', also: 'snippet', run: () => addBlockAt('code') },
-      shape('rect', 'Rectangle', 'R'),
+      shape('rounded', 'Rounded rectangle', 'R'),
+      shape('rect', 'Rectangle'),
       shape('ellipse', 'Ellipse', 'O'),
       shape('diamond', 'Diamond'),
       shape('arrow', 'Arrow'),
@@ -3732,8 +4178,11 @@ export function Canvas({
         (lod ? ' lod' : '') +
         (tool === 'hand' ? ' hand' : '') +
         (tool !== 'select' && tool !== 'hand' ? ' draw' : '') +
-        (dim ? ' dim' : '')
+        (dim ? ' dim' : '') +
+        (expanded ? ' reading' : '') +
+        (asker.open ? ' docked' : '')
       }
+      style={{ '--dock-w': `${dockW}px` } as React.CSSProperties}
       role="application"
       aria-label="Tab canvas"
       onDragOver={(e) => {
@@ -3793,7 +4242,7 @@ export function Canvas({
           !el &&
           toolRef.current === 'select' &&
           !t.closest(
-            '[data-nid],[data-fhead],.cv-bar,.cv-toast,.cv-expand,.cv-kbar,.cv-fbar,.cv-top,.cv-new,button,input,textarea,a'
+            '[data-nid],[data-fhead],.cv-bar,.cv-toast,.cv-expand,.cv-kbar,.cv-fbar,.cv-top,.cv-new,.cv-dock,.cv-dock-handle,.cv-playing,.cv-ctx,button,input,textarea,a'
           )
         ) {
           const r = root.current!.getBoundingClientRect()
@@ -3803,12 +4252,13 @@ export function Canvas({
       onContextMenu={(e) => {
         // text fields (the Ask box, a note, a frame's name) keep the usual cut / copy / paste menu
         if (isEditable(e.target)) return
+        // the conversation, the preview and the board's own bars are not the board: no board menu there
+        if ((e.target as HTMLElement).closest('.cv-dock,.cv-expand,.cv-bar,.cv-ctx')) return
         e.preventDefault()
-        const el = (e.target as HTMLElement).closest<HTMLElement>('[data-cid]')
-        if (el && phaseRef.current === 'open')
-          onPlace(Number(el.dataset.cid), e.clientX, e.clientY + 130)
+        if (phaseRef.current === 'open') openContext(e.target as HTMLElement, e.clientX, e.clientY)
       }}
     >
+      <div ref={grid} className="cv-grid" aria-hidden="true" />
       <div ref={layer} className="cv-board">
         {s?.frames.map((f) => (
           <FrameView
@@ -3893,6 +4343,7 @@ export function Canvas({
               onView={onCardView}
               onLink={onCardLink}
               onPlace={onPlace}
+              live={streams.has(c.id) ? liveCardPx : 0}
             />
           )
         })}
@@ -3985,6 +4436,8 @@ export function Canvas({
           aria-label="Canvas"
           inert={!!expanded}
         >
+          {/* the board is the whole window (no top bar under it): the window's own buttons live here */}
+          {window.api.platform !== 'darwin' && <WindowControls />}
           <button
             type="button"
             className="cv-back"
@@ -3994,7 +4447,8 @@ export function Canvas({
             <BackIcon />
             <span>Back to tabs</span>
           </button>
-          {spaces.length > 1 && (
+          {/* always there, even with one space: it is the only way to switch or make a space on the board */}
+          {spaces.length > 0 && (
             <div className="cv-spaces">
               <SpaceSwitcher
                 spaces={spaces}
@@ -4098,21 +4552,15 @@ export function Canvas({
         <Expanded
           key={expanded.id}
           startLive={expanded.live}
-          covered={dim}
+          onLive={onPreviewLive}
+          onAsk={askInDock}
           m={modelFor({ id: expanded.id }) ?? EMPTY_MODEL}
           from={expanded.from}
-          stage={stage}
+          stage={asker.open ? { w: Math.max(320, stage.w - dockShown), h: stage.h } : stage}
           tab={isVirtual(expanded.id) ? st?.items[String(expanded.id)]?.tab : expanded.id}
-          canBack={
-            byId.get(
-              (isVirtual(expanded.id) ? st?.items[String(expanded.id)]?.tab : expanded.id) ?? -1
-            )?.canGoBack
-          }
-          canForward={
-            byId.get(
-              (isVirtual(expanded.id) ? st?.items[String(expanded.id)]?.tab : expanded.id) ?? -1
-            )?.canGoForward
-          }
+          page={byId.get(
+            (isVirtual(expanded.id) ? st?.items[String(expanded.id)]?.tab : expanded.id) ?? -1
+          )}
           url={st?.items[String(expanded.id)]?.url ?? byId.get(expanded.id)?.url}
           file={st?.items[String(expanded.id)]?.file}
           reduced={reduced}
@@ -4131,17 +4579,13 @@ export function Canvas({
           place={placeOf(expanded.id)}
         />
       )}
-      {placeMenu && (
-        <PlaceMenu
-          x={placeMenu.x}
-          y={placeMenu.y}
-          current={st?.items[String(placeMenu.id)]?.placement}
-          onPick={(p) => {
-            const id = placeMenu.id
-            setPlaceMenu(null)
-            void placeAs(id, p)
-          }}
-          onClose={() => setPlaceMenu(null)}
+      {ctx && (
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          title={ctx.title}
+          items={ctx.items}
+          onClose={closeContext}
         />
       )}
       <AskDock
@@ -4152,6 +4596,8 @@ export function Canvas({
         onOpen={openSource}
         onAdd={addToCanvas}
         onExample={(q) => asker.ask(q)}
+        onResize={resizeDock}
+        inputRef={dockInput}
         confirm={toolConfirm}
         canUndo={undoDepth > 0}
         onUndo={() => {
@@ -4159,6 +4605,36 @@ export function Canvas({
           toastNow(said ? `Undid: ${said}` : 'Nothing to undo')
         }}
       />
+      {playing.length > 0 && phase === 'open' && !expanded && (
+        <div
+          className={'cv-playing' + (playList ? ' open' : '')}
+          role="group"
+          aria-label="Playing on the board"
+          ref={playBox}
+        >
+          <div className="cv-playing-row">
+            <PlayingItem t={playing[0]} onGo={goToPlaying} onForget={forgetPlaying} />
+            {playing.length > 1 && (
+              <button
+                type="button"
+                className="cv-playing-more"
+                aria-expanded={playList}
+                aria-label={`${playing.length - 1} more playing`}
+                title="Everything playing on the board"
+                onClick={() => setPlayList((o) => !o)}
+              >
+                +{playing.length - 1}
+              </button>
+            )}
+          </div>
+          {playList &&
+            playing
+              .slice(1)
+              .map((t) => (
+                <PlayingItem key={t.id} t={t} onGo={goToPlaying} onForget={forgetPlaying} />
+              ))}
+        </div>
+      )}
       <Toolbar
         tool={tool}
         zoom={zoomPct}

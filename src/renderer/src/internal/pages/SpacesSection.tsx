@@ -100,6 +100,21 @@ export function SpacesSection(): React.JSX.Element {
             onChange={patch}
           />
         </Row>
+        <Row
+          label="Browse with"
+          hint="Default follows Browse with under Tabs. Canvas opens this space straight into its board, with no tab sidebar or top bar."
+        >
+          <Segmented
+            label="Browse with"
+            value={space.browseWith ?? 'default'}
+            options={[
+              { value: 'default', label: 'Default' },
+              { value: 'tabs', label: 'Tabs' },
+              { value: 'canvas', label: 'Canvas' }
+            ]}
+            onChange={(v) => patch({ browseWith: v === 'default' ? null : v })}
+          />
+        </Row>
       </Group>
 
       <Group

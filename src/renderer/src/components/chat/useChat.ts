@@ -87,6 +87,8 @@ export function useChat(active: TabInfo | null): ChatApi {
 
   const refreshInfo = useCallback(() => void window.api.chatInfo().then(setInfo), [])
   const refreshSaved = useCallback(() => void window.api.chatList().then(setSaved), [])
+  // a conversation got its name from the model: the list shows it
+  useEffect(() => window.api.onChatNamed?.(() => refreshSaved()), [refreshSaved])
   useEffect(() => {
     refreshInfo()
     refreshSaved()

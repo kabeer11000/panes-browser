@@ -8,8 +8,13 @@ import {
   seatSplit,
   GAP,
   HEAD,
+  SPLIT_INSET,
   SPLIT_LIP,
+  SPLIT_ROW_BELOW,
   SPLIT_ROW_EXTRA,
+  SPLIT_SIDE,
+  SPLIT_TOP_EXTRA,
+  PAD,
   type Box,
   type CanvasCard,
   type CanvasState
@@ -22,8 +27,9 @@ import {
 
 /** The gap between the members of a split, and the room its container takes around them. */
 export const SPLIT_GAP = 10
-export const SPLIT_PAD = 12
-export const SPLIT_HEAD = 36
+// loose on the board it looks as it does in a section: the same padding, and the same lip for its label
+export const SPLIT_PAD = SPLIT_INSET
+export const SPLIT_HEAD = SPLIT_LIP
 export const SPLIT_MAX = 4
 
 /** The cards of a split, in the split's order: tabs on the board (not private), at least two, else none. */
@@ -35,8 +41,7 @@ export function splitMembers(leaves: number[], s: CanvasState): number[] {
   return ids.length >= 2 ? ids : []
 }
 
-/** How far the outline of a split inside a section sits out from its cards (less than half the grid's gap). */
-export const SPLIT_INSET = 6
+export { SPLIT_INSET }
 
 /**
  * The container drawn around a split's cards. Loose on the board it has room for its label on top; inside a section
@@ -85,7 +90,15 @@ const together = (s: CanvasState, ids: number[]): boolean => {
     .filter((c) => c.frame === first.frame && !ids.includes(c.id) && c.y + CARD_H <= first.y + 0.5)
     .map((c) => c.y + CARD_H)
   const top = above.length ? Math.max(...above) + GAP : home ? home.y + HEAD : first.y
-  return first.y - top >= SPLIT_ROW_EXTRA - 0.5
+  if (first.y - top < (above.length ? SPLIT_ROW_EXTRA : SPLIT_TOP_EXTRA) - 0.5) return false
+  // the section is widened round it
+  if (home && Math.min(...cs.map((c) => c!.x)) - home.x < PAD + SPLIT_SIDE - 0.5) return false
+  // nothing else in its row, and the row below clear of its outline
+  const last = cs[cs.length - 1]!
+  const others = s.cards.filter((c) => c.frame === first.frame && !ids.includes(c.id))
+  if (others.some((c) => Math.abs(c.y - first.y) < 0.5 && c.x > last.x)) return false
+  const below = others.filter((c) => c.y >= first.y + CARD_H - 0.5).map((c) => c.y)
+  return !below.length || Math.min(...below) - (first.y + CARD_H) >= GAP + SPLIT_ROW_BELOW - 0.5
 }
 
 const placed = (s: CanvasState, ids: number[], at: { x: number; y: number }): boolean =>

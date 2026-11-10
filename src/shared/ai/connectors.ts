@@ -372,6 +372,7 @@ export function routeAll(
   const isBox = (v: Box | Pt): v is Box => 'w' in v
   const end = (e: End): Box | Pt | null =>
     e.kind === 'point' ? { x: e.x, y: e.y } : endBox(s, e, off)
+  if (!list.length) return []
   const ends = list.map((c) => [end(c.from), end(c.to)] as const)
   const tidy = list.length <= TIDY_MAX
   const shift = new Map<string, number>()
@@ -401,6 +402,9 @@ export function routeAll(
       const step = Math.min(FAN_STEP, (row[0].len * 0.8) / (row.length - 1))
       row.forEach((r, j) => shift.set(r.at, (j - (row.length - 1) / 2) * step))
     }
+  }
+  // only elbows go around things: without one, the boxes of every card and note are not needed
+  if (tidy && list.some((c) => c.shape === 'elbow')) {
     for (const c of s.cards) {
       const box = endBox(s, { kind: 'card', id: c.id }, off)
       if (box) obstacles.push({ key: `c${c.id}`, box })

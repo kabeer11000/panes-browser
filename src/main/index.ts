@@ -50,6 +50,7 @@ import { noteLayerHealthy } from './layers'
 import { Suggester } from './suggest'
 import { registerAi } from './ai/ipc'
 import { registerCanvas } from './ai/canvas'
+import { media } from './ai/automation'
 import { addFileToBoard } from './ai/canvasAssistant'
 import { flushAllStores } from './store'
 import { showEditMenu } from './contextMenu'
@@ -346,13 +347,9 @@ function createWindow(): void {
   // Auto-hidden top bar: the page cannot see the pointer over a drag region or a native page view,
   // so the main process watches the real cursor and says when the bar should show.
   // Something over the page keeps a hover-revealed sidebar or top bar out (the pointer heading into a space editor
-  // must not shut it). The canvas board holds the overlay the whole time it is open, so on the board only other
-  // holders count (the renderer says when there are any), or nothing revealed by hover would ever close there.
-  let overlayPinned = false
-  ipcMain.on('ui:overlay-pins', (e, p: unknown) => {
-    if (e.sender === win.webContents) overlayPinned = p === true
-  })
-  const chromePinned = (): boolean => tabs.overlayOpen() && (!tabs.inCanvas() || overlayPinned)
+  // must not shut it). Neither watcher runs on the canvas board (the window shows no tabs chrome there), so the
+  // overlay the board holds for its whole life never pins anything.
+  const chromePinned = (): boolean => tabs.overlayOpen()
   const REVEAL_EDGE_PX = 6 // how close to the top of the window the cursor must be
   // the pointer has to rest at the edge a moment: passing over it on the way somewhere does not bring the bar out
   const REVEAL_DWELL_MS = 220
@@ -558,6 +555,16 @@ function createWindow(): void {
     tabs.tabMenu(id, numbers(picked))
   )
   ipcMain.on('tabs:group-menu', (_e, id: number) => tabs.groupMenu(id))
+  ipcMain.handle('tabs:page-menu', (_e, id: unknown, x: unknown, y: unknown, live: unknown) =>
+    typeof id === 'number'
+      ? tabs.pageMenu(
+          id,
+          typeof x === 'number' ? x : undefined,
+          typeof y === 'number' ? y : undefined,
+          typeof live === 'boolean' ? live : undefined
+        )
+      : null
+  )
   // the downloads bin, at the window's bottom-right corner
   const dock = registerDock(
     win,
@@ -598,6 +605,13 @@ function createWindow(): void {
     tabs.stopCapture(id, kinds)
   )
   ipcMain.on('tabs:toggle-mute', (_e, id: number) => tabs.toggleMute(id))
+  // play or pause what a tab plays, from its card on the board (the tab stays where it is)
+  ipcMain.handle('tabs:media', async (_e, id: unknown, action: unknown) => {
+    const wc = typeof id === 'number' ? tabs.contentsOf(id) : null
+    if (!wc || (action !== 'toggle' && action !== 'play' && action !== 'pause')) return null
+    const m = await media(wc, action, 0)
+    return m ? { paused: m.paused } : null
+  })
   ipcMain.on('tabs:ratios', (_e, path: number[], ratios: number[]) =>
     tabs.updateRatios(path, ratios)
   )
@@ -606,6 +620,18 @@ function createWindow(): void {
   )
   ipcMain.on('tabs:move-many', (_e, ids: unknown, index: number, groupId?: number | null) =>
     tabs.moveTabs(numbers(ids), index, groupId)
+  )
+  // paste (sidebar and board): copies made in a space without showing them, ids in the order asked (null: not made)
+  ipcMain.handle('tabs:duplicate', (_e, ids: unknown, spaceId: unknown) =>
+    typeof spaceId === 'number' ? numbers(ids).map((id) => tabs.duplicate(id, spaceId)) : []
+  )
+  ipcMain.handle('tabs:open-many', (_e, urls: unknown, spaceId: unknown) =>
+    Array.isArray(urls) && typeof spaceId === 'number' && spaces.get(spaceId)
+      ? urls
+          .filter((u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u))
+          .slice(0, 20)
+          .map((u) => tabs.create(u, false, spaceId))
+      : []
   )
   ipcMain.on('ui:slide', (_e, x: unknown, y: unknown) => {
     if (

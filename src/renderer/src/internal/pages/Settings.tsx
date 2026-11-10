@@ -214,6 +214,20 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
         <Row
+          label="Browse with"
+          hint="Canvas makes the board the whole window: no tab sidebar or top bar, and new tabs land on the board. Each space can choose for itself."
+        >
+          <Segmented
+            label="Browse with"
+            value={s.browseWith}
+            options={[
+              { value: 'tabs', label: 'Tabs' },
+              { value: 'canvas', label: 'Canvas' }
+            ]}
+            onChange={(v) => void update({ browseWith: v })}
+          />
+        </Row>
+        <Row
           label="Pane view"
           hint="Ctrl and scroll opens it. Full fills the page area with your tabs; Side strip keeps the page in view and scrolls your tabs down the right edge."
         >

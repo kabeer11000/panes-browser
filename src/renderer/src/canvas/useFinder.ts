@@ -76,7 +76,8 @@ export function useFinder(env: FinderEnv): {
   confirm: PendingConfirm | null
   answerConfirm: (ok: boolean) => void
   /** A link in an answer: it opens as a card of its own, in a small frame of its own. */
-  openLink: (href: string) => void
+  /** Put a link on the board as a card; its id, or null. */
+  openLink: (href: string) => number | null
   /** Milliseconds from asking to the first card that had something in it (for measuring). */
   firstMs: number | null
   /** An answer from the popover, put on the board: an answer card and its sources, in a frame of their own. */
@@ -334,11 +335,11 @@ export function useFinder(env: FinderEnv): {
     setConfirm(null)
   }, [])
 
-  const openLink = useCallback((href: string): void => {
-    if (!/^https?:\/\//i.test(href)) return
+  const openLink = useCallback((href: string): number | null => {
+    if (!/^https?:\/\//i.test(href)) return null
     const e = envRef.current
     const s = e.getState()
-    if (!s) return
+    if (!s) return null
     const item = itemFor(href, '', { source: 'web' })
     const made = addResultFrame(s, item.site || 'Link', 1, e.anchor())
     e.edit(() => made.state, { flip: true })
@@ -346,6 +347,7 @@ export function useFinder(env: FinderEnv): {
     e.fly(made.ids)
     const fr = e.getState()?.frames.find((x) => x.id === made.frameId)
     if (fr) e.show(fr)
+    return made.ids[0] ?? null
   }, [])
 
   const pinAnswer = useCallback(

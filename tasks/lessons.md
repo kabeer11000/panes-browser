@@ -19,7 +19,7 @@
 - bsdtar on Windows exits non-zero for "Can't restore time" while unpacking a zip: pass -m.
 - Testing chat tools needs no real model: point "Your server" at a tiny scripted OpenAI-compatible server that returns tool calls named in the user message (tasks/ai/phase-4.md). Both E: and C: were nearly full (exFAT E: has no hard links), so a fresh profile cannot copy the 1.1 GB local model; use the mock instead.
 - When several dev instances run (the user's on 9333, a subagent's), find yours by its --remote-debugging-port and stop only that one; `bun run dev` in a PowerShell background task can exit and orphan its Electron, so start it from Bash.
-- A mode that holds the page overlay for its whole life (canvas) must not count as "something is over the page" for the hover sidebar and top bar, or they open on hover and never close. Only other holders pin them (overlay.ts tells main via ui:overlay-pins). Test hover with the real cursor (SetCursorPos on a focused test window), since main reads the real cursor, not DOM events.
+- A mode that holds the page overlay for its whole life (canvas) must not count as "something is over the page" for the hover sidebar and top bar, or they open on hover and never close. Since 2026-11-10 the board mounts no tabs chrome and switches both edge watchers off, so the overlay it holds pins nothing (ui:overlay-pins is gone). Test hover with the real cursor (SetCursorPos on a focused test window), since main reads the real cursor, not DOM events.
 - Dev instances side by side share `out/`: one instance rebuilding main or preload can leave another's freshly loaded page without its preload (`window.panesInternal` undefined, blank page). Reload the page before calling it a bug.
 - A CSS file split out of a shared one (controls.css out of internal.css) must be imported by every entry that used those classes: welcome/main.tsx lost its toggles and segmented controls until it imported controls.css too. Grep the class users per entry after a split.
 
@@ -39,6 +39,8 @@ the repo's own node_modules sits above `dist/win-unpacked`, and Node found it th
 
 - Edit scripts go through the Write tool, never a heredoc: `\n` and `\s` in a heredoc were mangled three times in one
   session (a literal newline inside a string, a regex that matched nothing). The rule above already said so; follow it.
+  Again 2026-11-10: `\b` in a Python heredoc string became a backspace byte in sites.ts. Use the Edit tool for
+  small changes; a script only via Write, with raw strings.
 - Never put `bun run dev &` (or any app launch) on the end of an unrelated command. One slipped in and started a dev
   Panes; kill such a stray by PID after listing processes created in the last minutes, nothing broader.
 - Killing processes by command-line match (`CommandLine -match 'ai-bench.ts'`) also matches the shell running the

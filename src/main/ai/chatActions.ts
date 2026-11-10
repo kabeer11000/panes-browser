@@ -1,5 +1,15 @@
 import type { WebContents } from 'electron'
-import { siteSearchUrl } from '@shared/ai/sites'
+import { pickResult, searchFor, wantsPdf } from '@shared/ai/findOpen'
+import { siteSearchUrl, type QuickAction } from '@shared/ai/sites'
+import {
+  feedNewest,
+  latestOf,
+  onDomain,
+  ytChannelSearch,
+  ytFeed,
+  ytFirstChannel,
+  ytFirstVideo
+} from '@shared/ai/play'
 import { readFile } from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { jsonSchema, tool, type ToolSet } from 'ai'
@@ -45,7 +55,8 @@ export interface ChatHost {
   settings: () => AiSettings
   history: (query: string, limit: number) => Array<{ url: string; title: string }>
   semantic: (query: string, exclude: string[]) => Promise<LocalSuggestion[]>
-  open: (url: string) => void
+  /** Opens a tab; the new tab's id where the browser knows it. */
+  open: (url: string) => number | void
   activate: (id: number) => void
   close: (id: number) => void
   find: (text: string) => void
@@ -61,6 +72,57 @@ export interface ChatHost {
 }
 
 const READ_TIMEOUT_MS = 3000
+
+/** "Play X on <site>": the page that plays it (null: not found, the site's search page is the fallback). */
+async function findPlayable(
+  host: ChatHost,
+  q: Extract<QuickAction, { kind: 'play' }>
+): Promise<string | null> {
+  const text = async (url: string): Promise<string> => {
+    const r = await host.fetchBytes(url)
+    return r ? new TextDecoder().decode(r.data) : ''
+  }
+  if (q.youtube) {
+    const channel = latestOf(q.query)
+    if (channel) {
+      const id = ytFirstChannel(await text(ytChannelSearch(channel)))
+      const newest = id ? feedNewest(await text(ytFeed(id))) : null
+      if (newest) return newest
+    }
+    const first = ytFirstVideo(await text(q.url))
+    if (first) return first
+  }
+  const hits = onDomain(await host.searchWeb(`site:${q.domain} ${q.query}`), q.domain)
+  return pickResult(hits, q.query)?.url ?? null
+}
+
+/** Wait for a tab's page to load, then press play (tabs need a gesture to start sound; this script counts as one). */
+async function pressPlay(host: ChatHost, id: number): Promise<boolean> {
+  const deadline = Date.now() + 15_000
+  while (Date.now() < deadline) {
+    const wc = host.tabs().find((t) => t.id === id)?.wc
+    if (wc && !wc.isDestroyed() && !wc.isLoading()) {
+      const m = await auto.media(wc, 'play', 0)
+      if (m && !m.paused) return true
+    }
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  return false
+}
+
+/** Carry out "play X on <site>": open the thing itself and start it, else the site's search for it. */
+export async function playQuick(
+  host: ChatHost,
+  q: Extract<QuickAction, { kind: 'play' }>
+): Promise<{ found: boolean; url: string; playing: Promise<boolean> }> {
+  const url = (await findPlayable(host, q).catch(() => null)) ?? null
+  const id = host.open(url ?? q.url)
+  return {
+    found: !!url,
+    url: url ?? q.url,
+    playing: url && typeof id === 'number' ? pressPlay(host, id) : Promise.resolve(false)
+  }
+}
 
 /** A fixed script, run in the page: the readable text and nothing a model said ever runs there. */
 const readScript = (cap: number): string =>
@@ -370,6 +432,44 @@ async function run(
       env.turn.opened++
       host.open(v.url)
       return finish('done', displayHost(v.url) || v.url, `Opened ${v.url} in a new tab.`)
+    case 'find_and_open': {
+      if (env.turn.opened >= MAX_OPEN)
+        return finish(
+          'denied',
+          'Too many tabs',
+          `Not opened: at most ${MAX_OPEN} tabs per answer. List the other links in your answer instead.`
+        )
+      // a PDF is searched for as a file first; an engine that does not know the filter gets the plain words
+      let res = await host.searchWeb(searchFor(v.query))
+      if (!res.length && wantsPdf(v.query)) res = await host.searchWeb(v.query)
+      const pick = pickResult(res, v.query)
+      if (!pick)
+        return finish(
+          'error',
+          `"${short(v.query, 40)}"`,
+          res.length
+            ? `Error: no result named "${v.query}". The results were: ${res
+                .slice(0, 5)
+                .map((r) => `${short(r.title, 80)} (${r.url})`)
+                .join(' | ')}. Open the right one with open_tab, or try other words.`
+            : 'Error: the search returned nothing. Try other words.'
+        )
+      env.turn.opened++
+      host.open(pick.url)
+      const others = res
+        .filter((r) => r.url !== pick.url)
+        .slice(0, 4)
+        .map((r) => `${short(r.title, 80)} (${r.url})`)
+      return finish(
+        'done',
+        short(pick.title || displayHost(pick.url) || pick.url, 50),
+        `Opened "${pick.title}" (${pick.url}) in a new tab.${
+          others.length
+            ? ` If it is not the right one, the other results were: ${others.join(' | ')}.`
+            : ''
+        }`
+      )
+    }
     case 'search_on_site': {
       if (env.turn.opened >= MAX_OPEN)
         return finish(
@@ -454,13 +554,16 @@ async function run(
       const t = await liveTab(env, v.tabId)
       if (!t?.wc) return finish('error', 'Not loaded', 'Error: the tab could not be loaded.')
       const at = await auto.scrollTo(t.wc, v.target)
-      if (!at)
+      // missed: the page's own section names go back, so the next try can use one of them at once
+      if ('heads' in at)
         return finish(
           'error',
           short(v.target, 40),
-          `Error: nothing on the page matches "${v.target}". Try look_at_page to see what is there.`
+          at.heads.length
+            ? `Error: nothing on the page is called "${v.target}". Its sections are: ${at.heads.join(' | ')}. Call scroll_to again with the one the person meant.`
+            : `Error: nothing on the page matches "${v.target}". Try look_at_page to see what is there.`
         )
-      return finish('done', short(at, 40), await auto.look(t.wc, lookCap))
+      return finish('done', short(at.what, 40), await auto.look(t.wc, lookCap))
     }
     case 'media_control': {
       const t = await liveTab(env, v.tabId)

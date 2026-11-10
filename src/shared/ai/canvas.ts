@@ -14,14 +14,30 @@ export const CARD_W = 240
 export const CARD_H = 300
 export const GAP = 16
 export const PAD = 24
-export const HEAD = 44
+/** The room a section keeps above its cards. Its title sits outside, above its top edge, so this is the padding. */
+export const HEAD = PAD
+/** The room above a section's cards in boards laid out before the title moved outside (see `liftSections`). */
+const OLD_HEAD = 44
 export const FRAME_GAP = 56
 /**
  * A split view inside a section has a lip on top of it for its label. The row it sits in is set this much lower
  * (and each row below with it) so the lip has room and never runs over the card above.
  */
-export const SPLIT_LIP = 28
-export const SPLIT_ROW_EXTRA = SPLIT_LIP + 6 - GAP
+export const SPLIT_LIP = 32
+/**
+ * How far the outline of a split inside a section sits out from its cards (its padding), and the clear space kept
+ * between that outline and anything else (other cards, the section's edges). Together they are the section's own
+ * padding, so a section looks the same with a split in it as without: only the split's lip adds height.
+ */
+export const SPLIT_INSET = 12
+export const SPLIT_CLEAR = PAD - SPLIT_INSET
+/** The extra room above a split's row (its lip and the clear space), and below it (its padding and clear space). */
+export const SPLIT_ROW_EXTRA = SPLIT_LIP + SPLIT_CLEAR - GAP
+export const SPLIT_ROW_BELOW = SPLIT_INSET + SPLIT_CLEAR - GAP
+/** The same above a split in a section's first row, which has the section's padding above it instead of a gap. */
+export const SPLIT_TOP_EXTRA = SPLIT_LIP + SPLIT_CLEAR - HEAD
+/** How much wider a section holding a split is on each side (and lower, when the split is its last row): none. */
+export const SPLIT_SIDE = SPLIT_INSET + SPLIT_CLEAR - PAD
 export const NOTE_W = 240
 export const NOTE_H = 120
 export const NOTE_MIN_W = 160
@@ -89,6 +105,8 @@ export interface Viewport {
 }
 export interface CanvasState {
   v: 1
+  /** 2: sections keep their title outside (above them). Missing in boards laid out before that (see `liftSections`). */
+  lay?: 2
   /** Which run of the app the tab ids belong to: ids of an earlier run only match by address. */
   boot: string
   seq: number
@@ -103,6 +121,8 @@ export interface CanvasState {
   marks?: CanvasMark[]
   /** How a page card shows, as the person chose it (by address): its words, or the picture of the page. */
   views?: Record<string, CardView>
+  /** Pages last looked at live when opened from their card (by address): they open live again. */
+  previews?: Record<string, 'live'>
   view: Viewport | null
   /** When it was last saved (ms); set by main, missing in boards saved before it. */
   usedAt?: number
@@ -126,6 +146,7 @@ export interface Group {
 
 export const emptyState = (boot = ''): CanvasState => ({
   v: 1,
+  lay: 2,
   boot,
   seq: 0,
   frames: [],
@@ -135,6 +156,22 @@ export const emptyState = (boot = ''): CanvasState => ({
   connectors: [],
   view: null
 })
+
+/**
+ * A board laid out while sections kept their title inside, on a 44px row above the cards: what is in each section
+ * moves up into the room the title left, and the section is that much shorter. The same state for a current board.
+ */
+export function liftSections(s: CanvasState): CanvasState {
+  if (s.lay === 2) return s
+  const d = OLD_HEAD - HEAD
+  return {
+    ...s,
+    lay: 2,
+    frames: s.frames.map((f) => ({ ...f, h: Math.max(FRAME_MIN.h, f.h - d) })),
+    cards: s.cards.map((c) => (c.frame ? { ...c, y: c.y - d } : c)),
+    notes: s.notes.map((n) => (n.frame ? { ...n, y: n.y - d } : n))
+  }
+}
 
 // ---- geometry ----
 
@@ -373,10 +410,15 @@ function settleFrame(s: CanvasState, id: string): CanvasState {
 function shrinkFrame(s: CanvasState, id: string): CanvasState {
   const f = s.frames.find((x) => x.id === id)
   if (!f) return s
+  // down to what is in it, plus its padding (a split view's outline needs more room when it is the last row)
   const cs = members(s, id)
-  let rows = 1
-  for (const c of cs) rows = Math.max(rows, Math.ceil((c.y + CARD_H - f.y - HEAD) / (CARD_H + GAP)))
-  const h = rowsHeight(rows)
+  const ns = memberNotes(s, id)
+  const bottoms = [...cs.map((c) => c.y + CARD_H), ...ns.map((n) => n.y + n.h)]
+  if (!bottoms.length) return s
+  const low = Math.max(...bottoms)
+  const split = new Set(s.split ?? [])
+  const splitLast = cs.some((c) => split.has(c.id) && c.y + CARD_H >= low - 0.5) && split.size >= 2
+  const h = Math.max(rowsHeight(1), low - f.y + PAD + (splitLast ? SPLIT_SIDE : 0))
   return h < f.h ? withFrame(s, { ...f, h }) : s
 }
 
@@ -474,29 +516,40 @@ export function regridFrame(s: CanvasState, id: string, keepCols = false): Canva
   const n = cs.length + ns.length
   const widest = Math.max(1, ...units.map((u) => u.length))
   const cols = Math.min(MAX_COLS, Math.max(widest, keepCols ? colsOf(f) : gridCols(n)))
-  const box = { ...f, w: frameBox(n, cols).w }
+  const side = pair.length >= 2 ? SPLIT_SIDE : 0
+  const box = { ...f, w: frameBox(n, cols).w + side * 2 }
   const cellOf = new Map<number, number>()
   const splitRows = new Set<number>()
   let cell = 0
   for (const u of units) {
-    // a split view starts a row (its lip needs room above it), and a row it would run off the end of
+    // a split view has a row to itself (its lip needs room above it, its outline room around it)
     if (u.length > 1 && cell % cols !== 0) cell = Math.ceil(cell / cols) * cols
     if (u.length > 1) splitRows.add(Math.floor(cell / cols))
     u.forEach((cid, k) => cellOf.set(cid, cell + k))
     cell += u.length
+    if (u.length > 1) cell = Math.ceil(cell / cols) * cols
   }
-  // each row with a split in it is set lower, and every row below follows
+  // each row with a split in it is set lower, and every row below follows (lower again past the split's outline)
   const lower = (row: number): number =>
-    [...splitRows].filter((r) => r <= row).length * SPLIT_ROW_EXTRA
+    [...splitRows].reduce(
+      (a, r) =>
+        a +
+        (r <= row ? (r === 0 ? SPLIT_TOP_EXTRA : SPLIT_ROW_EXTRA) : 0) +
+        (r < row ? SPLIT_ROW_BELOW : 0),
+      0
+    )
   const place = (i: number): { x: number; y: number } => {
     const p = slotAt(box, i)
-    return { x: p.x, y: p.y + lower(Math.floor(i / cols)) }
+    return { x: p.x + side, y: p.y + lower(Math.floor(i / cols)) }
   }
   const at = new Map([...cellOf].map(([cid, i]) => [cid, place(i)]))
   const nat = new Map(ns.map((note, i) => [note.id, place(cell + i)]))
   cell += ns.length
   const rows = Math.max(1, Math.ceil(cell / cols))
-  const grown = { ...box, h: rowsHeight(rows) + lower(rows - 1) }
+  const grown = {
+    ...box,
+    h: rowsHeight(rows) + lower(rows - 1) + (splitRows.has(rows - 1) ? SPLIT_SIDE : 0)
+  }
   return {
     ...withFrame(s, grown),
     cards: s.cards.map((c) => (at.has(c.id) ? { ...c, ...at.get(c.id)! } : c)),
@@ -992,6 +1045,17 @@ export function setCardView(s: CanvasState, url: string, view: CardView | null):
   return { ...s, views: next }
 }
 
+/** Remember whether a page was last looked at live (or as words) when opened from its card. */
+export function setPreview(s: CanvasState, url: string, live: boolean): CanvasState {
+  if (!url || !!s.previews?.[url] === live) return s
+  const next = { ...(s.previews ?? {}) }
+  delete next[url]
+  if (live) next[url] = 'live'
+  const keys = Object.keys(next)
+  for (const k of keys.slice(0, Math.max(0, keys.length - VIEWS_MAX))) delete next[k]
+  return { ...s, previews: next }
+}
+
 /** Put a card loose with its middle at a point (or into the frame there), as if dropped there. */
 export function placeCard(s: CanvasState, id: number, at: { x: number; y: number }): CanvasState {
   const c = s.cards.find((x) => x.id === id)
@@ -1141,9 +1205,20 @@ export function resizeNote(
 
 /** The box a section takes to hug what is in it: even padding, and the title row on top. */
 export function hugBox(s: CanvasState, frameId: string): Box | null {
-  const b = boundsOf([...members(s, frameId).map(cardBox), ...memberNotes(s, frameId)])
+  const cs = members(s, frameId)
+  const b = boundsOf([...cs.map(cardBox), ...memberNotes(s, frameId)])
   if (!b) return null
-  return { x: b.x - PAD, y: b.y - HEAD, w: b.w + PAD * 2, h: b.h + HEAD + PAD }
+  // A split view in it keeps the room `regridFrame` gives it (the two must agree, or each change undoes the other):
+  // the whole section wider by SPLIT_SIDE each side, the lip's room above the split when it is the top row, and
+  // more below it when it is the last.
+  const split = new Set(s.split ?? [])
+  const sc = cs.filter((c) => split.has(c.id))
+  if (split.size < 2 || sc.length < 2)
+    return { x: b.x - PAD, y: b.y - HEAD, w: b.w + PAD * 2, h: b.h + HEAD + PAD }
+  const sb = boundsOf(sc.map(cardBox))!
+  const top = b.y - HEAD - (sb.y <= b.y + 0.5 ? SPLIT_TOP_EXTRA : 0)
+  const bottom = b.y + b.h + PAD + (sb.y + sb.h >= b.y + b.h - 0.5 ? SPLIT_SIDE : 0)
+  return { x: b.x - PAD - SPLIT_SIDE, y: top, w: b.w + (PAD + SPLIT_SIDE) * 2, h: bottom - top }
 }
 
 /**
@@ -1252,6 +1327,7 @@ export function forDisk(s: CanvasState): CanvasState {
     connectors: sanitizeConnectors(s.connectors),
     marks: sanitizeMarks(s.marks),
     views: cleanViews(s.views),
+    previews: cleanPreviews(s.previews),
     notes: notesIn(
       s.notes,
       s.frames.filter((f) => f.kind !== 'private')
@@ -1263,6 +1339,14 @@ export function forDisk(s: CanvasState): CanvasState {
 const notesIn = (notes: CanvasNote[], frames: CanvasFrame[]): CanvasNote[] => {
   const ids = new Set(frames.map((f) => f.id))
   return notes.map((n) => ({ ...n, frame: n.frame && ids.has(n.frame) ? n.frame : null }))
+}
+
+function cleanPreviews(v: unknown): Record<string, 'live'> {
+  if (!v || typeof v !== 'object') return {}
+  const out: Record<string, 'live'> = {}
+  for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(-VIEWS_MAX))
+    if (/^(https?|file):/i.test(k) && k.length < 2000 && x === 'live') out[k] = x
+  return out
 }
 
 function cleanViews(v: unknown): Record<string, CardView> {
@@ -1317,7 +1401,8 @@ export function reconcileSaved(saved: CanvasState, tabs: TabLite[], boot: string
     frames,
     notes: notesIn(saved.notes, frames),
     connectors: remapCards(sanitizeConnectors(saved.connectors), moved),
-    views: cleanViews(saved.views)
+    views: cleanViews(saved.views),
+    previews: cleanPreviews(saved.previews)
   })
 }
 

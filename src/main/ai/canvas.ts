@@ -16,6 +16,7 @@ import {
   clusterable,
   forDisk,
   hostClusters,
+  liftSections,
   type CanvasState,
   type Group,
   type TabLite
@@ -88,7 +89,7 @@ export class CanvasService {
 
   load(spaceId: number): { state: CanvasState | null; boot: string } {
     const s = this.store.value.spaces[String(spaceId)]
-    return { state: isState(s) ? s : null, boot: this.boot }
+    return { state: isState(s) ? liftSections(s) : null, boot: this.boot }
   }
 
   save(spaceId: number, state: unknown): void {
@@ -123,12 +124,56 @@ export class CanvasService {
         // an unreadable cache file is just no picture
       }
     }
-    const stale = list.filter(
-      (t) => !t.unloaded && /^https?:/i.test(t.url) && now - t.thumbAt > THUMB_STALE_MS
-    )
-    // one capture at a time: each is a GPU read-back
-    for (const t of stale) await tabs.captureHidden(t.id)
+    this.opened = { spaceId, at: now }
+    await this.captureInView()
     this.cacheThumbs(spaceId)
+  }
+
+  /** The space whose board is open, and when it opened (pictures older than that are taken again in view). */
+  private opened: { spaceId: number; at: number } | null = null
+  private shown = new Set<number>()
+  private capturing = false
+
+  /** The cards on the open board's screen changed. */
+  inView(spaceId: number, tabIds: number[]): void {
+    if (!tabIds.length && this.opened?.spaceId === spaceId) this.opened = null
+    this.shown = new Set(tabIds)
+    void this.captureInView()
+  }
+
+  /**
+   * Fresh pictures for old ones, of the cards on screen only, one at a time (each is a GPU read-back of a page made
+   * to paint off-screen): on an older laptop a board of 200 tabs would otherwise read back 200 pages as it opens.
+   * Cards scrolled to later get theirs then.
+   */
+  private async captureInView(): Promise<void> {
+    if (this.capturing) return
+    this.capturing = true
+    try {
+      for (;;) {
+        const o = this.opened
+        if (!o) return
+        const next = this.deps.tabs
+          .canvasTabs(o.spaceId)
+          .find(
+            (t) =>
+              this.shown.has(t.id) &&
+              !t.private &&
+              !t.tor &&
+              !t.unloaded &&
+              /^https?:/i.test(t.url) &&
+              o.at - t.thumbAt > THUMB_STALE_MS
+          )
+        if (!next) return
+        const before = next.thumbAt
+        await this.deps.tabs.captureHidden(next.id)
+        // a page that cannot be pictured is not tried again until the board opens again
+        if (this.deps.tabs.canvasTabs(o.spaceId).find((t) => t.id === next.id)?.thumbAt === before)
+          this.shown.delete(next.id)
+      }
+    } finally {
+      this.capturing = false
+    }
   }
 
   /** Write the pictures of normal tabs to the cache folder (small ones), so a restart still has them. */
@@ -286,8 +331,22 @@ export function registerCanvas(d: {
     // after the board's entrance: captures are GPU read-backs and would cost it frames
     setTimeout(() => void svc.refreshThumbs(num(spaceId)), 700)
   })
+  ipcMain.on('canvas:in-view', (e, spaceId: unknown, list: unknown) => {
+    if (mine(e)) svc.inView(num(spaceId), ids(list).slice(0, 2000))
+  })
+  // Live tab streams on cards: only the board's own page may ask, and the stream id is bound to it.
+  ipcMain.on('canvas:streaming', (e, list: unknown) => {
+    if (mine(e)) d.tabs.setStreaming(ids(list).slice(0, 8))
+  })
+  ipcMain.handle('canvas:stream-source', (e, tabId: unknown) =>
+    mine(e) ? d.tabs.streamSource(num(tabId)) : null
+  )
+  ipcMain.handle('canvas:video-region', (e, tabId: unknown) =>
+    mine(e) ? d.tabs.videoRegion(num(tabId)) : null
+  )
   ipcMain.on('canvas:close', (e, spaceId: unknown) => {
     if (!mine(e)) return
+    svc.inView(num(spaceId), [])
     d.tabs.setCanvasMode(false)
     svc.cacheThumbs(num(spaceId))
   })
@@ -367,6 +426,8 @@ export function registerCanvas(d: {
   ipcMain.on('canvas:find-cancel', (e, queryId: unknown) => {
     if (mine(e) && typeof queryId === 'string') finder.cancel(queryId)
   })
+  // Bumped by every open and hide: an open still waiting for its page shows it only if nothing came after it.
+  let liveGen = 0
   // The one live page: made if it is a new address, waited for until it has loaded, then shown exactly at the rect.
   ipcMain.handle('canvas:live-open', async (e, req: unknown) => {
     const r = (req ?? {}) as { tab?: unknown; url?: unknown; rect?: unknown }
@@ -377,10 +438,14 @@ export function registerCanvas(d: {
       id = d.tabs.create(r.url, false)
     }
     if (id === null) return null
+    const gen = ++liveGen
     d.tabs.setLive(null)
+    d.tabs.prepareLive(id) // an unloaded tab starts loading now, not after the wait below
     const until = Date.now() + 7000
-    while (!d.tabs.liveReady(id) && Date.now() < until) await new Promise((x) => setTimeout(x, 80))
-    d.tabs.setLive(id, rect)
+    while (!d.tabs.liveReady(id) && Date.now() < until && gen === liveGen)
+      await new Promise((x) => setTimeout(x, 80))
+    // closed (or another page asked for) while this one loaded: showing it now would leave a page over the board
+    if (gen === liveGen) d.tabs.setLive(id, rect)
     return id
   })
   // The preview's address field: load it in the card's tab, or (a page found on the web) in a new background tab.
@@ -398,12 +463,29 @@ export function registerCanvas(d: {
     if (
       mine(e) &&
       typeof id === 'number' &&
-      (what === 'back' || what === 'forward' || what === 'reload')
+      (what === 'back' || what === 'forward' || what === 'reload' || what === 'stop')
     )
       d.tabs.navTab(id, what)
   })
   ipcMain.on('canvas:live-hide', (e) => {
-    if (mine(e)) d.tabs.setLive(null)
+    if (!mine(e)) return
+    liveGen++
+    d.tabs.setLive(null)
+  })
+  ipcMain.on('canvas:preview', (e, open: unknown, tab: unknown) => {
+    if (mine(e)) d.tabs.setPreview(open === true, typeof tab === 'number' ? tab : null)
+  })
+  ipcMain.handle('canvas:live-shot', async (e, tabId: unknown) => {
+    const wc = mine(e) && typeof tabId === 'number' ? d.tabs.contentsOf(tabId) : null
+    const page = typeof tabId === 'number' ? d.tabs.pageFor(tabId) : null
+    // never a picture of a private or Tor page, whichever tab is active
+    if (!wc || d.tabs.activeKind() !== 'normal' || !page || page.private || page.tor) return null
+    try {
+      const img = await wc.capturePage()
+      return img.isEmpty() ? null : 'data:image/jpeg;base64,' + img.toJPEG(82).toString('base64')
+    } catch {
+      return null
+    }
   })
   // A page as a note: key points from the model, or its first sentences when no model can say. Refused for private
   // and Tor (the reader never reads them, and nothing is asked of a model in such a window).

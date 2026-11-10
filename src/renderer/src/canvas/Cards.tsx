@@ -7,7 +7,16 @@ import { firstPage, type FirstPage } from './pdf'
 import { sameModel, type CardModel } from './model'
 import { AnswerText } from './Expanded'
 import { Favicon, Img } from './Img'
-import { ExpandIcon, PlayIcon, ReaderIcon, SnapshotIcon, TrashIcon } from './icons'
+import { LiveTab } from './LiveTab'
+import {
+  ExpandIcon,
+  MiniPauseIcon,
+  MiniPlayIcon,
+  PlayIcon,
+  ReaderIcon,
+  SnapshotIcon,
+  TrashIcon
+} from './icons'
 
 const at = (x: number, y: number): React.CSSProperties => ({
   transform: `translate3d(${x}px, ${y}px, 0)`
@@ -32,6 +41,8 @@ interface CardProps {
   onLink: (href: string) => void
   /** Open the menu that changes how the card is placed. */
   onPlace?: (id: number, x: number, y: number) => void
+  /** The card's on-screen width when its tab plays live on it (a tab stream), else 0. */
+  live?: number
 }
 
 function PdfFace({
@@ -236,6 +247,49 @@ const PlusGlyph = (): React.JSX.Element => (
  * One piece of content on the board. It draws what it is: a document page, a PDF's first page, a picture at its
  * own proportions, a video's poster, an answer. Memoised: panning or a change elsewhere must not touch it.
  */
+/**
+ * Sound and video from the card itself: mute, and play or pause (shown while it plays, or on hover). The tab stays
+ * where it is; nothing opens.
+ */
+function MediaControls({ m }: { m: CardModel }): React.JSX.Element {
+  // what the page said last, until the tab's own state (audible) catches up
+  const [said, setSaid] = useState<{ audible: boolean; paused: boolean } | null>(null)
+  const playing = said && said.audible === m.audible ? !said.paused : m.audible
+  return (
+    <span className={'cv-media' + (m.audible || m.muted ? ' on' : '')}>
+      <button
+        type="button"
+        className="cv-mbtn"
+        aria-label={playing ? 'Pause' : 'Play'}
+        title={playing ? 'Pause' : 'Play'}
+        onClick={(e) => {
+          e.stopPropagation()
+          void window.api
+            .mediaPlay?.(m.id, playing ? 'pause' : 'play')
+            .then((r) => r && setSaid({ audible: m.audible, paused: r.paused }))
+            .catch(() => undefined)
+        }}
+      >
+        {playing ? <MiniPauseIcon /> : <MiniPlayIcon />}
+      </button>
+      {(m.audible || m.muted) && (
+        <button
+          type="button"
+          className={'cv-mbtn' + (m.muted ? ' muted' : '')}
+          aria-label={m.muted ? 'Unmute' : 'Mute'}
+          title={m.muted ? 'Unmute' : 'Mute'}
+          onClick={(e) => {
+            e.stopPropagation()
+            window.api.toggleMute(m.id)
+          }}
+        >
+          <SpeakerIcon muted={m.muted} />
+        </button>
+      )}
+    </span>
+  )
+}
+
 export const CardView = memo(
   function CardView({
     m,
@@ -251,7 +305,8 @@ export const CardView = memo(
     onPdf,
     onView,
     onLink,
-    onPlace
+    onPlace,
+    live = 0
   }: CardProps): React.JSX.Element {
     const label = `${m.title}${m.site ? `, ${m.site}` : ''}${m.kind === 'pdf' ? ', PDF' : m.kind === 'image' ? ', image' : m.kind === 'video' ? ', video' : m.kind === 'answer' ? ', answer' : ''}${m.current ? ', current tab' : ''}`
     return (
@@ -271,19 +326,12 @@ export const CardView = memo(
         aria-label={label}
       >
         <Face m={m} lod={lod} onPdf={onPdf} onLink={onLink} />
+        {live > 0 && m.isTab && <LiveTab id={m.id} cardPx={live} />}
         {m.kind !== 'pending' && (
           <>
             <div className="cv-badges">
               <CallBadge call={m.ringing ? 'ringing' : null} />
-              {(m.audible || m.muted) && (
-                <span
-                  className={'cv-audio' + (m.muted ? ' muted' : '')}
-                  role="img"
-                  aria-label={m.muted ? 'Muted' : 'Playing sound'}
-                >
-                  <SpeakerIcon muted={m.muted} />
-                </span>
-              )}
+              {m.isTab && (m.audible || m.muted || m.kind === 'video') && <MediaControls m={m} />}
               {m.current && (
                 <span className="card-current" title="Current tab" aria-hidden="true" />
               )}
@@ -325,7 +373,7 @@ export const CardView = memo(
                 className="cv-chip-place"
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
-                  onPlace(m.id, r.left, r.top)
+                  onPlace(m.id, r.left, r.bottom + 6)
                 }}
               >
                 Added as {m.placement === 'live' ? 'live page' : m.placement}
@@ -351,6 +399,7 @@ export const CardView = memo(
     a.onView === b.onView &&
     a.onPlace === b.onPlace &&
     a.onLink === b.onLink &&
+    a.live === b.live &&
     sameModel(a.m, b.m)
 )
 

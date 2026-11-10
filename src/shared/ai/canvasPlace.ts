@@ -113,6 +113,18 @@ export function placeItem(item: CanvasItem, to: Placement, summary?: string): Ca
 }
 
 /**
+ * A note of a page, for a new card beside the page's own: its key points (`summary`), or with `pending` the empty
+ * note that shows as being written. It never holds the page's tab: a card holding a tab stands for that tab, and the
+ * tab's own card would leave the board (the "make a note of it" bug). It links back by address instead.
+ */
+export function noteOf(item: CanvasItem, summary?: string, pending = false): CanvasItem {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { tab, ...rest } = item
+  const note = placeItem(rest, 'note', summary)
+  return pending ? { ...note, text: '' } : note
+}
+
+/**
  * An answer cut into the parts someone may want to put on the board: paragraphs, headings, lists and code blocks.
  * Blank lines separate them, except inside a code fence; a list stays in one piece.
  */

@@ -1,20 +1,49 @@
 /* ---- the conversation dock ---- */
 .cv-dock {
+  /* a column on the board's right edge, full height: the board makes room for it (see .cv.docked), so it never
+     sits over cards; its width is the person's, per space */
   position: absolute;
-  top: 64px;
-  right: 14px;
-  bottom: 84px;
+  top: 0;
+  right: 0;
+  bottom: 0;
   z-index: 11;
-  width: min(360px, calc(100% - 28px));
+  width: min(var(--dock-w, 380px), calc(100% - 120px));
   display: flex;
   flex-direction: column;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--popover-bg) 92%, transparent);
-  backdrop-filter: blur(18px);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 18px 48px rgb(0 0 0 / 0.34);
+  border-radius: 0 var(--radius-m) var(--radius-m) 0;
+  background: var(--popover-bg);
+  box-shadow: -1px 0 0 var(--border);
   overflow: hidden;
+}
+/* its left edge resizes it */
+.cv-dock-rz {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+}
+.cv-dock-rz::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.cv-dock-rz:hover::after,
+.cv-dock-rz.on::after {
+  opacity: 0.8;
+}
+/* the board's own controls keep to the room left beside it */
+.cv.docked .cv-bar {
+  left: calc((100% - min(var(--dock-w, 380px), calc(100% - 120px))) / 2);
 }
 .cv-dock-head {
   flex: none;
@@ -56,6 +85,8 @@
   outline-offset: -1px;
 }
 .cv-dock-scroll {
+  /* one inset for everything in a turn: the question's words, the answer's, what it did, its buttons */
+  --in: 11px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -87,11 +118,11 @@
   background: var(--surface-hover);
 }
 .cv-dock-turn + .cv-dock-turn {
-  margin-top: 10px;
+  margin-top: 14px;
 }
 .cv-dock-q {
-  margin: 0 0 6px;
-  padding: 7px 11px;
+  margin: 0 0 4px;
+  padding: 7px var(--in);
   border-radius: 12px 12px 4px 12px;
   background: var(--surface-active);
   font-size: 13px;
@@ -124,22 +155,27 @@
   color: var(--fg-dim);
 }
 .cv-dock-did {
-  margin: 0 0 4px;
+  margin: 6px 0 2px;
+  padding: 0 var(--in);
   font-size: 12px;
   color: var(--accent);
 }
 .cv-dock-err {
-  margin: 4px 0;
+  margin: 6px 0;
+  padding: 0 var(--in);
   font-size: 12.5px;
   color: #e5736a;
 }
 .cv-dock-a {
   font-size: 13px;
+  line-height: 1.5;
 }
+/* each part of an answer: its words on the same inset as the question's, even room round them for the hover, and
+   room on the right for its + */
 .cv-part {
   position: relative;
-  border-radius: 8px;
-  padding-right: 24px;
+  border-radius: 10px;
+  padding: 5px 32px 5px var(--in);
 }
 .cv-part:hover {
   background: var(--surface);
@@ -152,8 +188,8 @@
 }
 .cv-part-add {
   position: absolute;
-  right: 2px;
-  top: 2px;
+  right: 4px;
+  top: 4px;
   width: 22px;
   height: 22px;
   display: grid;
@@ -181,8 +217,10 @@
 }
 .cv-dock-acts {
   display: flex;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 2px;
+  margin-top: 2px;
+  /* the buttons' own padding (9px) puts their words on the same inset */
+  padding-left: calc(var(--in) - 9px);
 }
 .cv-dock-foot {
   flex: none;
@@ -324,6 +362,49 @@
 .cv-dock-chip button:hover {
   background: var(--surface-hover);
 }
+/* the conversation's own message box, at its foot */
+.cv-dock-input {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 5px 5px 5px 11px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.cv-dock-input textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 140px;
+  padding: 5px 0;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fg);
+  user-select: text;
+}
+.cv-dock-input textarea::placeholder {
+  color: var(--fg-dim);
+}
+.cv-dock-send {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--accent);
+  transition: opacity 0.12s;
+}
+.cv-dock-send:disabled {
+  opacity: 0.35;
+}
 .cv-dock-handle {
   position: absolute;
   right: 0;
@@ -342,10 +423,14 @@
 .cv-dock-handle:hover {
   background: var(--surface-hover);
 }
+/* a preview covers the board's right edge (its live page is drawn over everything): the preview's own Ask stands in */
+.cv.reading .cv-dock-handle {
+  display: none;
+}
 .cv-ask-sources {
   display: flex;
   gap: 6px;
-  padding: 6px 0 2px;
+  padding: 6px 0 2px calc(var(--in) - 5px);
   flex-wrap: wrap;
 }
 .cv-ask-src {

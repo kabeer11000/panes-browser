@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { useDismiss } from './useDismiss'
 import {
   HEADING_MIN,
   isBlock,
@@ -59,6 +60,12 @@ export function MarkBar({
   onDelete
 }: Props): React.JSX.Element {
   const [menu, setMenu] = useState(false)
+  const menuBox = useRef<HTMLDivElement>(null)
+  useDismiss(
+    menu,
+    menuBox,
+    useCallback(() => setMenu(false), [])
+  )
   const shapes = marks.filter((m) => isShape(m.kind))
   const texty = marks.filter((m) => !m.pts)
   const locked = marks.every((m) => m.locked)
@@ -148,7 +155,7 @@ export function MarkBar({
             </>
           )}
           <span className="cv-ksep" aria-hidden="true" />
-          <div className="cv-mmenu-host">
+          <div className="cv-mmenu-host" ref={menuBox}>
             <button
               type="button"
               className={'cv-kbtn wide' + (menu ? ' on' : '')}

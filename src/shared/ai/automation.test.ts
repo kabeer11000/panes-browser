@@ -177,7 +177,49 @@ describe('media and scroll_to', () => {
     expect(shown).toBe('comments')
     expect(run('pricing')).toMatchObject({ ok: true, what: 'pricing' })
     expect(shown).toBe('head')
-    expect(run('refunds')).toEqual({ ok: false })
+    expect(run('refunds')).toMatchObject({ ok: false })
+  })
+  test('scroll_to understands how people name a part: filler words, plurals, other names', () => {
+    let shown = ''
+    const el = (id: string, text: string, tag = 'DIV'): object => ({
+      tagName: tag,
+      id: '',
+      textContent: text,
+      getAttribute: () => null,
+      getBoundingClientRect: () => ({ width: 100, height: 20 }),
+      scrollIntoView: () => (shown = id)
+    })
+    const heads = [
+      el('ai', 'AI', 'H2'),
+      el('tor', 'Private and Tor', 'H2'),
+      el('dl', 'Downloads', 'H2')
+    ]
+    const nav = [el('navai', 'AI', 'A')]
+    const body = [el('p', 'Settings for the assistant and private tabs')]
+    const doc = {
+      querySelector: () => null,
+      // a selector list of headings gets the headings, of links the links, anything else the text
+      querySelectorAll: (sel: string) =>
+        /^h1/.test(sel) && !/button/.test(sel)
+          ? heads
+          : sel === 'button,a'
+            ? nav
+            : /summary,button,a,label/.test(sel)
+              ? [...heads, ...nav, ...body]
+              : []
+    }
+    const run = (target: string): { ok: boolean; what?: string; heads?: string[] } =>
+      new Function('document', 'scrollY', `return ${SCROLL_TO_SCRIPT(target)}`)(doc, 0)
+    expect(run('ai settings')).toMatchObject({ ok: true })
+    expect(shown).toBe('ai')
+    expect(run('the tor setting')).toMatchObject({ ok: true })
+    expect(shown).toBe('tor')
+    expect(run('download section')).toMatchObject({ ok: true })
+    expect(shown).toBe('dl')
+    // a miss says what the page has, for another try
+    const miss = run('refunds')
+    expect(miss.ok).toBe(false)
+    expect(miss.heads).toContain('private and tor')
   })
 })
 

@@ -42,6 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoHideTopBar: false,
   sidebarHover: false,
   tabLayout: 'vertical',
+  browseWith: 'tabs',
   fullWidthAddress: true,
   searchStyle: 'dropdown',
   paneView: 'full',
