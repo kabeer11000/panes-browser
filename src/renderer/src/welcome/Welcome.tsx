@@ -17,7 +17,8 @@ const KEYS: Array<[string, string]> = [
   ['Ctrl L', 'Search or type an address'],
   ['Ctrl Tab', 'Fly through your tabs'],
   ['Ctrl \\', 'Split the page in two'],
-  ['Ctrl B', 'Hide or show the sidebar']
+  ['Ctrl B', 'Hide or show the sidebar'],
+  ['Ctrl Shift K', 'Open the canvas board']
 ]
 
 /** The tour is always dark (it fills the window on its own), in the colours of the space being set up. */
@@ -119,6 +120,38 @@ function LayoutArt({
         animate={on ? { scale: [0.92, 1], opacity: [0.3, 0.9] } : { scale: 1, opacity: 0.9 }}
         transition={{ ...SETTLE, delay: on ? 0.12 : 0 }}
       />
+    </div>
+  )
+}
+
+/** The canvas board, tiny: cards land on it one after another and a section gathers two of them. */
+const CANVAS_CARDS = [
+  { cls: 'c1', from: { x: -10, y: -8 } },
+  { cls: 'c2', from: { x: 10, y: -10 } },
+  { cls: 'c3', from: { x: -8, y: 10 } },
+  { cls: 'c4', from: { x: 12, y: 8 } }
+] as const
+
+function CanvasArt({ on }: { on: boolean }): React.JSX.Element {
+  return (
+    <div className="wl-art canvas" aria-hidden="true">
+      <motion.i
+        className="section"
+        animate={on ? { scale: [0.9, 1], opacity: [0, 1] } : { scale: 1, opacity: 1 }}
+        transition={{ ...SETTLE, delay: on ? 0.3 : 0 }}
+      />
+      {CANVAS_CARDS.map((c, i) => (
+        <motion.i
+          key={c.cls}
+          className={`card ${c.cls}`}
+          animate={
+            on
+              ? { x: [c.from.x, 0], y: [c.from.y, 0], opacity: [0, 0.9] }
+              : { x: 0, y: 0, opacity: 0.9 }
+          }
+          transition={{ ...SETTLE, delay: on ? i * 0.07 : 0 }}
+        />
+      ))}
     </div>
   )
 }
@@ -306,8 +339,11 @@ export function Welcome(): React.JSX.Element {
               {step === 'layout' && (
                 <>
                   <h1>Where do your tabs go?</h1>
-                  <p className="wl-lede">Change this any time in Settings.</p>
-                  <div className="wl-cards" role="radiogroup" aria-label="Tab layout">
+                  <p className="wl-lede">
+                    Change this any time in Settings, or per space. Ctrl Shift K opens the canvas
+                    from anywhere.
+                  </p>
+                  <div className="wl-cards three" role="radiogroup" aria-label="Tab layout">
                     {(
                       [
                         ['vertical', 'In a sidebar', 'Titles you can read, spaces at the bottom'],
@@ -318,15 +354,32 @@ export function Welcome(): React.JSX.Element {
                         key={value}
                         type="button"
                         role="radio"
-                        aria-checked={s.tabLayout === value}
-                        className={'wl-card' + (s.tabLayout === value ? ' on' : '')}
-                        onClick={() => update({ tabLayout: value })}
+                        aria-checked={s.browseWith !== 'canvas' && s.tabLayout === value}
+                        className={
+                          'wl-card' +
+                          (s.browseWith !== 'canvas' && s.tabLayout === value ? ' on' : '')
+                        }
+                        onClick={() => update({ tabLayout: value, browseWith: 'tabs' })}
                       >
-                        <LayoutArt kind={value} on={s.tabLayout === value} />
+                        <LayoutArt
+                          kind={value}
+                          on={s.browseWith !== 'canvas' && s.tabLayout === value}
+                        />
                         <b>{title}</b>
                         <span>{hint}</span>
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={s.browseWith === 'canvas'}
+                      className={'wl-card' + (s.browseWith === 'canvas' ? ' on' : '')}
+                      onClick={() => update({ browseWith: 'canvas' })}
+                    >
+                      <CanvasArt on={s.browseWith === 'canvas'} />
+                      <b>On a canvas</b>
+                      <span>Every tab a card on one board, grouped by topic</span>
+                    </button>
                   </div>
                 </>
               )}

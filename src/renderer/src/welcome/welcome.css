@@ -271,6 +271,10 @@ body {
   gap: 14px;
   width: min(100%, 520px);
 }
+.wl-cards.three {
+  grid-template-columns: repeat(3, 1fr);
+  width: min(100%, 720px);
+}
 .wl-card {
   display: flex;
   flex-direction: column;
@@ -367,6 +371,40 @@ body {
   top: 26%;
   height: 8%;
   transform-origin: left;
+}
+/* the canvas: a section holding two cards, two more loose on the board */
+.wl-art.canvas .card {
+  width: 22%;
+  height: 26%;
+  background: var(--stage-bg, #fff);
+}
+.wl-art.canvas .section {
+  left: 6%;
+  top: 14%;
+  width: 56%;
+  height: 46%;
+  border-radius: var(--r-3);
+  background: var(--surface-active);
+  transition: background var(--dur-slow) var(--ease);
+}
+.wl-card.on .wl-art.canvas .section {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+.wl-art.canvas .c1 {
+  left: 10%;
+  top: 26%;
+}
+.wl-art.canvas .c2 {
+  left: 36%;
+  top: 26%;
+}
+.wl-art.canvas .c3 {
+  left: 18%;
+  top: 66%;
+}
+.wl-art.canvas .c4 {
+  left: 68%;
+  top: 38%;
 }
 .wl-art.horizontal .page {
   left: 5%;
@@ -542,5 +580,11 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .wl-bin {
     animation: none;
+  }
+}
+@media (max-width: 640px) {
+  .wl-cards.three {
+    grid-template-columns: 1fr;
+    width: min(100%, 340px);
   }
 }
