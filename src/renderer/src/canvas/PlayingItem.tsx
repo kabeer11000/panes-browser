@@ -18,6 +18,7 @@ export function PlayingItem({
 }): React.JSX.Element {
   const call = isCapturing(t.capture)
   const on = call || (t.audible && !t.muted)
+  const playing = !!(t.playing ?? t.audible)
   const title =
     t.private || t.tor ? 'Private tab' : t.aiTitle || t.title || (call ? 'Call' : 'Playing')
   return (
@@ -39,13 +40,13 @@ export function PlayingItem({
         <button
           type="button"
           className="cv-mbtn"
-          aria-label={t.audible ? `Pause ${title}` : `Play ${title}`}
-          title={t.audible ? 'Pause' : 'Play'}
+          aria-label={playing ? `Pause ${title}` : `Play ${title}`}
+          title={playing ? 'Pause' : 'Play'}
           onClick={() =>
-            void window.api.mediaPlay?.(t.id, t.audible ? 'pause' : 'play').catch(() => undefined)
+            void window.api.mediaPlay?.(t.id, playing ? 'pause' : 'play').catch(() => undefined)
           }
         >
-          {t.audible ? <MiniPauseIcon /> : <MiniPlayIcon />}
+          {playing ? <MiniPauseIcon /> : <MiniPlayIcon />}
         </button>
       )}
       <button
@@ -57,7 +58,7 @@ export function PlayingItem({
       >
         <SpeakerIcon muted={t.muted} />
       </button>
-      {!t.audible && !call && (
+      {!playing && !t.audible && !call && (
         <button
           type="button"
           className="cv-mbtn cv-playing-x"

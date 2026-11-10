@@ -214,6 +214,9 @@ function liveContents(tab: Tab): WebContents | null {
   return wc && !wc.isDestroyed() ? wc : null
 }
 
+/** True when some audio or video element in the page plays (not paused, not ended, with data to play). */
+const PLAYING_SCRIPT = `[...document.querySelectorAll('video, audio')].some((m) => !m.paused && !m.ended && m.readyState > 2)`
+
 /** A live page's back/forward list, as worth keeping (see keepHistory). */
 function historyOf(wc: WebContents): NavHistory | null {
   try {
@@ -318,6 +321,8 @@ export class TabManager {
   /** The one tab whose real page is shown inside the canvas, and where. */
   private liveId: number | null = null
   private liveRect: Rect | null = null
+  /** The other panes of a split shown in the canvas preview beside the live page: their pages, at these rects. */
+  private companions = new Map<number, Rect>()
   /**
    * The canvas preview is open (live or reader) and which tab it shows, if any: page shortcuts and actions (Ctrl+D,
    * Ctrl+F, zoom, site settings, back) go to that page instead of the hidden active tab.
@@ -444,6 +449,7 @@ export class TabManager {
       const here = wc.getURL()
       tabs.push({
         id,
+        playing: !t.unloaded && t.media,
         url,
         title:
           (going && (here === '' || here === 'about:blank') ? displayHost(going) : wc.getTitle()) ||
@@ -684,7 +690,7 @@ export class TabManager {
    */
   private onScreenIds(): number[] {
     if (!this.canvasMode) return this.visibleIds()
-    const ids = new Set(this.streaming)
+    const ids = new Set([...this.streaming, ...this.companions.keys()])
     if (this.liveId !== null) ids.add(this.liveId)
     return [...ids]
   }
@@ -1759,6 +1765,21 @@ export class TabManager {
    * Whether a tab is making sound, for its speaker. Chromium reports the sound itself, which drops out in every quiet
    * moment of a film or a call; a tab whose media is playing and was audible a moment ago stays marked through them.
    */
+  /** Whether anything in the page really plays now (any frame's audio or video), set on `tab.media`. */
+  private checkPlaying(tab: Tab, wc: WebContents): void {
+    if (tab.private || tab.tor) return // no script into those pages for this
+    void Promise.race([
+      wc.executeJavaScript(PLAYING_SCRIPT, false),
+      new Promise((r) => setTimeout(() => r(null), 800))
+    ])
+      .then((v) => {
+        if (typeof v !== 'boolean' || wc.isDestroyed() || tab.media === v) return
+        tab.media = v
+        this.refresh()
+      })
+      .catch(() => undefined)
+  }
+
   private sounding(tab: Tab, wc: WebContents): boolean {
     return wc.isCurrentlyAudible() || (tab.media && Date.now() - tab.lastSoundAt < SOUND_HOLD_MS)
   }
@@ -2090,7 +2111,12 @@ export class TabManager {
     const changed = prevId !== id
     this.liveId = id
     this.liveRect = id !== null && rect ? rect : null
-    if (prevId !== null && prevId !== id && !this.streaming.has(prevId)) {
+    if (
+      prevId !== null &&
+      prevId !== id &&
+      !this.streaming.has(prevId) &&
+      !this.companions.has(prevId)
+    ) {
       const prevTab = this.tabs.get(prevId)
       const prevWc = prevTab && liveContents(prevTab)
       if (prevWc) prevWc.setBackgroundThrottling(true)
@@ -2114,6 +2140,41 @@ export class TabManager {
         if (changed) wc.focus()
       }
     }
+  }
+
+  /**
+   * The other panes of a split, live beside the preview's page (window coordinates at rest, like setLive). Each loads
+   * if need be, is brought over the board and kept painting; one no longer listed goes back to hidden and throttled.
+   * Never private or Tor tabs.
+   */
+  setCompanions(list: Array<{ id: number; rect: Rect }>): void {
+    const next = new Map<number, Rect>()
+    for (const { id, rect } of list) {
+      const t = this.tabs.get(id)
+      if (!t || t.private || t.tor || id === this.liveId) continue
+      next.set(id, rect)
+    }
+    for (const id of this.companions.keys()) {
+      if (next.has(id) || id === this.liveId || this.streaming.has(id)) continue
+      const t = this.tabs.get(id)
+      const wc = t && liveContents(t)
+      if (wc) wc.setBackgroundThrottling(true)
+    }
+    for (const [id, rect] of next) {
+      const t = this.tabs.get(id)!
+      const isNew = !this.companions.has(id)
+      this.ensureLoaded(id, t)
+      t.awaiting = false
+      if (!t.unloaded && isNew && !this.win.isDestroyed()) {
+        t.view.setBounds(rect)
+        this.win.contentView.addChildView(t.view) // over the board, like the live page
+        this.onViewAdded?.()
+      }
+      const wc = liveContents(t)
+      if (wc) wc.setBackgroundThrottling(false)
+    }
+    this.companions = next
+    this.applyVisibility()
   }
 
   /** Start loading a tab that is about to go live (an unloaded one would otherwise only start once shown). */
@@ -2172,6 +2233,7 @@ export class TabManager {
     this.canvasMode = open
     if (!open) {
       this.setLive(null) // its page goes back to being throttled, like any hidden one
+      this.setCompanions([])
       this.setPreview(false, null)
       this.setStreaming([]) // the board's streams end with it: throttled and hidden again
     }
@@ -2192,7 +2254,12 @@ export class TabManager {
     for (const id of new Set([...this.streaming, ...next])) {
       const t = this.tabs.get(id)
       const wc = t && liveContents(t)
-      if (wc && id !== this.liveId && next.has(id) !== this.streaming.has(id))
+      if (
+        wc &&
+        id !== this.liveId &&
+        !this.companions.has(id) &&
+        next.has(id) !== this.streaming.has(id)
+      )
         wc.setBackgroundThrottling(!next.has(id))
     }
     const started = [...next].filter((id) => !this.streaming.has(id))
@@ -2310,15 +2377,18 @@ export class TabManager {
           : normal
       // a live page that went full screen (a video) is no longer held to the slot: it takes the window
       const liveFull = this.canvasMode && id === this.liveId && this.fullscreenId === id
-      const live = this.canvasMode && id === this.liveId && this.liveRect !== null && !liveFull
+      const companion = this.canvasMode && !liveFull ? this.companions.get(id) : undefined
+      const live =
+        (this.canvasMode && id === this.liveId && this.liveRect !== null && !liveFull) || !!companion
       // A tab streaming to its card must keep painting. Like captureHidden: shown with only its top-left pixels
       // inside the window's bottom-right corner, which its rounded corner leaves transparent, so none of it is seen.
       const streamed =
         this.canvasMode && !live && !liveFull && !tab.unloaded && this.streaming.has(id)
       const pageRect = streamed ? (this.rects[id] ?? this.activeRect()) : null
       // the live rect is the slot at rest: it rides the hover sidebar's and top bar's slide like any page view
-      const rect = live && this.liveRect
-        ? { ...this.liveRect, x: this.liveRect.x + this.slideX, y: this.liveRect.y + this.slideY }
+      const liveAt = companion ?? (id === this.liveId ? this.liveRect : null)
+      const rect = live && liveAt
+        ? { ...liveAt, x: liveAt.x + this.slideX, y: liveAt.y + this.slideY }
         : streamed
           ? {
               x: w - 3,
@@ -2397,13 +2467,17 @@ export class TabManager {
       // the speaker stays while the media plays on through a quiet stretch; when that grace runs out it goes
       setTimeout(refresh, SOUND_HOLD_MS + 250)
     })
+    // these come per media element (an ad or a hover preview pausing says nothing of the main video): the page is
+    // asked what plays after each, and that is what play/pause buttons show
     wc.on('media-started-playing', () => {
       tab.media = true
       refresh()
+      this.checkPlaying(tab, wc)
     })
     wc.on('media-paused', () => {
       tab.media = false
       refresh()
+      this.checkPlaying(tab, wc)
     })
     wc.on('did-start-navigation', (_e, _url, _inPlace, isMainFrame) => {
       if (isMainFrame) tab.media = false
@@ -2559,7 +2633,7 @@ export class TabManager {
         !input.meta &&
         !input.alt &&
         this.canvasMode &&
-        id === this.liveId &&
+        (id === this.liveId || this.companions.has(id)) &&
         this.fullscreenId === null
       )
         this.send('canvas:preview-key', 'close')

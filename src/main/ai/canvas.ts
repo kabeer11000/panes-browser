@@ -481,6 +481,21 @@ export function registerCanvas(d: {
     if (!mine(e)) return
     liveGen++
     d.tabs.setLive(null)
+    d.tabs.setCompanions([])
+  })
+  // the other panes of a split shown in the preview, beside the live page
+  ipcMain.on('canvas:live-companions', (e, list: unknown) => {
+    if (!mine(e) || !Array.isArray(list)) return
+    const clean: Array<{
+      id: number
+      rect: { x: number; y: number; width: number; height: number }
+    }> = []
+    for (const it of list.slice(0, 4)) {
+      const r = it as { id?: unknown; rect?: unknown } | null
+      const rect = rectOf(r?.rect)
+      if (r && typeof r.id === 'number' && rect) clean.push({ id: r.id, rect })
+    }
+    d.tabs.setCompanions(clean)
   })
   ipcMain.on('canvas:preview', (e, open: unknown, tab: unknown) => {
     if (mine(e)) d.tabs.setPreview(open === true, typeof tab === 'number' ? tab : null)

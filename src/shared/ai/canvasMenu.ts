@@ -39,6 +39,8 @@ export interface CardFacts {
   /** Its page plays or can play (a video, something audible or muted). */
   media: boolean
   audible: boolean
+  /** Its media plays, sound or not; when missing, `audible` stands in. */
+  playing?: boolean
   muted: boolean
   /** It can switch between the reader text and the page picture; `reader` is which it shows. */
   toggle: boolean
@@ -67,7 +69,7 @@ export function cardMenu(f: CardFacts): MenuEntry[] {
     'sep',
     ...(f.media
       ? [
-          { id: 'play', label: f.audible ? 'Pause' : 'Play' },
+          { id: 'play', label: (f.playing ?? f.audible) ? 'Pause' : 'Play' },
           {
             id: 'mute',
             label: f.muted ? 'Unmute' : 'Mute',

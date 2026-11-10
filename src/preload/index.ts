@@ -148,6 +148,7 @@ const api: PanesApi = {
     liveOpen: (req) => ipcRenderer.invoke('canvas:live-open', req),
     liveMove: (tabId, rect) => ipcRenderer.send('canvas:live-move', tabId, rect),
     liveHide: () => ipcRenderer.send('canvas:live-hide'),
+    liveCompanions: (list) => ipcRenderer.send('canvas:live-companions', list),
     liveShot: (tabId) => ipcRenderer.invoke('canvas:live-shot', tabId),
     liveNav: (tabId, what) => ipcRenderer.send('canvas:live-nav', tabId, what),
     preview: (open, tab) => ipcRenderer.send('canvas:preview', open, tab),

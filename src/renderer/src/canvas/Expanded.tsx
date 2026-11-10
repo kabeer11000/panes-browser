@@ -8,7 +8,7 @@ import type { CanvasReaderDoc } from '@shared/ai/canvasItems'
 import type { PageMenuPick, Rect, TabInfo } from '@shared/types'
 import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
-import { LiveIcon } from './icons'
+import { LiveIcon, UnsplitIcon } from './icons'
 import {
   BackIcon,
   ForwardIcon,
@@ -59,6 +59,11 @@ interface Props extends ExpandSource {
   onLive?: (url: string, live: boolean) => void
   /** Open the conversation about this page (the board's Ask handle is under the preview). */
   onAsk?: () => void
+  /**
+   * The card is in a split view: every tab of the split in order (this card's among them), with its picture. Live,
+   * they show side by side; the bar acts on this card's page.
+   */
+  split?: Array<{ tab: number; snap?: string }>
   /** The card's tab as the browser knows it (address, loading, history, bookmark, sound), when it has one. */
   page?: TabInfo
   /** Where it sits among its section's cards, for the "2 / 5" in the header. */
@@ -616,7 +621,8 @@ export function Expanded({
   page,
   startLive = false,
   onLive,
-  onAsk
+  onAsk,
+  split
 }: Props): React.JSX.Element {
   const panel = useRef<HTMLDivElement>(null)
   const scrim = useRef<HTMLDivElement>(null)
@@ -761,7 +767,9 @@ export function Expanded({
   const [zoom, setZoom] = useState<{ level: number; base: number } | null>(null)
   const readZoom = useCallback((): void => {
     if (liveRef.current !== 'on') return setZoom(null)
-    void window.api.siteInfo().then((i) => setZoom(i ? { level: i.zoom, base: i.defaultZoom } : null))
+    void window.api
+      .siteInfo()
+      .then((i) => setZoom(i ? { level: i.zoom, base: i.defaultZoom } : null))
   }, [])
   // the keys main routes here: pressed in the live page (which holds the keyboard) or caught before the board
   useEffect(
@@ -912,6 +920,11 @@ export function Expanded({
     autoLive.current = true
     void goLiveRef.current()
   }, [articleEmpty, live, canLive])
+  const panes =
+    split && split.length > 1 && tab !== undefined && split.some((p) => p.tab === tab)
+      ? split
+      : null
+  const splitKey = panes ? panes.map((p) => p.tab).join(',') : ''
   // the live page follows the slot if the window is resized
   useEffect(() => {
     tabRef.current = tab ?? tabRef.current
@@ -929,9 +942,11 @@ export function Expanded({
     if (live === 'on') readZoom()
     else setZoom(null)
   }, [live, readZoom])
+  // (and when a split comes or goes: the slot is a new element then, at a new size)
   useEffect(() => {
     if (live !== 'on' || !slot.current) return
     const el = slot.current
+    placeLive()
     const ro = new ResizeObserver(() => {
       const r = slotBox(el)
       if (r && tabRef.current !== null)
@@ -944,7 +959,35 @@ export function Expanded({
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [live])
+  }, [live, splitKey, placeLive])
+
+  // ---- a split view: the other panes, live beside this card's page ----
+  const paneEls = useRef(new Map<number, HTMLDivElement>())
+  const placeCompanions = useCallback((): void => {
+    if (liveRef.current !== 'on' || addressOpenRef.current || closing.current) return
+    const list: Array<{ id: number; rect: Rect }> = []
+    for (const [id, el] of paneEls.current) {
+      const r = slotBox(el)
+      if (r) list.push({ id, rect: r })
+    }
+    window.api.canvas.liveCompanions?.(list)
+  }, [])
+  useEffect(() => {
+    if (live !== 'on' || addressOpen || !splitKey) return
+    placeCompanions()
+    const ro = new ResizeObserver(placeCompanions)
+    for (const el of paneEls.current.values()) ro.observe(el)
+    return () => {
+      ro.disconnect()
+      window.api.canvas.liveCompanions?.([])
+    }
+  }, [live, addressOpen, splitKey, placeCompanions])
+  const paneRef =
+    (id: number) =>
+    (el: HTMLDivElement | null): void => {
+      if (el) paneEls.current.set(id, el)
+      else paneEls.current.delete(id)
+    }
 
   /** What was picked in the page menu (the header's More button, or a right-click on the header). */
   const onPagePick = (what: PageMenuPick | null): void => {
@@ -1056,11 +1099,21 @@ export function Expanded({
                 <ForwardIcon />
               </button>
               {page?.loading ? (
-                <button type="button" aria-label="Stop" title="Stop loading" onClick={() => nav('stop')}>
+                <button
+                  type="button"
+                  aria-label="Stop"
+                  title="Stop loading"
+                  onClick={() => nav('stop')}
+                >
                   <StopIcon />
                 </button>
               ) : (
-                <button type="button" aria-label="Reload" title="Reload (Ctrl+R)" onClick={() => nav('reload')}>
+                <button
+                  type="button"
+                  aria-label="Reload"
+                  title="Reload (Ctrl+R)"
+                  onClick={() => nav('reload')}
+                >
                   <ReloadIcon />
                 </button>
               )}
@@ -1173,12 +1226,27 @@ export function Expanded({
                 <PopOutGlyph />
               </button>
             ) : null}
-            {m.isTab && (m.audible || m.muted) ? (
+            {panes && (
               <button
                 type="button"
-                className={'cv-hbtn' + (m.muted ? ' on' : '')}
+                className="cv-hbtn"
+                aria-label="Unsplit"
+                title="Unsplit: the tabs stay open, each on its own"
+                onClick={() => window.api.unsplit()}
+              >
+                <UnsplitIcon />
+              </button>
+            )}
+            {/* always there for a tab, so the bar never shifts as sound starts and stops; quiet while silent (muting
+                a silent page still holds: it stays quiet when it starts) */}
+            {m.isTab ? (
+              <button
+                type="button"
+                className={
+                  'cv-hbtn' + (m.muted ? ' on' : '') + (!m.audible && !m.muted ? ' quiet' : '')
+                }
                 aria-label={m.muted ? 'Unmute' : 'Mute'}
-                title={m.muted ? 'Unmute' : 'Mute'}
+                title={m.muted ? 'Unmute' : m.audible ? 'Mute' : 'Mute (nothing is playing)'}
                 onClick={() => window.api.toggleMute(m.id)}
               >
                 <SpeakerIcon muted={m.muted} />
@@ -1274,23 +1342,39 @@ export function Expanded({
           </div>
         )}
         <div className="cv-panel-body" ref={body}>
-          {live === 'off' ? (
-            bodyView
-          ) : (
-            <div className="cv-live-slot" ref={slot}>
-              {/* always under the native view: whenever it is away (moving, a popover over it, closing), the page
-                  is still there in picture, never an empty slot */}
-              {live === 'on' && (shot ?? m.snap) && (
-                <img src={shot ?? m.snap} alt="" draggable={false} />
-              )}
-              {live === 'loading' && (
-                <>
-                  {m.snap && <img src={m.snap} alt="" draggable={false} />}
-                  <span className="cv-live-bar" />
-                </>
-              )}
-            </div>
-          )}
+          {live === 'off'
+            ? bodyView
+            : (() => {
+                const own = (
+                  <div className="cv-live-slot" ref={slot} key={tab ?? 'own'}>
+                    {/* always under the native view: whenever it is away (moving, a popover over it, closing), the
+                      page is still there in picture, never an empty slot */}
+                    {live === 'on' && (shot ?? m.snap) && (
+                      <img src={shot ?? m.snap} alt="" draggable={false} />
+                    )}
+                    {live === 'loading' && (
+                      <>
+                        {m.snap && <img src={m.snap} alt="" draggable={false} />}
+                        <span className="cv-live-bar" />
+                      </>
+                    )}
+                  </div>
+                )
+                if (!panes) return own
+                return (
+                  <div className="cv-live-split">
+                    {panes.map((p) =>
+                      p.tab === tab ? (
+                        own
+                      ) : (
+                        <div className="cv-live-slot" key={p.tab} ref={paneRef(p.tab)}>
+                          {p.snap && <img src={p.snap} alt="" draggable={false} />}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )
+              })()}
         </div>
       </div>
     </div>

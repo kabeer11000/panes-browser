@@ -52,6 +52,8 @@ export interface TabInfo {
   unloaded: boolean
   /** The page is currently making sound. */
   audible: boolean
+  /** Its media plays (sound or not, muted or not): what a play/pause button shows. Asked of the page itself. */
+  playing?: boolean
   /** The tab's audio is muted by the user. */
   muted: boolean
   /** New messages or a call waiting for the person (cleared once they look at the tab). */
@@ -335,6 +337,8 @@ export interface PanesApi {
     liveOpen(req: { tab?: number; url?: string; rect: Rect }): Promise<number | null>
     liveMove(tabId: number, rect: Rect): void
     liveHide(): void
+    /** The other panes of a split, live beside the preview's page; [] takes them away. */
+    liveCompanions(list: Array<{ id: number; rect: Rect }>): void
     /** A picture of a tab's live page as it is now (stands in for it while it steps aside); null when it has none. */
     liveShot(tabId: number): Promise<string | null>
     /** Back, forward or reload in the live page of the preview. */

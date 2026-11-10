@@ -288,4 +288,20 @@ describe('resized cards in a split view', () => {
     for (const c of inG) expect(contains(g, cardBox(c))).toBe(true)
     expect(arrangeSplit(s, [1, 2])).toBe(s)
   })
+  test('in a section: the first member made wider pushes the second along, they never overlap', () => {
+    let s = tidy(
+      emptyState('b'),
+      [tab(1), tab(2), tab(3), tab(4), tab(5)],
+      [{ name: 'G', ids: [1, 2, 3, 4, 5] }]
+    )
+    s = arrangeSplit(s, [1, 2])
+    const c1 = s.cards.find((c) => c.id === 1)!
+    s = resizeCard(s, 1, { x: c1.x, y: c1.y, w: 460, h: c1.h ?? CARD_H })
+    s = arrangeSplit(s, [1, 2])
+    const a = s.cards.find((c) => c.id === 1)!
+    const b = s.cards.find((c) => c.id === 2)!
+    expect(b.x).toBeGreaterThanOrEqual(a.x + 460)
+    noOverlap(s.cards.filter((c) => c.frame === a.frame))
+    expect(arrangeSplit(s, [1, 2])).toBe(s)
+  })
 })

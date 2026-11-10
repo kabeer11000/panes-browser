@@ -30,6 +30,8 @@ export interface CardModel {
   chip?: boolean
   tor: boolean
   audible: boolean
+  /** Its media plays, sound or not (see TabInfo.playing). */
+  playing?: boolean
   muted: boolean
   ringing: boolean
   current: boolean

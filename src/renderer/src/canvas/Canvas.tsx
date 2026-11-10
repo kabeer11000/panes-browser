@@ -497,7 +497,7 @@ export function Canvas({
   const [forgot, setForgot] = useState<Set<number>>(new Set())
   // a tab in a call (camera, microphone or screen in use) is listed like one playing, silent or not
   const audibleKey = tabs
-    .filter((t) => t.audible || isCapturing(t.capture))
+    .filter((t) => t.audible || t.playing || isCapturing(t.capture))
     .map((t) => t.id)
     .join(',')
   const [lastAudible, setLastAudible] = useState('')
@@ -564,7 +564,8 @@ export function Canvas({
     [tabs]
   )
   const streamKey = pickStreams({
-    tabs: tabs.map((t) => ({ ...t, call: calls.has(t.id) })),
+    // a video playing without sound (muted, or quiet) plays live on its card too
+    tabs: tabs.map((t) => ({ ...t, audible: t.audible || !!t.playing, call: calls.has(t.id) })),
     onScreen,
     open: openTab,
     zoomedOut: lod,
@@ -2771,6 +2772,7 @@ export function Canvas({
       id: card.id,
       tor: false,
       audible: !!tab?.audible,
+      playing: !!(tab?.playing ?? tab?.audible),
       muted: !!tab?.muted,
       ringing: tab?.attention.call === 'ringing',
       current: !!tab && tab.id === activeId,
@@ -3886,6 +3888,8 @@ export function Canvas({
   )
   const splitKey = splitIds.join(',')
   const splitTries = useRef(0)
+  // the board as the split's own layout last left it: any other change (a card resized, moved) earns fresh tries
+  const splitLaid = useRef<CanvasState | null>(null)
   useLayoutEffect(() => {
     splitRef.current = splitIds
   }, [splitIds])
@@ -3901,13 +3905,15 @@ export function Canvas({
     // arranged split comes back as the same state.
     const ids = splitKey.split(',').map(Number)
     const s0 = stRef.current
+    if (s0 !== splitLaid.current) splitTries.current = 0
     if (!s0 || arrangeSplit(s0, ids) === s0) {
       splitTries.current = 0
       return
     }
-    // never a loop: if arranging does not settle in a few goes, leave the board as it is
+    // never a loop: if arranging does not settle in a few goes, leave the board as it is (until it changes again)
     if (++splitTries.current > 3) return
     edit((s1) => arrangeSplit(s1, ids), { flip: true })
+    splitLaid.current = stRef.current
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splitKey, phase === 'loading', st])
   /** Real tab ids for cards (a found page or answer is opened as a tab first), in the same order. */
@@ -3955,9 +3961,19 @@ export function Canvas({
       return
     }
     window.dispatchEvent(new CustomEvent('panes:canvas-expect', { detail: { id: real[0] } }))
+    splitWanted.current = { ids: real, at: Date.now() }
     window.api.dropTab(real[0], real[1], onto.edge)
     setSel(new Set())
   }
+  // a split just made on the board opens in the preview, side by side, once main has made it
+  const splitWanted = useRef<{ ids: number[]; at: number } | null>(null)
+  useEffect(() => {
+    const want = splitWanted.current
+    if (!want || Date.now() - want.at > 10_000) return
+    if (!want.ids.every((id) => splitIds.includes(id))) return
+    splitWanted.current = null
+    expandRef.current(want.ids[0], true)
+  }, [splitIds])
   const splitFrame = useMemo(
     () => (st && splitIds.length >= 2 ? splitBox(st, splitIds) : null),
     [st, splitIds]
@@ -4134,6 +4150,7 @@ export function Canvas({
           canPop: m.isTab || !!tab || web,
           media,
           audible: m.audible,
+          playing: m.playing,
           muted: m.muted,
           toggle: m.toggle,
           reader: m.reader,
@@ -4151,7 +4168,7 @@ export function Canvas({
           else if (act === 'pop') leaveRef.current(id)
           else if (act === 'unsplit') window.api.unsplit()
           else if (act === 'play')
-            void window.api.mediaPlay?.(m.id, m.audible ? 'pause' : 'play').catch(() => undefined)
+            void window.api.mediaPlay?.(m.id, m.playing ? 'pause' : 'play').catch(() => undefined)
           else if (act === 'mute') window.api.toggleMute(m.id)
           else if (act === 'view') onCardView(id)
           else if (act === 'ask') ask()
@@ -4633,9 +4650,9 @@ export function Canvas({
                 </span>
                 <button
                   type="button"
-                  title="Open the split view full screen"
+                  title="Open the split view: its pages side by side"
                   aria-label="Open the split view"
-                  onClick={() => leaveRef.current(splitIds[0])}
+                  onClick={() => expandRef.current(splitIds[0], true)}
                 >
                   <ExpandIcon />
                 </button>
@@ -4910,6 +4927,11 @@ export function Canvas({
             const b = cardBox(c)
             return { x: b.x * v.k + v.x, y: b.y * v.k + v.y, w: b.w * v.k, h: b.h * v.k }
           }}
+          split={
+            splitIds.includes(expanded.id)
+              ? splitIds.map((id) => ({ tab: id, snap: thumbs[id] }))
+              : undefined
+          }
           onClose={() => setExpanded(null)}
           onGoToTab={() => goToTab(expanded.id)}
           onTab={(tabId) => {

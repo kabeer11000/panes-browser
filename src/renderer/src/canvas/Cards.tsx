@@ -266,11 +266,12 @@ const PlusGlyph = (): React.JSX.Element => (
  * where it is; nothing opens.
  */
 function MediaControls({ m }: { m: CardModel }): React.JSX.Element {
-  // what the page said last, until the tab's own state (audible) catches up
-  const [said, setSaid] = useState<{ audible: boolean; paused: boolean } | null>(null)
-  const playing = said && said.audible === m.audible ? !said.paused : m.audible
+  // what the page said last, until the tab's own state catches up (main asks the page what plays)
+  const now = !!(m.playing ?? m.audible)
+  const [said, setSaid] = useState<{ was: boolean; paused: boolean } | null>(null)
+  const playing = said && said.was === now ? !said.paused : now
   return (
-    <span className={'cv-media' + (m.audible || m.muted ? ' on' : '')}>
+    <span className={'cv-media' + (m.audible || m.muted || m.playing ? ' on' : '')}>
       <button
         type="button"
         className="cv-mbtn"
@@ -280,7 +281,7 @@ function MediaControls({ m }: { m: CardModel }): React.JSX.Element {
           e.stopPropagation()
           void window.api
             .mediaPlay?.(m.id, playing ? 'pause' : 'play')
-            .then((r) => r && setSaid({ audible: m.audible, paused: r.paused }))
+            .then((r) => r && setSaid({ was: now, paused: r.paused }))
             .catch(() => undefined)
         }}
       >

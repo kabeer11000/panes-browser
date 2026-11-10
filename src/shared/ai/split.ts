@@ -96,7 +96,8 @@ const together = (s: CanvasState, ids: number[]): boolean => {
         !!c &&
         c.frame === first.frame &&
         Math.abs(c.y - first.y) < 0.5 &&
-        (i === 0 || c.x > cs[i - 1]!.x)
+        // each one clear of the one before it, at the sizes they have now (one may have just been resized)
+        (i === 0 || c.x >= cs[i - 1]!.x + wOf(cs[i - 1]!) - 0.5)
     )
   )
     return false
