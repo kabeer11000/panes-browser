@@ -39,6 +39,13 @@ export function unpinPdf(src: PdfSrc): void {
   else pins.set(key, n)
 }
 
+/** Forget a document and its first page, open or not: the next open reads it again (a reload). */
+export function reloadPdf(src: PdfSrc): void {
+  const key = keyOf(src)
+  dropDoc(key)
+  firsts.delete(key)
+}
+
 /** A document, opened once and kept for a few at a time (the oldest are closed to give their memory back). */
 export function openPdf(src: PdfSrc): Promise<PDFDocumentProxy | null> {
   const key = keyOf(src)
@@ -59,6 +66,10 @@ export function openPdf(src: PdfSrc): Promise<PDFDocumentProxy | null> {
     } catch {
       return null
     }
+  })
+  // one that could not be read is not kept: the next open (a reload) tries again
+  void opened.doc.then((d) => {
+    if (!d && docs.get(key) === opened) docs.delete(key)
   })
   docs.set(key, opened)
   for (const k of [...docs.keys()]) {

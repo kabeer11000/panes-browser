@@ -22,7 +22,7 @@ import {
 } from '@renderer/components/icons'
 import { FindBar } from '@renderer/components/FindBar'
 import { getSlide, getSlideY } from '@renderer/slide'
-import { openPdf, pinPdf, unpinPdf } from './pdf'
+import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
 
 const SPRING = { type: 'spring', stiffness: 300, damping: 31, mass: 0.9 } as const
@@ -454,10 +454,13 @@ function PdfPage({
 
 function PdfReader({
   src,
-  width
+  width,
+  reloadKey = 0
 }: {
   src: { url?: string; file?: string }
   width: number
+  /** Bumped to read the document again (its tab reloaded, or Reload). */
+  reloadKey?: number
 }): React.JSX.Element {
   const [doc, setDoc] = useState<PDFDocumentProxy | null | 'loading'>('loading')
   const [aspect, setAspect] = useState(0.707)
@@ -473,6 +476,7 @@ function PdfReader({
   }, [src.url, src.file])
   useEffect(() => {
     let dead = false
+    if (reloadKey > 0) reloadPdf(src)
     void openPdf(src).then(async (d) => {
       if (dead) return
       if (d) {
@@ -486,7 +490,7 @@ function PdfReader({
       dead = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src.url, src.file])
+  }, [src.url, src.file, reloadKey])
   // zoom: the pages scale with a transform at once (soft), and are drawn again at the new size once the wheel rests
   useEffect(() => {
     if (!root) return
@@ -1017,9 +1021,15 @@ export function Expanded({
     zoom && Math.abs(zoom.level - zoom.base) > 0.01 ? `${zoomPercent(zoom.level)}%` : null
 
   const src = m.pdf ?? { url, file }
+  const [pdfKey, setPdfKey] = useState(0)
+  const [wasLoading, setWasLoading] = useState(!!page?.loading)
+  if (!!page?.loading !== wasLoading) {
+    setWasLoading(!!page?.loading)
+    if (wasLoading && m.kind === 'pdf' && live === 'off') setPdfKey((k) => k + 1)
+  }
   const bodyView =
     m.kind === 'pdf' ? (
-      <PdfReader src={src} width={Math.min(PDF_W, w - 48)} />
+      <PdfReader src={src} width={Math.min(PDF_W, w - 48)} reloadKey={pdfKey} />
     ) : m.kind === 'image' ? (
       m.image ? (
         <ImageViewer src={m.image} />
@@ -1226,6 +1236,17 @@ export function Expanded({
                 <PopOutGlyph />
               </button>
             ) : null}
+            {m.kind === 'pdf' && live === 'off' && (
+              <button
+                type="button"
+                className="cv-hbtn"
+                aria-label="Reload"
+                title="Reload the PDF"
+                onClick={() => setPdfKey((k) => k + 1)}
+              >
+                <ReloadIcon />
+              </button>
+            )}
             {panes && (
               <button
                 type="button"
