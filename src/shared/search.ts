@@ -57,6 +57,7 @@ export const ACTIONS: SearchAction[] = [
     shortcut: 'Ctrl+Shift+L'
   },
   { id: 'new-tab', title: 'New tab', keywords: 'new tab open blank', shortcut: 'Ctrl+T' },
+  { id: 'tour', title: 'Take the tour', keywords: 'tour guide help how to use learn start' },
   {
     id: 'new-private',
     title: 'New private tab',

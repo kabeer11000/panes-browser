@@ -30,6 +30,7 @@ import {
 import { NavButtons } from './components/NavButtons'
 import { StatusChips } from './components/StatusChips'
 import { HorizontalTabs } from './components/HorizontalTabs'
+import { Tour } from './components/Tour'
 import { SpaceSwitcher } from './components/SpaceSwitcher'
 import { WindowControls } from './components/WindowControls'
 import { useSpaceDir } from './hooks/useSpaceDir'
@@ -452,6 +453,13 @@ function App(): React.JSX.Element {
     return window.api.onSettings((s) => setSettings(merge(s)))
   }, [])
   const effective = { ...settings, ...activeSpace?.ui }
+  // the tour: once, as the first-run tour ends (onboarding just done), and whenever "Take the tour" is picked
+  const [tourOpen, setTourOpen] = useState(false)
+  const [wasOnboarded, setWasOnboarded] = useState<boolean | null>(null)
+  if (settingsReady && settings.onboarded !== wasOnboarded) {
+    setWasOnboarded(settings.onboarded)
+    if (wasOnboarded === false && settings.onboarded) setTourOpen(true)
+  }
   // Browse with tabs or the canvas: a canvas space opens straight into its board, and one switched to tabs leaves it
   const browse = browseWith(settings.browseWith, activeSpace)
   const browseSeen = useRef<BrowseSeen | null>(null)
@@ -459,13 +467,15 @@ function App(): React.JSX.Element {
   useEffect(() => {
     browseRef.current = browse
     if (!settingsReady || !spaceKnown) return // the defaults before the real settings and spaces are not a choice
+    // the first-run tour (and the tour after it) come first: a board picked there opens once they are done
+    if (!settings.onboarded || tourOpen) return
     const next = { space: activeSpaceId, browse }
     const step = boardStep(browseSeen.current, next)
     browseSeen.current = next
     if (step === 'open') void openOverlay('canvas')
     else if (step === 'close' && modeRef.current === 'canvas')
       window.dispatchEvent(new Event('panes:canvas-exit'))
-  }, [settingsReady, spaceKnown, activeSpaceId, browse, openOverlay])
+  }, [settingsReady, spaceKnown, activeSpaceId, browse, openOverlay, settings.onboarded, tourOpen])
   useEffect(() => {
     releaseRef.current = settings.paneViewRelease
   }, [settings.paneViewRelease])
@@ -1043,6 +1053,7 @@ function App(): React.JSX.Element {
                     else if (id === 'sidebar') toggleSidebar()
                     else if (id === 'grid') void openOverlay('grid')
                     else if (id === 'canvas') toggleCanvas()
+                    else if (id === 'tour') setTourOpen(true)
                     else if (id === 'chat' && !inCanvasRef.current) {
                       setChatOpen(true)
                       setChatFocus((k) => k + 1)
@@ -1115,6 +1126,8 @@ function App(): React.JSX.Element {
           <span>Panes will close and open again by itself.</span>
         </div>
       )}
+      {/* not over the welcome page or the board: it waits for the window it is about */}
+      {tourOpen && mode !== 'canvas' && !immersive && <Tour onClose={() => setTourOpen(false)} />}
     </div>
   )
 }

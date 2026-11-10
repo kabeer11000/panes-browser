@@ -4519,3 +4519,109 @@ kbd {
 .newtab.has-photo:has(.dithered) .newtab-hello {
   text-shadow: 0 1px 10px rgb(0 0 0 / 0.7);
 }
+
+/* ---- the guided tour: the window dims except the part a step is about, with a card beside it ---- */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none; /* the dim is drawn by the lit box's shadow; only the card takes clicks */
+}
+.tour-card {
+  pointer-events: auto;
+}
+.tour-lit {
+  position: absolute;
+  border-radius: var(--r-4);
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55);
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  transition:
+    left var(--dur) var(--ease),
+    top var(--dur) var(--ease),
+    width var(--dur) var(--ease),
+    height var(--dur) var(--ease);
+  pointer-events: none;
+}
+.tour-lit.none {
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  outline: none;
+}
+.tour-card {
+  position: absolute;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 16px 12px;
+  border-radius: var(--r-5);
+  background: var(--popover-bg, var(--card-bg));
+  color: var(--fg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 16px 40px rgb(0 0 0 / 0.35);
+  animation: tour-in var(--dur) var(--ease) both;
+}
+@keyframes tour-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+.tour-card b {
+  font-size: 15px;
+}
+.tour-card p {
+  margin: 0;
+  color: var(--fg-dim);
+  line-height: 1.45;
+}
+.tour-card kbd {
+  align-self: flex-start;
+  padding: 1px 7px;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg-dim);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.tour-n {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+.tour-acts {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.tour-acts button {
+  padding: 6px 12px;
+  border-radius: var(--r-3);
+  color: var(--fg);
+  background: var(--surface);
+}
+.tour-acts button:hover {
+  background: var(--surface-hover);
+}
+.tour-acts .tour-skip {
+  margin-right: auto;
+  background: transparent;
+  color: var(--fg-dim);
+}
+.tour-acts .primary {
+  background: var(--accent);
+  color: #fff;
+}
+.tour-acts .primary:hover {
+  filter: brightness(1.1);
+  background: var(--accent);
+}
+.tour-acts button:focus-visible {
+  outline: var(--ring);
+  outline-offset: 1px;
+}
