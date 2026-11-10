@@ -3653,3 +3653,87 @@
   filter: none;
   opacity: 1;
 }
+
+/* ---- new messages in a tab (WhatsApp, Slack, mail): a badge on its card, and the board's inbox at the top ---- */
+.cv-attn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px 0 4px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 2px 8px rgb(0 0 0 / 0.25);
+  backdrop-filter: blur(6px);
+  animation: cv-attn-in var(--dur) var(--ease) both;
+}
+.cv-attn img {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+.cv-attn b {
+  min-width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.cv-attn b.count {
+  height: auto;
+  padding: 0 1px;
+  background: none;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes cv-attn-in {
+  from {
+    opacity: 0;
+    scale: 0.8;
+  }
+}
+/* it stays readable as the board zooms out, like the handles (--hs, set with the zoom) */
+.cv-attn {
+  scale: var(--hs, 1);
+  transform-origin: top left;
+}
+.cv-inbox {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 14px;
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 8px 24px rgb(0 0 0 / 0.25);
+  animation: cv-attn-in var(--dur) var(--ease) both;
+}
+.cv-inbox button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  border-radius: 10px;
+  transition: background var(--dur-fast);
+}
+.cv-inbox button:hover {
+  background: var(--surface-hover);
+}
+.cv-inbox button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.cv-inbox-more {
+  padding: 0 8px 0 4px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}

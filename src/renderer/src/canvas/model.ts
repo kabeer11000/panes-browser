@@ -36,6 +36,10 @@ export interface CardModel {
   asleep?: boolean
   muted: boolean
   ringing: boolean
+  /** Something new waits in its tab (messages, a notification): the site's unread count (0: none shown), and
+   *  whether there is anything new at all. */
+  attnCount?: number
+  attnNew?: boolean
   current: boolean
   isTab: boolean
   streaming: boolean

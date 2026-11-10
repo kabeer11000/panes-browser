@@ -115,6 +115,8 @@ import { tabTitle } from '@renderer/tabTitle'
 import { CardView, FrameBar, FrameView, NoteView } from './Cards'
 import { pickStreams, streamCap } from '@shared/ai/tabStream'
 import { isCapturing } from '@shared/capture'
+import { attentionLabel } from '@shared/attention'
+import { TabFavicon } from '@renderer/components/TabFavicon'
 import { alreadyOpen, quickFind, type FindItem } from '@shared/ai/quickFind'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
@@ -573,6 +575,14 @@ export function Canvas({
       ? (st?.items[String(expanded.id)]?.tab ?? null)
       : expanded.id
     : null
+  // tabs with something new waiting (messages, notifications), most first: the board's inbox
+  const waiting = useMemo(
+    () =>
+      tabs
+        .filter((t) => !t.private && !t.tor && (t.attention.count > 0 || t.attention.unseen))
+        .sort((a, b) => b.attention.count - a.attention.count),
+    [tabs]
+  )
   const calls = useMemo(
     () => new Set(tabs.filter((t) => isCapturing(t.capture)).map((t) => t.id)),
     [tabs]
@@ -2864,6 +2874,8 @@ export function Canvas({
       asleep: !!tab?.unloaded,
       muted: !!tab?.muted,
       ringing: tab?.attention.call === 'ringing',
+      attnCount: tab?.attention.count ?? 0,
+      attnNew: !!tab && (tab.attention.unseen || tab.attention.count > 0),
       current: !!tab && tab.id === activeId,
       isTab: !virtual,
       streaming: false,
@@ -5180,6 +5192,27 @@ export function Canvas({
           toastNow(said ? `Undid: ${said}` : 'Nothing to undo')
         }}
       />
+      {waiting.length > 0 && phase === 'open' && !expanded && quick === null && (
+        <div className="cv-inbox" role="group" aria-label="New messages in your tabs">
+          {waiting.slice(0, 5).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              title={`${t.aiTitle || t.title || 'A tab'}: ${attentionLabel(t.attention)}. Open it`}
+              aria-label={`${t.aiTitle || t.title || 'A tab'}, ${attentionLabel(t.attention)}`}
+              onClick={() => {
+                const c = stRef.current?.cards.find((x) => x.id === t.id)
+                if (!c) return
+                reveal(cardBox(c))
+                expandRef.current(t.id, true)
+              }}
+            >
+              <TabFavicon tab={t} noSpinner />
+            </button>
+          ))}
+          {waiting.length > 5 && <span className="cv-inbox-more">+{waiting.length - 5}</span>}
+        </div>
+      )}
       {playing.length > 0 && phase === 'open' && !expanded && (
         <div
           className={'cv-playing' + (playList ? ' open' : '')}

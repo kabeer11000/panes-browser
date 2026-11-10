@@ -10,6 +10,7 @@ import {
 import { noteFontSize } from '@shared/ai/canvasText'
 import { CloseIcon, IncognitoIcon, SpeakerIcon, TorIcon } from '@renderer/components/icons'
 import { CallBadge } from '@renderer/components/CallBadge'
+import { badgeText } from '@shared/attention'
 import { firstPage, type FirstPage } from './pdf'
 import { sameModel, type CardModel } from './model'
 import { AnswerText } from './Expanded'
@@ -381,6 +382,17 @@ export const CardView = memo(
             ))}
             <div className="cv-badges">
               <CallBadge call={m.ringing ? 'ringing' : null} />
+              {m.attnNew && !m.ringing && (
+                <span
+                  className="cv-attn"
+                  role="img"
+                  aria-label={m.attnCount ? `${m.attnCount} new` : 'Something new'}
+                  title={m.attnCount ? `${m.attnCount} new` : 'Something new'}
+                >
+                  {m.favicon && <img src={m.favicon} alt="" />}
+                  <b className={m.attnCount ? 'count' : ''}>{badgeText(m.attnCount ?? 0)}</b>
+                </span>
+              )}
               {m.isTab && (m.audible || m.muted || m.kind === 'video') && <MediaControls m={m} />}
               {m.current && (
                 <span className="card-current" title="Current tab" aria-hidden="true" />
