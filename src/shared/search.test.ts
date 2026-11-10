@@ -151,8 +151,9 @@ describe('inlineCompletion', () => {
     expect(inlineCompletion('gith', local)).toBe('github.com')
     expect(inlineCompletion('GiTh', local)).toBe('GiTh' + 'ub.com')
   })
-  test('needs a prefix of the host, at least two characters, and no spaces', () => {
-    expect(inlineCompletion('g', local)).toBeNull()
+  test('needs a prefix of the host (one character is enough) and no spaces', () => {
+    expect(inlineCompletion('g', local)).toBe('github.com')
+    expect(inlineCompletion('', local)).toBeNull()
     expect(inlineCompletion('hub', local)).toBeNull()
     expect(inlineCompletion('git hub', local)).toBeNull()
   })

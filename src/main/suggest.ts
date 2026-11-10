@@ -46,7 +46,7 @@ export class Suggester {
   async remote(query: string): Promise<string[]> {
     const { searchSuggestions, searchEngine } = this.deps.settings.get()
     const q = query.trim()
-    if (!searchSuggestions || q.length < 2 || q.length > 100) return []
+    if (!searchSuggestions || q.length < 1 || q.length > 100) return []
 
     const key = `${searchEngine}:${q.toLowerCase()}`
     const hit = this.cache.get(key)

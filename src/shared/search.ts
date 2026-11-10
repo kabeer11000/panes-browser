@@ -496,7 +496,7 @@ export function sectionOf(kind: ResultKind): string | null {
 /** Finish a site name the user is typing, Chrome-style: "gith" becomes "github.com". Null if nothing fits. */
 export function inlineCompletion(typed: string, local: LocalSuggestion[]): string | null {
   const t = typed.toLowerCase()
-  if (t.length < 2 || /\s/.test(t)) return null
+  if (t.length < 1 || /\s/.test(t)) return null
   for (const s of local) {
     const host = displayHost(s.url)
     if (host.length > t.length && host.toLowerCase().startsWith(t))
