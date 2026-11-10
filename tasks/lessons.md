@@ -60,3 +60,13 @@ the repo's own node_modules sits above `dist/win-unpacked`, and Node found it th
   top). That showed the canvas preview parked at x=-20000 in one call, after reading code had found nothing.
 - Keyed React remounts (a board per space) can deliver the new instance's "open" before the old one's "close" (exit
   animations). A main-side on/off flag driven by such pairs must count, not toggle, or the late close wins.
+
+## A layout fix is done when it holds in the app, not in a unit test (2026-11-10)
+
+I called resized split cards fixed after unit tests passed; the user found them still overlapping. Two misses: the
+tests covered overlap with the cards above and below but not the members with each other (the case the user hit),
+and the board's split effect had a 3-try guard that, once spent, never reset, so no layout ran at all in the app.
+- Write the test for the exact case reported first, and see it fail on the old code before trusting it.
+- Drive the change in the running app (CDP drag, then read the DOM after it settles; mid-animation boxes lie) before
+  saying it is fixed.
+- A "give up after N tries" guard must reset when the input changes, or it silently disables the feature.
