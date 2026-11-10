@@ -1,5 +1,18 @@
 import { describe, expect, test } from 'bun:test'
-import { buildTorrc, parseBootstrap, snowflakeBridges, torBundleFor } from './tor'
+import { buildTorrc, parseBootstrap, snowflakeBridges, snowflakeProgram, torBundleFor } from './tor'
+
+describe('snowflakeProgram', () => {
+  test('reads the program from the bundle, refuses anything that is not a plain file name', () => {
+    const cfg = (s: string): unknown => ({ pluggableTransports: { snowflake: s } })
+    expect(snowflakeProgram(cfg('ClientTransportPlugin snowflake exec ${pt_path}lyrebird.exe'))).toBe(
+      'lyrebird.exe'
+    )
+    expect(snowflakeProgram(cfg('ClientTransportPlugin snowflake exec ${pt_path}lyrebird'))).toBe('lyrebird')
+    expect(snowflakeProgram(cfg('ClientTransportPlugin snowflake exec ${pt_path}../evil.exe'))).toBeNull()
+    expect(snowflakeProgram({})).toBeNull()
+    expect(snowflakeProgram(null)).toBeNull()
+  })
+})
 
 describe('torBundleFor', () => {
   test('has a pinned build with a checksum for the common platforms', () => {
@@ -11,7 +24,9 @@ describe('torBundleFor', () => {
     ]) {
       const b = torBundleFor(p, a)
       expect(b?.sha256).toMatch(/^[0-9a-f]{64}$/)
-      expect(b?.url.startsWith('https://dist.torproject.org/')).toBe(true)
+      // the permanent archive first (the main server drops old versions), the main server after
+      expect(b?.urls[0].startsWith('https://archive.torproject.org/')).toBe(true)
+      expect(b?.urls.some((u) => u.startsWith('https://dist.torproject.org/'))).toBe(true)
     }
     expect(torBundleFor('win32', 'arm64')).toBeNull()
   })
@@ -28,9 +43,10 @@ describe('buildTorrc', () => {
   test('adds the Snowflake transport and its bridges', () => {
     const t = buildTorrc({
       ...base,
-      snowflake: { exec: 'C:\\x\\snowflake-client.exe', bridges: ['snowflake 192.0.2.3:80 AB'] }
+      snowflake: { exec: 'pluggable_transports\\lyrebird.exe', bridges: ['snowflake 192.0.2.3:80 AB'] }
     })
-    expect(t).toContain('ClientTransportPlugin snowflake exec "C:/x/snowflake-client.exe"')
+    // relative and unquoted: Tor would take the quotes and anything after a space as part of the program name
+    expect(t).toContain('ClientTransportPlugin snowflake exec pluggable_transports\\lyrebird.exe')
     expect(t).toContain('UseBridges 1')
     expect(t).toContain('Bridge snowflake 192.0.2.3:80 AB')
   })

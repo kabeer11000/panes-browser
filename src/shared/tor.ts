@@ -1,40 +1,46 @@
 /** The Tor expert bundle Panes fetches on first use: pinned by version and checked against a SHA-256. */
 export interface TorBundle {
   version: string
-  url: string
+  /** Where to fetch it, tried in order: the Tor Project's archive keeps every version for good, while its main
+   *  server drops a version once a newer one is out (a pinned build would 404 there on a fresh install). */
+  urls: string[]
   sha256: string
 }
 
 const VERSION = '15.0.26'
-const BASE = `https://dist.torproject.org/torbrowser/${VERSION}`
+const MIRRORS = [
+  `https://archive.torproject.org/tor-package-archive/torbrowser/${VERSION}`,
+  `https://dist.torproject.org/torbrowser/${VERSION}`
+]
+const at = (file: string): string[] => MIRRORS.map((m) => `${m}/${file}`)
 
 /** Only the platforms with a pinned build; others are told Tor is not available yet. */
 export function torBundleFor(platform: string, arch: string): TorBundle | null {
   if (platform === 'win32' && arch === 'x64') {
     return {
       version: VERSION,
-      url: `${BASE}/tor-expert-bundle-windows-x86_64-${VERSION}.tar.gz`,
+      urls: at(`tor-expert-bundle-windows-x86_64-${VERSION}.tar.gz`),
       sha256: 'c1988c701de2f24f7d098d1d6d7f507b58f27740d097f29c246e0524d639b252'
     }
   }
   if (platform === 'linux' && arch === 'x64') {
     return {
       version: VERSION,
-      url: `${BASE}/tor-expert-bundle-linux-x86_64-${VERSION}.tar.gz`,
+      urls: at(`tor-expert-bundle-linux-x86_64-${VERSION}.tar.gz`),
       sha256: '19cf18726eecb362e0f21d27afa9ea9efe5da928bfdfbb1ceb5fe54519e87f4a'
     }
   }
   if (platform === 'darwin' && arch === 'arm64') {
     return {
       version: VERSION,
-      url: `${BASE}/tor-expert-bundle-macos-aarch64-${VERSION}.tar.gz`,
+      urls: at(`tor-expert-bundle-macos-aarch64-${VERSION}.tar.gz`),
       sha256: 'a3febb6179152b0b4f56a0f5cc57bf5cc8ecef7db35e7c3e9d5a044c8158c26c'
     }
   }
   if (platform === 'darwin' && arch === 'x64') {
     return {
       version: VERSION,
-      url: `${BASE}/tor-expert-bundle-macos-x86_64-${VERSION}.tar.gz`,
+      urls: at(`tor-expert-bundle-macos-x86_64-${VERSION}.tar.gz`),
       sha256: 'e1ae4d4a734d28bb590839188511deb3cebc26fcbce9df66d01b2c452060fe95'
     }
   }
@@ -47,6 +53,8 @@ export interface TorrcOptions {
   geoip: string
   geoip6: string
   /** Reach Tor through Snowflake bridges (for networks that block it): the client binary and bridge lines. */
+  /** `exec`: the program, relative to Tor's own folder (where Tor runs). Tor splits this line on spaces and keeps
+   *  quotes as part of the name, so a full path with a space in it (C:\Users\Jane Doe\...) cannot be launched. */
   snowflake?: { exec: string; bridges: string[] }
 }
 
@@ -67,7 +75,7 @@ export function buildTorrc(o: TorrcOptions): string {
   ]
   if (o.snowflake && o.snowflake.bridges.length > 0) {
     lines.push(
-      `ClientTransportPlugin snowflake exec ${path(o.snowflake.exec)}`,
+      `ClientTransportPlugin snowflake exec ${o.snowflake.exec}`,
       'UseBridges 1',
       ...o.snowflake.bridges.map((b) => `Bridge ${b}`)
     )
@@ -90,6 +98,19 @@ export function snowflakeBridges(ptConfig: unknown): string[] {
   return list
     .filter((b): b is string => typeof b === 'string' && b.startsWith('snowflake '))
     .map((b) => b.trim())
+}
+
+/**
+ * The program that runs Snowflake, as the bundle's own pt_config.json names it ("lyrebird.exe" since Tor 14.5: the
+ * separate snowflake-client is gone). A plain file name in the pluggable transports folder, or null.
+ */
+export function snowflakeProgram(ptConfig: unknown): string | null {
+  const cfg = ptConfig as { pluggableTransports?: { snowflake?: unknown } } | null
+  const line = cfg?.pluggableTransports?.snowflake
+  if (typeof line !== 'string') return null
+  const m = /\bexec\s+\$\{pt_path\}(\S+)/.exec(line)
+  const name = m?.[1]
+  return name && /^[\w.-]+$/.test(name) ? name : null
 }
 
 export type TorState = 'off' | 'downloading' | 'starting' | 'ready' | 'error'
