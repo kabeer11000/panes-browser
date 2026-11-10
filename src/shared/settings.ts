@@ -25,7 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   aiModelsDir: null,
   mutedSites: [],
   siteZoom: {},
-  startup: 'newtab',
+  startup: 'restore',
   accent: '#8b8bff',
   uiScale: 1,
   density: 1,

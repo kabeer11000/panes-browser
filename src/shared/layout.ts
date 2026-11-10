@@ -159,6 +159,23 @@ export function normalizeLayout(root: LayoutNode | null): LayoutNode | null {
   return root && leaves(root).length >= 2 ? root : null
 }
 
+/**
+ * The same layout over other ids (a session saved and read back: tab ids by their place in the list). `to` gives
+ * null for a tab that is gone, and its pane goes; null when fewer than two panes are left.
+ */
+export function remapLayout(
+  root: LayoutNode,
+  to: (id: number) => number | null
+): LayoutNode | null {
+  let out: LayoutNode | null = root
+  for (const id of leaves(root)) if (out && to(id) === null) out = removeTab(out, id)
+  if (!out) return null
+  const map = (n: LayoutNode): LayoutNode =>
+    n.type === 'leaf' ? leaf(to(n.tabId)!) : { ...n, children: n.children.map(map) }
+  const next = map(out)
+  return new Set(leaves(next)).size === leaves(next).length ? normalizeLayout(next) : null
+}
+
 /** dropTab target meaning "the whole layout" rather than one pane. */
 export const ROOT_TARGET = -1
 

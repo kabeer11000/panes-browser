@@ -82,11 +82,13 @@ import {
   normalizeLayout,
   removeTab,
   ROOT_TARGET,
+  remapLayout,
   rowOf,
   setRatios,
   type Edge,
   type LayoutNode
 } from '@shared/layout'
+import { keepHistory, type NavHistory } from '@shared/navHistory'
 import { bulkOpenList } from '@shared/selection'
 import type {
   InitialData,
@@ -152,7 +154,7 @@ interface Tab {
   hasUrl: boolean
   spaceId: number
   /** Restored or unloaded, not loaded yet: loads the first time the tab is shown. */
-  pending: { url: string; title: string } | null
+  pending: { url: string; title: string; history?: NavHistory | null } | null
   /** No page of its own: `view` is the shared inert one. Loading builds a real view. */
   unloaded: boolean
   /** Last time the tab was on screen (ms since epoch), for the memory saver. */
@@ -209,6 +211,15 @@ interface Tab {
 function liveContents(tab: Tab): WebContents | null {
   const wc = tab.view.webContents as WebContents | undefined
   return wc && !wc.isDestroyed() ? wc : null
+}
+
+/** A live page's back/forward list, as worth keeping (see keepHistory). */
+function historyOf(wc: WebContents): NavHistory | null {
+  try {
+    return keepHistory(wc.navigationHistory.getAllEntries(), wc.navigationHistory.getActiveIndex())
+  } catch {
+    return null
+  }
 }
 
 export class TabManager {
@@ -334,9 +345,12 @@ export class TabManager {
       favicon?: string | null
       groupId?: number | null
       pinned?: boolean
+      history?: NavHistory | null
     }>
     active: number
     groups?: Array<TabGroup & { spaceId: number }>
+    /** Per space: its split view and the tab it was on, tabs by their place in `tabs`. */
+    spaces?: Array<{ spaceId: number; active: number | null; layout: LayoutNode | null }>
   }>('session-v2', { tabs: [], active: 0 })
   private sessionTimer: NodeJS.Timeout | null = null
   private message: { id: number; text: string } | null = null
@@ -708,7 +722,7 @@ export class TabManager {
     input = '',
     activate = true,
     spaceId = this.activeSpaceId,
-    lazy?: { title: string; favicon: string | null },
+    lazy?: { title: string; favicon: string | null; history?: NavHistory | null },
     isPrivate = false,
     isTor = false
   ): number {
@@ -761,7 +775,7 @@ export class TabManager {
     if (url) {
       tab.hasUrl = true
       if (lazy) {
-        tab.pending = { url, title: lazy.title }
+        tab.pending = { url, title: lazy.title, history: lazy.history }
         tab.favicon = lazy.favicon
       } else {
         this.go(tab, url)
@@ -819,7 +833,8 @@ export class TabManager {
     return { plain: this.sessionFor(tab).getUserAgent(), chrome: this.deps.chromeUa }
   }
 
-  private go(tab: Tab, url: string): void {
+  /** `history`: a restored back/forward list to bring back with the page (its current entry is `url`). */
+  private go(tab: Tab, url: string, history?: NavHistory | null): void {
     // A Tor tab with Tor not up yet holds what it was asked to load until Tor is, so a search or address typed while
     // Tor connects neither fails nor has to be typed again. (Tor is started if nothing has started it.)
     if (tab.tor && this.deps.tor.get().state !== 'ready') {
@@ -834,7 +849,10 @@ export class TabManager {
     const ready = (tab.identity ??= applyIdentity(tab.view.webContents, this.identities(tab), url))
     void ready.then(() => {
       const wc = tab.view.webContents
-      if (!wc.isDestroyed()) wc.loadURL(url).catch(() => {}) // ERR_ABORTED on redirects is normal
+      if (wc.isDestroyed()) return
+      const plain = (): void => void wc.loadURL(url).catch(() => {}) // ERR_ABORTED on redirects is normal
+      if (history) wc.navigationHistory.restore(history).catch(plain)
+      else plain()
     })
   }
 
@@ -991,7 +1009,7 @@ export class TabManager {
   /** Start loading a restored tab. Called whenever a tab is about to be shown. */
   private ensureLoaded(id: number, tab: Tab): void {
     if (!tab.pending) return
-    const { url } = tab.pending
+    const { url, history } = tab.pending
     tab.pending = null
     if (tab.unloaded) {
       tab.view = this.makeView(tab.private, tab.tor)
@@ -999,7 +1017,7 @@ export class TabManager {
       tab.unloaded = false
       this.wire(id, tab)
     }
-    this.load(tab, url)
+    this.load(tab, url, history)
   }
 
   /**
@@ -1007,7 +1025,7 @@ export class TabManager {
    * blank white; it stays hidden, with the tab's snapshot (or a placeholder) showing in its place,
    * until the page has painted.
    */
-  private load(tab: Tab, url: string): void {
+  private load(tab: Tab, url: string, history?: NavHistory | null): void {
     const wc = tab.view.webContents
     tab.awaiting = true
     tab.firstUrl = url
@@ -1034,7 +1052,7 @@ export class TabManager {
     wc.on('dom-ready', onReady)
     wc.on('did-fail-load', release)
     wc.on('did-stop-loading', onStop)
-    this.go(tab, url)
+    this.go(tab, url, history)
   }
 
   /**
@@ -1057,7 +1075,8 @@ export class TabManager {
           known.has(t.spaceId) ? t.spaceId : this.activeSpaceId,
           {
             title: t.title ?? '',
-            favicon: t.favicon ?? null
+            favicon: t.favicon ?? null,
+            history: t.history ? keepHistory(t.history.entries, t.history.index) : null
           }
         )
         const tab = this.tabs.get(id)
@@ -1066,6 +1085,19 @@ export class TabManager {
         if (tab && t.pinned === true) tab.pinned = true
         return id
       })
+      // each space comes back on the tab it was on, with its split view (tabs of another space are not taken in)
+      const inSpace = (i: number | null, spaceId: number): number | null => {
+        const id = i === null ? undefined : ids[i]
+        return id !== undefined && this.tabs.get(id)?.spaceId === spaceId ? id : null
+      }
+      for (const sp of saved.spaces ?? []) {
+        if (!known.has(sp.spaceId)) continue
+        const layout = sp.layout ? remapLayout(sp.layout, (i) => inSpace(i, sp.spaceId)) : null
+        if (sp.spaceId === this.activeSpaceId) this.setLayout(layout)
+        else this.layouts.set(sp.spaceId, layout)
+        const on = inSpace(sp.active, sp.spaceId)
+        if (on !== null && sp.spaceId !== this.activeSpaceId) this.lastActive.set(sp.spaceId, on)
+      }
       const own = ids.filter((id) => this.tabs.get(id)?.spaceId === this.activeSpaceId)
       const pick = ids[Math.min(saved.active, ids.length - 1)]
       this.activate(own.includes(pick) ? pick : (own[0] ?? this.create()))
@@ -1091,26 +1123,40 @@ export class TabManager {
       favicon: string | null
       groupId: number | null
       pinned: boolean
+      history: NavHistory | null
     }> = []
     let active = 0
+    const at = new Map<number, number>() // tab id -> its place in `tabs`
     for (const [id, t] of this.tabs) {
       if (t.private) continue // private tabs are never written down
       const wc = liveContents(t)
       const url = t.pending?.url ?? wc?.getURL() ?? ''
       if (!/^(https?|file):/i.test(url)) continue
       if (id === this.activeId) active = tabs.length
+      at.set(id, tabs.length)
       tabs.push({
         url,
         spaceId: t.spaceId,
         title: t.pending?.title ?? wc?.getTitle() ?? '',
         favicon: t.favicon,
         groupId: t.groupId,
-        pinned: t.pinned
+        pinned: t.pinned,
+        history: t.pending ? (t.pending.history ?? null) : wc ? historyOf(wc) : null
       })
     }
     const used = new Set(tabs.map((t) => t.groupId))
     const groups = [...this.groups.values()].filter((g) => used.has(g.id))
-    this.sessionStore.value = { tabs, active, groups }
+    const spaces = this.deps.spaces.list().map((sp) => {
+      const here = sp.id === this.activeSpaceId
+      const layout = here ? this.layout : (this.layouts.get(sp.id) ?? null)
+      const on = here ? this.activeId : (this.lastActive.get(sp.id) ?? null)
+      return {
+        spaceId: sp.id,
+        active: on === null ? null : (at.get(on) ?? null),
+        layout: layout ? remapLayout(layout, (id) => at.get(id) ?? null) : null
+      }
+    })
+    this.sessionStore.value = { tabs, active, groups, spaces }
     this.sessionStore.save()
   }
 
@@ -3304,7 +3350,7 @@ export class TabManager {
     if (!tab || !wc || tab.unloaded) return
     const url = wc.getURL()
     if (!/^(https?|file):/i.test(url)) return
-    tab.pending = { url, title: wc.getTitle() }
+    tab.pending = { url, title: wc.getTitle(), history: historyOf(wc) }
     tab.firstUrl = url
     tab.awaiting = false
     if (tab.thumbTimer) clearTimeout(tab.thumbTimer)

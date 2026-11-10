@@ -13,6 +13,7 @@ import {
   rowOf,
   setRatios,
   swapLeaves,
+  remapLayout,
   type LayoutNode
 } from './layout'
 
@@ -179,5 +180,19 @@ describe('applyDrop', () => {
   })
   test('root docking wraps or extends the whole layout', () => {
     expect(leaves(applyDrop(two, 3, -1, 'top') as LayoutNode)).toEqual([3, 1, 2])
+  })
+})
+
+describe('remapLayout', () => {
+  test('maps ids and keeps the shape and ratios', () => {
+    const l = setRatios(rowOf([1, 2]), [], [0.3, 0.7])
+    expect(remapLayout(l, (id) => id + 10)).toEqual(setRatios(rowOf([11, 12]), [], [0.3, 0.7]))
+  })
+  test('a tab that is gone takes its pane; one pane left is no layout', () => {
+    expect(leaves(remapLayout(rowOf([1, 2, 3]), (id) => (id === 2 ? null : id))!)).toEqual([1, 3])
+    expect(remapLayout(rowOf([1, 2]), (id) => (id === 2 ? null : id))).toBeNull()
+  })
+  test('two panes mapped to the same tab: no layout', () => {
+    expect(remapLayout(rowOf([1, 2]), () => 7)).toBeNull()
   })
 })
