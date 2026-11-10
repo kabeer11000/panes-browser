@@ -19,6 +19,7 @@ export type ToolName =
   | 'switch_to_tab'
   | 'close_tabs'
   | 'find_in_page'
+  | 'filter_page'
   | 'look_at_page'
   | 'click'
   | 'type_text'
@@ -200,6 +201,23 @@ export const TOOLS: readonly ToolSpec[] = [
     ])
   },
   {
+    name: 'filter_page',
+    description:
+      'Change what a page shows to what the person asked for: its list items (cards, rows, videos) that hold none of the keep words, or any hide word, are hidden. Words are matched in the item text, so use words that appear on the page (a name, a label, a channel). reset: true shows everything again.',
+    readOnly: false,
+    local: true,
+    confirm: false,
+    schema: obj(
+      {
+        tabId: TAB_ID,
+        keep: { type: 'array', items: { type: 'string' }, description: 'Words an item must hold one of' },
+        hide: { type: 'array', items: { type: 'string' }, description: 'Words that hide an item' },
+        reset: { type: 'boolean', description: 'Show every item again' }
+      },
+      []
+    )
+  },
+  {
     name: 'look_at_page',
     description:
       'See a tab as a list of numbered controls (links, buttons, fields) plus its visible text. Call this before click, type_text or select_option, and again after the page changes: numbers are only valid for the latest look.',
@@ -374,6 +392,7 @@ export type ToolInput =
   | { name: 'switch_to_tab'; tabId: number }
   | { name: 'close_tabs'; tabIds: number[] }
   | { name: 'find_in_page'; tabId: number; text: string }
+  | { name: 'filter_page'; tabId: number; keep: string[]; hide: string[]; reset: boolean }
   | { name: 'look_at_page'; tabId: number }
   | { name: 'click'; tabId: number; ref: number }
   | { name: 'type_text'; tabId: number; ref: number; text: string; submit: boolean }
@@ -473,6 +492,22 @@ export function validateToolInput(name: string, input: unknown, currentTab?: num
       const text = shortText(a.text)
       if (!isId(a.tabId) || !text) return bad('tabId and a short, non-empty text are required')
       return { ok: true, value: { name, tabId: a.tabId, text } }
+    }
+    case 'filter_page': {
+      if (!isId(a.tabId)) return bad(tab)
+      const words = (v: unknown): string[] =>
+        Array.isArray(v)
+          ? v
+              .filter((x): x is string => typeof x === 'string' && x.trim() !== '')
+              .map((x) => x.trim().slice(0, 60))
+              .slice(0, 12)
+          : []
+      const keep = words(a.keep)
+      const hide = words(a.hide)
+      const reset = a.reset === true
+      if (!reset && keep.length === 0 && hide.length === 0)
+        return bad('give keep or hide words, or reset: true')
+      return { ok: true, value: { name, tabId: a.tabId, keep, hide, reset } }
     }
     case 'click':
       if (!isId(a.tabId)) return bad(tab)
@@ -616,6 +651,7 @@ How to handle some requests (always by calling the tool itself, never by writing
 - "what tabs do I have?" or "which tab am I on?": answer from <tabs>.
 - "what does my current tab say?": answer from its <page>. If there is no <page> for it, call the read_tab tool; never describe a page you have not read.
 - "find the word pricing on this page": the find_in_page tool with text pricing. Do not guess whether it is there.
+- "only show my cards" or "hide Shorts": the filter_page tool with keep or hide words that appear on the page (look_at_page first if you do not know them); "show everything again": filter_page with reset true.
 - "scroll to the comments": the scroll_to tool, target comments. "scroll down": the scroll_page tool, direction down.
 - "pause the video": the media_control tool on the tab playing it (from <tabs>).
 - "go to my YouTube tab": the switch_to_tab tool with that tab's id from <tabs>.

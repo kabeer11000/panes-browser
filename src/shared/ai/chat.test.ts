@@ -159,6 +159,7 @@ describe('tool arguments', () => {
       'search_on_site',
       'switch_to_tab',
       'find_in_page',
+      'filter_page',
       'scroll_page',
       'scroll_to',
       'media_control'

@@ -34,6 +34,7 @@ import type { AiSettings } from '@shared/ai/types'
 import type { DownloadInfo } from '@shared/types'
 import type { LocalSuggestion } from '@shared/search'
 import { displayHost } from '@shared/url'
+import { filterScript, type FilterResult } from '@shared/ai/pageFilter'
 import * as auto from './automation'
 import { bytesText, fileText } from './docText'
 
@@ -549,6 +550,27 @@ async function run(
       if (!t?.wc) return finish('error', 'Not loaded', 'Error: the tab could not be loaded.')
       await auto.scroll(t.wc, v.direction)
       return finish('done', v.direction, await auto.look(t.wc, lookCap))
+    }
+    case 'filter_page': {
+      const t = await liveTab(env, v.tabId)
+      if (!t?.wc) return finish('error', 'Not loaded', 'Error: the tab could not be loaded.')
+      const r = (await t.wc.executeJavaScript(
+        filterScript({ keep: v.keep, hide: v.hide, reset: v.reset }),
+        true
+      )) as FilterResult
+      if (v.reset) return finish('done', `Everything shown on ${label(t)}`, 'Every item shows again.')
+      if (!r.items)
+        return finish(
+          'error',
+          'No list found',
+          'Error: this page has no list of items to filter. Try find_in_page or scroll_to instead.'
+        )
+      const what = [...v.keep.map((k) => `with "${k}"`), ...v.hide.map((h) => `no "${h}"`)].join(', ')
+      return finish(
+        'done',
+        short(`${r.items - r.hidden} of ${r.items} shown: ${what}`, 60),
+        `Showing ${r.items - r.hidden} of ${r.items} items (${what}). filter_page with reset true shows all again.`
+      )
     }
     case 'scroll_to': {
       const t = await liveTab(env, v.tabId)

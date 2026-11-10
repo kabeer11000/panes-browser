@@ -129,6 +129,7 @@ const VERB: Record<ToolName, [one: string, many: string]> = {
   switch_to_tab: ['Switched tab', 'Switched tabs {n} times'],
   close_tabs: ['Closed tabs', 'Closed tabs'],
   find_in_page: ['Searched a page', 'Searched pages {n} times'],
+  filter_page: ['Filtered a page', 'Filtered pages {n} times'],
   list_downloads: ['Looked at your downloads', 'Looked at your downloads'],
   read_download: ['Read a downloaded file', 'Read {n} downloaded files'],
   search_web: ['Searched the web', 'Searched the web {n} times'],
