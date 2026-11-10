@@ -330,8 +330,16 @@ export function registerCanvas(d: {
   let boards = 0
   // the interface reloaded (or crashed) with a board up: that board never says it closed
   d.win.webContents.on('did-start-loading', () => {
+    if (boards === 0) return // none up (or the first load, which may come back to the board)
     boards = 0
     d.tabs.setCanvasMode(false)
+  })
+  // a session restored onto the board that never shows one (it is turned off, say): back to the tabs, a while after
+  // the interface has loaded (counting from start would give up while a slow first load is still going)
+  d.win.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      if (boards === 0 && d.tabs.inCanvas()) d.tabs.setCanvasMode(false)
+    }, 8000).unref()
   })
   ipcMain.on('canvas:open', (e, spaceId: unknown) => {
     if (!mine(e)) return
@@ -357,7 +365,12 @@ export function registerCanvas(d: {
     if (!mine(e)) return
     svc.inView(num(spaceId), [])
     boards = Math.max(0, boards - 1)
-    d.tabs.setCanvasMode(boards > 0)
+    // a board closing and another (or the same, remounted) opening at once is not leaving the board: wait a moment
+    // before the tab view comes back, or its tab would load for nothing
+    if (boards === 0)
+      setTimeout(() => {
+        if (boards === 0) d.tabs.setCanvasMode(false)
+      }, 150)
     svc.cacheThumbs(num(spaceId))
   })
   ipcMain.handle('canvas:cluster', (e, spaceId: unknown) =>

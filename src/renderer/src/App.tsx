@@ -320,6 +320,13 @@ function App(): React.JSX.Element {
     [setMode, commitStack]
   )
 
+  // closed on the board: the board again, straight away
+  useEffect(() => {
+    void window.api.getState().then((d) => {
+      if (d.canvas && modeRef.current === null) void openOverlay('canvas')
+    })
+  }, [openOverlay])
+
   const toggleCanvas = useCallback(() => {
     if (modeRef.current === 'canvas') window.dispatchEvent(new Event('panes:canvas-exit'))
     else if (modeRef.current === null) void openOverlay('canvas')

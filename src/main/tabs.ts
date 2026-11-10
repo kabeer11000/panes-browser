@@ -355,6 +355,8 @@ export class TabManager {
     }>
     active: number
     groups?: Array<TabGroup & { spaceId: number }>
+    /** The canvas board was up when it was saved. */
+    canvas?: boolean
     /** Per space: its split view and the tab it was on, tabs by their place in `tabs`. */
     spaces?: Array<{ spaceId: number; active: number | null; layout: LayoutNode | null }>
   }>('session-v2', { tabs: [], active: 0 })
@@ -414,8 +416,11 @@ export class TabManager {
   initialData(): InitialData {
     const thumbs: Record<number, string> = {}
     for (const [id, t] of this.tabs) if (t.thumb) thumbs[id] = t.thumb
-    return { state: this.state(), thumbs }
+    return { state: this.state(), thumbs, canvas: this.startCanvas }
   }
+
+  /** The session was saved with the board up: it comes back on the board (see restoreOrNew), until it is left. */
+  private startCanvas = false
 
   private state(): TabsState {
     // Every space's tabs, not only this one's: the space avatars carry what waits in the others.
@@ -1116,6 +1121,11 @@ export class TabManager {
         const on = inSpace(sp.active, sp.spaceId)
         if (on !== null && sp.spaceId !== this.activeSpaceId) this.lastActive.set(sp.spaceId, on)
       }
+      // closed on the board: open on it, and the tab view's tab is not loaded for a view nobody sees
+      if (saved.canvas) {
+        this.startCanvas = true
+        this.setCanvasMode(true)
+      }
       const own = ids.filter((id) => this.tabs.get(id)?.spaceId === this.activeSpaceId)
       const pick = ids[Math.min(saved.active, ids.length - 1)]
       this.activate(own.includes(pick) ? pick : (own[0] ?? this.create()))
@@ -1174,7 +1184,7 @@ export class TabManager {
         layout: layout ? remapLayout(layout, (id) => at.get(id) ?? null) : null
       }
     })
-    this.sessionStore.value = { tabs, active, groups, spaces }
+    this.sessionStore.value = { tabs, active, groups, spaces, canvas: this.canvasMode }
     this.sessionStore.save()
   }
 
@@ -2232,6 +2242,7 @@ export class TabManager {
     if (this.canvasMode === open) return
     this.canvasMode = open
     if (!open) {
+      this.startCanvas = false
       this.setLive(null) // its page goes back to being throttled, like any hidden one
       this.setCompanions([])
       this.setPreview(false, null)

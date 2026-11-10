@@ -418,6 +418,8 @@ export interface OpenItem {
 export interface InitialData {
   state: TabsState
   thumbs: Record<number, string>
+  /** Panes was closed on the canvas board: the interface opens it again at once (asked once, at start). */
+  canvas?: boolean
 }
 
 export type SearchEngineId = 'duckduckgo' | 'google' | 'bing' | 'brave'
