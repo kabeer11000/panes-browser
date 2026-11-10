@@ -3884,8 +3884,9 @@ kbd {
   outline-offset: 1px;
 }
 
-/* ---- top tab sizes: the tab you are on is the widest, the others share what is left, as in Edge and Chrome.
-   A width depends only on whether a tab is active and how many there are, never on a title. ---- */
+/* ---- top tab sizes: the tab you are on is a little wider, the others share what is left, as in Edge and Chrome.
+   A width depends only on whether a tab is active and how many there are, never on a title. The change is small
+   and eases out plainly (no overshoot-like settle): the strip should not seem to breathe on every switch. ---- */
 .htab {
   flex: 0 1 150px;
   width: 150px;
@@ -3895,19 +3896,19 @@ kbd {
     background var(--dur-fast),
     color var(--dur-fast),
     translate var(--dur) var(--ease),
-    flex-basis var(--dur) var(--ease),
-    width var(--dur) var(--ease);
+    flex-basis var(--dur-fast) ease-out,
+    width var(--dur-fast) ease-out;
 }
 .htab.active {
-  flex-basis: 232px;
-  width: 232px;
-  max-width: 232px;
-  min-width: 128px;
+  flex-basis: 176px;
+  width: 176px;
+  max-width: 176px;
+  min-width: 112px;
 }
 .htab.in-split.pair-active {
-  flex-basis: 188px;
-  width: 188px;
-  max-width: 188px;
+  flex-basis: 164px;
+  width: 164px;
+  max-width: 164px;
   min-width: 96px;
 }
 .htab.floating {
