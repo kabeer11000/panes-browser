@@ -2005,6 +2005,9 @@ export function Canvas({
     return { x: (sx - v.x) / v.k, y: (sy - v.y) / v.k, sx, sy }
   }
 
+  /** When a card's edge was last clicked (it fits the card at once): the card shrinks from under the pointer, so
+   * the second click of a double click lands on the board and must not count as a double click there. */
+  const edgeClickAt = useRef(-Infinity)
   const onDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
     if (phaseRef.current !== 'open' || e.button === 2) return
     // the board may have moved without resizing (top bar, sidebar): once per gesture, before anything moves
@@ -2733,6 +2736,7 @@ export function Canvas({
       const box = g.box
       // a click on the edge, not a drag: the card takes its natural size (a video its video's shape)
       if (Math.hypot(e.clientX - g.sx, e.clientY - g.sy) < DRAG_PX) {
+        edgeClickAt.current = e.timeStamp
         fitCardSize(g.id)
         setSel(new Set([`c:${g.id}`]))
       } else if (!edit((s) => resizeCard(s, g.id, box), { undo: 'Resized a card' }) && g.el) {
@@ -4856,6 +4860,7 @@ export function Canvas({
       onPointerLeave={() => conn.current?.hover(null)}
       onDoubleClick={(e) => {
         const t = e.target as HTMLElement
+        if (e.timeStamp - edgeClickAt.current < 600) return // the edge's own double click (fitted already)
         const crz = t.closest<HTMLElement>('[data-crz]')
         if (crz?.dataset.crzc) {
           const cid = Number(crz.dataset.crzc)
