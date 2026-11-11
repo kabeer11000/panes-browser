@@ -3420,7 +3420,7 @@ export function Canvas({
       }
       if (lines.length) context.push(`Cards you have selected on the board:\n${lines.join('\n')}`)
       context.push(
-        'Use the above only to look things up. Answer the question itself, briefly, talking to the person as "you". Do not describe, list or count the board or the tabs unless that is what was asked.'
+        'The above is only for questions about the board or the tabs; any other question, answer from what you know. Answer the question itself, briefly, talking to the person as "you". Do not describe, list or count the board or the tabs unless that is what was asked.'
       )
       return context.join('\n\n')
     }
