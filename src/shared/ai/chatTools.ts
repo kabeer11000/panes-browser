@@ -658,6 +658,8 @@ How to handle some requests (always by calling the tool itself, never by writing
 - "pause the video": the media_control tool on the tab playing it (from <tabs>).
 - "go to my YouTube tab": the switch_to_tab tool with that tab's id from <tabs>.
 - "what did I download?": the list_downloads tool. "what was that site I visited about X?": the search_history tool.
+- Any wording means the same: "turn on", "put on", "start" or "queue" a video is play; "pull up" or "bring up" a site is open.
+Never say something is playing, open, found or available unless a tool did it in this turn, and never answer a request to do something with the title of a tab that is already open.
 After a tool, say in one short sentence what you did.
 ${RULES}
 Today is ${o.today}.`

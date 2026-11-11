@@ -33,3 +33,21 @@ export function cleanLead(text: string): { text: string; open: boolean } {
   if (s.length < 200 && META_START.test(s)) return { text: s, open: true }
   return { text: s, open: false }
 }
+
+const ACTION =
+  /^(?:open|play|watch|listen\s+to|put\s+on|turn\s+(?:on|off|up|down)|switch\s+(?:on|off|to)|start|stream|queue|go\s+to|go\s+back|take\s+me|navigate|launch|visit|close|scroll|pause|resume|unpause|stop|mute|unmute|skip|click|press|type|search|look\s+up|pull\s+up|bring\s+up|download|tidy|arrange|group|connect|rename|hide|filter)\b/i
+
+/**
+ * Whether a message asks the browser to do something (open, play, scroll, close...), as opposed to asking a
+ * question or for writing. A small model that answers such a request without calling any tool has done nothing,
+ * so whatever it says it did (or found) is made up and must not be shown.
+ */
+export function asksAction(text: string): boolean {
+  const t = text.replace(/\s+/g, ' ').trim()
+  if (!t || t.endsWith('?')) return false
+  const s = t.replace(
+    /^(?:(?:hey|hi|ok|okay)[,\s]+)?(?:(?:can|could|would|will)\s+you\s+|please\s+|pls\s+|plz\s+|now\s+|just\s+)*/i,
+    ''
+  )
+  return ACTION.test(s)
+}

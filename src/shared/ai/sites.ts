@@ -271,12 +271,13 @@ export type QuickAction =
 
 /** Sites where "play X" means a page that plays it, not a page of results. */
 const MEDIA = new Set(['youtube', 'youtube-music', 'spotify', 'soundcloud', 'twitch', 'tiktok'])
-const PLAY = /^(?:play|watch|listen\s+to|put\s+on)\b/i
+const PLAY_WORDS = String.raw`play|watch|listen\s+to|put\s+on|turn\s+on|switch\s+on|start|stream|queue(?:\s+up)?|throw\s+on|fire\s+up`
+const PLAY = new RegExp(String.raw`^(?:${PLAY_WORDS})\b`, 'i')
 
 export const POLITE =
   /^(?:(?:hey|hi|ok|okay)[,\s]+)?(?:(?:can|could|would|will)\s+you\s+|please\s+|pls\s+|plz\s+|i\s+want\s+to\s+|i'?d\s+like\s+to\s+|let'?s\s+)*/i
 export const TAIL = /[\s.!?]*(?:\s+(?:please|pls|plz|for\s+me|thanks|thank\s+you))*[\s.!?]*$/i
-const VERB = String.raw`(?:search(?:\s+for)?|look\s+up|look\s+for|find(?:\s+me)?|show(?:\s+me)?|play|watch|listen\s+to|put\s+on|pull\s+up|bring\s+up|get(?:\s+me)?)`
+const VERB = String.raw`(?:search(?:\s+for)?|look\s+up|look\s+for|find(?:\s+me)?|show(?:\s+me)?|${PLAY_WORDS}|pull\s+up|bring\s+up|get(?:\s+me)?)`
 const OPEN = String.raw`(?:open(?:\s+up)?|go\s+to|goto|launch|take\s+me\s+to|visit|navigate\s+to)`
 
 const clean = (s: string): string =>

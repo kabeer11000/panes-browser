@@ -40,7 +40,13 @@ describe('quick commands', () => {
     expect(a && 'url' in a ? a.url : '').toBe(yt)
   })
   test('play and watch play the thing, the search page kept as the fallback', () => {
-    for (const text of ['play piano covers on youtube', 'watch piano covers on yt']) {
+    for (const text of [
+      'play piano covers on youtube',
+      'watch piano covers on yt',
+      'turn on piano covers on youtube',
+      'can you start piano covers on youtube',
+      'queue up piano covers on youtube'
+    ]) {
       const a = quickAction(text)
       expect(a?.kind).toBe('play')
       expect(a?.url).toBe(yt)

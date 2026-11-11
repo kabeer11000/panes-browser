@@ -32,7 +32,7 @@ import {
   tabsBlock,
   type ToolInput
 } from '@shared/ai/chatTools'
-import { cleanLead } from '@shared/ai/replyLead'
+import { asksAction, cleanLead } from '@shared/ai/replyLead'
 import { assemblePrompt, promptMessages, type PromptPage } from '@shared/ai/chatPrompt'
 import {
   describeChatError,
@@ -616,9 +616,16 @@ export class ChatService {
       // back while it could still be one; a whole reply that is one is carried out, anything else shown as it was.
       let held = ''
       let holding = weak
+      // asked to do something: a small model's reply is held whole, since without a tool call it did nothing and
+      // whatever it says it did is made up
+      const mustAct = weak && asksAction(asked)
       const names = Object.keys(tools)
       for await (const part of result.fullStream) {
         if (part.type === 'text-delta') {
+          if (mustAct) {
+            held += part.text
+            continue
+          }
           if (holding) {
             held += part.text
             if (couldBeCall(held, names)) continue
@@ -683,7 +690,12 @@ export class ChatService {
               else if (part.type === 'error') throw part.error
             }
           }
-        } else emit({ kind: 'text', text: held })
+        } else if (mustAct && !(await result.steps).some((s) => s.toolCalls.length > 0))
+          emit({
+            kind: 'text',
+            text: 'I could not do that. Try saying it another way, like “play lofi on YouTube” or “open github”.'
+          })
+        else emit({ kind: 'text', text: held })
         said = true
       }
       if (target === 'chatgpt') this.d.signin.limited = false

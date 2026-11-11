@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { cleanLead } from './replyLead'
+import { asksAction, cleanLead } from './replyLead'
 
 describe('cleanLead', () => {
   test('drops a sentence narrating the request at the start', () => {
@@ -31,5 +31,30 @@ describe('cleanLead', () => {
       'The page says the user manual is outdated.'
     )
     expect(cleanLead('Thanks! Here it is.').open).toBe(false)
+  })
+})
+
+describe('asksAction', () => {
+  test('requests to do something in the browser', () => {
+    for (const t of [
+      'turn on gta 4 videos on youtube',
+      'can you open github',
+      'please pause the video',
+      'scroll down',
+      'close my reddit tabs',
+      'go to my youtube tab'
+    ])
+      expect(asksAction(t)).toBe(true)
+  })
+  test('questions, writing and general requests are not', () => {
+    for (const t of [
+      'what is the capital of japan?',
+      'write a haiku about rain',
+      'explain recursion in one sentence',
+      'summarize this page',
+      'what tabs do I have',
+      'can you open github?'
+    ])
+      expect(asksAction(t)).toBe(false)
   })
 })
