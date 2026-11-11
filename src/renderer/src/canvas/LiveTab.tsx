@@ -10,8 +10,12 @@ import {
 } from '@shared/ai/tabStream'
 
 const FPS = streamFps(streamCap(navigator))
-/** How often the video's place in the page is asked again (theatre mode, scrolling). */
+/** How often the video's place in the page is asked again (theatre mode, scrolling): often at first and after
+ * it moved, less once it has stayed put a while (each ask runs a script in the page). */
 const REGION_MS = 1000
+const REGION_SLOW_MS = 2500
+/** Unchanged answers in a row before the asking slows down. */
+const STEADY = 4
 const SIDES = ['x', 'y', 'w', 'h'] as const
 
 function stop(s: MediaStream): void {
@@ -76,6 +80,9 @@ export function LiveTab({
   const startedAt = useRef(Infinity)
   const fitRef = useRef<ReturnType<typeof fitRegion> | null>(null)
   const onStillRef = useRef(onStill)
+  /** Ask the page where its video is now (set by the asking effect; the stream calls it the moment it starts). */
+  const askNow = useRef<() => void>(() => undefined)
+  const lastRegion = useRef<VideoRegion | null>(null)
   useEffect(() => {
     onStillRef.current = onStill
   })
@@ -84,8 +91,11 @@ export function LiveTab({
   useEffect(() => {
     if (whole) return // the whole page: nothing to look for
     let dead = false
+    let steady = 0
+    let timer = 0
     const ask = (): void => {
       const askedAt = performance.now()
+      window.clearTimeout(timer)
       // optional: a renderer hot-reloaded over an older preload has no such call
       void window.api.canvas
         .videoRegion?.(id)
@@ -93,27 +103,37 @@ export function LiveTab({
           if (dead) return
           if (r && askedAt >= startedAt.current) setFreshRegion(true)
           // keep the same object when nothing moved, so the layout does not churn
-          setRegion((was) =>
-            r &&
-            was &&
+          const was = lastRegion.current
+          const same =
+            !!r &&
+            !!was &&
             SIDES.every((k) => Math.abs(r[k] - was[k]) < 0.002) &&
             Math.abs((r.pageAspect ?? 0) - (was.pageAspect ?? 0)) < 0.002
-              ? was
-              : r
-          )
+          steady = same ? steady + 1 : 0
+          if (!same) {
+            lastRegion.current = r
+            setRegion(r)
+          }
         })
         .catch(() => undefined)
+        .finally(() => {
+          if (dead) return
+          window.clearTimeout(timer)
+          timer = window.setTimeout(ask, steady >= STEADY ? REGION_SLOW_MS : REGION_MS)
+        })
+    }
+    askNow.current = () => {
+      steady = 0
+      ask()
     }
     ask()
-    // Ask again shortly after streaming begins in case main resized the hidden tab view, reflowing the player.
-    const t1 = window.setTimeout(ask, 280)
-    const t2 = window.setTimeout(ask, 950)
-    const timer = window.setInterval(ask, REGION_MS)
+    // and once more shortly after streaming begins, in case main resized the hidden tab view, reflowing the player
+    const t1 = window.setTimeout(() => askNow.current(), 300)
     return () => {
       dead = true
+      askNow.current = () => undefined
       window.clearTimeout(t1)
-      window.clearTimeout(t2)
-      window.clearInterval(timer)
+      window.clearTimeout(timer)
     }
   }, [id, whole])
 
@@ -158,6 +178,8 @@ export function LiveTab({
       s.getVideoTracks()[0]?.addEventListener('ended', () => setHasFrame(false))
       v.srcObject = s
       void v.play().catch(() => undefined)
+      // where the video is, asked now that the stream runs: it shows as soon as both are in, not at the next tick
+      askNow.current()
     })().catch(() => undefined)
     return () => {
       dead = true
@@ -203,6 +225,7 @@ export function LiveTab({
           onLoadedData={(e) => {
             updateAspect(e.currentTarget)
             setHasFrame(true)
+            if (!freshRegion) askNow.current()
           }}
           onPlaying={(e) => {
             updateAspect(e.currentTarget)

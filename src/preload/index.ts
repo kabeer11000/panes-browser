@@ -159,6 +159,7 @@ const api: PanesApi = {
     toolResult: (id, text) => ipcRenderer.send('canvas:tool-result', id, text),
     onNew: (cb) => subscribe<[]>('canvas:new', cb),
     onShowTab: (cb) => subscribe<[number]>('canvas:show-tab', cb),
+    onStill: (cb) => subscribe<[number, string]>('canvas:still', cb),
     onLinkOpened: (cb) => subscribe<[number, number]>('canvas:link-opened', cb)
   },
   openInSplit: (input) => ipcRenderer.send('tabs:open-in-split', input),

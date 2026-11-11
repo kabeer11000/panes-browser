@@ -766,6 +766,15 @@
 .cv-media:focus-within {
   opacity: 1;
 }
+/* over a video (its poster, or the tab live on the card) nothing sits on the picture until the pointer comes: the
+   sound and play controls and the new-message badge wait for a hover (a call, the camera and the mic still show) */
+.cv-card:is(.k-video, :has(> .cv-live.on)):not(:hover, :focus-within) :is(.cv-media, .cv-attn) {
+  opacity: 0;
+  pointer-events: none;
+}
+.cv-attn {
+  transition: opacity var(--dur-fast);
+}
 .cv-mbtn {
   display: grid;
   place-items: center;
@@ -4027,8 +4036,12 @@
 /* pills that square off a little under the finger */
 .cv-w-btn {
   flex: 1;
+  min-width: 0;
   border: 0;
   padding: 7px 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   border-radius: 999px;
   background: color-mix(in srgb, var(--fg) 8%, transparent);
   font-weight: 600 !important;

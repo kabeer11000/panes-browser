@@ -274,10 +274,18 @@ const PlusGlyph = (): React.JSX.Element => (
  * where it is; nothing opens.
  */
 function MediaControls({ m }: { m: CardModel }): React.JSX.Element {
-  // what the page said last, until the tab's own state catches up (main asks the page what plays)
+  // What the page answered to the last click, until the tab's own state (main asks the page what plays) moves:
+  // any change of that is the truth from then on, so a pause made in the page itself is never hidden by an old
+  // click. The answer also lapses after a moment, in case main's state never moves.
   const now = !!(m.playing ?? m.audible)
-  const [said, setSaid] = useState<{ was: boolean; paused: boolean } | null>(null)
-  const playing = said && said.was === now ? !said.paused : now
+  const [said, setSaid] = useState<{ paused: boolean; n: number } | null>(null)
+  const [seen, setSeen] = useState(now)
+  if (seen !== now) {
+    setSeen(now)
+    setSaid(null)
+  }
+  const clicks = useRef(0)
+  const playing = said ? !said.paused : now
   return (
     <span className={'cv-media' + (m.audible || m.muted || m.playing ? ' on' : '')}>
       <button
@@ -289,7 +297,12 @@ function MediaControls({ m }: { m: CardModel }): React.JSX.Element {
           e.stopPropagation()
           void window.api
             .mediaPlay?.(m.id, playing ? 'pause' : 'play')
-            .then((r) => r && setSaid({ was: now, paused: r.paused }))
+            .then((r) => {
+              if (!r) return
+              const n = ++clicks.current
+              setSaid({ paused: r.paused, n })
+              window.setTimeout(() => setSaid((x) => (x?.n === n ? null : x)), 3000)
+            })
             .catch(() => undefined)
         }}
       >
@@ -389,9 +402,7 @@ export const CardView = memo(
             ))}
             <div className="cv-badges">
               <CallBadge call={m.ringing ? 'ringing' : null} />
-              <CaptureBadge
-                capture={{ camera: !!m.camera, mic: !!m.mic, screen: !!m.screen }}
-              />
+              <CaptureBadge capture={{ camera: !!m.camera, mic: !!m.mic, screen: !!m.screen }} />
               {m.attnNew && !m.ringing && (
                 <span
                   className="cv-attn"

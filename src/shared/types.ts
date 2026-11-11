@@ -358,6 +358,8 @@ export interface PanesApi {
     onNew(cb: () => void): () => void
     /** The assistant opened a tab for the person while the board is up: show its card in the preview, live. */
     onShowTab(cb: (tabId: number) => void): () => void
+    /** A playing video's frame, taken as its tab left the screen: the card's picture until its stream comes in. */
+    onStill(cb: (tabId: number, src: string) => void): () => void
     /** A page on the board opened a link in a new tab: `from` is the page, `tabId` the new tab (behind the board). */
     onLinkOpened(cb: (from: number, tabId: number) => void): () => void
   }

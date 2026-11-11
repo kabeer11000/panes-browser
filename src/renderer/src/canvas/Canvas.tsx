@@ -586,6 +586,8 @@ export function Canvas({
     const url = tabsRef.current.find((t) => t.id === id)?.url ?? ''
     setStills((prev) => ({ ...prev, [id]: { url, src } }))
   }, [])
+  // main's frame of a video as its tab left the screen (switching to the board, closing the preview)
+  useEffect(() => window.api.canvas.onStill?.(onStill), [onStill])
   // Playing tabs play live on their cards (tab streams): on screen only, capped, never the tab open in the preview
   // (its real page shows there), none zoomed out. Main keeps exactly these pages painting. A paused one keeps the
   // last frame it streamed (stills).
@@ -2320,7 +2322,8 @@ export function Canvas({
       const key = `${what[0]}:${id}`
       const inSplit = what === 'card' && splitRef.current.includes(Number(id))
       // a thing in a selection of several takes all of it along: cards, notes, drawings, moved as one
-      const bulk = selRef.current.has(key) && selRef.current.size > 1 && !inSplit && what !== 'frame'
+      const bulk =
+        selRef.current.has(key) && selRef.current.size > 1 && !inSplit && what !== 'frame'
       const picked = (p: string): string[] =>
         [...selRef.current].filter((k) => k[0] === p).map((k) => k.slice(2))
       const group = bulk
@@ -2832,11 +2835,7 @@ export function Canvas({
       const count =
         g.cards.length + extraNotes.length + extraMarks.length + (g.what === 'note' ? 1 : 0)
       const movedLabel =
-        count > 1
-          ? `Moved ${count} things`
-          : g.what === 'note'
-            ? 'Moved a note'
-            : 'Moved a card'
+        count > 1 ? `Moved ${count} things` : g.what === 'note' ? 'Moved a note' : 'Moved a card'
       conn.current?.drag(null)
       let changed: boolean
       root.current?.querySelectorAll('.split-into').forEach((n) => n.classList.remove('split-into'))
@@ -2882,7 +2881,12 @@ export function Canvas({
         })
       else
         changed = edit(
-          (s) => alsoMoved(g.cards.length ? dropCards(dropNote(s, g.id, dx, dy), g.cards, dx, dy, w) : dropNote(s, g.id, dx, dy)),
+          (s) =>
+            alsoMoved(
+              g.cards.length
+                ? dropCards(dropNote(s, g.id, dx, dy), g.cards, dx, dy, w)
+                : dropNote(s, g.id, dx, dy)
+            ),
           { undo: movedLabel }
         )
       // drawings were moved by translate, not by the board's own re-layout: let them go
@@ -4053,7 +4057,10 @@ export function Canvas({
         setNewAt(null)
         reveal(cardBox(card))
         setSel(new Set([`c:${card.id}`]))
-        window.setTimeout(() => pulse(root.current?.querySelector(`[data-cid="${card.id}"]`) ?? null), 380)
+        window.setTimeout(
+          () => pulse(root.current?.querySelector(`[data-cid="${card.id}"]`) ?? null),
+          380
+        )
         toastNow(
           'Already on your board',
           () => {
@@ -4556,7 +4563,10 @@ export function Canvas({
             const v = act.slice(6)
             onFrameColor(f.id, v === 'none' ? null : Number(v))
           } else if (act === 'tidy')
-            edit((s1) => regridFrame(s1, f.id, !!f.sized), { flip: true, undo: 'Arranged a section' })
+            edit((s1) => regridFrame(s1, f.id, !!f.sized), {
+              flip: true,
+              undo: 'Arranged a section'
+            })
           else if (act === 'shrink')
             edit((s1) => unsizeFrame(s1, f.id), { flip: true, undo: 'Fitted a section' })
           else if (act === 'ungroup')
@@ -4580,7 +4590,11 @@ export function Canvas({
       (act) => {
         if (act === 'page') askNew(at.x, at.y)
         else if (act === 'note') {
-          const made = addNote(stRef.current!, { x: w.x - 92, y: w.y - 66 }, stRef.current!.notes.length)
+          const made = addNote(
+            stRef.current!,
+            { x: w.x - 92, y: w.y - 66 },
+            stRef.current!.notes.length
+          )
           edit(() => made.state, { undo: 'Added a note' })
           setSel(new Set([`n:${made.id}`]))
           setEditing(made.id)
@@ -4651,7 +4665,11 @@ export function Canvas({
         also: 'sticky',
         keys: 'S',
         run: () => {
-          const r = addNote(stRef.current!, { x: mid.x - 92, y: mid.y - 66 }, stRef.current!.notes.length)
+          const r = addNote(
+            stRef.current!,
+            { x: mid.x - 92, y: mid.y - 66 },
+            stRef.current!.notes.length
+          )
           edit(() => r.state, { undo: 'Added a note' })
           setSel(new Set([`n:${r.id}`]))
           setEditing(r.id)

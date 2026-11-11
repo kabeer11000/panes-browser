@@ -2184,6 +2184,8 @@ export class TabManager {
     const changed = prevId !== id
     this.liveId = id
     this.liveRect = id !== null && rect ? rect : null
+    // a video watched in the preview leaves it: its card takes the frame it was on
+    if (prevId !== null && prevId !== id && this.canvasMode) this.grabStill(prevId)
     if (
       prevId !== null &&
       prevId !== id &&
@@ -2316,6 +2318,8 @@ export class TabManager {
   /** Canvas mode opened or closed (see main/ai/canvas.ts). */
   setCanvasMode(open: boolean): void {
     if (this.canvasMode === open) return
+    // the video being watched, as it is this moment: its card shows this frame until its stream comes in
+    if (open && this.activeId !== null) this.grabStill(this.activeId)
     this.canvasMode = open
     if (!open) {
       this.startCanvas = false
@@ -2376,6 +2380,40 @@ export class TabManager {
   }
 
   /** Where the playing video is in a streaming tab's page (null: none, so its card keeps its picture). */
+  /**
+   * The frame a playing video is on now, cut to the video, sent to the board as that card's picture
+   * (`canvas:still`), so a card never shows an old poster while its live stream starts. Taken as the tab leaves the
+   * screen (capturePage still draws a page that has just been hidden). Only a page whose media plays.
+   */
+  private grabStill(id: number): void {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (!t || !wc || !t.media || t.private || t.tor || t.unloaded) return
+    const b = t.view.getBounds()
+    if (b.width < 50 || b.height < 50) return
+    const size = { w: b.width, h: b.height }
+    void this.videoRegion(id)
+      .then(async (r) => {
+        if (!r || wc.isDestroyed()) return
+        const rect = {
+          x: Math.max(0, Math.round(r.x * size.w)),
+          y: Math.max(0, Math.round(r.y * size.h)),
+          width: Math.round(r.w * size.w),
+          height: Math.round(r.h * size.h)
+        }
+        if (rect.width < 40 || rect.height < 40) return
+        const img = await wc.capturePage(rect)
+        if (img.isEmpty() || wc.isDestroyed()) return
+        const small = img.getSize().width > 640 ? img.resize({ width: 640, quality: 'good' }) : img
+        this.send(
+          'canvas:still',
+          id,
+          `data:image/jpeg;base64,${small.toJPEG(82).toString('base64')}`
+        )
+      })
+      .catch(() => undefined)
+  }
+
   async videoRegion(id: number): Promise<VideoRegion | null> {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
