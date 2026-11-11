@@ -317,3 +317,38 @@ Done and checked in a scratch dev instance (CDP + main-process inspector), tests
 - [x] Canvas CSS hover/fade durations use --dur-fast (reduced motion respected).
 
 Not verified: a real video call (needs camera permission), packaged build on a clean machine, the user's own profile.
+
+# Panes PDF viewer (everywhere, all features) - plan 2026-11-11
+
+On hold (2026-11-11): for now the browser's own viewer is used everywhere, the canvas included; Panes' reader is
+switched off with OWN_PDF_VIEWER in canvas/Expanded.tsx. pdf.js still draws PDF cards' first page.
+
+Goal: every PDF, in tab view and on the canvas board, opens in Panes' own viewer (`panes://pdf`), built on the
+pdf.js viewer components already installed (`pdfjs-dist/web/pdf_viewer.mjs`). Chromium's viewer is no longer used.
+Fixes: the flash (Chromium's viewer, then ours) and the flaky Ctrl+F in live PDFs.
+
+## Phase 1: the viewer page
+- [ ] New internal page `panes://pdf?src=<url>` (renderer entry like the other internal pages), pdf.js PDFViewer:
+      only visible pages rendered, text layer (select, copy), links (internal jumps and web links), fit width / fit
+      page / zoom, go to page, page count. Bytes served by main through the tab's own session (cookies, logins).
+- [ ] Remembers your place per document (moves the existing store in main/pdf.ts over).
+## Phase 2: every PDF goes there
+- [ ] Turn Chromium's PDF plugin off; a PDF navigation then arrives as a download: when it is the page itself
+      (not a link marked download), cancel it and open `panes://pdf` in that tab instead. Same for `file://` PDFs.
+      Decision logic in src/shared (pure, tested): mime, disposition, extension, main frame or not.
+- [ ] Back and forward, reload, the address bar (shows the PDF's real address), history, bookmarks all use the
+      real address, not panes://pdf.
+- [ ] Canvas: PDF cards open this viewer live in the preview; the old in-preview PdfReader goes (one viewer).
+      Card pictures (first page) stay as they are.
+## Phase 3: one find everywhere
+- [ ] Ctrl+F opens Panes' own find bar for every page; on a PDF it searches through pdf.js (highlights, match
+      count, next/previous, case) instead of Chromium's find. Same in tab view, split view and the canvas preview.
+- [ ] Check find on: web pages, PDFs, the canvas reader view of articles, split panes, after reload.
+## Phase 4: navigation and tools
+- [ ] Sidebar: page thumbnails and the document's outline (chapters), toggled from the toolbar.
+- [ ] Rotate, download (the original, or with your notes and form entries), print, dark mode (pages inverted).
+## Phase 5: forms and notes
+- [ ] Fill in forms; highlight text, free text and drawing (pdf.js annotation editors); save a copy with them.
+## Verification
+- [ ] Unit tests for the routing decision and the address mapping; CDP checks in a scratch instance for each
+      phase (web PDF, PDF behind a login, local file, PDF link marked download stays a download, find, canvas).
