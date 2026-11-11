@@ -981,20 +981,23 @@ function App(): React.JSX.Element {
             )}
           </AnimatePresence>
           <div className="stage">
-            <Panes
-              frozenBlur={settings.frozenBlur}
-              newTabPhoto={settings.newTabPhoto}
-              newTabPhotoId={settings.newTabPhotoId}
-              smartNewTab={settings.ai.enabled}
-              dither={settings.newTabDither ? { color: theme.color, color2: theme.color2 } : null}
-              tabs={tabs}
-              activeId={activeId}
-              layout={layout}
-              preview={preview}
-              thumbs={thumbs}
-              dragId={drag?.id ?? null}
-              onHeaderPointerDown={(e, id) => startDrag(e, id, 'pane')}
-            />
+            {/* not under the board: its snapshots, headers and focus ring would peek round the board's edges */}
+            {!board && (
+              <Panes
+                frozenBlur={settings.frozenBlur}
+                newTabPhoto={settings.newTabPhoto}
+                newTabPhotoId={settings.newTabPhotoId}
+                smartNewTab={settings.ai.enabled}
+                dither={settings.newTabDither ? { color: theme.color, color2: theme.color2 } : null}
+                tabs={tabs}
+                activeId={activeId}
+                layout={layout}
+                preview={preview}
+                thumbs={thumbs}
+                dragId={drag?.id ?? null}
+                onHeaderPointerDown={(e, id) => startDrag(e, id, 'pane')}
+              />
+            )}
             {drag && <DropIndicator drag={drag} />}
             {mode === 'stack' && effective.paneView === 'side' && (
               // the page stays in view beside the strip: a click anywhere on it leaves the view

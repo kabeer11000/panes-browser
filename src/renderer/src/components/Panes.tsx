@@ -116,6 +116,9 @@ export function Panes({
   useLayoutEffect(() => {
     const el = containerRef.current
     if (!el) return
+    // measured now, before the first paint: the observer's first report would leave a frame with no panes
+    const box = el.getBoundingClientRect()
+    setSize({ w: box.width, h: box.height })
     const ro = new ResizeObserver(([entry]) => {
       setSize({ w: entry.contentRect.width, h: entry.contentRect.height })
       setWindowResizing(true)
@@ -200,7 +203,8 @@ export function Panes({
       }
       ref={containerRef}
     >
-      <AnimatePresence>
+      {/* no fade on mount: Panes mounts again on leaving the canvas, and the page must be there at once */}
+      <AnimatePresence initial={false}>
         {frames &&
           [...frames.leaves].map(([id, frame]) => {
             const tab = byId.get(id)

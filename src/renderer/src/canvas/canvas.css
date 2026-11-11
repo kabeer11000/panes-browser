@@ -4,7 +4,7 @@
   inset: 0;
   overflow: hidden;
   border-radius: var(--radius-m);
-  /* opaque: the page's picture under the board (the stage keeps it) must not show through */
+  /* opaque: the window behind must not show through */
   background-color: var(--overlay-solid);
   color: var(--fg);
   user-select: none;
