@@ -1537,7 +1537,6 @@
   object-fit: cover;
   object-position: top left;
   display: block;
-  opacity: 0.9;
 }
 .cv-live-bar {
   position: absolute;

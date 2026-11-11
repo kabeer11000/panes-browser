@@ -643,7 +643,13 @@ export function Expanded({
   const body = useRef<HTMLDivElement>(null)
   const slot = useRef<HTMLDivElement>(null)
   const closing = useRef(false)
-  const [live, setLiveState] = useState<'off' | 'loading' | 'on'>('off')
+  // a card that opens live is live from its first frame (its header, its page's picture), never the reader first
+  const [live, setLiveState] = useState<'off' | 'loading' | 'on'>(() =>
+    startLive ||
+    ((m.kind === 'video' || (m.kind === 'pdf' && !OWN_PDF_VIEWER)) && (tab !== undefined || !!url))
+      ? 'loading'
+      : 'off'
+  )
   // the same, for callbacks that outlive a render (IPC answers, observers, timers)
   const liveRef = useRef(live)
   const setLive = (v: 'off' | 'loading' | 'on'): void => {
@@ -676,8 +682,9 @@ export function Expanded({
     if (pic) flushSync(() => setShot(pic))
     return !!pic
   }
-  // the address the page is at now (it moves on as the person browses in it), else the card's
-  const href = page?.url || url
+  // the address the page is at now (it moves on as the person browses in it), else the card's. A tab waking up
+  // passes through about:blank for a moment on its way back: the card's address stands in, so the header holds still.
+  const href = (page?.url && page.url !== 'about:blank' ? page.url : '') || url
   const caps = pageCaps(href, !!page && (page.private || page.tor))
   const canEditUrl = (m.kind === 'page' || m.kind === 'video') && (tab !== undefined || !!url)
   const editRef = useRef<() => void>(() => undefined)
@@ -859,7 +866,7 @@ export function Expanded({
   /** Show the live page. `to`: a tab just made for this card, not yet in its props. */
   const goLive = async (to?: number): Promise<void> => {
     autoLive.current = true
-    if (liveRef.current !== 'off' && to === undefined) return
+    if (liveRef.current === 'on' && to === undefined) return
     const req = ++liveReq.current
     liveRef.current = 'loading'
     flushSync(() => setLive('loading'))
@@ -927,17 +934,15 @@ export function Expanded({
   })
   useEffect(() => {
     if (autoLive.current || (!startLive && !(liveOnly && canLive))) return
-    // marked done only when it runs: a change meanwhile (the card's details settling) re-arms it, not cancels it
-    const t = window.setTimeout(
-      () => {
-        if (autoLive.current) return
-        autoLive.current = true
-        void goLiveRef.current()
-      },
-      reduced ? 0 : 420
-    )
+    // at once (goLive itself waits for the panel to be in place); marked done only when it runs, so a change
+    // meanwhile (the card's details settling) re-arms it rather than cancels it
+    const t = window.setTimeout(() => {
+      if (autoLive.current) return
+      autoLive.current = true
+      void goLiveRef.current()
+    }, 0)
     return () => window.clearTimeout(t)
-  }, [startLive, reduced, liveOnly, canLive])
+  }, [startLive, liveOnly, canLive])
   // a page with no article to read (an app, a map) is a snapshot in the reader: it opens live instead
   useEffect(() => {
     if (!articleEmpty || live !== 'off' || !canLive || autoLive.current) return
@@ -1113,7 +1118,7 @@ export function Expanded({
           <span className="cv-panel-icon" aria-hidden="true">
             <Favicon m={m} />
           </span>
-          {live === 'on' && (
+          {live !== 'off' && (
             <div className="cv-nav" role="group" aria-label="Page navigation">
               <button
                 type="button"
@@ -1154,7 +1159,7 @@ export function Expanded({
               )}
             </div>
           )}
-          {live === 'on' && caps.site && (
+          {live !== 'off' && caps.site && (
             <button
               type="button"
               ref={siteBtn}
@@ -1311,7 +1316,7 @@ export function Expanded({
                 {zoomLabel}
               </button>
             )}
-            {live === 'on' && (
+            {live !== 'off' && (
               <button
                 type="button"
                 className={'cv-hbtn' + (findKey !== null ? ' on' : '')}
