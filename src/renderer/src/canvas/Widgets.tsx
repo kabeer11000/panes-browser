@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { CanvasNote } from '@shared/ai/canvas'
 import {
   clock,
@@ -14,6 +14,7 @@ import {
   timerLeft,
   toggle,
   tomorrowMorning,
+  whenLabel,
   WIDGET_LABEL,
   type ReminderWidget,
   type StopwatchWidget,
@@ -232,9 +233,10 @@ function Timer({
               type="button"
               className={'cv-w-chip' + (w.total === m * 60_000 ? ' on' : '')}
               {...own}
+              aria-label={`${m} minutes`}
               onClick={() => change((x) => setTotal(x as TimerWidget, m * 60_000))}
             >
-              {m} min
+              {m}m
             </button>
           ))
         ) : (
@@ -252,19 +254,20 @@ function Timer({
         >
           {due ? 'Dismiss' : w.since !== null ? 'Pause' : fresh ? 'Start' : 'Resume'}
         </button>
-        <button
-          type="button"
-          className="cv-w-btn"
-          disabled={fresh}
-          {...own}
-          onClick={() =>
-            change((x) =>
-              due ? toggle(reset(x as TimerWidget), Date.now()) : reset(x as TimerWidget)
-            )
-          }
-        >
-          {due ? 'Again' : 'Reset'}
-        </button>
+        {!fresh && (
+          <button
+            type="button"
+            className="cv-w-btn"
+            {...own}
+            onClick={() =>
+              change((x) =>
+                due ? toggle(reset(x as TimerWidget), Date.now()) : reset(x as TimerWidget)
+              )
+            }
+          >
+            {due ? 'Again' : 'Reset'}
+          </button>
+        )}
       </div>
     </>
   )
@@ -282,6 +285,19 @@ function Reminder({
   change: Change
 }): React.JSX.Element {
   const set = (t: number | null): void => change((x) => remindAt(x as ReminderWidget, t))
+  // the browser's own date field reads "mm/dd/yyyy --:--" when empty: it stays out of sight, and the time is shown
+  // as words that open its picker (starting an hour from now when nothing is set)
+  const picker = useRef<HTMLInputElement>(null)
+  const pick = (): void => {
+    const el = picker.current
+    if (!el) return
+    if (!el.value) el.value = localInput(Math.ceil((Date.now() + 3600_000) / 900_000) * 900_000)
+    try {
+      el.showPicker()
+    } catch {
+      el.focus()
+    }
+  }
   return (
     <>
       <div className="cv-w-when">
@@ -289,9 +305,19 @@ function Reminder({
           <span>Done</span>
         ) : (
           <>
+            <button
+              type="button"
+              className={'cv-w-pick' + (w.at === null ? ' empty' : '')}
+              {...own}
+              onClick={pick}
+            >
+              {w.at === null ? 'Pick a time' : whenLabel(w.at, now)}
+            </button>
             <input
+              ref={picker}
               type="datetime-local"
-              className="cv-w-date"
+              className="cv-w-native"
+              tabIndex={-1}
               aria-label="Remind at"
               value={w.at === null ? '' : localInput(w.at)}
               {...own}
@@ -301,13 +327,9 @@ function Reminder({
                 if (Number.isFinite(t)) set(t)
               }}
             />
-            <small>
-              {w.at === null
-                ? 'Pick a time'
-                : due
-                  ? `Due ${relative(w.at, now)}`
-                  : relative(w.at, now)}
-            </small>
+            {w.at !== null && (
+              <small>{due ? `Due ${relative(w.at, now)}` : relative(w.at, now)}</small>
+            )}
           </>
         )}
       </div>
@@ -327,7 +349,7 @@ function Reminder({
             {...own}
             onClick={() => set(Date.now() + 3600_000)}
           >
-            +1 h
+            +1 hour
           </button>
           <button
             type="button"
@@ -335,7 +357,7 @@ function Reminder({
             {...own}
             onClick={() => set(tomorrowMorning(Date.now()))}
           >
-            Tomorrow 9:00
+            Tomorrow 9am
           </button>
         </div>
       )}
@@ -345,15 +367,16 @@ function Reminder({
             Remind again
           </button>
         ) : (
-          <button
-            type="button"
-            className="cv-w-btn main"
-            disabled={w.at === null}
-            {...own}
-            onClick={() => change((x) => ({ ...(x as ReminderWidget), done: true }))}
-          >
-            Done
-          </button>
+          w.at !== null && (
+            <button
+              type="button"
+              className="cv-w-btn main"
+              {...own}
+              onClick={() => change((x) => ({ ...(x as ReminderWidget), done: true }))}
+            >
+              Done
+            </button>
+          )
         )}
         {due && (
           <button

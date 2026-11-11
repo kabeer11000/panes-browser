@@ -180,6 +180,28 @@ export function parseLength(text: string): number | null {
 }
 
 /** For an `<input type="datetime-local">`: "2026-11-11T09:30" in local time. */
+/** A reminder's time as a person reads it: "Today, 3:45 PM", "Tomorrow, 9:00 AM", "Fri 14 Nov, 9:00 AM". */
+export function whenLabel(at: number, now: number, locale?: string): string {
+  const d = new Date(at)
+  const day = (x: Date): number => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const days = Math.round((day(d) - day(new Date(now))) / 86_400_000)
+  const time = d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
+  const date =
+    days === 0
+      ? 'Today'
+      : days === 1
+        ? 'Tomorrow'
+        : days === -1
+          ? 'Yesterday'
+          : d.toLocaleDateString(locale, {
+              weekday: 'short',
+              day: 'numeric',
+              month: 'short',
+              ...(d.getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {})
+            })
+  return `${date}, ${time}`
+}
+
 export function localInput(at: number): string {
   const d = new Date(at)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`

@@ -3791,9 +3791,8 @@
 
 /* ---- widgets (Widgets.tsx): a stopwatch, timer or reminder, a note underneath with a face of its own ----
    Solid tonal fills, each kind its own hue (like notes, colours of their own, so a grey accent still gives three),
-   no edge, and a shape of their own: the
-   stopwatch round, the timer a soft square that drains as it runs, the reminder a leaf. Their buttons are pills that
-   square off a little as they are pressed, and a widget that goes off changes shape and breathes. */
+   no edge. The stopwatch is round; the timer (which drains as it runs) and the reminder are plain rounded cards.
+   A widget that goes off turns warm and breathes. */
 .cv-note.cv-widget {
   --h: 265;
   --box: oklch(0.885 0.065 var(--h));
@@ -3834,11 +3833,11 @@
 }
 .cv-widget.k-timer {
   --h: 175;
-  border-radius: 44px;
+  border-radius: 20px;
 }
 .cv-widget.k-reminder {
   --h: 70;
-  border-radius: 64px 18px 64px 18px;
+  border-radius: 20px;
 }
 .cv-note.cv-widget.sel {
   outline-color: var(--accent);
@@ -3848,12 +3847,6 @@
 .cv-note.cv-widget.due {
   --h: 25;
   animation: cv-w-breathe 1.6s ease-in-out infinite;
-}
-.cv-widget.k-timer.due {
-  border-radius: 88px;
-}
-.cv-widget.k-reminder.due {
-  border-radius: 18px 64px 18px 64px;
 }
 @keyframes cv-w-breathe {
   50% {
@@ -3932,7 +3925,8 @@
 }
 .cv-w-laps {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
   gap: 4px;
   min-height: 22px;
   align-items: center;
@@ -3986,23 +3980,41 @@
   color: var(--fg);
   font-weight: 600;
 }
-.cv-w-date {
-  width: 100%;
-  min-width: 0;
+.cv-w-pick {
+  align-self: flex-start;
+  max-width: 100%;
   border: 0;
-  outline: none;
   padding: 2px 6px;
   margin-left: -6px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: transparent;
   font-size: 17px !important;
   font-weight: 500 !important;
-  color-scheme: light dark;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
   transition: background-color var(--dur-fast);
 }
-.cv-w-date:hover,
-.cv-w-date:focus {
+.cv-w-pick.empty {
+  color: color-mix(in srgb, var(--fg) 60%, transparent) !important;
+}
+.cv-w-pick:hover,
+.cv-w-pick:focus-visible {
   background: color-mix(in srgb, var(--fg) 8%, transparent);
+  outline: none;
+}
+/* the browser's date field, out of sight: only its picker is used, opened from the time above */
+.cv-w-native {
+  position: absolute !important;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  color-scheme: light dark;
 }
 .cv-w-row {
   display: flex;

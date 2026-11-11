@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  whenLabel,
   alarmsOf,
   cleanWidget,
   dueAlarms,
@@ -150,5 +151,24 @@ describe('alarms', () => {
     expect(dueAlarms(all, new Set(['2:n1:180000']), 200_000)).toEqual([])
     expect(nextAlarm(all, 200_000)).toBe(500_000)
     expect(nextAlarm(all, 600_000)).toBeNull()
+  })
+})
+
+describe('whenLabel', () => {
+  const now = new Date(2026, 10, 11, 15, 0).getTime()
+  test('today, tomorrow and yesterday by name', () => {
+    expect(whenLabel(new Date(2026, 10, 11, 15, 45).getTime(), now, 'en-US')).toBe('Today, 3:45 PM')
+    expect(whenLabel(new Date(2026, 10, 12, 9, 0).getTime(), now, 'en-US')).toBe(
+      'Tomorrow, 9:00 AM'
+    )
+    expect(whenLabel(new Date(2026, 10, 10, 9, 0).getTime(), now, 'en-US')).toBe(
+      'Yesterday, 9:00 AM'
+    )
+  })
+  test('another day by its date, and the year only when it is not this one', () => {
+    expect(whenLabel(new Date(2026, 10, 14, 9, 0).getTime(), now, 'en-US')).toBe(
+      'Sat, Nov 14, 9:00 AM'
+    )
+    expect(whenLabel(new Date(2027, 0, 2, 9, 0).getTime(), now, 'en-US')).toContain('2027')
   })
 })
