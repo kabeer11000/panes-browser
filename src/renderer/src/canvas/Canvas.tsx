@@ -375,6 +375,12 @@ const keyOf = (el: HTMLElement): string | null =>
         ? 'split'
         : null
 
+/** A web page's shape in its tab: the screen's, kept between 4:3 and 21:9 (a portrait or odd screen gives 16:10). */
+function pageAspect(): number {
+  const ar = window.screen.availWidth / Math.max(1, window.screen.availHeight)
+  return ar >= 4 / 3 && ar <= 21 / 9 ? Math.round(ar * 100) / 100 : 16 / 10
+}
+
 export function Canvas({
   tabs,
   activeId,
@@ -555,14 +561,19 @@ export function Canvas({
     tabsRef.current = allTabs
   }, [allTabs])
   const byId = useMemo(() => new Map(allTabs.map((t) => [t.id, t])), [allTabs])
-  // Video cards take their video's shape: what its stream reports, 16:9 until then; never one sized by hand (see
-  // fitVideoCards). Applied with every change to the board, and when a stream reports a new shape.
+  // Cards take their content's own shape, never one sized by hand (see fitVideoCards): a video what its stream
+  // reports (16:9 until then), a web page the screen's (how it looks in its tab), not a tall card that crops it.
+  // Documents, pictures and saved items keep theirs. Applied with every change to the board, and when a stream
+  // reports a new shape.
   const videoAspects = useRef<Record<number, number>>({})
-  const videoAspectOf = useCallback(
-    (c: { id: number; url: string }): number | null =>
-      videoAspects.current[c.id] ?? (kindOf(c.url) === 'video' ? 16 / 9 : null),
-    []
-  )
+  const videoAspectOf = useCallback((c: { id: number; url: string }): number | null => {
+    const known = videoAspects.current[c.id]
+    if (known) return known
+    const kind = kindOf(c.url)
+    if (kind === 'video') return 16 / 9
+    if (kind !== 'page' || isVirtual(c.id) || pdfSource(c.url) !== c.url) return null
+    return pageAspect()
+  }, [])
   // the last frame each live card showed, by tab, with the address it was at (a page that moved on drops it)
   const [stills, setStills] = useState<Record<number, { url: string; src: string }>>({})
   const onStill = useCallback((id: number, src: string): void => {
@@ -800,7 +811,7 @@ export function Canvas({
       if (n && n.w === c.w && n.h === c.h && n.fit === c.fit) return
       edit((s0) => resetCardSize(s0, id), {
         flip: true,
-        undo: videoAspectOf(c) !== null ? 'Fitted video card' : 'Reset card size'
+        undo: videoAspectOf(c) !== null ? 'Fitted card' : 'Reset card size'
       })
     },
     [edit, videoAspectOf]
