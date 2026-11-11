@@ -2,6 +2,7 @@ import type { TabInfo } from '@shared/types'
 import { SpeakerIcon, CloseIcon } from '@renderer/components/icons'
 import { MiniPauseIcon, MiniPlayIcon } from './icons'
 import { isCapturing } from '@shared/capture'
+import { CaptureBadge } from '@renderer/components/CaptureBadge'
 
 /**
  * One thing playing (or paused) on the board, or a call: its title goes to its card; play or pause, mute, and leave
@@ -35,6 +36,7 @@ export function PlayingItem({
           <i />
         </span>
         <span className="cv-playing-title">{title}</span>
+        <CaptureBadge capture={t.capture} />
       </button>
       {!call && (
         <button

@@ -10,6 +10,7 @@ import {
 import { noteFontSize } from '@shared/ai/canvasText'
 import { CloseIcon, IncognitoIcon, SpeakerIcon, TorIcon } from '@renderer/components/icons'
 import { CallBadge } from '@renderer/components/CallBadge'
+import { CaptureBadge } from '@renderer/components/CaptureBadge'
 import { badgeText } from '@shared/attention'
 import { firstPage, type FirstPage } from './pdf'
 import { sameModel, type CardModel } from './model'
@@ -388,6 +389,9 @@ export const CardView = memo(
             ))}
             <div className="cv-badges">
               <CallBadge call={m.ringing ? 'ringing' : null} />
+              <CaptureBadge
+                capture={{ camera: !!m.camera, mic: !!m.mic, screen: !!m.screen }}
+              />
               {m.attnNew && !m.ringing && (
                 <span
                   className="cv-attn"

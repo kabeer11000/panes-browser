@@ -36,6 +36,10 @@ export interface CardModel {
   asleep?: boolean
   muted: boolean
   ringing: boolean
+  /** Its page is using the camera, the microphone or sharing the screen (flags, so a tab push compares equal). */
+  camera?: boolean
+  mic?: boolean
+  screen?: boolean
   /** Something new waits in its tab (messages, a notification): the site's unread count (0: none shown), and
    *  whether there is anything new at all. */
   attnCount?: number

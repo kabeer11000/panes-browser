@@ -141,6 +141,17 @@
 .cv.lod .cv-frame {
   transition: none;
 }
+/* ...except a camera, microphone or screen in use: still shown zoomed far out, and big enough to see there */
+.cv.lod .cv-badges:has(.capture-badge) {
+  display: flex;
+}
+.cv.lod .cv-badges > :not(.capture-badge) {
+  display: none;
+}
+.cv.lod .cv-badges .capture-badge {
+  transform: scale(3);
+  transform-origin: top left;
+}
 
 /* ---- frames ---- */
 .cv-frame {
