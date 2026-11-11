@@ -215,6 +215,8 @@ type Phase = 'loading' | 'entering' | 'open' | 'leaving'
  * instead of showing the page behind it (the new space's blank tab) for a moment and then flying a page into a card.
  */
 let boardSpace: number | null = null
+/** No board has opened yet in this run (the first one may be Panes coming back onto the board after a restart). */
+let firstBoardOfRun = true
 /** A file on its way onto the board: what it is called, and how to keep a copy of it or read it as text. */
 interface Incoming {
   name: string
@@ -715,7 +717,12 @@ export function Canvas({
     saveTimer.current = window.setTimeout(() => {
       const s = stRef.current
       if (s && phaseRef.current !== 'loading') {
-        window.api.canvas.save(spaceId, { ...s, boot: bootRef.current, view: lastView.current })
+        window.api.canvas.save(spaceId, {
+          ...s,
+          boot: bootRef.current,
+          view: lastView.current,
+          open: expandedNow.current
+        })
       }
     }, SAVE_MS)
   }, [spaceId])
@@ -987,6 +994,8 @@ export function Canvas({
     [spaceId, edit, lite, nameFrames, vp]
   )
 
+  // the preview that was open when the board was last saved: it opens again once the board is up
+  const reopen = useRef<number | null>(null)
   // ---- load, reconcile, first layout, then open ----
   useEffect(() => {
     let alive = true
@@ -995,6 +1004,7 @@ export function Canvas({
     void (async () => {
       const saved = await window.api.canvas.load(spaceId)
       if (!alive) return
+      reopen.current = saved?.state?.open ?? null
       const boot = saved?.boot ?? ''
       bootRef.current = boot
       const tabsNow = lite()
@@ -1033,7 +1043,12 @@ export function Canvas({
             b.x * vv.k + vv.x < w &&
             b.y * vv.k + vv.y < h
         )
-      if (!v || !inSight(v) || (active && !onScreen(cardBox(active), v))) {
+      // opened from the tab view, the tab you were on is brought into sight; Panes coming back onto the board after
+      // a restart keeps exactly where you were
+      const fromTabs = !(firstBoardOfRun && (await window.api.getState()).canvas)
+      firstBoardOfRun = false
+      if (!alive) return
+      if (!v || !inSight(v) || (fromTabs && active && !onScreen(cardBox(active), v))) {
         const fit = fitView(all, w, h, 72, 1)
         v =
           fit.k >= 0.42 || !active
@@ -1063,7 +1078,12 @@ export function Canvas({
       window.clearTimeout(saveTimer.current)
       const s = stRef.current
       if (s && phaseRef.current !== 'loading') {
-        window.api.canvas.save(spaceId, { ...s, boot: bootRef.current, view: vp.get() })
+        window.api.canvas.save(spaceId, {
+          ...s,
+          boot: bootRef.current,
+          view: vp.get(),
+          open: expandedNow.current
+        })
       }
       if (boardSpace === spaceId) boardSpace = null
       window.api.canvas.close(spaceId)
@@ -2701,11 +2721,14 @@ export function Canvas({
       el.classList.remove('resizing')
       const w = g.w
       const h = g.h
-      if (g.el) {
-        g.el.style.width = ''
-        g.el.style.height = ''
-      }
       edit((s) => resizeNote(s, g.id, h === null ? { w } : { w, h }), { undo: 'Resized a note' })
+      // the size the board now has, set here: clearing it and leaving it to React left a note with no width at all
+      // (one character wide) whenever the size came out the same and React had nothing to change
+      const n = stRef.current?.notes.find((x) => x.id === g.id)
+      if (g.el && n) {
+        g.el.style.width = `${n.w}px`
+        g.el.style.height = `${n.h}px`
+      }
       setSel(new Set([`n:${g.id}`]))
     } else if (g.kind === 'resize') {
       el.classList.remove('resizing')
@@ -3132,7 +3155,35 @@ export function Canvas({
   useEffect(() => {
     expandedRef.current = expanded !== null
     expandedNow.current = expanded?.id ?? null
-  }, [expanded])
+    saveSoon() // the open preview comes back after a restart
+  }, [expanded, saveSoon])
+  // Panes closing: whatever has not been saved yet (a move in the last moment) is saved now, not lost
+  useEffect(() => {
+    const now = (): void => {
+      const s0 = stRef.current
+      if (!s0 || phaseRef.current === 'loading') return
+      window.clearTimeout(saveTimer.current)
+      window.api.canvas.save(spaceId, {
+        ...s0,
+        boot: bootRef.current,
+        view: lastView.current ?? vp.get(),
+        open: expandedNow.current
+      })
+    }
+    window.addEventListener('pagehide', now)
+    window.addEventListener('beforeunload', now)
+    return () => {
+      window.removeEventListener('pagehide', now)
+      window.removeEventListener('beforeunload', now)
+    }
+  }, [spaceId, vp])
+  // the preview that was open when Panes closed opens again, once the board is up
+  useEffect(() => {
+    if (phase !== 'open' || reopen.current === null) return
+    const id = reopen.current
+    reopen.current = null
+    if (stRef.current?.cards.some((c) => c.id === id)) expandRef.current(id)
+  }, [phase])
   const onExpand = useCallback((id: number): void => expandRef.current(id), [])
   const onPreviewLive = useCallback(
     (url: string, live: boolean): void => void edit((s0) => setPreview(s0, url, live)),
@@ -3597,8 +3648,14 @@ export function Canvas({
   const editStart = useRef<CanvasState | null>(null)
   useEffect(() => {
     if (markEdit) editStart.current = stRef.current
-    else if (!editing) setFirstKey(null)
-  }, [markEdit, editing])
+  }, [markEdit])
+  // nothing being edited any more: the key that started the last edit is forgotten
+  const idle = !markEdit && !editing
+  const [wasIdle, setWasIdle] = useState(idle)
+  if (idle !== wasIdle) {
+    setWasIdle(idle)
+    if (idle) setFirstKey(null)
+  }
   const onMarkText = useCallback(
     (id: string, text: string | null): void => {
       setMarkEdit((cur) => (cur === id ? null : cur))

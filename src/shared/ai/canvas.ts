@@ -135,6 +135,8 @@ export interface CanvasState {
   /** Pages last looked at live when opened from their card (by address): they open live again. */
   previews?: Record<string, 'live'>
   view: Viewport | null
+  /** The card whose preview was open when the board was last saved: it opens again when the board comes back. */
+  open?: number | null
   /** When it was last saved (ms); set by main, missing in boards saved before it. */
   usedAt?: number
   /**
