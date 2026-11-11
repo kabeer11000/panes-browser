@@ -545,6 +545,7 @@ export function AskDock({
                   </button>
                 )}
               </form>
+              <p className="ai-disclaimer">AI can make mistakes. Check important details.</p>
             </div>
           </motion.aside>
         )}

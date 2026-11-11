@@ -1044,3 +1044,12 @@
     background: none;
   }
 }
+
+/* one quiet line under the box: answers can be wrong */
+.ai-disclaimer {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--fg-dim);
+  opacity: 0.8;
+}

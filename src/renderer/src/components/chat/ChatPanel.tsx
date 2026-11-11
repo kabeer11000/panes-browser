@@ -393,6 +393,7 @@ export function ChatPanel(p: Props): React.JSX.Element {
           onSend={chat.send}
           onStop={chat.stop}
         />
+        <p className="ai-disclaimer">AI can make mistakes. Check important details.</p>
         <div className="chat-sr" aria-live="polite" role="status">
           {status}
         </div>
