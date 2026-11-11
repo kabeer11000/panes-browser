@@ -32,6 +32,7 @@ import {
   tabsBlock,
   type ToolInput
 } from '@shared/ai/chatTools'
+import { cleanLead } from '@shared/ai/replyLead'
 import { assemblePrompt, promptMessages, type PromptPage } from '@shared/ai/chatPrompt'
 import {
   describeChatError,
@@ -621,14 +622,19 @@ export class ChatService {
           if (holding) {
             held += part.text
             if (couldBeCall(held, names)) continue
+            // nor a sentence narrating the request ("The user is asking me to...") or a reasoning block: dropped
+            const lead = cleanLead(held)
+            if (lead.open) continue
             holding = false
-            part.text = held
+            part.text = lead.text
             held = ''
+            if (!part.text) continue
           }
           said = true
           emit({ kind: 'text', text: part.text })
         } else if (part.type === 'error') throw part.error
       }
+      held = cleanLead(held).text
       if (held) {
         const current = visibleTabs(this.d.host).find((t) => t.active)?.id
         const call = leakedCall(held, names, current)
