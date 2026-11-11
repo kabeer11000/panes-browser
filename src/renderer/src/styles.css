@@ -4209,6 +4209,11 @@ kbd {
   display: inline-grid;
   flex: none;
 }
+:root {
+  /* a notification badge reads the same on every theme and accent: red, with a white number in it */
+  --badge-bg: #e5484d;
+  --badge-fg: #fff;
+}
 .fav-attn > b {
   position: absolute;
   top: -3px;
@@ -4216,21 +4221,21 @@ kbd {
   width: 8px;
   height: 8px;
   border-radius: var(--r-pill);
-  background: var(--accent);
+  background: var(--badge-bg);
   box-shadow: 0 0 0 1.5px var(--popover-bg);
   pointer-events: none;
 }
 .fav-attn > b.count {
-  top: -6px;
-  right: -9px;
+  top: -7px;
+  right: -10px;
   width: auto;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
   display: grid;
   place-items: center;
-  color: #14142b;
-  font-size: 9px;
+  color: var(--badge-fg);
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -4298,20 +4303,20 @@ kbd {
   min-width: 9px;
   height: 9px;
   border-radius: var(--r-pill);
-  background: var(--accent);
+  background: var(--badge-bg);
   box-shadow: 0 0 0 1.5px var(--overlay-solid);
   pointer-events: none;
 }
 .space-attn:not(:empty) {
-  top: -5px;
-  right: -6px;
-  height: 14px;
-  min-width: 14px;
-  padding: 0 3px;
+  top: -6px;
+  right: -7px;
+  height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
   display: grid;
   place-items: center;
-  color: #14142b;
-  font-size: 9px;
+  color: var(--badge-fg);
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
