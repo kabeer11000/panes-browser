@@ -141,16 +141,12 @@
 .cv.lod .cv-frame {
   transition: none;
 }
-/* ...except a camera, microphone or screen in use: still shown zoomed far out, and big enough to see there */
+/* ...except a camera, microphone or screen in use: still shown zoomed far out (grown with the row, see --hs) */
 .cv.lod .cv-badges:has(.capture-badge) {
   display: flex;
 }
 .cv.lod .cv-badges > :not(.capture-badge) {
   display: none;
-}
-.cv.lod .cv-badges .capture-badge {
-  transform: scale(3);
-  transform-origin: top left;
 }
 
 /* ---- frames ---- */
@@ -3730,8 +3726,9 @@
     scale: 0.8;
   }
 }
-/* it stays readable as the board zooms out, like the handles (--hs, set with the zoom) */
-.cv-attn {
+/* the card's badges (new messages, a call, sound and video) stay readable as the board zooms out, like the handles
+   (--hs, set with the zoom): the row grows as one, so they never run into each other */
+.cv-badges {
   scale: var(--hs, 1);
   transform-origin: top left;
 }
