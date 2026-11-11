@@ -179,6 +179,10 @@ function createWindow(): void {
       .then(() => tabs.torChanged())
   })
 
+  // Login pages would otherwise open the Windows passkey dialog by themselves as they load (shared/passkeys.ts).
+  for (const s of [tabSession, privateSession, torSession])
+    s.registerPreloadScript({ type: 'frame', filePath: join(__dirname, '../preload/passkeys.js') })
+
   const settings = new SettingsStore()
   const history = new HistoryStore()
   const bookmarks = new BookmarkStore()
