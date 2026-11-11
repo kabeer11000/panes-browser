@@ -7,7 +7,7 @@ import { displayHost } from '@shared/url'
 import { Markdown } from '@renderer/components/chat/Markdown'
 import { workingLabel } from '@renderer/components/chat/workingLabel'
 import { Working } from '@renderer/components/chat/Working'
-import { StopSquareIcon } from '@renderer/components/icons'
+import { PlusIcon, StopSquareIcon } from '@renderer/components/icons'
 import '@renderer/components/chat/chat.css'
 import type { AskApi, AskTurn } from './useAsk'
 import './ask.css'
@@ -227,7 +227,7 @@ export function AskDock({
                 disabled={ask.turns.length === 0 && ask.queue.length === 0}
                 onClick={ask.reset}
               >
-                New
+                <PlusIcon />
               </button>
               <button
                 type="button"
