@@ -11,6 +11,7 @@ import type { CardModel } from './model'
 import { LiveIcon, UnsplitIcon } from './icons'
 import {
   BackIcon,
+  ChevronDownIcon,
   ForwardIcon,
   MoreIcon,
   ReloadIcon,
@@ -234,7 +235,6 @@ const CheckGlyph = (): React.JSX.Element => <Glyph d="m3.4 8.4 3 3 6.2-6.6" />
 const PopOutGlyph = (): React.JSX.Element => (
   <Glyph d="M9.5 2.5h4v4M13.5 2.5 8 8M12 9.5V12a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 3 12V5.5A1.5 1.5 0 0 1 4.5 4H7" />
 )
-const CloseGlyph = (): React.JSX.Element => <Glyph d="m4.5 4.5 7 7m0-7-7 7" />
 const PrevGlyph = (): React.JSX.Element => <Glyph d="M9.8 3.6 5.4 8l4.4 4.4" />
 const NextGlyph = (): React.JSX.Element => <Glyph d="M6.2 3.6 10.6 8l-4.4 4.4" />
 
@@ -1357,14 +1357,15 @@ export function Expanded({
                 <MoreIcon />
               </button>
             )}
+            {/* back down into its card on the board (the page stays open as a tab): an arrow down, not a close */}
             <button
               type="button"
               className="cv-hbtn"
-              aria-label="Close"
-              title="Close (Esc)"
+              aria-label="Back to the board"
+              title="Back to the board (Esc)"
               onClick={() => void close()}
             >
-              <CloseGlyph />
+              <ChevronDownIcon />
             </button>
           </div>
         </header>
