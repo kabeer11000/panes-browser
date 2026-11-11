@@ -17,6 +17,14 @@
   color: var(--fg);
   overflow: hidden;
 }
+/* beside an open page: full height like the page, and as far from it as split panes are from each other
+   (SPLIT_GAP, 10px). The page ends where the dock's column starts (Canvas, stage), so the dock is that much narrower. */
+.cv.reading .cv-dock {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(calc(var(--dock-w, 380px) - 10px), calc(100% - 130px));
+}
 /* its left edge resizes it */
 .cv-dock-rz {
   position: absolute;
