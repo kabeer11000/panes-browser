@@ -90,6 +90,9 @@ export interface TabFacts {
   inActiveSpace: boolean
   /** Last time it was on screen, ms since epoch. */
   lastShownAt: number
+  /** A site that messages the person (it has sent a notification or shown an unread count): unloaded, it could
+   *  not tell of new messages, so it is kept, except by "free memory now". */
+  messenger?: boolean
 }
 
 /**
@@ -108,9 +111,11 @@ export function pickUnloads(
     (t) => t.loaded && !t.visible && !t.busy && !siteListed(t.host, policy.neverSites)
   )
   if (force) return eligible.map((t) => t.id)
+  // a site that messages the person stays loaded (it could not tell of new messages otherwise)
+  const mayGo = eligible.filter((t) => !t.messenger)
 
   const picked = new Set<number>()
-  for (const t of eligible) {
+  for (const t of mayGo) {
     const idleMin =
       !t.inActiveSpace && policy.otherSpaces
         ? Math.min(policy.idleMin, OTHER_SPACE_IDLE_MIN)
@@ -120,7 +125,7 @@ export function pickUnloads(
 
   if (policy.maxLoaded > 0) {
     let loaded = tabs.filter((t) => t.loaded && !picked.has(t.id)).length
-    const oldestFirst = eligible
+    const oldestFirst = mayGo
       .filter((t) => !picked.has(t.id))
       .sort((a, b) => a.lastShownAt - b.lastShownAt)
     for (const t of oldestFirst) {

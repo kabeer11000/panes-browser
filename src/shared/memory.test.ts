@@ -29,6 +29,17 @@ const tab = (id: number, over: Partial<TabFacts> = {}): TabFacts => ({
 })
 
 describe('pickUnloads', () => {
+  test('a messaging site (it notified, or showed an unread count) stays, except when freeing memory now', () => {
+    const now = 100 * MIN
+    const tabs = [
+      tab(1, { lastShownAt: now - 90 * MIN, messenger: true }),
+      tab(2, { lastShownAt: now - 90 * MIN })
+    ]
+    expect(pickUnloads(tabs, policy, now)).toEqual([2])
+    expect(pickUnloads(tabs, { ...policy, maxLoaded: 1 }, now)).toEqual([2])
+    expect(pickUnloads(tabs, policy, now, true).sort()).toEqual([1, 2])
+  })
+
   test('unloads only tabs idle for at least the threshold', () => {
     const now = 100 * MIN
     const tabs = [tab(1, { lastShownAt: now - 31 * MIN }), tab(2, { lastShownAt: now - 5 * MIN })]

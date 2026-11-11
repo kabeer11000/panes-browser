@@ -3513,7 +3513,9 @@ export class TabManager {
             isCapturing(t.capture)), // in a call: unloading it would hang up
         host,
         inActiveSpace: t.spaceId === this.activeSpaceId,
-        lastShownAt: t.lastShownAt
+        lastShownAt: t.lastShownAt,
+        // WhatsApp, Slack, mail: once it has notified or shown an unread count, it stays to tell of new ones
+        messenger: (t.notes?.size ?? 0) > 0 || t.attention.count > 0 || t.attention.seenCount > 0
       })
     }
     return facts
