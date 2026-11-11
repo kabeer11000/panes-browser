@@ -383,9 +383,10 @@ function Reminder({
             type="button"
             className="cv-w-btn"
             {...own}
+            title="Snooze for 10 minutes"
             onClick={() => set(Date.now() + 10 * 60_000)}
           >
-            Snooze 10 min
+            Snooze
           </button>
         )}
       </div>
