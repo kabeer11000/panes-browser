@@ -667,8 +667,13 @@ export function Canvas({
         it.tab !== undefined ? [it.tab] : []
       )
     )
-    return tabsRef.current
-      .filter((t) => !backing.has(t.id))
+    const all = tabsRef.current
+    // the blank tab main keeps so the window is never without one (the last card was closed) is not a card: it would
+    // come back each time it was closed; it becomes one once something is opened in it
+    const filler =
+      all.length === 1 && !all[0].url && !all[0].private && !all[0].tor ? all[0].id : null
+    return all
+      .filter((t) => !backing.has(t.id) && t.id !== filler)
       .map((t) => ({ id: t.id, url: t.url, private: t.private || t.tor }))
   }, [])
   // Where the board is on screen. Measuring it during a pan or drag, right after the board was moved, makes the
@@ -4089,6 +4094,9 @@ export function Canvas({
     const blank = activeId !== null ? byId.get(activeId) : undefined
     if (blank && !blank.url && !blank.private && !blank.tor && stRef.current) {
       const id = blank.id
+      // with no card of its own yet (the window's only, empty tab), it is placed when its card comes
+      if (!stRef.current.cards.some((c) => c.id === id))
+        placeNext.current = { x: at.wx, y: at.wy, t: Date.now() }
       edit((s0) => placeCard(s0, id, { x: at.wx, y: at.wy }))
       setSel(new Set([`c:${id}`]))
       window.api.navigate(text)

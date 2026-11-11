@@ -142,10 +142,13 @@ function App(): React.JSX.Element {
     else if (activeId !== null && performance.now() - spaceSwitchAt.current < 1500)
       canvasTab.current = activeId
     else if (activeId !== null && activeId !== canvasTab.current) {
+      // the tab it was on closed (its card was closed on the board): main moved on to another, nobody picked it
+      const closed = !tabs.some((t) => t.id === canvasTab.current)
       canvasTab.current = activeId
-      window.dispatchEvent(new CustomEvent('panes:canvas-exit', { detail: { pick: activeId } }))
+      if (!closed)
+        window.dispatchEvent(new CustomEvent('panes:canvas-exit', { detail: { pick: activeId } }))
     }
-  }, [mode, activeId])
+  }, [mode, activeId, tabs])
   useEffect(() => {
     inCanvasRef.current = mode === 'canvas'
   }, [mode])
@@ -259,6 +262,9 @@ function App(): React.JSX.Element {
 
   // ---- overlays (the native view sits above the UI, so hide it before showing one) ----
   const opening = useRef(false)
+  /** The board was asked for while something else was still opening (the address popover of a blank tab at start):
+   * it is not dropped, it takes over once that is up. */
+  const boardWaiting = useRef(false)
   // The first board, opened as the window starts, comes in without the page-to-card entrance (and without waiting
   // for fresh pictures of pages nobody has seen yet). A ref for openOverlay, state for the render.
   const quietRef = useRef(BOOT_BOARD)
@@ -292,7 +298,10 @@ function App(): React.JSX.Element {
     async (m: 'grid' | 'stack' | 'search' | 'canvas') => {
       if (m === 'grid' && !GRID_VIEW) return
       if (modeRef.current) return setMode(m) // already hidden, just switch
-      if (opening.current) return
+      if (opening.current) {
+        if (m === 'canvas') boardWaiting.current = true
+        return
+      }
       opening.current = true
       if (m === 'search') {
         const findBar = (): HTMLElement | undefined =>
@@ -331,6 +340,10 @@ function App(): React.JSX.Element {
       opening.current = false
       setMode(m)
       setSearchPending(false) // the open search holds the bar from here
+      if (boardWaiting.current) {
+        boardWaiting.current = false
+        if (m !== 'canvas') setMode('canvas')
+      }
       if (m === 'stack' && releasedEarly.current) {
         releasedEarly.current = false
         commitStack()
@@ -342,7 +355,8 @@ function App(): React.JSX.Element {
   // closed on the board: the board again, straight away
   useEffect(() => {
     void window.api.getState().then((d) => {
-      if (d.canvas && modeRef.current === null) {
+      // (over the address popover a restored blank tab may already have opened: the board replaces it)
+      if (d.canvas && modeRef.current !== 'canvas') {
         setQuiet(true)
         void openOverlay('canvas')
       }
