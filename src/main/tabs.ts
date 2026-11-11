@@ -932,6 +932,17 @@ export class TabManager {
   }
 
   /**
+   * Go to a tab you asked for (the search palette, the assistant, a tab list). On the board it opens in the
+   * preview over its card and the board stays; a tab of another space switches to that space as before.
+   */
+  show(id: number): void {
+    const tab = this.tabs.get(id)
+    if (!tab) return
+    if (this.canvasMode && tab.spaceId === this.activeSpaceId) this.send('canvas:show-tab', id)
+    else this.activate(id)
+  }
+
+  /**
    * Give the keyboard to what is on screen: a blank tab's address bar lives in the window's own page, anything else
    * is the page itself. Also run once the window first shows, since showing it hands the keyboard to its own page.
    */

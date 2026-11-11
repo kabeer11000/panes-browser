@@ -3117,6 +3117,7 @@ export function Canvas({
     const card = stRef.current?.cards.find((c) => c.id === want.id)
     if (!card) return // its card comes with the next sync of the tabs
     showTab.current = null
+    if (expandedNow.current === card.id) return // already open in the preview
     const v = reveal(cardBox(card)) // the card's place once the board has glided to it
     setSel(new Set([`c:${card.id}`]))
     setExpanded({

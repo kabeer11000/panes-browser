@@ -79,7 +79,7 @@ export function registerAi(d: {
       history: (q, n) => d.history.list(q, n, 0),
       semantic: (q, exclude) => features.semantic(q, exclude),
       open: (url) => d.tabs.openForAssistant(url),
-      activate: (id) => d.tabs.activate(id),
+      activate: (id) => d.tabs.show(id),
       close: (id) => d.tabs.close(id),
       find: (text) => d.tabs.find(text),
       downloads: () => d.downloads.list(),
