@@ -50,6 +50,7 @@ import { noteLayerHealthy } from './layers'
 import { Suggester } from './suggest'
 import { registerAi } from './ai/ipc'
 import { registerCanvas } from './ai/canvas'
+import { WidgetAlarms } from './widgetAlarms'
 import { media } from './ai/automation'
 import { addFileToBoard } from './ai/canvasAssistant'
 import { flushAllStores } from './store'
@@ -227,6 +228,23 @@ function createWindow(): void {
     settings,
     content: ai.content
   })
+  // board timers and reminders notify from here, board open or not (looked at once the window is up)
+  const alarms = new WidgetAlarms({
+    canvas,
+    spaces,
+    icon,
+    open: (spaceId) => {
+      if (win.isDestroyed() || !spaces.get(spaceId)) return
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+      if (spaceId !== spaces.activeId()) tabs.switchSpace(spaceId)
+      if (!tabs.inCanvas()) win.webContents.send('ui:command', 'toggle-canvas')
+    }
+  })
+  canvas.onSaved = () => alarms.check()
+  win.once('ready-to-show', () => setTimeout(() => alarms.check(), 2000).unref())
+  win.once('closed', () => alarms.dispose())
   const permissions = new PermissionStore()
   // Popover views (site panel, permission and password cards) wear the window's colours too.
   setChromeThemeSource(() => {

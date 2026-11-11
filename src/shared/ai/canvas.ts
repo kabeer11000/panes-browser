@@ -3,6 +3,7 @@ import { fallbackName } from './grouping'
 import { keepItem, type CanvasItem } from './canvasItems'
 import { sanitizeMarks, type CanvasMark } from './canvasMarks'
 import { pruneConnectors, remapCards, sanitizeConnectors, type CanvasConnector } from './connectors'
+import { cleanWidget, newWidget, WIDGET_SIZE, type Widget, type WidgetKind } from '../widgets'
 
 /**
  * Canvas mode layout: every function here is pure (no Electron, no DOM) and deterministic, so the same tabs and
@@ -108,6 +109,8 @@ export interface CanvasNote extends Box {
   frame?: string | null
   /** A height the person dragged it to: the note grows past it for its text, never shrinks below it. */
   minH?: number
+  /** A stopwatch, timer or reminder (shared/widgets.ts): the note is that widget, its text the widget's label. */
+  widget?: Widget
 }
 export interface Viewport {
   x: number
@@ -1379,16 +1382,21 @@ export function deleteFrame(s: CanvasState, id: string): CanvasState {
 export function addNote(
   s: CanvasState,
   at: { x: number; y: number },
-  color = 0
+  color = 0,
+  o: { size?: { w: number; h: number }; widget?: Widget } = {}
 ): { state: CanvasState; id: string } {
   const id = `n${s.seq + 1}`
-  const size = { w: NOTE_W, h: NOTE_H }
-  const inside = frameAt(s, at.x + NOTE_W / 2, at.y + NOTE_H / 2)
+  const size = o.size ?? { w: NOTE_W, h: NOTE_H }
+  const extra = o.widget ? { widget: o.widget } : {}
+  const inside = frameAt(s, at.x + size.w / 2, at.y + size.h / 2)
   if (inside && inside.kind !== 'private') {
     const made: CanvasState = {
       ...s,
       seq: s.seq + 1,
-      notes: [...s.notes, { id, text: '', color: color % NOTE_COLORS, ...at, ...size, frame: null }]
+      notes: [
+        ...s.notes,
+        { id, text: '', color: color % NOTE_COLORS, ...at, ...size, frame: null, ...extra }
+      ]
     }
     return { state: seatNote(made, id, inside.id, at), id }
   }
@@ -1404,11 +1412,24 @@ export function addNote(
       seq: s.seq + 1,
       notes: [
         ...s.notes,
-        { id, text: '', color: color % NOTE_COLORS, ...spot, ...size, frame: null }
+        { id, text: '', color: color % NOTE_COLORS, ...spot, ...size, frame: null, ...extra }
       ]
     },
     id
   }
+}
+
+/** A stopwatch, timer or reminder on the board, centred on `at`: a note that is that widget. */
+export function addWidget(
+  s: CanvasState,
+  at: { x: number; y: number },
+  kind: WidgetKind
+): { state: CanvasState; id: string } {
+  const size = WIDGET_SIZE[kind]
+  return addNote(s, { x: at.x - size.w / 2, y: at.y - size.h / 2 }, 0, {
+    size,
+    widget: newWidget(kind)
+  })
 }
 
 /** Put a note into a section's free slot nearest `near` (the section grows if it must). */
@@ -1611,7 +1632,15 @@ export function forDisk(s: CanvasState): CanvasState {
 /** Notes whose section is not among `frames` become loose (old boards have no `frame` on notes at all). */
 const notesIn = (notes: CanvasNote[], frames: CanvasFrame[]): CanvasNote[] => {
   const ids = new Set(frames.map((f) => f.id))
-  return notes.map((n) => ({ ...n, frame: n.frame && ids.has(n.frame) ? n.frame : null }))
+  return notes.map((n) => {
+    const { widget, ...rest } = n
+    const w = widget === undefined ? undefined : cleanWidget(widget)
+    return {
+      ...rest,
+      frame: n.frame && ids.has(n.frame) ? n.frame : null,
+      ...(w ? { widget: w } : {})
+    }
+  })
 }
 
 function cleanPreviews(v: unknown): Record<string, 'live'> {

@@ -260,6 +260,15 @@ export function boardMenu(f: BoardFacts): MenuEntry[] {
     { id: 'note', label: 'Note here', keys: 'S' },
     { id: 'text', label: 'Text here', keys: 'T' },
     { id: 'section', label: 'Section here', keys: 'F' },
+    {
+      id: 'widget',
+      label: 'Widget here',
+      items: [
+        { id: 'widget:stopwatch', label: 'Stopwatch' },
+        { id: 'widget:timer', label: 'Timer' },
+        { id: 'widget:reminder', label: 'Reminder' }
+      ]
+    },
     ...(f.paste
       ? [{ id: 'paste', label: 'Paste here', keys: 'Ctrl+V', disabled: !f.canPaste }]
       : []),

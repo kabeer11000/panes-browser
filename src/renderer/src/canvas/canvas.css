@@ -3768,3 +3768,263 @@
   font-size: 12px;
   color: var(--fg-dim);
 }
+
+/* ---- widgets (Widgets.tsx): a stopwatch, timer or reminder, a note underneath with a face of its own ----
+   Solid tonal fills, each kind its own hue (like notes, colours of their own, so a grey accent still gives three),
+   no edge, and a shape of their own: the
+   stopwatch round, the timer a soft square that drains as it runs, the reminder a leaf. Their buttons are pills that
+   square off a little as they are pressed, and a widget that goes off changes shape and breathes. */
+.cv-note.cv-widget {
+  --h: 265;
+  --box: oklch(0.885 0.065 var(--h));
+  --box-hi: oklch(0.835 0.09 var(--h));
+  --btn: oklch(0.8 0.11 var(--h));
+  --btn-hi: oklch(0.76 0.13 var(--h));
+  --spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 16px;
+  overflow: hidden;
+  background: var(--box);
+  color: var(--fg);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.1);
+  font-size: 12.5px;
+  transition:
+    border-radius 0.5s var(--spring),
+    background-color 0.3s var(--ease),
+    outline-color var(--dur-fast);
+  outline: 2px solid transparent;
+  outline-offset: 4px;
+}
+[data-scheme='dark'] .cv-note.cv-widget {
+  --box: oklch(0.33 0.05 var(--h));
+  --box-hi: oklch(0.39 0.07 var(--h));
+  --btn: oklch(0.47 0.1 var(--h));
+  --btn-hi: oklch(0.52 0.11 var(--h));
+}
+/* the stopwatch blue, the timer teal, the reminder amber; red once one has gone off */
+.cv-widget.k-stopwatch {
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 2px;
+  padding: 18px 20px;
+}
+.cv-widget.k-timer {
+  --h: 175;
+  border-radius: 44px;
+}
+.cv-widget.k-reminder {
+  --h: 70;
+  border-radius: 64px 18px 64px 18px;
+}
+.cv-note.cv-widget.sel {
+  outline-color: var(--accent);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.16);
+}
+/* gone off: a warm tone, a new shape, and a slow breath */
+.cv-note.cv-widget.due {
+  --h: 25;
+  animation: cv-w-breathe 1.6s ease-in-out infinite;
+}
+.cv-widget.k-timer.due {
+  border-radius: 88px;
+}
+.cv-widget.k-reminder.due {
+  border-radius: 18px 64px 18px 64px;
+}
+@keyframes cv-w-breathe {
+  50% {
+    background-color: var(--box-hi);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-note.cv-widget,
+  .cv-w-btn,
+  .cv-w-fill {
+    transition: none;
+  }
+  .cv-note.cv-widget.due {
+    animation: none;
+  }
+}
+.cv-widget > * {
+  position: relative; /* above the timer's fill */
+}
+.cv-widget input,
+.cv-widget button {
+  font: inherit;
+  color: inherit;
+}
+.cv-w-label {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  padding: 2px 0;
+  background: transparent;
+  font-weight: 600 !important;
+  user-select: text;
+}
+.k-stopwatch .cv-w-label {
+  text-align: center;
+  width: 80%;
+}
+.cv-w-label::placeholder {
+  color: color-mix(in srgb, var(--fg) 55%, transparent);
+  font-weight: 600;
+}
+.cv-w-face {
+  font-size: 36px !important;
+  font-weight: 500 !important;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1px;
+  white-space: nowrap;
+}
+.k-stopwatch .cv-w-face {
+  font-size: 32px !important;
+}
+.k-timer .cv-w-face[title] {
+  cursor: text;
+}
+.cv-w-edit {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  padding: 0 6px;
+  margin-left: -6px;
+  border-radius: 14px;
+  background: var(--box-hi);
+  user-select: text;
+}
+/* the timer drains: a deeper tone of its fill, shrinking to the left as the time runs out */
+.cv-w-fill {
+  position: absolute !important;
+  inset: 0;
+  background: var(--box-hi);
+  transform-origin: left center;
+  transition: transform 0.3s linear;
+  pointer-events: none;
+}
+.cv-w-laps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 22px;
+  align-items: center;
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.k-stopwatch .cv-w-laps {
+  justify-content: center;
+  min-height: 18px;
+}
+.cv-w-laps b {
+  font-weight: 600;
+  color: var(--fg);
+}
+.cv-w-chip {
+  border: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  cursor: pointer;
+  font-size: 11.5px !important;
+  transition:
+    border-radius 0.3s var(--spring),
+    background-color var(--dur-fast);
+}
+.cv-w-chip:hover {
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.cv-w-chip:active {
+  border-radius: 7px;
+}
+.cv-w-chip.on {
+  background: var(--box-hi);
+  font-weight: 600;
+}
+.cv-w-when {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 52px;
+  justify-content: center;
+}
+.cv-w-when > span {
+  font-size: 22px;
+  font-weight: 500;
+}
+.cv-w-when small {
+  color: color-mix(in srgb, var(--fg) 70%, transparent);
+}
+.cv-widget.due .cv-w-when small {
+  color: var(--fg);
+  font-weight: 600;
+}
+.cv-w-date {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: 12px;
+  background: transparent;
+  font-size: 17px !important;
+  font-weight: 500 !important;
+  color-scheme: light dark;
+  transition: background-color var(--dur-fast);
+}
+.cv-w-date:hover,
+.cv-w-date:focus {
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+.cv-w-row {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+.k-stopwatch .cv-w-row {
+  margin-top: 6px;
+}
+/* pills that square off a little under the finger */
+.cv-w-btn {
+  flex: 1;
+  border: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition:
+    border-radius 0.3s var(--spring),
+    transform 0.3s var(--spring),
+    background-color var(--dur-fast);
+}
+.cv-w-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.cv-w-btn:active:not(:disabled) {
+  border-radius: 10px;
+  transform: scale(0.96);
+}
+.cv-w-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cv-w-btn.main {
+  flex: 1.4;
+  background: var(--btn);
+}
+.cv-w-btn.main:hover:not(:disabled) {
+  background: var(--btn-hi);
+}
+.k-stopwatch .cv-w-btn {
+  flex: 0 0 auto;
+  min-width: 64px;
+}

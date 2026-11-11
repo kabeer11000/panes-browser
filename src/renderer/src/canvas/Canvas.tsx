@@ -12,6 +12,7 @@ import { flushSync } from 'react-dom'
 import {
   addFrame,
   addNote,
+  addWidget,
   boundsOf,
   CARD_H,
   CARD_MAX_H,
@@ -113,6 +114,8 @@ import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
 import { CardView, FrameBar, FrameView, NoteView } from './Cards'
+import { WidgetView } from './Widgets'
+import { WIDGET_LABEL, type Widget, type WidgetKind } from '@shared/widgets'
 import { pickStreams, streamCap } from '@shared/ai/tabStream'
 import { isCapturing } from '@shared/capture'
 import { attentionLabel } from '@shared/attention'
@@ -1518,6 +1521,14 @@ export function Canvas({
     },
     [edit]
   )
+  const onWidget = useCallback(
+    (id: string, fn: (w: Widget) => Widget): void =>
+      void edit((s) => ({
+        ...s,
+        notes: s.notes.map((n) => (n.id === id && n.widget ? { ...n, widget: fn(n.widget) } : n))
+      })),
+    [edit]
+  )
   const onNoteColor = useCallback(
     (id: string): void =>
       void edit(
@@ -1595,6 +1606,7 @@ export function Canvas({
     if (keys.length !== 1 || !s0) return false
     const [k] = keys
     if (k[0] === 'n') {
+      if (s0.notes.find((n) => n.id === k.slice(2))?.widget) return false // its own inputs take typing
       setFirstKey(key)
       setEditing(k.slice(2))
       return true
@@ -4299,6 +4311,12 @@ export function Canvas({
   }
   // ---- the right-click menu: what can be done with what is under the pointer ----
   const openContextRef = useRef<(t: HTMLElement, cx: number, cy: number) => void>(() => undefined)
+  /** A stopwatch, timer or reminder centred on `at` (board units), selected. */
+  const placeWidget = (kind: WidgetKind, at: { x: number; y: number }): void => {
+    const made = addWidget(stRef.current!, at, kind)
+    edit(() => made.state, { undo: `Added a ${WIDGET_LABEL[kind].toLowerCase()}` })
+    setSel(new Set([`n:${made.id}`]))
+  }
   const openContext = (t: HTMLElement, cx: number, cy: number): void => {
     const s0 = stRef.current
     const r = root.current?.getBoundingClientRect()
@@ -4565,7 +4583,8 @@ export function Canvas({
           edit(() => made.state, { undo: 'Added a note' })
           setSel(new Set([`n:${made.id}`]))
           setEditing(made.id)
-        } else if (act === 'text') addBlockAt('body', { x: w.x, y: w.y })
+        } else if (act.startsWith('widget:')) placeWidget(act.slice(7) as WidgetKind, w)
+        else if (act === 'text') addBlockAt('body', { x: w.x, y: w.y })
         else if (act === 'section') {
           const made = addFrame(
             stRef.current!,
@@ -4660,6 +4679,17 @@ export function Canvas({
         keys: 'Ctrl+T',
         run: () => askNew()
       },
+      ...(['stopwatch', 'timer', 'reminder'] as const).map((k): Command => ({
+        id: `widget:${k}`,
+        label: WIDGET_LABEL[k],
+        also:
+          k === 'stopwatch'
+            ? 'widget clock lap time'
+            : k === 'timer'
+              ? 'widget countdown alarm pomodoro clock'
+              : 'widget alarm remind todo notify',
+        run: () => placeWidget(k, mid)
+      })),
       { id: 'heading', label: 'Heading', also: 'title text', run: () => addBlockAt('heading') },
       { id: 'body', label: 'Text', also: 'body label', keys: 'T', run: () => addBlockAt('body') },
       { id: 'table', label: 'Table', also: 'grid', run: () => addBlockAt('table') },
@@ -4876,19 +4906,29 @@ export function Canvas({
             onFan={fanOut}
           />
         ))}
-        {s?.notes.map((n) => (
-          <NoteView
-            key={n.id}
-            note={n}
-            selected={sel.has(`n:${n.id}`)}
-            editing={editing === n.id}
-            onText={onNoteText}
-            onEdit={setEditing}
-            onColor={onNoteColor}
-            onSize={onNoteSize}
-            first={editing === n.id ? firstKey : null}
-          />
-        ))}
+        {s?.notes.map((n) =>
+          n.widget ? (
+            <WidgetView
+              key={n.id}
+              note={n as typeof n & { widget: Widget }}
+              selected={sel.has(`n:${n.id}`)}
+              onText={onNoteText}
+              onWidget={onWidget}
+            />
+          ) : (
+            <NoteView
+              key={n.id}
+              note={n}
+              selected={sel.has(`n:${n.id}`)}
+              editing={editing === n.id}
+              onText={onNoteText}
+              onEdit={setEditing}
+              onColor={onNoteColor}
+              onSize={onNoteSize}
+              first={editing === n.id ? firstKey : null}
+            />
+          )
+        )}
         {(() => {
           const b = splitFrame
           return b ? (

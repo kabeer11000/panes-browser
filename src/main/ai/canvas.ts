@@ -97,7 +97,11 @@ export class CanvasService {
     // stamped here, so the new tab can show the boards most recently used first
     this.store.value.spaces[String(spaceId)] = { ...forDisk(state), usedAt: Date.now() }
     this.store.save()
+    this.onSaved?.()
   }
+
+  /** Called after every board save (the widget alarms look again at what is due). */
+  onSaved: (() => void) | null = null
 
   /** Normal tabs of a space; private and Tor tabs are never in this list. */
   private normalTabs(spaceId: number): Array<TabLite & { title: string }> {
