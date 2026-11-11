@@ -4391,7 +4391,8 @@ export function Canvas({
       const url = item?.url ?? tab?.url ?? ''
       const priv = !!(tab && (tab.private || tab.tor))
       const web = /^https?:/i.test(url)
-      const canLive = (m.kind === 'page' || m.kind === 'video') && (!!tab || web)
+      const canLive =
+        (m.kind === 'page' || m.kind === 'video' || m.kind === 'pdf') && (!!tab || web)
       const media = m.isTab && (m.audible || m.muted || m.kind === 'video')
       return show(
         cardMenu({

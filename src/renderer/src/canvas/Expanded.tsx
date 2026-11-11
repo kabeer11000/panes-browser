@@ -31,6 +31,12 @@ const MORPH = { duration: 0.32, ease: [0.32, 0.72, 0, 1] } as const
 /** Room kept under the panel for the canvas toolbar, which stays above it. */
 /** PDF pages stop growing here: wider than this they read worse, and Ctrl+wheel zooms past it. */
 const PDF_W = 940
+/**
+ * Panes' own PDF reader (pdf.js) in the preview. Off for now: a PDF opens live in the browser's own viewer, as in
+ * tab view; pdf.js only draws the first page as the card's picture. Set true to bring the reader back.
+ */
+const OWN_PDF_VIEWER = false
+const ownPdf = (kind: string): boolean => OWN_PDF_VIEWER && kind === 'pdf'
 
 export interface ExpandSource {
   m: CardModel
@@ -845,7 +851,11 @@ export function Expanded({
     })
   }
 
-  const canLive = (m.kind === 'page' || m.kind === 'video') && (tab !== undefined || !!url)
+  const canLive =
+    (m.kind === 'page' || m.kind === 'video' || (m.kind === 'pdf' && !OWN_PDF_VIEWER)) &&
+    (tab !== undefined || !!url)
+  // shown only in the page itself: a video, and a PDF while Panes' own reader is off
+  const liveOnly = m.kind === 'video' || (m.kind === 'pdf' && !OWN_PDF_VIEWER)
   /** Show the live page. `to`: a tab just made for this card, not yet in its props. */
   const goLive = async (to?: number): Promise<void> => {
     autoLive.current = true
@@ -916,7 +926,7 @@ export function Expanded({
     goLiveRef.current = goLive
   })
   useEffect(() => {
-    if (autoLive.current || (!startLive && !(m.kind === 'video' && canLive))) return
+    if (autoLive.current || (!startLive && !(liveOnly && canLive))) return
     // marked done only when it runs: a change meanwhile (the card's details settling) re-arms it, not cancels it
     const t = window.setTimeout(
       () => {
@@ -927,7 +937,7 @@ export function Expanded({
       reduced ? 0 : 420
     )
     return () => window.clearTimeout(t)
-  }, [startLive, reduced, m.kind, canLive])
+  }, [startLive, reduced, liveOnly, canLive])
   // a page with no article to read (an app, a map) is a snapshot in the reader: it opens live instead
   useEffect(() => {
     if (!articleEmpty || live !== 'off' || !canLive || autoLive.current) return
@@ -1027,60 +1037,64 @@ export function Expanded({
     if (id !== null) window.api.canvas.liveNav(id, how)
   }
   const zoomLabel =
-    live === 'on' &&
-    zoom &&
-    Math.abs(zoom.level - zoom.base) > 0.01 ? `${zoomPercent(zoom.level)}%` : null
+    live === 'on' && zoom && Math.abs(zoom.level - zoom.base) > 0.01
+      ? `${zoomPercent(zoom.level)}%`
+      : null
 
   const src = m.pdf ?? { url, file }
   const [pdfKey, setPdfKey] = useState(0)
   const [wasLoading, setWasLoading] = useState(!!page?.loading)
   if (!!page?.loading !== wasLoading) {
     setWasLoading(!!page?.loading)
-    if (wasLoading && m.kind === 'pdf' && live === 'off') setPdfKey((k) => k + 1)
+    if (wasLoading && ownPdf(m.kind) && live === 'off') setPdfKey((k) => k + 1)
   }
-  const bodyView =
-    m.kind === 'pdf' ? (
-      <PdfReader src={src} width={Math.min(PDF_W, w - 48)} reloadKey={pdfKey} />
-    ) : m.kind === 'image' ? (
-      m.image ? (
-        <ImageViewer src={m.image} />
-      ) : (
-        <p className="cv-note-empty pad">No picture to show.</p>
-      )
-    ) : m.kind === 'answer' ? (
-      <div className="cv-answer-full">
-        <p className="cv-answer-q">{m.title}</p>
-        {m.text !== undefined && m.placement === 'note' && onText ? (
-          <NoteBody text={m.text} onText={onText} onLink={answerLinks} />
-        ) : m.text ? (
-          <AnswerText text={m.text} onLink={answerLinks} />
-        ) : (
-          <span className="cv-thinking">
-            <i />
-            <i />
-            <i />
-          </span>
-        )}
-      </div>
-    ) : m.kind === 'video' ? (
-      <div className="cv-video-full">
-        {m.image && <Img src={m.image} />}
-        <p>Videos play in the live page.</p>
-      </div>
-    ) : articleEmpty && m.snap ? (
-      // nothing to read on this page (an app, a map, a picture): how it looked is the next best thing
-      <div className="cv-snap-full">
-        <img src={m.snap} alt="" decoding="async" draggable={false} />
-      </div>
+  const bodyView = ownPdf(m.kind) ? (
+    <PdfReader src={src} width={Math.min(PDF_W, w - 48)} reloadKey={pdfKey} />
+  ) : m.kind === 'image' ? (
+    m.image ? (
+      <ImageViewer src={m.image} />
     ) : (
-      <ReaderView
-        key={url ?? tab}
-        tab={tab}
-        url={tab === undefined ? url : undefined}
-        stored={m.text}
-        onEmpty={() => setArticleEmpty(true)}
-      />
+      <p className="cv-note-empty pad">No picture to show.</p>
     )
+  ) : m.kind === 'answer' ? (
+    <div className="cv-answer-full">
+      <p className="cv-answer-q">{m.title}</p>
+      {m.text !== undefined && m.placement === 'note' && onText ? (
+        <NoteBody text={m.text} onText={onText} onLink={answerLinks} />
+      ) : m.text ? (
+        <AnswerText text={m.text} onLink={answerLinks} />
+      ) : (
+        <span className="cv-thinking">
+          <i />
+          <i />
+          <i />
+        </span>
+      )}
+    </div>
+  ) : m.kind === 'video' ? (
+    <div className="cv-video-full">
+      {m.image && <Img src={m.image} />}
+      <p>Videos play in the live page.</p>
+    </div>
+  ) : m.kind === 'pdf' ? (
+    // shown for a moment, until the browser's own PDF viewer is up
+    <div className="cv-video-full">
+      <p>Opening the PDF...</p>
+    </div>
+  ) : articleEmpty && m.snap ? (
+    // nothing to read on this page (an app, a map, a picture): how it looked is the next best thing
+    <div className="cv-snap-full">
+      <img src={m.snap} alt="" decoding="async" draggable={false} />
+    </div>
+  ) : (
+    <ReaderView
+      key={url ?? tab}
+      tab={tab}
+      url={tab === undefined ? url : undefined}
+      stored={m.text}
+      onEmpty={() => setArticleEmpty(true)}
+    />
+  )
 
   return (
     <div className="cv-expand" role="dialog" aria-modal="false" aria-label={m.title}>
@@ -1247,7 +1261,7 @@ export function Expanded({
                 <PopOutGlyph />
               </button>
             ) : null}
-            {m.kind === 'pdf' && live === 'off' && (
+            {ownPdf(m.kind) && live === 'off' && (
               <button
                 type="button"
                 className="cv-hbtn"
