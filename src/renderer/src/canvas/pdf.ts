@@ -1,8 +1,14 @@
-import * as pdfjs from 'pdfjs-dist'
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
+// pdf.js is large (about 450 KB): it is loaded the first time a PDF is opened, not with the window's interface,
+// which every start would otherwise have to parse before its first paint
+let lib: Promise<typeof import('pdfjs-dist')> | null = null
+const pdfjs = (): Promise<typeof import('pdfjs-dist')> =>
+  (lib ??= import('pdfjs-dist').then((m) => {
+    m.GlobalWorkerOptions.workerSrc = workerUrl
+    return m
+  }))
 
 /** Where a PDF comes from: the web, or a finished download (read through main, which checks the path). */
 export interface PdfSrc {
@@ -61,7 +67,7 @@ export function openPdf(src: PdfSrc): Promise<PDFDocumentProxy | null> {
     if (!r) return null
     try {
       // a copy: pdf.js takes the buffer over, and the one it was given must not be reused
-      opened.task = pdfjs.getDocument({ data: r.data.slice() })
+      opened.task = (await pdfjs()).getDocument({ data: r.data.slice() })
       return await opened.task.promise
     } catch {
       return null

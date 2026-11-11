@@ -200,6 +200,8 @@ interface Props {
   spaceId: number
   /** Leave the canvas; `pick` is the tab to show (null: stay on the one that is open). */
   onExit: (pick: number | null) => void
+  /** Opened as the window starts: the board is simply there, without the page shrinking into its card. */
+  quiet?: boolean
   /** The tabs shown side by side (split view), if any: they sit on the board as one split card. */
   layout?: LayoutNode | null
   /** For the space switcher in the board's top bar: each space has its own board. */
@@ -390,7 +392,8 @@ export function Canvas({
   spaceDir = 1,
   onExit,
   dim = false,
-  layout = null
+  layout = null,
+  quiet = false
 }: Props): React.JSX.Element {
   const reduced = !!useReducedMotion()
   const moveRef = useRef<(v: Viewport) => void>(() => undefined)
@@ -1115,7 +1118,7 @@ export function Canvas({
       const t = window.setTimeout(() => setPhase('open'), 460)
       return () => window.clearTimeout(t)
     }
-    if (!g || !card || reduced) {
+    if (!g || !card || reduced || quiet) {
       setPhase('open')
       return
     }

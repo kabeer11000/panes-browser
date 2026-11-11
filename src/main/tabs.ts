@@ -1175,6 +1175,9 @@ export class TabManager {
       // closed on the board: open on it, and the tab view's tab is not loaded for a view nobody sees
       if (saved.canvas) {
         this.startCanvas = true
+        // the board holds the pages off screen once its page has started (setOverlay); until then no page is put
+        // up either, so the window never shows the tab view on its way to the board
+        this.overlay = true
         this.setCanvasMode(true)
       }
       const own = ids.filter((id) => this.tabs.get(id)?.spaceId === this.activeSpaceId)

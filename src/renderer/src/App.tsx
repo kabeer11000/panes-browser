@@ -60,6 +60,11 @@ const SNAP_MS = 160 // idle time before the stack settles on the nearest card
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 
+// The window closed on the canvas board last time (public/boot.js read it before the first paint): it opens on the
+// board, so the tabs, sidebar and page are never painted on the way there. Main says for sure (getState's `canvas`)
+// once it is asked; until then this keeps the chrome away.
+const BOOT_BOARD = document.documentElement.dataset.board === '1'
+
 function App(): React.JSX.Element {
   const {
     tabs,
@@ -92,6 +97,10 @@ function App(): React.JSX.Element {
     else setSidebar((o) => !o)
   }, [setSidebar])
   const [mode, setModeState] = useState<Mode>(null)
+  // starting toward the board (BOOT_BOARD): no chrome and no page until the board is up or it turns out there is none
+  const [booting, setBooting] = useState(BOOT_BOARD)
+  // whether main brought the session back on the board (null until asked)
+  const [startBoard, setStartBoard] = useState<boolean | null>(null)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [settingsReady, setSettingsReady] = useState(false)
   const [findKey, setFindKey] = useState<number | null>(null)
@@ -250,6 +259,14 @@ function App(): React.JSX.Element {
 
   // ---- overlays (the native view sits above the UI, so hide it before showing one) ----
   const opening = useRef(false)
+  // The first board, opened as the window starts, comes in without the page-to-card entrance (and without waiting
+  // for fresh pictures of pages nobody has seen yet). A ref for openOverlay, state for the render.
+  const quietRef = useRef(BOOT_BOARD)
+  const [quietBoard, setQuietState] = useState(BOOT_BOARD)
+  const setQuiet = useCallback((q: boolean) => {
+    quietRef.current = q
+    setQuietState(q)
+  }, [])
   const releasedEarly = useRef(false)
   // Letting go of Ctrl must not commit: the view was opened by a one-shot shortcut (a touchpad gesture sends it,
   // Ctrl is already up) or by Ctrl+wheel, and from then on it stays open until a card is chosen or Esc.
@@ -309,7 +326,8 @@ function App(): React.JSX.Element {
               : null
         )
       }
-      await holdOverlay('app', m !== 'search')
+      // the board opened as the window starts needs no fresh pictures of pages nobody has seen yet
+      await holdOverlay('app', m !== 'search' && !(m === 'canvas' && quietRef.current))
       opening.current = false
       setMode(m)
       setSearchPending(false) // the open search holds the bar from here
@@ -324,9 +342,32 @@ function App(): React.JSX.Element {
   // closed on the board: the board again, straight away
   useEffect(() => {
     void window.api.getState().then((d) => {
-      if (d.canvas && modeRef.current === null) void openOverlay('canvas')
+      if (d.canvas && modeRef.current === null) {
+        setQuiet(true)
+        void openOverlay('canvas')
+      }
+      setStartBoard(!!d.canvas)
     })
-  }, [openOverlay])
+  }, [openOverlay, setQuiet])
+  // While booting toward the board the pages are held off screen from the start (no page, and no fresh pictures to
+  // wait for: nothing has been seen yet), and let go once the board holds them itself or there is to be no board.
+  useEffect(() => {
+    if (!booting) return
+    void holdOverlay('boot', false)
+    const stuck = window.setTimeout(() => setBooting(false), 5000) // never left without a window
+    return () => {
+      window.clearTimeout(stuck)
+      void releaseOverlay('boot')
+    }
+  }, [booting])
+  useEffect(() => {
+    try {
+      if (mode === 'canvas') localStorage.setItem('panes:board', '1')
+      else if (mode === null && !booting) localStorage.setItem('panes:board', '0')
+    } catch {
+      // storage off: the next start goes by tabs first, as before
+    }
+  }, [mode, booting])
 
   const toggleCanvas = useCallback(() => {
     if (modeRef.current === 'canvas') window.dispatchEvent(new Event('panes:canvas-exit'))
@@ -477,6 +518,20 @@ function App(): React.JSX.Element {
     else if (step === 'close' && modeRef.current === 'canvas')
       window.dispatchEvent(new Event('panes:canvas-exit'))
   }, [settingsReady, spaceKnown, activeSpaceId, browse, openOverlay, settings.onboarded, tourOpen])
+  // Booting ends with the board up, or once everything is known and nothing is going to open it (main did not bring
+  // the session back on the board, and this space is not browsed with it).
+  const noBoard =
+    settingsReady &&
+    spaceKnown &&
+    startBoard === false &&
+    !(browse === 'canvas' && settings.onboarded && !tourOpen)
+  if (booting && (mode === 'canvas' || noBoard)) {
+    setBooting(false)
+    if (mode !== 'canvas') setQuietState(false) // the next board is opened by hand: it gets its entrance
+  }
+  useEffect(() => {
+    quietRef.current = quietBoard
+  }, [quietBoard])
   useEffect(() => {
     releaseRef.current = settings.paneViewRelease
   }, [settings.paneViewRelease])
@@ -487,7 +542,7 @@ function App(): React.JSX.Element {
   const immersive = isWelcome(active?.url)
   // The canvas board is a way to browse of its own, not a layer over the tabs: while it is up the sidebar, the top
   // bar(s), the tab stack and the edge watchers that bring them out are not there at all.
-  const board = mode === 'canvas'
+  const board = mode === 'canvas' || booting
   const showSidebar = !horizontal && sidebarOpen && !immersive && !board
   // The search popover hangs off the address bar, which moves when the sidebar opens or closes: it ends with it.
   useEffect(() => {
@@ -1026,9 +1081,14 @@ function App(): React.JSX.Element {
                   onClose={closeOverlay}
                 />
               )}
+              {booting && mode !== 'canvas' && (
+                // the board's empty surface, so the window's first paint is already the board's colour
+                <div key="boot" className="cv" aria-hidden="true" />
+              )}
               {mode === 'canvas' && (
                 <Canvas
                   key={`canvas-${activeSpaceId}`}
+                  quiet={quietBoard}
                   tabs={tabs}
                   activeId={activeId}
                   thumbs={thumbs}
@@ -1037,6 +1097,7 @@ function App(): React.JSX.Element {
                   spaceDir={spaceDir}
                   layout={layout}
                   onExit={(pick) => {
+                    setQuiet(false)
                     if (pick !== null) window.api.activateTab(pick)
                     closeOverlay()
                   }}
