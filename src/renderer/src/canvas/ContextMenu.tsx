@@ -30,8 +30,8 @@ const rel = (r: DOMRect, o: DOMRect): Rect => ({
  * Home/End, Enter/Space, Right/Left for submenus, a typed letter jumps, Esc closes one level. It closes on a press
  * outside, Esc, the window losing focus, a wheel over the board or a resize, and gives focus back.
  */
-/** Now, in ms (for the grace period of the pointer's way into a submenu). */
-const clock = (): number => performance.now()
+/** How long the pointer may rest on another row, on its way into a submenu, before that row takes over. */
+const REST_MS = 260
 
 export function ContextMenu({
   x,
@@ -65,7 +65,9 @@ export function ContextMenu({
   useLayoutEffect(() => {
     pathRef.current = path
   }, [path])
-  const grace = useRef<{ depth: number; tri: [Pt, Pt, Pt]; until: number } | null>(null)
+  // the pointer's way into the open submenu of level `depth`: while it keeps moving inside this triangle (towards
+  // the submenu), the rows it crosses do not take over
+  const grace = useRef<{ depth: number; tri: [Pt, Pt, Pt] } | null>(null)
   const pending = useRef<{ depth: number; i: number; timer: number } | null>(null)
   const typed = useRef({ q: '', at: 0 })
 
@@ -205,28 +207,27 @@ export function ContextMenu({
   useEffect(() => () => window.clearTimeout(pending.current?.timer), [])
 
   /** The pointer is over row i of level d: it takes focus, and opens or closes submenus, unless it is only passing
-   * through on its way into an open submenu. */
+   * through on its way into an open submenu. No time limit on the way: a slow hand gets there too. The triangle
+   * narrows from wherever the pointer now is, so only movement towards the submenu keeps it; resting on a row
+   * (REST_MS) or moving away hands over to that row. */
   const hover = (d: number, i: number, p: Pt): void => {
     const g = grace.current
-    if (g && g.depth === d && pathRef.current[d] !== i && clock() < g.until) {
-      if (inTriangle(p, ...g.tri)) {
-        // look again once the grace is over: if the pointer stopped here, this row wins
-        window.clearTimeout(pending.current?.timer)
-        pending.current = {
-          depth: d,
-          i,
-          timer: window.setTimeout(
-            () => {
-              const pd = pending.current
-              pending.current = null
-              grace.current = null
-              if (pd) hover(pd.depth, pd.i, { x: -1e6, y: -1e6 })
-            },
-            Math.max(0, g.until - clock())
-          )
-        }
-        return
+    if (g && g.depth === d && pathRef.current[d] !== i && inTriangle(p, ...g.tri)) {
+      // a few pixels behind the pointer, so the jitter of a hand does not count as moving away
+      const back = g.tri[1].x >= p.x ? -6 : 6
+      g.tri = [{ x: p.x + back, y: p.y }, g.tri[1], g.tri[2]]
+      window.clearTimeout(pending.current?.timer)
+      pending.current = {
+        depth: d,
+        i,
+        timer: window.setTimeout(() => {
+          const pd = pending.current
+          pending.current = null
+          grace.current = null
+          if (pd) hover(pd.depth, pd.i, { x: -1e6, y: -1e6 })
+        }, REST_MS)
       }
+      return
     }
     grace.current = null
     window.clearTimeout(pending.current?.timer)
@@ -251,7 +252,7 @@ export function ContextMenu({
       return
     }
     const r = rel(sub.getBoundingClientRect(), board)
-    grace.current = { depth: d, tri: safeTriangle(p, r), until: clock() + 400 }
+    grace.current = { depth: d, tri: safeTriangle(p, r) }
   }
 
   return (
@@ -283,12 +284,32 @@ export function ContextMenu({
 }
 
 const Check = (): React.JSX.Element => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
     <path d="m3.5 8.5 3 3 6-7" />
   </svg>
 )
 const More = (): React.JSX.Element => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
     <path d="m6.5 4.5 3.5 3.5-3.5 3.5" />
   </svg>
 )
@@ -372,8 +393,7 @@ function Level({
         left: at?.x ?? 0,
         top: at?.y ?? 0,
         // never painted at 0,0: the layout effect places it before the first paint (and it stays focusable)
-        maxHeight: at?.maxH,
-        transformOrigin: `${at?.left ? 'right' : 'left'} ${at?.up ? 'bottom' : 'top'}`
+        maxHeight: at?.maxH
       }}
     >
       {title && (

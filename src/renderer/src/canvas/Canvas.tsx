@@ -1296,7 +1296,6 @@ export function Canvas({
         const id = added.find((i) => !r.state.cards.find((c) => c.id === i)?.private)
         if (id !== undefined) {
           placeNext.current = null
-          if (showTab.current?.id === id) showTab.current = null
           placed = id
           return placeCard(r.state, id, want)
         }
@@ -4082,6 +4081,8 @@ export function Canvas({
       edit((s0) => placeCard(s0, id, { x: at.wx, y: at.wy }))
       setSel(new Set([`c:${id}`]))
       window.api.navigate(text)
+      // and it opens in the preview straight away, as a new tab from the popover does (main shows that one)
+      showTab.current = { id, at: Date.now() }
       return
     }
     placeNext.current = { x: at.wx, y: at.wy, t: Date.now() }
