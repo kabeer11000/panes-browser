@@ -10,6 +10,7 @@ import {
   clusterable,
   deleteFrame,
   dropCards,
+  fitFrames,
   fitVideoCards,
   linkedOrder,
   videoCardSize,
@@ -283,6 +284,15 @@ describe('editing', () => {
     expectClean(s)
     const on = addFrame(s, { ...base.frames[0], w: 300, h: 300 }).state
     expectClean(on)
+  })
+  test('a frame drawn by hand keeps the size it was drawn at', () => {
+    const drawn = addFrame(base, { x: 9000, y: 9000, w: 700, h: 500 }, 'Frame', true)
+    const f = fitFrames(drawn.state).frames.find((x) => x.id === drawn.id)!
+    expect([f.w, f.h]).toEqual([700, 500])
+    // one made around cards (not drawn) still hugs them
+    const made = addFrame(base, { x: 9000, y: 9000, w: 700, h: 500 })
+    const g = fitFrames(made.state).frames.find((x) => x.id === made.id)!
+    expect(g.w < 700 || g.h < 500).toBe(true)
   })
   test('deleting a frame frees its cards for the next tidy', () => {
     const s = deleteFrame(base, base.frames[0].id)

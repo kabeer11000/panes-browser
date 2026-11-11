@@ -1334,13 +1334,23 @@ export function renameFrame(s: CanvasState, id: string, name: string): CanvasSta
 export function addFrame(
   s: CanvasState,
   box: Box,
-  name = 'Frame'
+  name = 'Frame',
+  /** Drawn by hand: it keeps the size it was drawn at (only growing to hold what is in it), not hugging its cards. */
+  drawn = false
 ): { state: CanvasState; id: string } {
   const min = frameBox(1)
   const size = { w: Math.max(box.w, min.w), h: Math.max(box.h, min.h) }
   const spot = freeSpot(size, frameObstacles(s), { x: box.x, y: box.y })
   const id = `f${s.seq + 1}`
-  const frame: CanvasFrame = { id, name, kind: 'user', ...spot, ...size, pinned: true }
+  const frame: CanvasFrame = {
+    id,
+    name,
+    kind: 'user',
+    ...spot,
+    ...size,
+    pinned: true,
+    ...(drawn ? { sized: true } : {})
+  }
   let next: CanvasState = { ...s, seq: s.seq + 1, frames: [...s.frames, frame] }
   const inside = next.cards.filter(
     (c) =>

@@ -2784,7 +2784,7 @@ export function Canvas({
         h: Math.abs(w.y - g.wy)
       }
       if (box.w > 60 && box.h > 60) {
-        const r = addFrame(stRef.current!, box)
+        const r = addFrame(stRef.current!, box, 'Frame', true)
         flushSync(() => edit(() => r.state, { flip: true, undo: 'Made a section' }))
         setSel(new Set([`f:${r.id}`]))
         setEditing(r.id)
