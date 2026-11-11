@@ -36,7 +36,7 @@ export function badgeIcon(
     const cols = chars.length * 3 + (chars.length - 1)
     const px = Math.max(
       1,
-      Math.floor((size * (chars.length > 1 ? 0.78 : 0.5)) / Math.max(cols, 5 * 0.75))
+      Math.floor((size * (chars.length > 1 ? 0.6 : 0.4)) / Math.max(cols, 5 * 0.75))
     )
     const w = cols * px
     const h = 5 * px
@@ -71,4 +71,50 @@ export function badgeIcon(
     }
   }
   return buf
+}
+
+/** The handset of Material Symbols' "call" (Apache 2.0), on a 24-unit grid. */
+const PHONE_PATH =
+  'M19.95 21q-3.125 0-6.175-1.362t-5.55-3.863t-3.862-5.55T3 4.05q0-.45.3-.75t.75-.3H8.1q.35 0 .625.238t.325.562l.65 3.5q.05.4-.025.675T9.4 8.45L6.975 10.9q.5.925 1.187 1.787t1.513 1.663q.775.775 1.625 1.438T13.1 17l2.35-2.35q.225-.225.588-.337t.712-.063l3.45.7q.35.1.575.363T21 15.9v4.05q0 .45-.3.75t-.75.3'
+
+/**
+ * The badge drawn by the window's own page, in the system font, anti-aliased at each size Windows may ask for
+ * (TaskbarAttention runs this in the page and takes the PNGs it returns). The count is set well inside the circle,
+ * as Windows' own badges are; a call is a handset. Evaluates to `{ [size]: dataURL }`.
+ */
+export function badgeScript(
+  label: string,
+  rgb: readonly [number, number, number],
+  sizes: readonly number[],
+  symbol: 'phone' | null = null
+): string {
+  return `(() => {
+  const out = {}
+  for (const s of ${JSON.stringify(sizes)}) {
+    const c = document.createElement('canvas')
+    c.width = c.height = s
+    const g = c.getContext('2d')
+    g.fillStyle = 'rgb(${rgb.join(',')})'
+    g.beginPath()
+    g.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2)
+    g.fill()
+    g.fillStyle = '#fff'
+    if (${JSON.stringify(symbol)} === 'phone') {
+      const k = (s * 0.58) / 24
+      g.translate(s / 2 - 12 * k, s / 2 - 12 * k)
+      g.scale(k, k)
+      g.fill(new Path2D(${JSON.stringify(PHONE_PATH)}))
+    } else if (${JSON.stringify(label)}) {
+      const text = ${JSON.stringify(label)}
+      g.font = '600 ' + Math.round(s * (text.length > 1 ? 0.46 : 0.56)) + 'px "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'
+      g.textAlign = 'center'
+      g.textBaseline = 'alphabetic'
+      const m = g.measureText(text)
+      const h = m.actualBoundingBoxAscent - m.actualBoundingBoxDescent
+      g.fillText(text, s / 2, Math.round(s / 2 + h / 2))
+    }
+    out[s] = c.toDataURL('image/png')
+  }
+  return out
+})()`
 }
