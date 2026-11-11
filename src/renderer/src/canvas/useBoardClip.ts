@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { boundsOf, cardBox, type Box, type CanvasState } from '@shared/ai/canvas'
 import { itemFor } from '@shared/ai/canvasItems'
 import {
@@ -76,8 +76,8 @@ export function useBoardClip(d: BoardClipDeps): BoardClip {
     d.edit((s) => placeCards(s, here, p.at), { flip: true })
   })
 
-  const api = useRef<BoardClip | null>(null)
-  if (!api.current) {
+  // made once (its functions read the latest board through `ref` when they run)
+  const [api] = useState<BoardClip>(() => {
     const selected = (): ClipEntry[] => {
       const { stRef, selRef, byId } = ref.current
       const s = stRef.current
@@ -187,7 +187,7 @@ export function useBoardClip(d: BoardClipDeps): BoardClip {
       void paste({ mode: 'copy', space: ref.current.spaceId, entries, text: '' }, boxes, pasteOffset(boxes, at), at)
       return true
     }
-    api.current = {
+    return {
       copy: (cut) => {
         const entries = selected()
         if (entries.length === 0) return false
@@ -209,6 +209,6 @@ export function useBoardClip(d: BoardClipDeps): BoardClip {
       onPaste: (text, at) => pasteWhat(text, at, true) === true,
       canPaste: false
     }
-  }
-  return { ...api.current, canPaste: held !== null }
+  })
+  return { ...api, canPaste: held !== null }
 }

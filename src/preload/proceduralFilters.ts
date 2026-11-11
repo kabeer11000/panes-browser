@@ -192,7 +192,7 @@ const _extractValueFromStr = (
 // }
 const _parseKeyValueMatchRules = (arg: string): KeyValueMatchRules => {
   const [key, needlePos] = _extractKeyFromStr(arg)
-  const keyMatchRule = (arg: string) => _testMatches(key, arg, true)
+  const keyMatchRule = (arg: string): boolean => _testMatches(key, arg, true)
   let valueMatchRule: TextMatchRule | undefined
   if (needlePos !== undefined) {
     const value = _extractValueFromStr(arg, false, needlePos)
@@ -252,7 +252,7 @@ const _allChildrenRecursive = (element: HTMLElement): HTMLElement[] => {
     .filter((e) => e !== null)
 }
 
-const _stripCssOperator = (operator: string, selector: string) => {
+const _stripCssOperator = (operator: string, selector: string): string => {
   if (selector[0] !== operator) {
     throw new Error(
       `Expected to find ${operator} in initial position of "${selector}`,
@@ -608,7 +608,7 @@ const _determineInitNodesAndIndex = (
   selector: CompiledProceduralSelector,
   initNodes?: HTMLElement[],
 ): [number, HTMLElement[]] => {
-  let nodesToConsider: HTMLElement[] = []
+  let nodesToConsider: HTMLElement[]
   let index = 0
 
   // A couple of special cases to consider.

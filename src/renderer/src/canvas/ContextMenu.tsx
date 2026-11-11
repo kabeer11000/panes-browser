@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   inTriangle,
   placeMenu,
@@ -30,6 +30,9 @@ const rel = (r: DOMRect, o: DOMRect): Rect => ({
  * Home/End, Enter/Space, Right/Left for submenus, a typed letter jumps, Esc closes one level. It closes on a press
  * outside, Esc, the window losing focus, a wheel over the board or a resize, and gives focus back.
  */
+/** Now, in ms (for the grace period of the pointer's way into a submenu). */
+const clock = (): number => performance.now()
+
 export function ContextMenu({
   x,
   y,
@@ -52,10 +55,16 @@ export function ContextMenu({
 }): React.JSX.Element {
   const wrap = useRef<HTMLDivElement>(null)
   const levels = useRef<Array<HTMLDivElement | null>>([])
+  const register = useCallback((depth: number, el: HTMLDivElement | null): void => {
+    levels.current[depth] = el
+  }, [])
+  const levelAt = useCallback((depth: number) => levels.current[depth] ?? null, [])
   // the open submenus: path[d] is the row of level d whose submenu is open
   const [path, setPath] = useState<number[]>([])
   const pathRef = useRef(path)
-  pathRef.current = path
+  useLayoutEffect(() => {
+    pathRef.current = path
+  }, [path])
   const grace = useRef<{ depth: number; tri: [Pt, Pt, Pt]; until: number } | null>(null)
   const pending = useRef<{ depth: number; i: number; timer: number } | null>(null)
   const typed = useRef({ q: '', at: 0 })
@@ -199,7 +208,7 @@ export function ContextMenu({
    * through on its way into an open submenu. */
   const hover = (d: number, i: number, p: Pt): void => {
     const g = grace.current
-    if (g && g.depth === d && pathRef.current[d] !== i && performance.now() < g.until) {
+    if (g && g.depth === d && pathRef.current[d] !== i && clock() < g.until) {
       if (inTriangle(p, ...g.tri)) {
         // look again once the grace is over: if the pointer stopped here, this row wins
         window.clearTimeout(pending.current?.timer)
@@ -213,7 +222,7 @@ export function ContextMenu({
               grace.current = null
               if (pd) hover(pd.depth, pd.i, { x: -1e6, y: -1e6 })
             },
-            Math.max(0, g.until - performance.now())
+            Math.max(0, g.until - clock())
           )
         }
         return
@@ -242,7 +251,7 @@ export function ContextMenu({
       return
     }
     const r = rel(sub.getBoundingClientRect(), board)
-    grace.current = { depth: d, tri: safeTriangle(p, r), until: performance.now() + 400 }
+    grace.current = { depth: d, tri: safeTriangle(p, r), until: clock() + 400 }
   }
 
   return (
@@ -262,7 +271,8 @@ export function ContextMenu({
           anchor={x}
           anchorY={y}
           avoid={avoid}
-          levels={levels}
+          register={register}
+          levelAt={levelAt}
           onRow={(i, p) => hover(d, i, p)}
           onLeave={(i, p) => leave(d, i, p)}
           onActivate={(i) => activate(d, i, false)}
@@ -293,7 +303,8 @@ function Level({
   anchor,
   anchorY,
   avoid,
-  levels,
+  register,
+  levelAt,
   onRow,
   onLeave,
   onActivate
@@ -306,7 +317,9 @@ function Level({
   anchor: number
   anchorY: number
   avoid: Rect[]
-  levels: React.RefObject<Array<HTMLDivElement | null>>
+  /** Each level's element, kept by the menu for focus and the pointer's way into a submenu. */
+  register: (depth: number, el: HTMLDivElement | null) => void
+  levelAt: (depth: number) => HTMLDivElement | null
   onRow: (i: number, p: Pt) => void
   onLeave: (i: number, p: Pt) => void
   onActivate: (i: number) => void
@@ -321,7 +334,7 @@ function Level({
     const bounds = { w: board.clientWidth, h: board.clientHeight }
     const size = { w: el.offsetWidth, h: el.scrollHeight }
     if (depth === 0) return setAt(placeMenu({ x: anchor, y: anchorY }, size, bounds, avoid))
-    const parent = levels.current?.[depth - 1]
+    const parent = levelAt(depth - 1)
     const row = parent?.querySelector<HTMLElement>('[aria-expanded="true"]')
     if (!parent || !row) return
     const o = board.getBoundingClientRect()
@@ -348,7 +361,7 @@ function Level({
       className={'cv-ctx' + (depth ? ' sub' : '')}
       ref={(el) => {
         box.current = el
-        if (levels.current) levels.current[depth] = el
+        register(depth, el)
       }}
       role="menu"
       tabIndex={-1}

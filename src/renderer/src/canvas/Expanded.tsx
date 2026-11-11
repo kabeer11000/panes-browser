@@ -652,8 +652,11 @@ export function Expanded({
   const [addressOpen, setAddressOpen] = useState(false)
   const addressOpenRef = useRef(false)
   const tabRef = useRef<number | null>(tab ?? null)
+  // whether the live page was already shown once on its own (opened live, a video, an app with no article)
+  const autoLive = useRef(false)
   // find in the live page: the browser's own find box, in the header (the page view would cover anything below)
   const [findKey, setFindKey] = useState<number | null>(null)
+  const findKeyRef = useRef(findKey)
   // the live page as it was last seen: always under the native view, so whenever the view is away (moving, loading,
   // a popover over it, closing) the page is still there in picture, never an empty slot
   const [shot, setShot] = useState<string | null>(null)
@@ -800,7 +803,6 @@ export function Expanded({
       }),
     [readZoom]
   )
-  const findKeyRef = useRef(findKey)
   useEffect(() => {
     findKeyRef.current = findKey
   }, [findKey])
@@ -910,7 +912,6 @@ export function Expanded({
   // opened for the person by the assistant, or a video (it only plays in the page): once the panel has grown into
   // place, show the page itself
   const goLiveRef = useRef(goLive)
-  const autoLive = useRef(false)
   useLayoutEffect(() => {
     goLiveRef.current = goLive
   })
@@ -953,7 +954,6 @@ export function Expanded({
   // the zoom level shows in the bar while it is not the site's usual one
   useEffect(() => {
     if (live === 'on') readZoom()
-    else setZoom(null)
   }, [live, readZoom])
   // (and when a split comes or goes: the slot is a new element then, at a new size)
   useEffect(() => {
@@ -1027,7 +1027,9 @@ export function Expanded({
     if (id !== null) window.api.canvas.liveNav(id, how)
   }
   const zoomLabel =
-    zoom && Math.abs(zoom.level - zoom.base) > 0.01 ? `${zoomPercent(zoom.level)}%` : null
+    live === 'on' &&
+    zoom &&
+    Math.abs(zoom.level - zoom.base) > 0.01 ? `${zoomPercent(zoom.level)}%` : null
 
   const src = m.pdf ?? { url, file }
   const [pdfKey, setPdfKey] = useState(0)

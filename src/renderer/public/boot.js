@@ -11,6 +11,6 @@ try {
   // the effects mode main sets once the page has loaded (efficient mode has an opaque window and no layout animation)
   var fx = localStorage.getItem('panes:fx')
   if (fx === 'low' || fx === 'full') document.documentElement.dataset.fx = fx
-} catch (e) {
+} catch {
   // no saved theme, or storage is not available: the app sets it as soon as it has started
 }

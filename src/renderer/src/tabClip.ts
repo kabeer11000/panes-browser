@@ -137,7 +137,7 @@ async function pasteInSidebar(
   const { tabs, activeId, spaceId } = o
   const active = tabs.find((t) => t.id === activeId)
   const index = active ? tabs.indexOf(active) + 1 : tabs.length
-  let ids: number[] = []
+  let ids: number[]
   if (what.kind === 'urls') ids = await window.api.openTabs(what.urls, spaceId)
   else {
     const c = what.clip
