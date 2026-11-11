@@ -7,7 +7,7 @@ import { displayHost } from '@shared/url'
 import { Markdown } from '@renderer/components/chat/Markdown'
 import { workingLabel } from '@renderer/components/chat/workingLabel'
 import { Working } from '@renderer/components/chat/Working'
-import { PlusIcon, StopSquareIcon } from '@renderer/components/icons'
+import { CloseIcon, GripIcon, PlusIcon, StopSquareIcon } from '@renderer/components/icons'
 import '@renderer/components/chat/chat.css'
 import type { AskApi, AskTurn } from './useAsk'
 import './ask.css'
@@ -388,7 +388,7 @@ export function AskDock({
                       }}
                     >
                       <span className="cv-dock-grip" aria-hidden="true">
-                        :::
+                        <GripIcon />
                       </span>
                       {editing === q.id ? (
                         <input
@@ -423,7 +423,7 @@ export function AskDock({
                         title="Remove"
                         onClick={() => ask.removeQueued(q.id)}
                       >
-                        x
+                        <CloseIcon />
                       </button>
                     </div>
                   ))}
@@ -432,14 +432,15 @@ export function AskDock({
               {ask.chips.length > 0 && (
                 <div className="cv-dock-chips" aria-label="Attached to the next question">
                   {ask.chips.map((c) => (
-                    <span key={c.tab} className="cv-dock-chip">
+                    <span key={c.tab} className="cv-dock-chip" title={c.title}>
                       <span>{c.title}</span>
                       <button
                         type="button"
                         aria-label={`Leave out ${c.title}`}
+                        title="Leave out"
                         onClick={() => ask.dropChip(c.tab)}
                       >
-                        x
+                        <CloseIcon />
                       </button>
                     </span>
                   ))}
