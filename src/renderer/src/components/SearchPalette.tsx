@@ -170,6 +170,7 @@ export function SearchPalette({
   const [typed, setTyped] = useState('') // what the user actually typed
   const [dirty, setDirty] = useState(false) // the prefilled address is not a search until edited
   const [sel, setSel] = useState(0)
+  const pointerAt = useRef<{ x: number; y: number } | null>(null)
   const [local, setLocal] = useState<LocalSuggestion[]>([])
   const [remote, setRemote] = useState<string[]>([])
   const [similar, setSimilar] = useState<LocalSuggestion[]>([]) // AI: pages that match by meaning
@@ -377,7 +378,14 @@ export function SearchPalette({
               className={'pal-row' + (i === current ? ' selected' : '')}
               // keep focus in the input while clicking
               onMouseDown={(e) => e.preventDefault()}
-              onMouseMove={() => i !== current && setSel(i)}
+              onMouseMove={(e) => {
+                // only a real move of the pointer picks: the list scrolling under a resting pointer (as the arrow
+                // keys move the pick) sends a move too, which used to pull the pick back to the item under it
+                const at = pointerAt.current
+                pointerAt.current = { x: e.screenX, y: e.screenY }
+                if (at && at.x === e.screenX && at.y === e.screenY) return
+                if (i !== current) setSel(i)
+              }}
               onClick={(e) =>
                 run(r, e.altKey ? 'tab' : e.ctrlKey || e.metaKey ? 'split' : 'current')
               }
