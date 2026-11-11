@@ -355,6 +355,8 @@ export class TabManager {
    * Ctrl+F, zoom, site settings, back) go to that page instead of the hidden active tab.
    */
   private previewOpen = false
+  /** The guided tour is up: the shortcuts it teaches are its to catch, not the features' (see Tour.tsx). */
+  private tourOpen = false
   private previewTab: number | null = null
   /** Tabs streaming live to their canvas card (setStreaming). */
   private streaming = new Set<number>()
@@ -718,7 +720,9 @@ export class TabManager {
     if (!this.canvasMode || !this.previewOpen) return this.current()
     const f = this.previewFocus
     const id =
-      f !== null && (f === this.liveId || this.companions.has(f)) ? f : (this.liveId ?? this.previewTab)
+      f !== null && (f === this.liveId || this.companions.has(f))
+        ? f
+        : (this.liveId ?? this.previewTab)
     return id === null ? null : (this.tabs.get(id) ?? null)
   }
 
@@ -2389,6 +2393,11 @@ export class TabManager {
   }
 
   /** Something is drawn over the page (the space editor, the command bar, a tab being dragged). */
+  /** The guided tour opened or closed (see tourOpen). */
+  setTourOpen(open: boolean): void {
+    this.tourOpen = open
+  }
+
   overlayOpen(): boolean {
     return this.overlay
   }
@@ -2419,11 +2428,7 @@ export class TabManager {
         const t = this.tabs.get(id)
         return (
           !!t &&
-          (!t.thumb ||
-            (sharp && !t.thumbSharp) ||
-            !this.thumbFits(id, t) ||
-            t.dirty ||
-            t.media)
+          (!t.thumb || (sharp && !t.thumbSharp) || !this.thumbFits(id, t) || t.dirty || t.media)
         )
       })
       if (stale.length > 0) {
@@ -2463,7 +2468,8 @@ export class TabManager {
       const liveFull = this.canvasMode && id === this.liveId && this.fullscreenId === id
       const companion = this.canvasMode && !liveFull ? this.companions.get(id) : undefined
       const live =
-        (this.canvasMode && id === this.liveId && this.liveRect !== null && !liveFull) || !!companion
+        (this.canvasMode && id === this.liveId && this.liveRect !== null && !liveFull) ||
+        !!companion
       // A tab streaming to its card must keep painting. Like captureHidden: shown with only its top-left pixels
       // inside the window's bottom-right corner, which its rounded corner leaves transparent, so none of it is seen.
       const streamed =
@@ -2471,20 +2477,21 @@ export class TabManager {
       const pageRect = streamed ? (this.rects[id] ?? this.activeRect()) : null
       // the live rect is the slot at rest: it rides the hover sidebar's and top bar's slide like any page view
       const liveAt = companion ?? (id === this.liveId ? this.liveRect : null)
-      const rect = live && liveAt
-        ? { ...liveAt, x: liveAt.x + this.slideX, y: liveAt.y + this.slideY }
-        : streamed
-          ? {
-              x: w - 3,
-              y: h - 3,
-              width: Math.max(800, pageRect?.width ?? w),
-              height: Math.max(600, pageRect?.height ?? h)
-            }
-          : placed && this.overlay && !liveFull
-          ? { ...placed, x: PARKED_X }
-          : placed && this.fullscreenId === null
-            ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
-            : placed
+      const rect =
+        live && liveAt
+          ? { ...liveAt, x: liveAt.x + this.slideX, y: liveAt.y + this.slideY }
+          : streamed
+            ? {
+                x: w - 3,
+                y: h - 3,
+                width: Math.max(800, pageRect?.width ?? w),
+                height: Math.max(600, pageRect?.height ?? h)
+              }
+            : placed && this.overlay && !liveFull
+              ? { ...placed, x: PARKED_X }
+              : placed && this.fullscreenId === null
+                ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
+                : placed
       const show =
         rect !== null &&
         !this.isBlank(tab) &&
@@ -2822,6 +2829,20 @@ export class TabManager {
     if (input.type !== 'keyDown') return
     const mod = input.control || input.meta
     const k = input.key.toLowerCase()
+    // the tour asks for a shortcut and must see it, without the feature running under it (Ctrl+Shift+K would swap
+    // the window for the board and end the tour): every modified key goes to the tour alone while it is up
+    // (Alt+F4 still closes the window)
+    if (this.tourOpen && (mod || input.alt || /^f\d+$/.test(k)) && !(input.alt && k === 'f4')) {
+      this.send('ui:tour-key', {
+        key: input.key,
+        ctrlKey: !!input.control,
+        metaKey: !!input.meta,
+        shiftKey: !!input.shift,
+        altKey: !!input.alt
+      })
+      event.preventDefault()
+      return
+    }
     let handled = true
 
     if (mod && !input.alt && !input.shift) {
@@ -3180,6 +3201,43 @@ export class TabManager {
     return list.length
   }
 
+  /**
+   * Open another browser's open tabs (an import) in the active space: each one unloaded, so a hundred tabs
+   * start a hundred titles and not a hundred pages, all gathered into one group named after the browser. The
+   * person is not moved onto them (the welcome page keeps the focus), so none is activated. A page already open
+   * in the space is not opened again, and an import run twice fills the group of that name rather than making a
+   * second one. How many tabs opened.
+   */
+  addImportedTabs(groupName: string, imported: { url: string; title: string }[]): number {
+    const open = new Set<string>()
+    for (const t of this.tabs.values()) {
+      if (t.spaceId !== this.activeSpaceId) continue
+      const wc = t.unloaded ? null : liveContents(t)
+      const url = t.pending?.url || wc?.getURL() || t.firstUrl
+      if (url) open.add(url)
+    }
+    const ids: number[] = []
+    for (const t of imported) {
+      if (typeof t.url !== 'string' || open.has(t.url)) continue
+      open.add(t.url)
+      const title = typeof t.title === 'string' ? t.title.slice(0, 500) : ''
+      ids.push(this.create(t.url, false, this.activeSpaceId, { title, favicon: null }))
+    }
+    if (!ids.length) return 0
+    const existing = [...this.groups.values()].find(
+      (g) => g.spaceId === this.activeSpaceId && g.name === groupName
+    )
+    let groupId = existing?.id ?? null
+    if (groupId === null) {
+      this.createGroup(ids[0], groupName)
+      groupId = this.tabs.get(ids[0])?.groupId ?? null
+    }
+    if (groupId !== null)
+      for (const tid of ids)
+        if (this.tabs.get(tid)?.groupId !== groupId) this.addToGroup(tid, groupId)
+    return ids.length
+  }
+
   /** Open a saved session as a new group of tabs, named after it. */
   openDump(id: number): void {
     const dump = this.deps.dumps.get(id)
@@ -3398,8 +3456,10 @@ export class TabManager {
     const caps = pageCaps(url, priv)
     const shown = live === true
     const sep: MenuItemConstructorOptions = { type: 'separator' }
-    const when = (ok: boolean, ...items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] =>
-      ok ? items : []
+    const when = (
+      ok: boolean,
+      ...items: MenuItemConstructorOptions[]
+    ): MenuItemConstructorOptions[] => (ok ? items : [])
     return new Promise((resolve) => {
       // what the board does itself comes back at once: on some platforms the click lands after the close callback
       const pick = (what: PageMenuPick) => (): void => resolve(what)
@@ -3427,12 +3487,24 @@ export class TabManager {
           }
         }),
         ...when(caps.copy, { label: 'Copy link', click: () => clipboard.writeText(url) }),
-        ...when(shown, { label: 'Find in page...', accelerator: 'CmdOrCtrl+F', click: pick('find') }),
+        ...when(shown, {
+          label: 'Find in page...',
+          accelerator: 'CmdOrCtrl+F',
+          click: pick('find')
+        }),
         ...when(shown, {
           label: `Zoom (${zoomPercent(wc.getZoomLevel())}%)`,
           submenu: [
-            { label: 'Zoom in', accelerator: 'CmdOrCtrl+=', click: () => this.zoom(ZOOM_STEP, tab) },
-            { label: 'Zoom out', accelerator: 'CmdOrCtrl+-', click: () => this.zoom(-ZOOM_STEP, tab) },
+            {
+              label: 'Zoom in',
+              accelerator: 'CmdOrCtrl+=',
+              click: () => this.zoom(ZOOM_STEP, tab)
+            },
+            {
+              label: 'Zoom out',
+              accelerator: 'CmdOrCtrl+-',
+              click: () => this.zoom(-ZOOM_STEP, tab)
+            },
             { label: 'Actual size', accelerator: 'CmdOrCtrl+0', click: () => this.zoom(null, tab) }
           ]
         }),

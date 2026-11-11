@@ -7,7 +7,8 @@ import { takeImportSources } from './importSources'
 const ITEMS: Array<{ item: ImportItem; label: string }> = [
   { item: 'bookmarks', label: 'Bookmarks' },
   { item: 'history', label: 'History' },
-  { item: 'search', label: 'Search engine' }
+  { item: 'search', label: 'Search engine' },
+  { item: 'tabs', label: 'Open tabs' }
 ]
 
 const n = (count: number, one: string, many = one + 's'): string =>
@@ -21,9 +22,13 @@ function describe(r: ImportResult, browser: string): string {
     return `Could not read ${browser}'s files.`
   }
   const parts = [n(r.bookmarks, 'bookmark'), n(r.history, 'page') + ' of history']
+  if (r.tabs) parts.push(n(r.tabs, 'open tab'))
   return (
-    `Brought over ${parts.join(' and ')}.` +
-    (r.search ? ` Searching with ${SEARCH_ENGINES[r.search].name}.` : '')
+    `Brought over ${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}.` +
+    (r.search ? ` Searching with ${SEARCH_ENGINES[r.search].name}.` : '') +
+    (r.historyLocked
+      ? ` ${browser} is running and holds its history: close it and import again for that.`
+      : '')
   )
 }
 
@@ -117,7 +122,7 @@ export function ImportSection(): React.JSX.Element {
   return (
     <Group
       title="Import from another browser"
-      footer="Signed-in sites, open tabs and extensions do not come over: sign in to each site once. Nothing leaves this computer."
+      footer="Signed-in sites and extensions do not come over: sign in to each site once. Open tabs come over as a group, without loading. Nothing leaves this computer."
     >
       {source ? (
         <>

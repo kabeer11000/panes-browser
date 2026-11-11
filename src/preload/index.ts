@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { UpdateState } from '@shared/update'
+import type { KeyLike } from '@shared/tour'
 import type { CanvasFoundEvent } from '@shared/ai/canvasFind'
 import type {
   FindResult,
@@ -173,6 +174,8 @@ const api: PanesApi = {
   duplicateTabs: (ids, spaceId) => ipcRenderer.invoke('tabs:duplicate', ids, spaceId),
   openTabs: (urls, spaceId) => ipcRenderer.invoke('tabs:open-many', urls, spaceId),
   setSlide: (x, y) => ipcRenderer.send('ui:slide', x, y),
+  setTourOpen: (open) => ipcRenderer.send('ui:tour', open),
+  onTourKey: (cb) => subscribe<[KeyLike]>('ui:tour-key', cb),
   setOverlay: (open, snapshot, sharp) =>
     ipcRenderer.invoke('ui:overlay', open, snapshot, sharp) as Promise<void>,
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,

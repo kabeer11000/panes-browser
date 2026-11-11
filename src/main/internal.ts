@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   net,
+  Notification,
   protocol,
   shell,
   webContents,
@@ -32,6 +33,7 @@ import { currentChromeTheme } from './chromeTheme'
 import { appVersion, rolledBackVersion } from './layers'
 import type { DownloadManager } from './downloads'
 import type { Importer } from './importer'
+import type { PasswordExport } from './passwordExport'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
 import { isPermKind, originOf } from '@shared/permissions'
@@ -98,6 +100,7 @@ interface Deps {
   downloads: DownloadManager
   passwords: PasswordStore
   importer: Importer
+  passwordExport: PasswordExport
   spaces: {
     list: () => Space[]
     activeId: () => number
@@ -247,7 +250,40 @@ export function registerInternalIpc(d: Deps): void {
       Array.isArray(items) ? (items as ImportItem[]) : []
     )
   )
+  // importAll streams per-source progress back to the page that called it, so this one needs the sender
+  ipcMain.handle(
+    'int:import-everything',
+    (e: IpcMainInvokeEvent, items: unknown, only: unknown) => {
+      if (!e.senderFrame?.url.startsWith('panes://')) throw new Error('forbidden')
+      const sender = e.sender
+      return d.importer.importAll(
+        Array.isArray(items) ? (items as ImportItem[]) : [],
+        (p) => {
+          if (!sender.isDestroyed()) sender.send('int:import-progress', p)
+        },
+        Array.isArray(only) ? only.map(String) : undefined
+      )
+    }
+  )
   handle('int:import-passwords-file', () => d.importer.passwordsFile())
+  ipcMain.handle('int:passwords-from', (e: IpcMainInvokeEvent, sourceId: unknown) => {
+    if (!e.senderFrame?.url.startsWith('panes://')) throw new Error('forbidden')
+    const sender = e.sender
+    return d.passwordExport.start(String(sourceId), (r) => {
+      if (!sender.isDestroyed()) return sender.send('int:passwords-imported', r)
+      // the page that asked is gone (the welcome tab closed on finish): the person still hears how it went
+      if (!r.timedOut && Notification.isSupported())
+        new Notification({
+          title: r.added ? `${r.added} passwords imported` : 'No new passwords imported',
+          body: r.deleted
+            ? 'The exported file was deleted from Downloads.'
+            : 'Delete the exported file in Downloads: it holds your passwords in plain text.'
+        }).show()
+    })
+  })
+  ipcMain.on('int:passwords-watch-cancel', (e) => {
+    if (e.senderFrame?.url.startsWith('panes://')) d.passwordExport.cancel()
+  })
   handle('int:import-passwords-delete', () => d.importer.deletePasswordsFile())
   handle('int:import-bookmarks-file', () => d.importer.bookmarksFile())
   handle('int:clear-data', (kinds: ClearKind[], sinceMs: number | null) =>

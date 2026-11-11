@@ -92,7 +92,20 @@ if (location.protocol === 'panes:') {
     importSources: () => ipcRenderer.invoke('int:import-sources'),
     importRun: (sourceId, profileDir, items) =>
       ipcRenderer.invoke('int:import-run', sourceId, profileDir, items),
+    importEverything: (items, only) => ipcRenderer.invoke('int:import-everything', items, only),
+    onImportProgress: (cb) => {
+      const listener = (_e: unknown, p: Parameters<typeof cb>[0]): void => cb(p)
+      ipcRenderer.on('int:import-progress', listener)
+      return () => ipcRenderer.removeListener('int:import-progress', listener)
+    },
     importPasswordsFile: () => ipcRenderer.invoke('int:import-passwords-file'),
+    importPasswordsFrom: (sourceId) => ipcRenderer.invoke('int:passwords-from', sourceId),
+    cancelPasswordsWatch: () => ipcRenderer.send('int:passwords-watch-cancel'),
+    onPasswordsImported: (cb) => {
+      const listener = (_e: unknown, r: Parameters<typeof cb>[0]): void => cb(r)
+      ipcRenderer.on('int:passwords-imported', listener)
+      return () => ipcRenderer.removeListener('int:passwords-imported', listener)
+    },
     deleteImportedPasswordsFile: () => ipcRenderer.invoke('int:import-passwords-delete'),
     importBookmarksFile: () => ipcRenderer.invoke('int:import-bookmarks-file')
   }

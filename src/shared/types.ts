@@ -8,6 +8,8 @@ import type { TabKind } from './tabkind'
 import type { CaptureKind, CaptureState } from './capture'
 import type { SpaceAttention, TabAttention } from './attention'
 import type { TabDump } from './dumps'
+import type { KeyLike } from './tour'
+import type { PasswordExportResult } from './passwordExport'
 import type { PrintOptions } from './print'
 import type { ReaderArticle } from './reader'
 import type { SmartNewTab } from './newtab'
@@ -377,6 +379,10 @@ export interface PanesApi {
   duplicateTabs(ids: number[], spaceId: number): Promise<Array<number | null>>
   /** Open web addresses as tabs in a space, not shown; the new ids. */
   openTabs(urls: string[], spaceId: number): Promise<number[]>
+  /** The guided tour is up (true) or gone: while up, main hands it the modified keys instead of acting on them. */
+  setTourOpen(open: boolean): void
+  /** A modified key pressed while the tour is up (see setTourOpen). */
+  onTourKey(cb: (e: KeyLike) => void): () => void
   /** Hide the native page view (so renderer overlays can show); snapshots the active tab first. */
   setOverlay(open: boolean, snapshot?: boolean, sharp?: boolean): Promise<void>
   /** Shift the page views right by x and down by y pixels, keeping their size (the hover sidebar or top bar sliding out). */
@@ -836,15 +842,31 @@ export interface InternalApi {
   /** Browsers found on this computer, with their profiles; the system's default browser first. */
   importSources(): Promise<ImportSource[]>
   importRun(sourceId: string, profileDir: string, items: ImportItem[]): Promise<ImportResult>
+  /**
+   * One click: import the chosen items from every browser found (or only the ids in `only`, to retry one), streaming
+   * progress through onImportProgress. A second call while one runs gets the running one's result.
+   */
+  importEverything(items: ImportItem[], only?: string[]): Promise<ImportAllResult>
+  /** Per-source progress of the running importEverything; returns an unsubscribe. */
+  onImportProgress(cb: (p: ImportProgress) => void): () => void
   /** Pick a password CSV export and import it; null when no file was picked. */
   importPasswordsFile(): Promise<{ added: number; skipped: number } | null>
+  /**
+   * Open the browser's own "export passwords" page and watch Downloads for the CSV it writes, then import and
+   * delete it. The outcome arrives on onPasswordsImported. 'unsupported' when that browser cannot be guided.
+   */
+  importPasswordsFrom(sourceId: string): Promise<{ status: 'opened' | 'watching' | 'unsupported' }>
+  /** Stop watching Downloads for a password export (the person moved on). */
+  cancelPasswordsWatch(): void
+  /** The result of a guided password export once the CSV has been imported and deleted; returns an unsubscribe. */
+  onPasswordsImported(cb: (r: PasswordExportResult) => void): () => void
   /** Delete the CSV just imported (it holds every password in plain text). */
   deleteImportedPasswordsFile(): Promise<boolean>
   /** Pick a bookmarks HTML export and import it; null when no file was picked. */
   importBookmarksFile(): Promise<number | null>
 }
 
-export type ImportItem = 'bookmarks' | 'history' | 'search'
+export type ImportItem = 'bookmarks' | 'history' | 'search' | 'tabs'
 
 export interface ImportSource {
   id: string
@@ -858,9 +880,44 @@ export interface ImportSource {
 }
 
 export type ImportResult =
-  | { ok: true; bookmarks: number; history: number; search: SearchEngineId | null }
+  | {
+      ok: true
+      bookmarks: number
+      history: number
+      search: SearchEngineId | null
+      tabs: number
+      /** The browser is running and held its history: everything else came over. */
+      historyLocked?: boolean
+    }
   /** locked: the browser is running and holds its files; missing: the profile is gone. */
   | { ok: false; error: 'locked' | 'missing' | 'failed' }
+
+/** One source's progress during importEverything: 'reading' as it starts, then a terminal state with counts. */
+export interface ImportProgress {
+  id: string
+  name: string
+  state: 'reading' | 'done' | 'locked' | 'failed'
+  bookmarks: number
+  history: number
+  tabs: number
+  /** Done, but the running browser held its history (close it and retry for that). */
+  historyLocked?: boolean
+}
+
+/** The tally of a one-click import from every browser found, with the search engine taken from the default one. */
+export interface ImportAllResult {
+  sources: Array<{
+    id: string
+    name: string
+    bookmarks: number
+    history: number
+    tabs: number
+    historyLocked?: boolean
+    /** Absent on success; set when nothing could be read from this source. */
+    error?: 'locked' | 'missing' | 'failed'
+  }>
+  search: SearchEngineId | null
+}
 
 export interface PipState {
   playing: boolean

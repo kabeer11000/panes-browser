@@ -21,6 +21,7 @@ import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
 import { BookmarkStore, HistoryStore } from './history'
 import { Importer } from './importer'
+import { PasswordExport } from './passwordExport'
 import { DumpStore } from './dumps'
 import { TorManager } from './tor'
 import { chromeVars } from '@shared/color'
@@ -336,7 +337,15 @@ function createWindow(): void {
     },
     downloads,
     passwords,
-    importer: new Importer({ win, history, bookmarks, settings, passwords }),
+    passwordExport: new PasswordExport({ passwords }),
+    importer: new Importer({
+      win,
+      history,
+      bookmarks,
+      settings,
+      passwords,
+      addImportedTabs: (groupName, importedTabs) => tabs.addImportedTabs(groupName, importedTabs)
+    }),
     spaces: {
       list: () => spaces.list(),
       activeId: () => spaces.activeId(),
@@ -672,6 +681,12 @@ function createWindow(): void {
       tabs.setSlide(x, y)
     }
   })
+  ipcMain.on('ui:tour', (e, open: unknown) => {
+    if (e.sender === win.webContents) tabs.setTourOpen(open === true)
+  })
+  // a reload (or a crash) of the window's page takes the tour with it: keys go back to their features
+  win.webContents.on('did-start-loading', () => tabs.setTourOpen(false))
+  win.webContents.on('render-process-gone', () => tabs.setTourOpen(false))
   ipcMain.handle('ui:overlay', (_e, open: boolean, snapshot?: boolean, sharp?: boolean) =>
     tabs.setOverlay(open, snapshot, sharp === true)
   )

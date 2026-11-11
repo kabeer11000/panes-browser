@@ -5,12 +5,23 @@ import { resolveMode, type PerformanceMode } from '@shared/performance'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES, SPACE_LOOKS } from '@shared/settings'
 import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '@shared/types'
 import { Segmented, Toggle } from '@renderer/internal/ui'
-import { ImportSection } from '@renderer/internal/pages/ImportSection'
+import { ImportStep } from './ImportStep'
 import { preloadImportSources } from '@renderer/internal/pages/importSources'
 import { AiStep } from './AiStep'
 
 const STEPS = ['welcome', 'import', 'look', 'layout', 'speed', 'ai', 'finish'] as const
 type Step = (typeof STEPS)[number]
+
+/** The short name of each step, shown by the progress bar so the person always knows where they are. */
+const STEP_TITLE: Record<Step, string> = {
+  welcome: 'Welcome',
+  import: 'Bring your things',
+  look: 'Make it yours',
+  layout: 'Your tabs',
+  speed: 'Fast and private',
+  ai: 'AI',
+  finish: 'All set'
+}
 
 const KEYS: Array<[string, string]> = [
   ['Ctrl T', 'New tab'],
@@ -31,9 +42,10 @@ function wear(space: Space, accentSetting: string): void {
   root.removeProperty('--stage-bg')
 }
 
-function Panes(): React.JSX.Element {
+function Panes({ big = false }: { big?: boolean }): React.JSX.Element {
   return (
-    <div className="wl-mark" aria-hidden="true">
+    <div className={'wl-mark' + (big ? ' big' : '')} aria-hidden="true">
+      <span className="wl-glow" />
       <span className="p1" />
       <span className="p2" />
       <span className="p3" />
@@ -181,6 +193,14 @@ export function Welcome(): React.JSX.Element {
   useEffect(() => {
     if (space && accentSetting) wear(space, accentSetting)
   }, [space, accentSetting])
+  // Pointing at a colour on the look step sweeps the whole window to it; leaving puts the chosen one back.
+  const preview = useCallback(
+    (look: { color: string; color2: string | null } | null) => {
+      if (!space || !accentSetting) return
+      wear(look ? { ...space, ...look } : space, accentSetting)
+    },
+    [space, accentSetting]
+  )
 
   const index = STEPS.indexOf(step)
   const go = (to: Step): void => {
@@ -191,6 +211,10 @@ export function Welcome(): React.JSX.Element {
     setS((prev) => (prev ? { ...prev, ...patch } : prev))
     void api.setSettings(patch)
   }
+  // an import took the default browser's search engine over (main saved it): the speed step shows it
+  const takeSearch = useCallback((searchEngine: SearchEngineId) => {
+    setS((prev) => (prev ? { ...prev, searchEngine } : prev))
+  }, [])
   const updateSpace = (patch: Partial<Space>): void => {
     if (!space) return
     setSpace({ ...space, ...patch })
@@ -234,22 +258,42 @@ export function Welcome(): React.JSX.Element {
   if (!s || !space) return <></>
   const recommended = stats ? resolveMode('auto', stats.totalGb * 1024 ** 3) : 'balanced'
 
+  const pct = (index / (STEPS.length - 1)) * 100
   return (
     <MotionConfig reducedMotion="user">
       <main className="wl">
-        <header className="wl-top">
-          <div className="wl-dots" aria-label={`Step ${index + 1} of ${STEPS.length}`}>
+        {/* a thin line across the very top that fills as the steps go by (hidden on the opening screen) */}
+        <div
+          className={'wl-rail' + (step === 'welcome' ? ' hide' : '')}
+          role="progressbar"
+          aria-valuenow={index + 1}
+          aria-valuemin={1}
+          aria-valuemax={STEPS.length}
+          aria-label={`Step ${index + 1} of ${STEPS.length}: ${STEP_TITLE[step]}`}
+        >
+          <i style={{ width: `${pct}%` }} />
+        </div>
+        {/* hidden on the opening screen, and out of the keyboard's way there too */}
+        <header
+          className={'wl-top' + (step === 'welcome' ? ' hide' : '')}
+          inert={step === 'welcome'}
+        >
+          <nav className="wl-crumbs" aria-label="Steps">
             {STEPS.map((st, i) => (
               <button
                 key={st}
                 type="button"
-                className={'wl-dot' + (i === index ? ' on' : i < index ? ' done' : '')}
-                aria-label={`Go to step ${i + 1}`}
+                className={'wl-crumb' + (i === index ? ' on' : i < index ? ' done' : '')}
+                aria-label={`Go to ${STEP_TITLE[st]}`}
                 aria-current={i === index ? 'step' : undefined}
-                onClick={() => go(st)}
+                disabled={i > index}
+                onClick={() => i <= index && go(st)}
               />
             ))}
-          </div>
+          </nav>
+          <span className="wl-step-name">
+            <b>{index + 1}</b> / {STEPS.length} · {STEP_TITLE[step]}
+          </span>
           {step !== 'finish' && (
             <button type="button" className="wl-skip" onClick={() => void finish()}>
               Skip
@@ -270,28 +314,34 @@ export function Welcome(): React.JSX.Element {
               transition={{ type: 'spring', stiffness: 380, damping: 36 }}
             >
               {step === 'welcome' && (
-                <>
-                  <Panes />
-                  <h1>Welcome to Panes</h1>
+                <div className="wl-hero">
+                  <Panes big />
+                  <h1>
+                    Welcome to <span className="wl-wordmark">Panes</span>
+                  </h1>
                   <p className="wl-lede">
                     A calm, fast browser built around the way you work: tabs you can see, pages side
                     by side, and nothing in your way.
                   </p>
                   <button type="button" className="wl-go" onClick={forward}>
                     Get started
+                    <svg viewBox="0 0 24 24" aria-hidden="true" className="wl-go-arrow">
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
                   </button>
-                </>
+                  <span className="wl-hint">Takes about a minute</span>
+                </div>
               )}
 
               {step === 'import' && (
                 <>
-                  <h1>Bring your things along</h1>
+                  <h1>Bring everything over</h1>
                   <p className="wl-lede">
-                    Bookmarks, history and passwords from the browser you use now. Or skip this and
-                    do it later in Settings.
+                    Bookmarks, history and your open tabs from every browser on this computer, in
+                    one go. Passwords come from each browser&rsquo;s own export, so they stay safe.
                   </p>
                   <div className="wl-import">
-                    <ImportSection />
+                    <ImportStep onSearch={takeSearch} />
                   </div>
                 </>
               )}
@@ -315,6 +365,10 @@ export function Welcome(): React.JSX.Element {
                             ? `linear-gradient(135deg, ${l.color}, ${l.color2})`
                             : l.color
                         }}
+                        onMouseEnter={() => preview({ color: l.color, color2: l.color2 })}
+                        onMouseLeave={() => preview(null)}
+                        onFocus={() => preview({ color: l.color, color2: l.color2 })}
+                        onBlur={() => preview(null)}
                         onClick={() => updateSpace({ color: l.color, color2: l.color2 })}
                       />
                     ))}
@@ -455,7 +509,7 @@ export function Welcome(): React.JSX.Element {
 
               {step === 'finish' && (
                 <>
-                  <Panes />
+                  <Panes big />
                   <h1>You are all set</h1>
                   <div className="wl-default">
                     {isDefault ? (
