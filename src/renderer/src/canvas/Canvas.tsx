@@ -3151,11 +3151,15 @@ export function Canvas({
       setNewAt({ sx: wx * v.k + v.x, sy: wy * v.k + v.y, wx, wy, fill: id })
       return
     }
-    // a page last looked at live opens live again, and a call always does (its reader text is no use)
+    // a page last looked at live opens live again, and a call always does (its reader text is no use); so does
+    // what the reader has nothing to read in: anything not a web page (Panes' own pages, files), and a web app (a
+    // page with hardly any text, see CanvasPageContent.app). Starting in the reader only flashed before the page.
     const url = isVirtual(id) ? s.items[String(id)]?.url : byId.get(id)?.url
+    const tabCard = !isVirtual(id)
+    const unreadable = tabCard && ((!!url && !/^https?:/i.test(url)) || !!contents[id]?.app)
     setExpanded({
       id,
-      live: forceLive ?? (calls.has(id) || (!!url && s.previews?.[url] === 'live')),
+      live: forceLive ?? (calls.has(id) || unreadable || (!!url && s.previews?.[url] === 'live')),
       from: {
         x: card.x * v.k + v.x,
         y: card.y * v.k + v.y,
