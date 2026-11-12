@@ -514,6 +514,58 @@ export function Settings(): React.JSX.Element {
 
       {platform === 'win32' && (
         <Group
+          title="Touchpad on the board"
+          footer="How two-finger panning feels on the canvas board. Scrolling in web pages follows Windows' own touchpad settings."
+        >
+          <Row label="Speed" hint="How far the board moves for the same finger travel.">
+            <Select
+              label="Touchpad speed on the board"
+              value={s.touchpadSpeed}
+              options={[
+                { value: 0.7, label: 'Slower' },
+                { value: 1, label: 'Normal' },
+                { value: 1.4, label: 'Faster' },
+                { value: 1.9, label: 'Fastest' }
+              ]}
+              onChange={(v) => void update({ touchpadSpeed: v })}
+            />
+          </Row>
+          <Row
+            label="Glide after lifting"
+            hint="How far the board carries on once your fingers leave the pad."
+          >
+            <Select
+              label="Glide after lifting"
+              value={s.touchpadGlide}
+              options={[
+                { value: 0, label: 'Off' },
+                { value: 180, label: 'Short' },
+                { value: 320, label: 'Normal' },
+                { value: 560, label: 'Long' }
+              ]}
+              onChange={(v) => void update({ touchpadGlide: v })}
+            />
+          </Row>
+          <Row
+            label="Smoothing"
+            hint="Smooth trails your fingers by a few milliseconds so the board moves evenly; Responsive follows them closest."
+          >
+            <Segmented
+              label="Touchpad smoothing"
+              value={s.touchpadSmoothing}
+              options={[
+                { value: 'responsive', label: 'Responsive' },
+                { value: 'balanced', label: 'Balanced' },
+                { value: 'smooth', label: 'Smooth' }
+              ]}
+              onChange={(v) => void update({ touchpadSmoothing: v })}
+            />
+          </Row>
+        </Group>
+      )}
+
+      {platform === 'win32' && (
+        <Group
           title="Touchpad gesture"
           footer="Windows keeps three-finger swipes for itself, and no app can see them. What it can do is press a shortcut for you: open the touchpad settings, set the swipe you want (for example three fingers up) to a custom shortcut, and press Ctrl+Shift+Space. Panes opens the panes view. The same page can move Show desktop to four fingers."
         >

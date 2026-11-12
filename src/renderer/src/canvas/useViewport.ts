@@ -24,7 +24,8 @@ export function useViewport(
   panBy: (dx: number, dy: number) => void
   zoomAt: (factor: number, cx: number, cy: number) => void
   animateTo: (v: Viewport, ms?: number) => void
-  fling: (vx: number, vy: number) => void
+  /** Carry on at (vx, vy) px/ms, slowing with time constant `tau` ms (0: not at all). */
+  fling: (vx: number, vy: number, tau?: number) => void
   stop: () => void
 } {
   const root = useRef<HTMLDivElement>(null)
@@ -142,16 +143,16 @@ export function useViewport(
 
   /** Carry on moving after a drag let go, slowing down smoothly. Velocity in px per ms. */
   const fling = useCallback(
-    (vx: number, vy: number): void => {
+    (vx: number, vy: number, tau = 320): void => {
       stop()
-      if (Math.hypot(vx, vy) < 0.08) return
+      if (tau <= 0 || Math.hypot(vx, vy) < 0.08) return
       let last = performance.now()
       let x = vx
       let y = vy
       const step = (now: number): void => {
         const dt = Math.min(48, now - last)
         last = now
-        const decay = Math.exp(-dt / 320)
+        const decay = Math.exp(-dt / tau)
         x *= decay
         y *= decay
         panBy(x * dt, y * dt)

@@ -1,3 +1,5 @@
+import type { TouchpadSmoothing } from './types'
+
 /**
  * Free (diagonal) two-finger scrolling on Windows precision touchpads.
  *
@@ -22,8 +24,8 @@ export interface TouchFrame {
 }
 
 export interface FreeScrollOutput {
-  /** Pan the board by screen px (same sign as the wheel handler's panBy). */
-  pan(dx: number, dy: number): void
+  /** Pan the board by screen px (same sign as the wheel handler's panBy), for motion that happened at time `t`. */
+  pan(dx: number, dy: number, t: number): void
   /** Carry on at this velocity (px per ms), slowing down. */
   fling(vx: number, vy: number): void
   /** Stop a running fling (fingers back on the pad). */
@@ -91,7 +93,7 @@ export class FreeScroll {
     if (this.mode === 'touch') {
       this.pendX += f.dx
       this.pendY += f.dy
-    } else this.out.pan(-this.gain * f.dx, -this.gain * f.dy)
+    } else this.out.pan(-this.gain * f.dx, -this.gain * f.dy, f.t)
   }
 
   /**
@@ -113,7 +115,7 @@ export class FreeScroll {
         this.mode = 'scroll'
         this.learn(dx, dy)
         this.out.stop()
-        this.out.pan(-this.gain * this.pendX, -this.gain * this.pendY)
+        this.out.pan(-this.gain * this.pendX, -this.gain * this.pendY, t)
         this.pendX = this.pendY = 0
         return true
       case 'scroll':
@@ -160,5 +162,89 @@ export class FreeScroll {
     this.sxx = this.sxx * 0.98 + r * r
     const g = this.sxy / this.sxx
     if (Number.isFinite(g) && Math.abs(g) >= MIN_GAIN && Math.abs(g) <= MAX_GAIN) this.gain = g
+  }
+}
+
+/** Reports further apart than this (ms) are a pause, not one movement: the next one does not glide over the gap. */
+const GAP_MS = 50
+/** The display trails the newest report by at least this much (ms), per the smoothing setting. */
+export const SMOOTHING_DELAY_MS: Record<TouchpadSmoothing, number> = {
+  responsive: 4,
+  balanced: 10,
+  smooth: 18
+}
+/** ...and never by more than this, however late the reports come. */
+const MAX_DELAY_MS = 40
+
+/**
+ * Smooths the raw two-finger motion to the display's frames. A touchpad reports about every 8 ms, and the reports
+ * reach the page in uneven bursts, so panning by each one as it comes moves the board 0, 1 or 2 reports' worth from
+ * one frame to the next: choppy, though the distance is right. Instead the motion is kept with the time of each
+ * report (taken in main, before the trip over IPC) and each frame shows where the fingers were a little while ago,
+ * interpolated between the reports either side, as Windows does with its own touchpad scrolling. The delay follows
+ * how late the reports actually arrive. ponytail: the time is when main read the report, not the pad's own scan time
+ * (HID usage 0x56); read that if main's own pauses ever show.
+ */
+export class PanResampler {
+  /** The least the display trails the newest report (ms): the smoothing setting. */
+  minDelay = SMOOTHING_DELAY_MS.balanced
+
+  /** The total motion at each report's time, oldest first; the first is where the motion started. */
+  private pts: { t: number; x: number; y: number }[] = []
+  private x = 0
+  private y = 0
+  private shownX = 0
+  private shownY = 0
+  /** How late reports reach the page (ms), the worst of late, fading. */
+  private late = 0
+
+  /** Motion of (dx, dy) that happened at time `t`, seen here at `now` (same clock). */
+  push(t: number, dx: number, dy: number, now: number): void {
+    this.late = Math.max(now - t, this.late * 0.97)
+    const last = this.pts.at(-1)
+    if (!last || t - last.t > GAP_MS) this.pts.push({ t: t - 8, x: this.x, y: this.y }) // it starts moving here
+    this.x += dx
+    this.y += dy
+    const at = Math.max(t, (this.pts.at(-1)?.t ?? t) + 0.01) // never back in time
+    this.pts.push({ t: at, x: this.x, y: this.y })
+  }
+
+  get delay(): number {
+    return Math.min(MAX_DELAY_MS, Math.max(this.minDelay, this.late + 4))
+  }
+
+  /** Motion to show this frame (`now`); `done` once everything pushed has been shown. */
+  take(now: number): { dx: number; dy: number; done: boolean } {
+    const at = now - this.delay
+    let x = this.x
+    let y = this.y
+    const pts = this.pts
+    let i = 0
+    while (i < pts.length && pts[i].t <= at) i++
+    if (i === 0 && pts.length)
+      [x, y] = [pts[0].x, pts[0].y] // not started yet
+    else if (i < pts.length) {
+      const a = pts[i - 1]
+      const b = pts[i]
+      const f = (at - a.t) / (b.t - a.t)
+      x = a.x + (b.x - a.x) * f
+      y = a.y + (b.y - a.y) * f
+    }
+    if (i > 1) pts.splice(0, i - 1) // keep the one before `at`, to interpolate from
+    return this.emit(x, y)
+  }
+
+  /** Everything not shown yet, at once (the fingers lifted: the fling carries on from where they really were). */
+  flush(): { dx: number; dy: number } {
+    this.pts = []
+    return this.emit(this.x, this.y)
+  }
+
+  private emit(x: number, y: number): { dx: number; dy: number; done: boolean } {
+    const dx = x - this.shownX
+    const dy = y - this.shownY
+    this.shownX = x
+    this.shownY = y
+    return { dx, dy, done: x === this.x && y === this.y }
   }
 }

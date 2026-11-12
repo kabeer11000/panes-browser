@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { FreeScroll } from './freeScroll'
+import { FreeScroll, PanResampler } from './freeScroll'
 import { ContactFrames } from './touchContacts'
 
 function rig(gain = -10): { fs: FreeScroll; pans: number[][]; flings: number[][] } {
@@ -82,3 +82,63 @@ describe('ContactFrames', () => {
     expect(f).toEqual({ dx: 1, dy: 2, fingers: 3, y: 18 }) // y: (2 + 2 + 50) / 3
   })
 })
+
+describe('PanResampler', () => {
+  /** Reports every 8 ms of 8 px each, arriving in bursts; frames every 16.7 ms. The per-frame steps. */
+  function steps(r: PanResampler, frames: number): number[] {
+    const out: number[] = []
+    let sent = 0
+    for (let f = 1; f <= frames; f++) {
+      const now = f * 16.7
+      // reports up to 6 ms ago have arrived, a burst at a time
+      while (sent * 8 <= now - 6) r.push(sent++ * 8, 8, 0, now)
+      out.push(r.take(now).dx)
+    }
+    return out
+  }
+  test('even steps from bursty reports, adding up to the whole motion', () => {
+    const r = new PanResampler()
+    const s = steps(r, 30)
+    const moving = s.slice(4) // once under way
+    const mean = moving.reduce((a, b) => a + b, 0) / moving.length
+    for (const d of moving) expect(Math.abs(d - mean)).toBeLessThan(0.15 * mean)
+    const total = s.reduce((a, b) => a + b, 0) + r.flush().dx
+    expect(total).toBeCloseTo(r['x'] as number, 6)
+  })
+  test('stops where the fingers stopped, and says it is done', () => {
+    const r = new PanResampler()
+    r.push(0, 5, 3, 1)
+    r.push(8, 5, 3, 9)
+    let dx = 0
+    let dy = 0
+    let done = false
+    for (let now = 10; now < 200 && !done; now += 16) ({ dx, dy, done } = add(r.take(now), dx, dy))
+    expect(done).toBe(true)
+    expect([dx, dy]).toEqual([10, 6])
+  })
+  test('a pause is not glided over: the motion after it starts after it', () => {
+    const r = new PanResampler()
+    r.push(0, 10, 0, 1)
+    r.take(100)
+    r.push(500, 10, 0, 501)
+    // nothing during the pause: the new motion fills only the report's own 8 ms, not the 500 since the last
+    expect(r.take(491 + r.delay).dx).toBe(0)
+    expect(r.take(600).dx).toBe(10)
+  })
+  test('flush gives what is left and nothing after', () => {
+    const r = new PanResampler()
+    r.push(0, 4, 0, 1)
+    r.push(8, 4, 0, 9)
+    const part = r.take(12).dx
+    expect(part + r.flush().dx).toBeCloseTo(8, 6)
+    expect(r.take(1000)).toEqual({ dx: 0, dy: 0, done: true })
+  })
+})
+
+function add(
+  s: { dx: number; dy: number; done: boolean },
+  dx: number,
+  dy: number
+): { dx: number; dy: number; done: boolean } {
+  return { dx: dx + s.dx, dy: dy + s.dy, done: s.done }
+}

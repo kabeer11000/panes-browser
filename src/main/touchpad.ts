@@ -194,18 +194,20 @@ class Reader {
       let d = this.devices.get(handle)
       if (d === undefined) this.devices.set(handle, (d = describe(this.a, handle)))
       if (!d) return
+      // when the touch happened, as near as main can tell, in a clock the page shares (see PanResampler)
+      const at = performance.timeOrigin + performance.now()
       const each = this.buf.readUInt32LE(HEADER)
       const reports = this.buf.readUInt32LE(HEADER + 4)
       for (let i = 0; i < reports; i++) {
         const start = HEADER + 8 + i * each
-        this.report(d, Buffer.from(this.buf.subarray(start, start + each)))
+        this.report(d, Buffer.from(this.buf.subarray(start, start + each)), at)
       }
     } catch (err) {
       console.warn('touchpad: bad report', err)
     }
   }
 
-  private report(d: Device, r: Buffer): void {
+  private report(d: Device, r: Buffer, at: number): void {
     const a = this.a
     const v = [0]
     const value = (page: number, link: number, usage: number): number | null =>
@@ -233,7 +235,7 @@ class Reader {
     // only two-finger motion matters, plus the frame where the fingers come off
     if (f.fingers < 2 && this.lastFingers < 2) return
     this.lastFingers = f.fingers
-    if (!this.to.isDestroyed()) this.to.send('canvas:touchpad', f.dx, f.dy, f.fingers, f.y)
+    if (!this.to.isDestroyed()) this.to.send('canvas:touchpad', f.dx, f.dy, f.fingers, f.y, at)
   }
 
   private lastFingers = 0

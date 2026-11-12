@@ -14,6 +14,7 @@ import { sanitizeYouTube } from '@shared/youtube'
 import { sanitizeAi } from '@shared/ai/settings'
 import { DEFAULT_AI_SETTINGS } from '@shared/ai/types'
 import { JsonStore } from './store'
+import { SMOOTHING_DELAY_MS } from '@shared/freeScroll'
 
 type Listener = (settings: Settings) => void
 
@@ -81,6 +82,14 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (patch.neverUnloadSites !== undefined) {
     out.neverUnloadSites = normalizeSites(patch.neverUnloadSites)
   }
+  const num = (v: unknown, min: number, max: number): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : undefined
+  const speed = num(patch.touchpadSpeed, 0.3, 3)
+  if (speed !== undefined) out.touchpadSpeed = speed
+  const glide = num(patch.touchpadGlide, 0, 1500)
+  if (glide !== undefined) out.touchpadGlide = glide
+  if (typeof patch.touchpadSmoothing === 'string' && patch.touchpadSmoothing in SMOOTHING_DELAY_MS)
+    out.touchpadSmoothing = patch.touchpadSmoothing
   Object.assign(out, sanitizeYouTube(patch))
   for (const key of Object.keys(APPEARANCE_LIMITS) as AppearanceKey[]) {
     const v = patch[key]

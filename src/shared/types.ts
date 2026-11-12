@@ -303,8 +303,11 @@ export interface PanesApi {
     streaming(tabIds: number[]): void
     /** Ask for raw touchpad frames while the board is open (Windows only; false when they will not come). */
     touchpad(on: boolean): Promise<boolean>
-    /** Two-finger touchpad motion in mm, how many fingers are down, and their mean height from the pad's top edge (mm). */
-    onTouchpad(cb: (dx: number, dy: number, fingers: number, y: number) => void): () => void
+    /** Two-finger touchpad motion in mm, how many fingers are down, their mean height from the pad's top edge (mm),
+     * and when main read it (ms since the epoch: performance.timeOrigin + performance.now()). */
+    onTouchpad(
+      cb: (dx: number, dy: number, fingers: number, y: number, at: number) => void
+    ): () => void
     /** A tab-capture id of a streaming tab for getUserMedia (valid 10 s, this page only); null if not allowed. */
     streamSource(tabId: number): Promise<string | null>
     /** Where the playing video is in a tab's page; null when nothing plays there. */
@@ -436,6 +439,9 @@ export interface InitialData {
 
 export type SearchEngineId = 'duckduckgo' | 'google' | 'bing' | 'brave'
 
+/** See Settings.touchpadSmoothing and shared/freeScroll.ts. */
+export type TouchpadSmoothing = 'responsive' | 'balanced' | 'smooth'
+
 export interface Settings {
   searchEngine: SearchEngineId
   adblock: boolean
@@ -493,6 +499,12 @@ export interface Settings {
   sidebarHover: boolean
   /** Tabs down the side (a sidebar) or along the top. */
   tabLayout: 'vertical' | 'horizontal'
+  /** Two-finger touchpad panning on the board (Windows): how far it moves for the same finger travel, x1 usual. */
+  touchpadSpeed: number
+  /** How long the board glides on after the fingers lift (its slowing time, ms); 0 stops it where they lifted. */
+  touchpadGlide: number
+  /** How far the board trails the fingers to move evenly: less is snappier, more is silkier. */
+  touchpadSmoothing: TouchpadSmoothing
   /** Browse with tabs or with the canvas board; each space can override it (Space.browseWith). */
   browseWith: BrowseWith
   /** With tabs along the top, the address bar spans the whole row rather than sitting in the middle of it. */

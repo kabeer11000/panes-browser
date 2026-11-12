@@ -108,8 +108,7 @@ import {
   type End
 } from '@shared/ai/connectors'
 import { keepAspect, snapAngle, snapBox, type Snap } from '@shared/ai/snap'
-import type { Space, TabInfo } from '@shared/types'
-import { SpaceSwitcher } from '@renderer/components/SpaceSwitcher'
+import type { Settings, Space, TabInfo } from '@shared/types'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
@@ -194,7 +193,8 @@ const FRAME_HEAD_PX = 44
 /** Wheel px per mm of two-finger touchpad travel, as last measured (shared/freeScroll.ts). */
 const GAIN_KEY = 'panes.touchpadGain'
 import { MAX_K, MIN_K, useViewport } from './useViewport'
-import { DEFAULT_GAIN, FreeScroll } from '@shared/freeScroll'
+import { DEFAULT_GAIN, FreeScroll, PanResampler, SMOOTHING_DELAY_MS } from '@shared/freeScroll'
+import { DEFAULT_SETTINGS } from '@shared/settings'
 import './canvas.css'
 
 interface Props {
@@ -212,7 +212,6 @@ interface Props {
   layout?: LayoutNode | null
   /** For the space switcher in the board's top bar: each space has its own board. */
   spaces?: Space[]
-  spaceDir?: number
 }
 
 type Phase = 'loading' | 'entering' | 'open' | 'leaving'
@@ -395,7 +394,6 @@ export function Canvas({
   thumbs,
   spaceId,
   spaces = [],
-  spaceDir = 1,
   onExit,
   dim = false,
   layout = null,
@@ -1667,8 +1665,8 @@ export function Canvas({
         ArrowDown: 'down'
       }
       if (e.key === 'Escape') {
-        // Esc forgets a pending cut, then clears the selection or the tool; leaving the board is the Back to tabs
-        // button's job
+        // Esc forgets a pending cut, then clears the selection or the tool; leaving the board is Ctrl+Shift+K (or Back
+        // to tabs in the command menu)
         if (getClip()?.mode === 'cut') dispatchClip({ type: 'escape' })
         else if (selRef.current.size > 0) setSel(new Set())
         else if (toolRef.current !== 'select') setToolBoth('select')
@@ -1989,6 +1987,23 @@ export function Canvas({
 
   // ---- free touchpad scrolling on Windows (shared/freeScroll.ts): raw two-finger motion instead of railed wheels ----
   const free = useRef<FreeScroll | null>(null)
+  // how it feels (Settings, Touchpad on the board): read live, so a change applies to the next movement
+  const feel = useRef({
+    speed: DEFAULT_SETTINGS.touchpadSpeed,
+    glide: DEFAULT_SETTINGS.touchpadGlide,
+    smoothing: DEFAULT_SETTINGS.touchpadSmoothing
+  })
+  useEffect(() => {
+    const take = (s: Partial<Settings>): void => {
+      feel.current = {
+        speed: s.touchpadSpeed ?? DEFAULT_SETTINGS.touchpadSpeed,
+        glide: s.touchpadGlide ?? DEFAULT_SETTINGS.touchpadGlide,
+        smoothing: s.touchpadSmoothing ?? DEFAULT_SETTINGS.touchpadSmoothing
+      }
+    }
+    void window.api.getSettings().then(take)
+    return window.api.onSettings(take)
+  }, [])
   useEffect(() => {
     if (phase !== 'open') return
     let stored = DEFAULT_GAIN
@@ -1997,10 +2012,31 @@ export function Canvas({
     } catch {
       /* storage off: measure again */
     }
+    // the motion goes on screen once a frame, resampled (see PanResampler), not report by report
+    const smooth = new PanResampler()
+    let frame = 0
+    const tick = (): void => {
+      const s = smooth.take(performance.now())
+      if (s.dx || s.dy) vp.panBy(s.dx, s.dy)
+      frame = s.done ? 0 : requestAnimationFrame(tick)
+    }
     const fs = new FreeScroll(
       {
-        pan: (dx, dy) => vp.panBy(dx, dy),
-        fling: (vx, vy) => vp.fling(vx, vy),
+        pan: (dx, dy, t) => {
+          const { speed, smoothing } = feel.current
+          smooth.minDelay = SMOOTHING_DELAY_MS[smoothing]
+          smooth.push(t, dx * speed, dy * speed, performance.now())
+          if (!frame) frame = requestAnimationFrame(tick)
+        },
+        fling: (vx, vy) => {
+          // the fingers lifted: show where they really ended, then glide on from there
+          cancelAnimationFrame(frame)
+          frame = 0
+          const s = smooth.flush()
+          if (s.dx || s.dy) vp.panBy(s.dx, s.dy)
+          const { speed, glide } = feel.current
+          vp.fling(vx * speed, vy * speed, glide)
+        },
         stop: () => vp.stop()
       },
       stored
@@ -2013,10 +2049,11 @@ export function Canvas({
       })
     ask()
     window.addEventListener('focus', ask) // another window's board may have taken the touchpad meanwhile
-    const off = window.api.canvas.onTouchpad((dx, dy, fingers) => {
+    const off = window.api.canvas.onTouchpad((dx, dy, fingers, _y, at) => {
       // a preview covers the board: the fingers are for it (scrolling its page, or the swipe that closes it)
       if (expandedRef.current) return
-      fs.touch({ dx, dy, fingers, t: performance.now() })
+      // main's time for the report, on this page's clock (both count from the epoch)
+      fs.touch({ dx, dy, fingers, t: at - performance.timeOrigin })
       if (fingers < 2 && fs.changed(saved)) {
         saved = fs.gain
         try {
@@ -2029,6 +2066,7 @@ export function Canvas({
     return () => {
       live = false
       free.current = null
+      cancelAnimationFrame(frame)
       off()
       window.removeEventListener('focus', ask)
       void window.api.canvas.touchpad(false)
@@ -4819,6 +4857,23 @@ export function Canvas({
         run: () => void runTidy(false)
       },
       { id: 'ask', label: 'Ask', also: 'question chat ai', keys: '', run: () => askInDock() },
+      // the board's bar keeps no Back to tabs or space switcher: they are here (and on Ctrl+Shift+K, Ctrl+Alt+1-9)
+      {
+        id: 'tabs',
+        label: 'Back to tabs',
+        also: 'leave board exit tab view',
+        keys: 'Ctrl+Shift+K',
+        run: () => leaveRef.current(null)
+      },
+      ...spaces
+        .filter((sp) => sp.id !== spaceId)
+        .map((sp) => ({
+          id: `space-${sp.id}`,
+          label: `Switch to ${sp.name}`,
+          also: 'space profile',
+          run: () => window.api.switchSpace(sp.id)
+        })),
+      { id: 'new-space', label: 'New space', also: 'profile', run: () => window.api.createSpace() },
       {
         id: 'settings',
         label: 'Settings',
@@ -5196,26 +5251,6 @@ export function Canvas({
         >
           {/* the board is the whole window (no top bar under it): the window's own buttons live here */}
           {window.api.platform !== 'darwin' && <WindowControls />}
-          <button
-            type="button"
-            className="cv-back"
-            title="Back to tabs"
-            onClick={() => leaveRef.current(null)}
-          >
-            <span>Back to tabs</span>
-          </button>
-          {/* always there, even with one space: it is the only way to switch or make a space on the board */}
-          {spaces.length > 0 && (
-            <div className="cv-spaces">
-              <SpaceSwitcher
-                spaces={spaces}
-                activeSpaceId={spaceId}
-                placement="down"
-                dir={spaceDir}
-                size={18}
-              />
-            </div>
-          )}
           {undoDepth > 0 && (
             <div className="cv-hist-host">
               <button

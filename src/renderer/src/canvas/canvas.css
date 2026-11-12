@@ -2035,7 +2035,6 @@
   width: 6.5px;
   height: 6.5px;
 }
-.cv-back,
 .cv-newbtn {
   height: 26px;
   display: flex;
@@ -2050,30 +2049,10 @@
     background var(--dur-fast),
     color var(--dur-fast);
 }
-/* the space switcher, on the same quiet pill as Back to tabs */
-.cv-spaces {
-  height: 26px;
-  display: flex;
-  align-items: center;
-  padding: 0 4px;
-  border-radius: 7px;
-  background: var(--surface);
-}
-.cv-back:hover,
 .cv-newbtn:hover {
   color: var(--fg);
   background: var(--surface-hover);
 }
-.cv-back kbd {
-  margin-left: 4px;
-  padding: 1px 5px;
-  border-radius: 5px;
-  font: inherit;
-  font-size: 11px;
-  color: var(--fg-dim);
-  background: var(--surface);
-}
-.cv-back:focus-visible,
 .cv-newbtn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -2808,7 +2787,7 @@
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
-  height: 40px;
+  height: 34px;
   padding: 0 6px 0 14px;
   border-bottom: 1px solid color-mix(in srgb, var(--fg) 7%, transparent);
 }
@@ -2889,11 +2868,21 @@
 .cv-hzone-r {
   justify-content: flex-end;
 }
+/* the slim bar's buttons, a size down from the board's own */
+.cv-panel-head .cv-hbtn,
+.cv-panel-head .cv-nav button {
+  width: 26px;
+  height: 26px;
+}
+.cv-panel-head .cv-hbtn.cv-hask,
+.cv-panel-head .cv-hbtn.cv-bell-fav {
+  width: auto;
+}
 /* the address pill: icon, title and site in one quiet capsule */
 .cv-hzone-l .cv-panel-title {
   flex: 0 1 auto;
   align-items: center;
-  height: 28px;
+  height: 24px;
   margin-left: 0;
   padding: 0 10px 0 6px;
   border-radius: 8px;
@@ -2927,7 +2916,7 @@
 /* the tabs waiting, by their (badged) icons, as on the board's inbox */
 .cv-bell-fav {
   width: auto;
-  min-width: 28px;
+  min-width: 26px;
   padding: 0 6px;
 }
 /* in the bar the badge sits beside the icon, not hanging off it: the button grows with "99+" rather than spilling
