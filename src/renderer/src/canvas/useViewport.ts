@@ -27,6 +27,8 @@ export function useViewport(
   /** Carry on at (vx, vy) px/ms, slowing with time constant `tau` ms (0: not at all). */
   fling: (vx: number, vy: number, tau?: number) => void
   stop: () => void
+  /** Put the board on its own layer now: a movement is about to start (fingers down on the touchpad). */
+  warm: () => void
 } {
   const root = useRef<HTMLDivElement>(null)
   const layer = useRef<HTMLDivElement>(null)
@@ -44,16 +46,26 @@ export function useViewport(
   const pending = useRef(false)
   const idle = useRef(0)
 
+  /**
+   * The board on its own layer for a while: while it moves, and a little after. Gaining or losing the layer redraws
+   * the whole board, a frame's work, so it is kept through the pauses inside one movement (a pan's fingers hardly
+   * ever move without a break), and taken ahead of time when a movement is about to start.
+   */
+  const warm = useCallback((): void => {
+    const r = root.current
+    if (!r) return
+    r.classList.add('moving')
+    window.clearTimeout(idle.current)
+    idle.current = window.setTimeout(() => r.classList.remove('moving'), 800)
+  }, [])
+
   const paint = useCallback((): void => {
     const v = view.current
     const l = layer.current
     if (l) l.style.transform = `translate3d(${v.x}px, ${v.y}px, 0) scale(${v.k})`
     const r = root.current
+    warm() // the board is on its own layer only while it moves
     if (r) {
-      // the board is promoted to its own layer only while it moves
-      r.classList.add('moving')
-      window.clearTimeout(idle.current)
-      idle.current = window.setTimeout(() => r.classList.remove('moving'), 180)
       // Custom properties inherit: one set on the root makes every card, label and arrow under it recompute its
       // style, every frame of a pan (most of a pan's cost on a slow CPU). The dots' position goes on the grid
       // alone, and what the board's contents read (--vk, --hs) is set only when the zoom changes.
@@ -91,7 +103,7 @@ export function useViewport(
         moved.current(view.current)
       })
     }
-  }, [])
+  }, [warm])
 
   const stop = useCallback((): void => {
     cancelAnimationFrame(anim.current)
@@ -179,8 +191,9 @@ export function useViewport(
       zoomAt,
       animateTo,
       fling,
-      stop
+      stop,
+      warm
     }),
-    [set, panBy, zoomAt, animateTo, fling, stop]
+    [set, panBy, zoomAt, animateTo, fling, stop, warm]
   )
 }

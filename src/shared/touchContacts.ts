@@ -20,6 +20,14 @@ export class ContactFrames {
   private last = new Map<number, Contact>()
 
   /**
+   * How many finger slots of a report with this contact count can still go into the frame: the rest are empty, and
+   * need not be read (each costs main a few calls into the HID parser).
+   */
+  room(count: number): number {
+    return count > 0 ? count : Math.max(0, this.expected - this.building.length)
+  }
+
+  /**
    * Returns a finished frame's motion and where the fingers are (`y`: their mean distance from the pad's top edge,
    * mm; 0 with none down), or null while a hybrid frame is still coming in.
    */
@@ -53,5 +61,39 @@ export class ContactFrames {
     this.last = new Map(down.map((c) => [c.id, c]))
     const y = down.length ? down.reduce((sum, c) => sum + c.y, 0) / down.length : 0
     return { dx: n ? dx / n : 0, dy: n ? dy / n : 0, fingers: down.length, y }
+  }
+}
+
+/**
+ * Puts the touchpad's own report times (HID Scan Time: 0.1 ms steps, wrapping every 6.5536 s) on the system clock.
+ * Main reads reports when it gets round to it, so its own clock bunches them whenever it is busy; the pad's times are
+ * even. The offset between the two clocks is taken from the quickest report seen (the least delay is the truest),
+ * allowed to creep forward a little so the pad's clock drifting from the system's is followed.
+ */
+export class ScanClock {
+  private lastRaw = -1
+  private hw = 0
+  private off = NaN
+  private lastAt = 0
+
+  /** The report's time on the system clock (ms), given its scan time (or null) and when main read it (`at`, ms). */
+  time(raw: number | null, at: number): number {
+    if (raw === null || !Number.isFinite(at)) return at
+    const gap = at - this.lastAt
+    this.lastAt = at
+    if (this.lastRaw < 0 || gap > 3000) {
+      // first report, or a pause long enough that the counter may have wrapped unseen: start again from here
+      this.hw = 0
+      this.off = at
+    } else this.hw += ((raw - this.lastRaw + 65536) % 65536) / 10
+    this.lastRaw = raw
+    this.off = Math.min(this.off + gap * 0.0005, at - this.hw)
+    const t = this.hw + this.off
+    // a pad whose clock runs wild (or a counter that is not one): fall back on main's time
+    if (at - t > 100) {
+      this.off = at - this.hw
+      return at
+    }
+    return Math.min(t, at)
   }
 }

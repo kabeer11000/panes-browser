@@ -142,3 +142,24 @@ function add(
 ): { dx: number; dy: number; done: boolean } {
   return { dx: dx + s.dx, dy: dy + s.dy, done: s.done }
 }
+
+describe('PanResampler delay', () => {
+  test('one late report does not jerk the board: the delay glides, so steps stay even', () => {
+    const r = new PanResampler()
+    const steps: number[] = []
+    let sent = 0
+    for (let f = 1; f <= 40; f++) {
+      const now = f * 16.7
+      while (sent * 8 <= now - 4) {
+        // report 30 arrives 30 ms late (main was busy), the rest about 4 ms
+        const arrive = sent === 30 ? sent * 8 + 30 : now
+        r.push(sent * 8, 8, 0, Math.max(arrive, now))
+        sent++
+      }
+      steps.push(r.take(now).dx)
+    }
+    const moving = steps.slice(6)
+    const mean = moving.reduce((a, b) => a + b, 0) / moving.length
+    for (const d of moving) expect(Math.abs(d - mean)).toBeLessThan(0.2 * mean)
+  })
+})

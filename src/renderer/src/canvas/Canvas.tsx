@@ -1,5 +1,6 @@
 import { useReducedMotion } from 'motion/react'
 import {
+  startTransition,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -713,6 +714,15 @@ export function Canvas({
   }
 
   // ---- visibility (only cards near the screen are mounted) ----
+  /** Where the board was when the mounted cards were last worked out (see updateVisible). */
+  const visAt = useRef<{
+    x: number
+    y: number
+    k: number
+    cards: CanvasState['cards']
+    w: number
+    h: number
+  } | null>(null)
   const updateVisible = useCallback((v: Viewport): void => {
     const s = stRef.current
     const { w, h } = size()
@@ -723,17 +733,34 @@ export function Canvas({
       w: (w + MARGIN * 2) / v.k,
       h: (h + MARGIN * 2) / v.k
     }
+    // the cards to keep mounted change only once the board has moved a fair way (the margin is far wider than this):
+    // not worked out again every frame of a pan
+    const was = visAt.current
+    const near =
+      was !== null &&
+      was.k === v.k &&
+      Math.abs(was.x - v.x) < 64 &&
+      Math.abs(was.y - v.y) < 64 &&
+      was.cards === s.cards &&
+      was.w === w &&
+      was.h === h
+    if (!near) visAt.current = { x: v.x, y: v.y, k: v.k, cards: s.cards, w, h }
     const next = new Set<number>()
-    for (const c of s.cards) {
+    for (const c of near ? [] : s.cards) {
       const cw = c.w ?? CARD_W
       const ch = c.h ?? CARD_H
       if (c.x < view.x + view.w && c.x + cw > view.x && c.y < view.y + view.h && c.y + ch > view.y)
         next.add(c.id)
     }
-    setVis((prev) => {
-      if (prev.size === next.size && [...next].every((i) => prev.has(i))) return prev
-      return next
-    })
+    if (!near)
+      // cards coming into view mount at low priority: rendering them yields to the pan's frames instead of
+      // stalling one (a re-render of the board mid-pan was a visible hitch)
+      startTransition(() =>
+        setVis((prev) => {
+          if (prev.size === next.size && [...next].every((i) => prev.has(i))) return prev
+          return next
+        })
+      )
     // main takes fresh pictures only of the tabs on screen; told once the view has settled
     window.clearTimeout(inViewTimer.current)
     inViewTimer.current = window.setTimeout(() => {
@@ -2015,8 +2042,8 @@ export function Canvas({
     // the motion goes on screen once a frame, resampled (see PanResampler), not report by report
     const smooth = new PanResampler()
     let frame = 0
-    const tick = (): void => {
-      const s = smooth.take(performance.now())
+    const tick = (frameAt: number): void => {
+      const s = smooth.take(frameAt) // the frame's own time: steady, unlike when this callback got to run
       if (s.dx || s.dy) vp.panBy(s.dx, s.dy)
       frame = s.done ? 0 : requestAnimationFrame(tick)
     }
@@ -2049,9 +2076,13 @@ export function Canvas({
       })
     ask()
     window.addEventListener('focus', ask) // another window's board may have taken the touchpad meanwhile
+    let down = 0
     const off = window.api.canvas.onTouchpad((dx, dy, fingers, _y, at) => {
       // a preview covers the board: the fingers are for it (scrolling its page, or the swipe that closes it)
       if (expandedRef.current) return
+      // the board takes its layer as two fingers land, before it starts moving
+      if (fingers >= 2 && down < 2) vp.warm()
+      down = fingers
       // main's time for the report, on this page's clock (both count from the epoch)
       fs.touch({ dx, dy, fingers, t: at - performance.timeOrigin })
       if (fingers < 2 && fs.changed(saved)) {

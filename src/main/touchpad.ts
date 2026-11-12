@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain, type WebContents } from 'electron'
-import { ContactFrames, type Contact } from '@shared/touchContacts'
+import { ContactFrames, ScanClock, type Contact } from '@shared/touchContacts'
 
 /**
  * Raw precision-touchpad contacts for the board's free scrolling (see shared/freeScroll.ts). Windows only: there
@@ -25,6 +25,7 @@ const U_Y = 0x31
 const U_TIP = 0x42
 const U_CONTACT_ID = 0x51
 const U_CONTACT_COUNT = 0x54
+const U_SCAN_TIME = 0x56
 const U_TOUCHPAD = 0x05
 
 interface Axis {
@@ -38,6 +39,7 @@ interface Device {
   slots: { link: number; x: Axis; y: Axis }[]
   countLink: number
   frames: ContactFrames
+  clock: ScanClock
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -140,7 +142,7 @@ function describe(a: Api, handle: bigint): Device | null {
     .sort((p, q) => p - q)
     .map((link) => ({ link, x: xs.get(link)!, y: ys.get(link)! }))
   if (!slots.length || countLink < 0) return null
-  return { prep, slots, countLink, frames: new ContactFrames() }
+  return { prep, slots, countLink, frames: new ContactFrames(), clock: new ScanClock() }
 }
 
 /** One window's reader: on while its board is open and it is the window the touchpad reports to. */
@@ -148,6 +150,12 @@ class Reader {
   private devices = new Map<bigint, Device | null>()
   private buf = Buffer.alloc(512)
   private hooked = false
+  // Reused for every report (about 125 a second): garbage made here is collected on main, where tabs run too.
+  private rep = Buffer.alloc(64)
+  private val = [0]
+  private usages = new Uint16Array(16)
+  private usageLen = [0]
+  private contacts: Contact[] = []
 
   constructor(
     private readonly a: Api,
@@ -200,42 +208,62 @@ class Reader {
       const reports = this.buf.readUInt32LE(HEADER + 4)
       for (let i = 0; i < reports; i++) {
         const start = HEADER + 8 + i * each
-        this.report(d, Buffer.from(this.buf.subarray(start, start + each)), at)
+        if (this.rep.length !== each) this.rep = Buffer.alloc(each)
+        this.buf.copy(this.rep, 0, start, start + each)
+        this.report(d, this.rep, at)
       }
     } catch (err) {
       console.warn('touchpad: bad report', err)
     }
   }
 
+  /** One value from the report, or null when it has none. */
+  private value(d: Device, r: Buffer, page: number, link: number, usage: number): number | null {
+    const ok = this.a.getValue(HIDP_INPUT, page, link, usage, this.val, d.prep, r, r.length)
+    return ok === HIDP_OK ? this.val[0] : null
+  }
+
   private report(d: Device, r: Buffer, at: number): void {
-    const a = this.a
-    const v = [0]
-    const value = (page: number, link: number, usage: number): number | null =>
-      a.getValue(HIDP_INPUT, page, link, usage, v, d.prep, r, r.length) === HIDP_OK ? v[0] : null
-    const count = value(PAGE_DIGITIZER, d.countLink, U_CONTACT_COUNT) ?? 0
-    const slots: Contact[] = []
-    const list = new Uint16Array(16)
-    for (const s of d.slots) {
-      const x = value(PAGE_DESKTOP, s.link, U_X)
-      const y = value(PAGE_DESKTOP, s.link, U_Y)
+    const count = this.value(d, r, PAGE_DIGITIZER, d.countLink, U_CONTACT_COUNT) ?? 0
+    // only the slots this report fills: the others are empty (two fingers down use 2 of the pad's 5)
+    const room = d.frames.room(count)
+    const slots = this.contacts
+    slots.length = 0
+    for (let i = 0; i < d.slots.length && slots.length < room; i++) {
+      const s = d.slots[i]
+      const x = this.value(d, r, PAGE_DESKTOP, s.link, U_X)
+      const y = this.value(d, r, PAGE_DESKTOP, s.link, U_Y)
       if (x === null || y === null) continue
-      const n = [list.length]
-      const tip =
-        a.getUsages(HIDP_INPUT, PAGE_DIGITIZER, s.link, list, n, d.prep, r, r.length) === HIDP_OK &&
-        list.subarray(0, n[0]).includes(U_TIP)
+      this.usageLen[0] = this.usages.length
+      let tip = false
+      if (
+        this.a.getUsages(
+          HIDP_INPUT,
+          PAGE_DIGITIZER,
+          s.link,
+          this.usages,
+          this.usageLen,
+          d.prep,
+          r,
+          r.length
+        ) === HIDP_OK
+      )
+        for (let u = 0; u < this.usageLen[0]; u++) if (this.usages[u] === U_TIP) tip = true
       slots.push({
-        id: value(PAGE_DIGITIZER, s.link, U_CONTACT_ID) ?? s.link,
+        id: this.value(d, r, PAGE_DIGITIZER, s.link, U_CONTACT_ID) ?? s.link,
         tip,
         x: (x - s.x.min) * s.x.mm,
         y: (y - s.y.min) * s.y.mm
       })
     }
+    // when the pad took this report (its own clock, even), else when main read it
+    const t = d.clock.time(this.value(d, r, PAGE_DIGITIZER, d.countLink, U_SCAN_TIME), at)
     const f = d.frames.feed(count, slots)
     if (!f) return
     // only two-finger motion matters, plus the frame where the fingers come off
     if (f.fingers < 2 && this.lastFingers < 2) return
     this.lastFingers = f.fingers
-    if (!this.to.isDestroyed()) this.to.send('canvas:touchpad', f.dx, f.dy, f.fingers, f.y, at)
+    if (!this.to.isDestroyed()) this.to.send('canvas:touchpad', f.dx, f.dy, f.fingers, f.y, t)
   }
 
   private lastFingers = 0

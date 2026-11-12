@@ -175,6 +175,11 @@ export const SMOOTHING_DELAY_MS: Record<TouchpadSmoothing, number> = {
 }
 /** ...and never by more than this, however late the reports come. */
 const MAX_DELAY_MS = 40
+/**
+ * How fast the delay may change, ms per ms of time. A jump in the delay is a jump in where the board is drawn (back
+ * or forward in the fingers' path): it glides instead, slower than any eye notices.
+ */
+const DELAY_SLEW = 0.02
 
 /**
  * Smooths the raw two-finger motion to the display's frames. A touchpad reports about every 8 ms, and the reports
@@ -197,6 +202,9 @@ export class PanResampler {
   private shownY = 0
   /** How late reports reach the page (ms), the worst of late, fading. */
   private late = 0
+  /** The delay in use: follows `wanted` at DELAY_SLEW. */
+  private used = -1
+  private lastTake = -Infinity
 
   /** Motion of (dx, dy) that happened at time `t`, seen here at `now` (same clock). */
   push(t: number, dx: number, dy: number, now: number): void {
@@ -209,13 +217,30 @@ export class PanResampler {
     this.pts.push({ t: at, x: this.x, y: this.y })
   }
 
-  get delay(): number {
+  /** The delay the reports' lateness calls for. */
+  get wanted(): number {
     return Math.min(MAX_DELAY_MS, Math.max(this.minDelay, this.late + 4))
   }
 
-  /** Motion to show this frame (`now`); `done` once everything pushed has been shown. */
+  /** The delay drawn with now: the wanted one, reached gradually. */
+  get delay(): number {
+    return this.used < 0 ? this.wanted : this.used
+  }
+
+  /**
+   * Motion to show this frame; `done` once everything pushed has been shown. `now`: the frame's time (the
+   * requestAnimationFrame timestamp, steady from frame to frame, not when the callback happened to run).
+   */
   take(now: number): { dx: number; dy: number; done: boolean } {
-    const at = now - this.delay
+    const want = this.wanted
+    if (this.used < 0 || now - this.lastTake > 250)
+      this.used = want // a fresh movement starts on the right delay
+    else {
+      const step = DELAY_SLEW * Math.max(0, now - this.lastTake)
+      this.used += Math.max(-step, Math.min(step, want - this.used))
+    }
+    this.lastTake = now
+    const at = now - this.used
     let x = this.x
     let y = this.y
     const pts = this.pts
