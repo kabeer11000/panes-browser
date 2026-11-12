@@ -4,8 +4,9 @@ import {
   captureWidth,
   fitRegion,
   keepCapture,
+  liveTier,
   streamCap,
-  streamFps,
+  tierFps,
   WHOLE_PAGE,
   type VideoRegion
 } from '@shared/ai/tabStream'
@@ -74,9 +75,9 @@ export function LiveTab({
 }): React.JSX.Element | null {
   const video = useRef<HTMLVideoElement>(null)
   // while the board moves the video holds its frame (the stream keeps running, so it carries on at once), and the
-  // capture is not resized or started: that waits for the board to settle (settled counts the times it has)
+  // capture is not resized, restarted or started: that waits for the board to settle (boardMoving)
   const moving = useRef(false)
-  const [settled, setSettled] = useState(0)
+  const [boardMoving, setBoardMoving] = useState(false)
   useEffect(
     () =>
       onBoardMotion((m) => {
@@ -86,7 +87,7 @@ export function LiveTab({
           if (m) v.pause()
           else void v.play().catch(() => undefined)
         }
-        if (!m) setSettled((n) => n + 1)
+        setBoardMoving(m)
       }),
     []
   )
@@ -113,6 +114,12 @@ export function LiveTab({
     let steady = 0
     let timer = 0
     const ask = (): void => {
+      // not while the board moves (each ask runs a script in the page): again once it settles
+      if (moving.current) {
+        window.clearTimeout(timer)
+        timer = window.setTimeout(ask, REGION_MS)
+        return
+      }
       const askedAt = performance.now()
       window.clearTimeout(timer)
       // optional: a renderer hot-reloaded over an older preload has no such call
@@ -160,10 +167,14 @@ export function LiveTab({
   const want = region ? captureWidth(cardPx, window.devicePixelRatio || 1, region.w) : 0
   const [width, setWidth] = useState(0)
   const nextWidth = keepCapture(width, want)
-  useEffect(() => {
-    if (nextWidth !== width && !moving.current) setWidth(nextWidth)
-  }, [nextWidth, width, settled])
-  const fps = streamFps(CAP, width)
+  // and how lively: a card taking little of the window gets few frames (liveTier), changed with the size, settled
+  const [tier, setTier] = useState<0 | 1 | 2 | null>(null)
+  const nextTier = liveTier(cardPx / Math.max(1, window.innerWidth), tier)
+  if (!boardMoving && (nextWidth !== width || nextTier !== tier)) {
+    setWidth(nextWidth)
+    setTier(nextTier)
+  }
+  const fps = tier === null ? 0 : tierFps(tier, CAP)
   const fallbackAr =
     typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0
       ? Math.max(800, window.innerWidth) / Math.max(600, window.innerHeight)
@@ -177,7 +188,7 @@ export function LiveTab({
   const height = width ? Math.max(180, Math.round(width / pageAr / 2) * 2) : 0
   useEffect(() => {
     const v = video.current
-    if (!width || !height || !v) return
+    if (!width || !height || !fps || !v) return
     let dead = false
     let stream: MediaStream | null = null
     void (async () => {

@@ -20,17 +20,33 @@ export function streamCap(nav: { hardwareConcurrency?: number; deviceMemory?: nu
   return cores <= 8 || (nav.deviceMemory !== undefined && nav.deviceMemory < 8) ? 2 : 4
 }
 
-/** A capture this narrow or less is a small card on screen: it streams at SMALL_FPS. */
-export const SMALL_CAPTURE_W = 480
-const SMALL_FPS = 15
+/** Frames per second asked of a large card's stream: a card is small, and the page keeps its full rate for itself. */
+export function streamFps(cap: number): number {
+  return cap <= 2 ? 24 : 30
+}
+
+/** A card narrower than this share of the window is not streamed at all: it keeps its last frame. */
+export const MIN_LIVE_SHARE = 0.12
+/** Shares of the window where a card's stream steps up a tier: 10 fps below the first, 15 below the second. */
+const TIER_AT = [0.2, 0.35] as const
+/** A tier is left downwards only below this much of its threshold, so a zoom near one does not flip it back and forth. */
+const TIER_DOWN = 0.8
 
 /**
- * Frames per second asked of each stream: a card is small, and the page keeps its full rate for itself. A small
- * capture (a card small on screen) needs fewer still: each frame is the tab drawn again offscreen.
+ * How lively a card's stream is, from how much of the window's width it takes (`share`) and the tier it has now
+ * (null: none yet): 0 is 10 fps, 1 is 15, 2 is the full rate. Every frame is the tab drawn again offscreen and copied
+ * to the board, so a small card on screen gets few. Up at once, down only clearly below (TIER_DOWN).
  */
-export function streamFps(cap: number, captureW = Infinity): number {
-  if (captureW <= SMALL_CAPTURE_W) return SMALL_FPS
-  return cap <= 2 ? 24 : 30
+export function liveTier(share: number, cur: 0 | 1 | 2 | null): 0 | 1 | 2 {
+  const want = share >= TIER_AT[1] ? 2 : share >= TIER_AT[0] ? 1 : 0
+  if (cur === null || want >= cur) return want
+  // going down: only past the lower edge of the current tier, by the margin
+  return share < TIER_AT[cur - 1] * TIER_DOWN ? want : cur
+}
+
+/** A tier's frames per second (see liveTier). */
+export function tierFps(tier: 0 | 1 | 2, cap: number): number {
+  return tier === 2 ? streamFps(cap) : tier === 1 ? 15 : 10
 }
 
 /** The whole page, for a tab in a call: its people are many videos, not one to crop to. */
@@ -47,13 +63,24 @@ export function pickStreams(o: {
   open: number | null
   zoomedOut: boolean
   cap: number
+  /**
+   * Each card's width on screen (px) and the window's: a card under MIN_LIVE_SHARE of it is too small to be worth a
+   * stream (a call still streams: its people matter at any size), and the larger cards come first.
+   */
+  cardPx?: ReadonlyMap<number, number>
+  screenW?: number
 }): number[] {
   if (o.zoomedOut || o.cap <= 0) return []
   const rank = (t: { audible: boolean; muted: boolean; call?: boolean }): number =>
     t.call ? 2 : t.audible && !t.muted ? 1 : 0
+  const px = (id: number): number => o.cardPx?.get(id) ?? Infinity
+  const big = (t: { id: number; call?: boolean }): boolean =>
+    !!t.call || !o.screenW || px(t.id) >= o.screenW * MIN_LIVE_SHARE
   return o.tabs
-    .filter((t) => (t.call || t.audible || t.muted) && t.id !== o.open && o.onScreen.has(t.id))
-    .sort((a, b) => rank(b) - rank(a))
+    .filter(
+      (t) => (t.call || t.audible || t.muted) && t.id !== o.open && o.onScreen.has(t.id) && big(t)
+    )
+    .sort((a, b) => rank(b) - rank(a) || px(b.id) - px(a.id))
     .slice(0, o.cap)
     .map((t) => t.id)
 }

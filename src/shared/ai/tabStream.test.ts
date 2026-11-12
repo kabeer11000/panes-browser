@@ -6,6 +6,8 @@ import {
   streamCap,
   streamFps,
   keepCapture,
+  liveTier,
+  tierFps,
   videoRegion
 } from './tabStream'
 
@@ -136,11 +138,50 @@ describe('fitRegion', () => {
   })
 })
 
-describe('streamFps by size', () => {
-  test('a small capture streams at fewer frames; a large one as before', () => {
-    expect(streamFps(4, 480)).toBe(15)
-    expect(streamFps(4, 640)).toBe(streamFps(4))
-    expect(streamFps(2, 320)).toBe(15)
+describe('liveTier', () => {
+  test('by share of the window: small, medium, large', () => {
+    expect(liveTier(0.15, null)).toBe(0)
+    expect(liveTier(0.25, null)).toBe(1)
+    expect(liveTier(0.5, null)).toBe(2)
+  })
+  test('up at once, down only clearly below', () => {
+    expect(liveTier(0.36, 1)).toBe(2)
+    expect(liveTier(0.33, 2)).toBe(2) // just under: holds
+    expect(liveTier(0.27, 2)).toBe(1) // under 0.35 * 0.8
+    expect(liveTier(0.15, 1)).toBe(0)
+  })
+  test('frames per tier', () => {
+    expect(tierFps(0, 4)).toBe(10)
+    expect(tierFps(1, 4)).toBe(15)
+    expect(tierFps(2, 4)).toBe(streamFps(4))
+  })
+})
+
+describe('pickStreams by size', () => {
+  const tabs = [
+    { id: 1, audible: true, muted: false },
+    { id: 2, audible: true, muted: false },
+    { id: 3, audible: false, muted: true },
+    { id: 4, audible: false, muted: false, call: true }
+  ]
+  const base = { tabs, onScreen: new Set([1, 2, 3, 4]), open: null, zoomedOut: false, cap: 4 }
+  test('a card too small on screen is not streamed, unless it is a call', () => {
+    const cardPx = new Map([
+      [1, 100],
+      [2, 400],
+      [3, 500],
+      [4, 50]
+    ])
+    expect(pickStreams({ ...base, cardPx, screenW: 1600 })).toEqual([4, 2, 3])
+  })
+  test('the larger cards first, among equals', () => {
+    const cardPx = new Map([
+      [1, 300],
+      [2, 900]
+    ])
+    expect(pickStreams({ ...base, tabs: tabs.slice(0, 2), cap: 1, cardPx, screenW: 1600 })).toEqual(
+      [2]
+    )
   })
 })
 

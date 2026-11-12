@@ -1205,7 +1205,12 @@ export function Expanded({
                   <Favicon m={m} />
                 </span>
               )}
-              <strong>{m.title}</strong>
+              <strong
+                className={canEditUrl ? 'edit' : undefined}
+                onClick={canEditUrl ? () => void editAddress() : undefined}
+              >
+                {m.title}
+              </strong>
               {canEditUrl ? (
                 <button
                   type="button"

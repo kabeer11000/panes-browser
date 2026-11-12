@@ -59,6 +59,7 @@ import {
   type TabAttention
 } from '@shared/attention'
 import { NOTIFY_SCRIPT, parseNotify } from '@shared/notify'
+import { ESC_SCRIPT, isPreviewEsc } from '@shared/previewEsc'
 import { TaskbarAttention } from './attention'
 import { dumpableTabs, type TabDump } from '@shared/dumps'
 import type { DumpStore } from './dumps'
@@ -2095,6 +2096,22 @@ export class TabManager {
     this.refresh()
   }
 
+  /** The tab's page is in the board's preview (its own page or a split's other pane). */
+  private inPreview(id: number): boolean {
+    return this.canvasMode && (id === this.liveId || this.companions.has(id))
+  }
+
+  /** Have the page report Esc that it did not use itself (shared/previewEsc), so the preview can close on it. */
+  private hookPreviewEsc(tab: Tab): void {
+    const wc = liveContents(tab)
+    if (wc && !tab.unloaded) void wc.executeJavaScript(ESC_SCRIPT).catch(() => undefined)
+  }
+
+  /** Esc in the preview's page that the page left alone: the preview closes, as Esc anywhere on the board would. */
+  private onPreviewEsc(id: number): void {
+    if (this.inPreview(id) && this.fullscreenId === null) this.send('canvas:preview-key', 'close')
+  }
+
   /** A toast from this tab was clicked: bring the window up and show the tab, in whatever space it is in. */
   private showFromNotification(id: number): void {
     if (this.win.isDestroyed() || !this.tabs.has(id)) return
@@ -2206,6 +2223,7 @@ export class TabManager {
       }
       const wc = liveContents(t)
       if (wc) wc.setBackgroundThrottling(false)
+      if (changed) this.hookPreviewEsc(t) // Esc the page leaves alone closes the preview
     }
     this.applyVisibility()
     if (id !== null && t && !t.unloaded) {
@@ -2245,6 +2263,7 @@ export class TabManager {
         this.win.contentView.addChildView(t.view) // over the board, like the live page
         this.onViewAdded?.()
       }
+      if (isNew) this.hookPreviewEsc(t)
       const wc = liveContents(t)
       if (wc) wc.setBackgroundThrottling(false)
     }
@@ -2591,6 +2610,7 @@ export class TabManager {
       tab.boostKey = null // a new document starts without the old sheet
       void this.applyBoost(tab)
       this.hookNotifications(tab)
+      if (this.inPreview(id)) this.hookPreviewEsc(tab) // a page navigated to inside the preview
     })
     wc.on('audio-state-changed', () => {
       tab.dirty = true
@@ -2751,7 +2771,10 @@ export class TabManager {
       }
       this.showCapture(tab, was)
     })
-    wc.on('console-message', (e) => this.onNotifyReport(id, tab, e.message))
+    wc.on('console-message', (e) => {
+      if (isPreviewEsc(e.message)) this.onPreviewEsc(id)
+      else this.onNotifyReport(id, tab, e.message)
+    })
     wc.on('page-favicon-updated', (_e, favicons) => {
       // A page swapping one icon for another (not its first icon after loading) is drawing a badge into it.
       const next = favicons[0] ?? null
@@ -2764,18 +2787,6 @@ export class TabManager {
     })
     wc.on('before-input-event', (e, input) => {
       if (input.type === 'keyDown') tab.dirty = true
-      // Esc in the canvas preview's live page closes the preview (the page still sees the key)
-      if (
-        input.type === 'keyDown' &&
-        input.key === 'Escape' &&
-        !input.control &&
-        !input.meta &&
-        !input.alt &&
-        this.canvasMode &&
-        (id === this.liveId || this.companions.has(id)) &&
-        this.fullscreenId === null
-      )
-        this.send('canvas:preview-key', 'close')
       this.handleKey(e, input)
     })
     wc.on('focus', () => this.focusPane(id))
@@ -3572,6 +3583,11 @@ export class TabManager {
           click: () => this.viewSource(url)
         }),
         sep,
+        {
+          label: 'Settings',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => this.openInternal('settings')
+        },
         { label: 'Close preview', accelerator: 'Esc', click: pick('close') }
       ]
       Menu.buildFromTemplate(items).popup({

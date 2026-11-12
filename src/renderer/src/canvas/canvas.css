@@ -2905,7 +2905,20 @@
 .cv-panel-head .cv-hbtn.cv-bell-fav {
   width: auto;
 }
-/* the address pill: icon, title and site in one quiet capsule */
+/* the address pill: icon, title and site in one quiet capsule. A long title gives way before the address, which
+   keeps room enough to see and click (Ctrl+L too); the title opens the address as well. */
+.cv-hzone-l .cv-panel-title strong {
+  flex: 0 1000 auto;
+  min-width: 24px;
+}
+.cv-hzone-l .cv-panel-title strong.edit {
+  cursor: text;
+}
+.cv-hzone-l .cv-panel-title .cv-panel-site,
+.cv-hzone-l .cv-panel-title > span:last-child {
+  flex: 0 1 auto;
+  min-width: min(140px, 40%);
+}
 .cv-hzone-l .cv-panel-title {
   flex: 0 1 auto;
   align-items: center;

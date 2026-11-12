@@ -197,6 +197,10 @@ const FRAME_HEAD_PX = 44
 const GAIN_KEY = 'panes.touchpadGain'
 /** The board's "AI is off" note was dismissed (see aiOffSeen). */
 const AI_OFF_SEEN = 'panes.aiOffSeen'
+/** Instant find with a single match opens it after this pause in typing (ms). */
+const QUICK_OPEN_MS = 400
+/** A gesture held for the preview (see heldByPreview) with no touchpad frame for this long has ended unseen. */
+const HELD_STALE_MS = 400
 import { MAX_K, MIN_K, useViewport } from './useViewport'
 import { DEFAULT_GAIN, FreeScroll, PanResampler, SMOOTHING_DELAY_MS } from '@shared/freeScroll'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -630,13 +634,22 @@ export function Canvas({
     () => new Set(tabs.filter((t) => isCapturing(t.capture)).map((t) => t.id)),
     [tabs]
   )
+  // how wide each card on screen is now, for the streams: too small a card is not worth one, larger ones go first
+  const cardPx = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const c of st?.cards ?? [])
+      if (onScreen.has(c.id)) m.set(c.id, (c.w ?? CARD_W) * (zoomPct / 100))
+    return m
+  }, [st, onScreen, zoomPct])
   const streamKey = pickStreams({
     // a video playing without sound (muted, or quiet) plays live on its card too
     tabs: tabs.map((t) => ({ ...t, audible: t.audible || !!t.playing, call: calls.has(t.id) })),
     onScreen,
     open: openTab,
     zoomedOut: lod,
-    cap: streamCap(navigator)
+    cap: streamCap(navigator),
+    cardPx,
+    screenW: stage.w
   }).join(',')
   const streams = useMemo(
     () => new Set(streamKey ? streamKey.split(',').map(Number) : []),
@@ -2021,6 +2034,16 @@ export function Canvas({
 
   // ---- free touchpad scrolling on Windows (shared/freeScroll.ts): raw two-finger motion instead of railed wheels ----
   const free = useRef<FreeScroll | null>(null)
+  /**
+   * A two-finger gesture that began over the preview belongs to it to the end, even once the preview has gone (the
+   * swipe that closes it): the board takes neither its frames nor the scroll Windows makes of it, until the fingers
+   * lift and that scroll (with its coasting) has stopped. `quietAt`: the last wheel event let go by, for the gap.
+   */
+  const heldByPreview = useRef(false)
+  const quietWheel = useRef(false)
+  const quietAt = useRef(0)
+  /** The last frame of a held gesture: a lift that never came (focus left mid-gesture) lets go after HELD_STALE_MS. */
+  const heldAt = useRef(0)
   // how it feels (Settings, Touchpad on the board): read live, so a change applies to the next movement
   const feel = useRef({
     speed: DEFAULT_SETTINGS.touchpadSpeed,
@@ -2087,8 +2110,21 @@ export function Canvas({
     window.addEventListener('focus', ask) // another window's board may have taken the touchpad meanwhile
     let down = 0
     const off = window.api.canvas.onTouchpad((dx, dy, fingers, _y, at) => {
-      // a preview covers the board: the fingers are for it (scrolling its page, or the swipe that closes it)
-      if (expandedRef.current) return
+      // a preview covers the board: the fingers are for it (scrolling its page, or the swipe that closes it), to the
+      // end of the gesture
+      const now = performance.now()
+      if (heldByPreview.current && now - heldAt.current > HELD_STALE_MS)
+        heldByPreview.current = false
+      if (expandedRef.current && fingers >= 2) heldByPreview.current = true
+      if (heldByPreview.current) {
+        heldAt.current = now
+        if (fingers < 2) {
+          heldByPreview.current = false
+          quietWheel.current = true
+          quietAt.current = performance.now()
+        }
+        return
+      }
       // the board takes its layer as two fingers land, before it starts moving
       if (fingers >= 2 && down < 2) vp.warm()
       down = fingers
@@ -2122,6 +2158,16 @@ export function Canvas({
       e.preventDefault()
       e.stopPropagation() // App turns Ctrl + wheel into the tab stack
       if (phaseRef.current !== 'open') return
+      // the scroll of a gesture that was the preview's (see heldByPreview): let go by until it has stopped
+      if (heldByPreview.current && performance.now() - heldAt.current < HELD_STALE_MS) return
+      heldByPreview.current = false
+      if (quietWheel.current) {
+        const now = performance.now()
+        const gap = now - quietAt.current
+        quietAt.current = now
+        if (gap < 150) return
+        quietWheel.current = false
+      }
       const unit = e.deltaMode === 1 ? 16 : 1
       if (
         free.current?.wheel(
@@ -3192,6 +3238,16 @@ export function Canvas({
     setSel(new Set([`c:${card.id}`]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quickPick])
+  // what you typed found just one card: it opens once you pause, no Enter needed
+  const onlyHit = quick && quickHits.length === 1 ? quickHits[0] : null
+  useEffect(() => {
+    if (onlyHit === null) return
+    const t = window.setTimeout(() => {
+      setQuick(null)
+      expandRef.current(onlyHit)
+    }, QUICK_OPEN_MS)
+    return () => window.clearTimeout(t)
+  }, [onlyHit, quick])
   useLayoutEffect(() => {
     modelForRef.current = modelFor
   })
@@ -5416,7 +5472,7 @@ export function Canvas({
               ? quickHits.length
                 ? `${Math.min(quickAt, quickHits.length - 1) + 1} of ${quickHits.length}`
                 : 'No card has that'
-              : 'Enter opens, arrows move'}
+              : 'One match opens by itself; Enter opens, arrows move'}
           </span>
         </div>
       )}
