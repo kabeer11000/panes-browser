@@ -113,7 +113,12 @@ export function useBoardClip(d: BoardClipDeps): BoardClip {
       const card = (e.kind === 'tab' || here) && s.cards.find((c) => c.id === e.id)
       return card ? cardBox(card) : e.box
     }
-    const paste = async (clip: Clip, boxes: Box[], off: { dx: number; dy: number }, at: Pt): Promise<boolean> => {
+    const paste = async (
+      clip: Clip,
+      boxes: Box[],
+      off: { dx: number; dy: number },
+      at: Pt
+    ): Promise<boolean> => {
       const { stRef, spaceId, edit, record, setSel } = ref.current
       const s = stRef.current
       if (!s) return false
@@ -135,7 +140,8 @@ export function useBoardClip(d: BoardClipDeps): BoardClip {
           window.api.canvas.save(clip.space, removeFromBoard(before, clip.entries))
           reverts.push(() => {
             void window.api.canvas.load(clip.space).then((now) => {
-              if (now?.state) window.api.canvas.save(clip.space, restoreOnBoard(now.state, before, clip.entries))
+              if (now?.state)
+                window.api.canvas.save(clip.space, restoreOnBoard(now.state, before, clip.entries))
             })
           })
         }
@@ -165,7 +171,11 @@ export function useBoardClip(d: BoardClipDeps): BoardClip {
       setSel(new Set([...r.keys, ...tabKeys]))
       return true
     }
-    const pasteWhat = (system: string | null, at: Pt, onlyMany: boolean): boolean | Promise<boolean> => {
+    const pasteWhat = (
+      system: string | null,
+      at: Pt,
+      onlyMany: boolean
+    ): boolean | Promise<boolean> => {
       const s = ref.current.stRef.current
       if (!s) return false
       const what = resolvePaste(getClip(), system)
@@ -184,7 +194,12 @@ export function useBoardClip(d: BoardClipDeps): BoardClip {
         item: itemFor(u, '', { source: 'web' }),
         box: boxes[i]
       }))
-      void paste({ mode: 'copy', space: ref.current.spaceId, entries, text: '' }, boxes, pasteOffset(boxes, at), at)
+      void paste(
+        { mode: 'copy', space: ref.current.spaceId, entries, text: '' },
+        boxes,
+        pasteOffset(boxes, at),
+        at
+      )
       return true
     }
     return {
@@ -202,7 +217,12 @@ export function useBoardClip(d: BoardClipDeps): BoardClip {
         const boxes = layoutBoxes(entries.map((e) => boxOf(s, e, true)))
         const b = boundsOf(boxes)!
         const at = { x: b.x + b.w / 2 + 32, y: b.y + b.h / 2 + 32 }
-        void paste({ mode: 'copy', space: ref.current.spaceId, entries, text: '' }, boxes, { dx: 32, dy: 32 }, at)
+        void paste(
+          { mode: 'copy', space: ref.current.spaceId, entries, text: '' },
+          boxes,
+          { dx: 32, dy: 32 },
+          at
+        )
         return true
       },
       pasteAt: async (at) => !!(await pasteWhat(await readSystemText(), at, false)),
