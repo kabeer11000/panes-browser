@@ -2,12 +2,13 @@ import { BrowserWindow, ipcMain, type WebContents } from 'electron'
 import { ContactFrames, ScanClock, type Contact } from '@shared/touchContacts'
 
 /**
- * Raw precision-touchpad contacts for the board's free scrolling (see shared/freeScroll.ts). Windows only: there
+ * Raw precision-touchpad contacts for the board's free scrolling (see shared/freeScroll.ts) and the tab view's swipes
+ * (see gestures.ts). Windows only: there
  * Chromium puts touchpad scrolls on one axis, and the raw contacts are the only place the other axis survives.
  * macOS and Linux scroll freely already, so this does nothing there.
  *
  * Uses koffi (prebuilt FFI, loaded from app.asar like adblock-rs) for user32's raw input and hid.dll's report
- * parsing. Loaded only when a board first opens, so startup does not pay for it.
+ * parsing. Loaded only when a board first opens or the swipes are turned on, after startup.
  */
 
 const WM_INPUT = 0x00ff
@@ -32,6 +33,8 @@ interface Axis {
   min: number
   /** mm per logical unit */
   mm: number
+  /** the whole axis, mm */
+  span: number
 }
 interface Device {
   prep: Buffer
@@ -101,7 +104,7 @@ function axisOf(cap: Buffer, o: number, fallbackMm: number): Axis {
   const perUnit = units === 0x11 ? 10 : units === 0x13 ? 25.4 : 0
   let len = (pmax - pmin) * Math.pow(10, exp) * perUnit
   if (!(len > 5 && len < 1000)) len = fallbackMm
-  return { min: lmin, mm: len / Math.max(1, lmax - lmin) }
+  return { min: lmin, mm: len / Math.max(1, lmax - lmin), span: len }
 }
 
 function describe(a: Api, handle: bigint): Device | null {
@@ -145,8 +148,27 @@ function describe(a: Api, handle: bigint): Device | null {
   return { prep, slots, countLink, frames: new ContactFrames(), clock: new ScanClock() }
 }
 
-/** One window's reader: on while its board is open and it is the window the touchpad reports to. */
+/** A finished frame, for the tab view's swipes: `padW` is how wide the pad is (mm). */
+export interface TouchFrame {
+  dx: number
+  dy: number
+  fingers: number
+  x: number
+  y: number
+  xMin: number
+  xMax: number
+  padW: number
+}
+
+/**
+ * One window's reader: on while its board is open (frames go to the board's page) or the tab view's swipes want
+ * them (frames go to `nav`), and only while it is the window in front.
+ */
 class Reader {
+  /** The board's page while it is open. */
+  board: WebContents | null = null
+  /** The tab view's swipes, while they are on. */
+  nav: ((f: TouchFrame) => void) | null = null
   private devices = new Map<bigint, Device | null>()
   private buf = Buffer.alloc(512)
   private hooked = false
@@ -159,11 +181,24 @@ class Reader {
 
   constructor(
     private readonly a: Api,
-    private readonly win: BrowserWindow,
-    private readonly to: WebContents
+    private readonly win: BrowserWindow
   ) {}
 
-  start(): boolean {
+  private on = false
+
+  /** Registers or drops the raw input to match who wants it; whether frames will come. */
+  sync(): boolean {
+    const want = !!this.board || !!this.nav
+    if (want === this.on) return want
+    if (want) this.on = this.start()
+    else {
+      this.stop()
+      this.on = false
+    }
+    return this.on
+  }
+
+  private start(): boolean {
     const hwnd = this.win.getNativeWindowHandle().readBigUInt64LE(0)
     const dev = Buffer.alloc(16)
     dev.writeUInt16LE(PAGE_DIGITIZER, 0)
@@ -178,13 +213,14 @@ class Reader {
     return true
   }
 
-  stop(): void {
+  private stop(): void {
     const dev = Buffer.alloc(16)
     dev.writeUInt16LE(PAGE_DIGITIZER, 0)
     dev.writeUInt16LE(U_TOUCHPAD, 2)
     dev.writeUInt32LE(RIDEV_REMOVE, 4)
     this.a.register(dev, 1, 16)
     if (this.hooked && !this.win.isDestroyed()) this.win.unhookWindowMessage(WM_INPUT)
+    this.lastFingers = 0
     this.hooked = false
   }
 
@@ -263,36 +299,64 @@ class Reader {
     // only two-finger motion matters, plus the frame where the fingers come off
     if (f.fingers < 2 && this.lastFingers < 2) return
     this.lastFingers = f.fingers
-    if (!this.to.isDestroyed()) this.to.send('canvas:touchpad', f.dx, f.dy, f.fingers, f.y, t)
+    if (this.board && !this.board.isDestroyed())
+      this.board.send('canvas:touchpad', f.dx, f.dy, f.fingers, f.y, t)
+    else if (this.nav) this.nav({ ...f, padW: d.slots[0].x.span })
   }
 
   private lastFingers = 0
 }
 
-/** `canvas:touchpad-on` (true/false) from a board; replies whether raw frames will come. */
+const readers = new Map<BrowserWindow, Reader>()
+
+function readerFor(win: BrowserWindow): Reader | null {
+  if (process.platform !== 'win32' || win.isDestroyed()) return null
+  let r = readers.get(win)
+  if (r) return r
+  const a = load()
+  if (!a) return null
+  r = new Reader(a, win)
+  readers.set(win, r)
+  win.once('closed', () => readers.delete(win))
+  return r
+}
+
+/** The tab view's swipes in this window: frames go to `nav` while the board is not open; null turns them off. */
+export function setTouchpadNav(win: BrowserWindow, nav: ((f: TouchFrame) => void) | null): boolean {
+  const r = nav ? readerFor(win) : readers.get(win)
+  if (!r) return false
+  r.nav = nav
+  try {
+    return r.sync()
+  } catch (err) {
+    console.warn('touchpad: could not start', err)
+    return false
+  }
+}
+
+const watched = new WeakSet<WebContents>()
+
+/** `canvas:touchpad` (true/false) from a board; replies whether raw frames will come. */
 export function registerTouchpad(): void {
-  let active: Reader | null = null
   ipcMain.handle('canvas:touchpad', (e, on: unknown) => {
-    if (process.platform !== 'win32') return false
-    active?.stop()
-    active = null
-    if (on !== true) return false
-    const a = load()
     const win = BrowserWindow.fromWebContents(e.sender)
-    if (!a || !win) return false
-    const r = new Reader(a, win, e.sender)
-    if (!r.start()) return false
-    active = r
-    e.sender.once('destroyed', () => {
-      if (active === r) {
-        active = null
+    if (!win) return false
+    const r = on === true ? readerFor(win) : readers.get(win)
+    if (!r) return false
+    const page = e.sender
+    r.board = on === true ? page : r.board === page ? null : r.board
+    if (on === true && !watched.has(page)) {
+      watched.add(page)
+      page.once('destroyed', () => {
+        if (r.board !== page) return
+        r.board = null
         try {
-          r.stop()
+          r.sync()
         } catch {
           /* window already gone */
         }
-      }
-    })
-    return true
+      })
+    }
+    return r.sync() && r.board === page
   })
 }

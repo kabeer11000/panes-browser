@@ -28,13 +28,22 @@ export class ContactFrames {
   }
 
   /**
-   * Returns a finished frame's motion and where the fingers are (`y`: their mean distance from the pad's top edge,
-   * mm; 0 with none down), or null while a hybrid frame is still coming in.
+   * Returns a finished frame's motion and where the fingers are (`x`, `y`: their mean distance from the pad's left
+   * and top edges, mm; 0 with none down; `xMin`, `xMax`: the leftmost and rightmost finger), or null while a hybrid
+   * frame is still coming in.
    */
   feed(
     count: number,
     slots: Contact[]
-  ): { dx: number; dy: number; fingers: number; y: number } | null {
+  ): {
+    dx: number
+    dy: number
+    fingers: number
+    x: number
+    y: number
+    xMin: number
+    xMax: number
+  } | null {
     if (count > 0) {
       this.expected = count
       this.building = []
@@ -59,8 +68,18 @@ export class ContactFrames {
       n++
     }
     this.last = new Map(down.map((c) => [c.id, c]))
-    const y = down.length ? down.reduce((sum, c) => sum + c.y, 0) / down.length : 0
-    return { dx: n ? dx / n : 0, dy: n ? dy / n : 0, fingers: down.length, y }
+    const mean = (k: 'x' | 'y'): number =>
+      down.length ? down.reduce((sum, c) => sum + c[k], 0) / down.length : 0
+    const xs = down.map((c) => c.x)
+    return {
+      dx: n ? dx / n : 0,
+      dy: n ? dy / n : 0,
+      fingers: down.length,
+      x: mean('x'),
+      y: mean('y'),
+      xMin: xs.length ? Math.min(...xs) : 0,
+      xMax: xs.length ? Math.max(...xs) : 0
+    }
   }
 }
 

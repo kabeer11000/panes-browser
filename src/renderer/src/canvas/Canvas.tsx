@@ -111,7 +111,6 @@ import {
 } from '@shared/ai/connectors'
 import { keepAspect, snapAngle, snapBox, type Snap } from '@shared/ai/snap'
 import type { Settings, Space, TabInfo } from '@shared/types'
-import { SpaceSwitcher } from '@renderer/components/SpaceSwitcher'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
@@ -126,7 +125,6 @@ import { alreadyOpen, quickFind, type FindItem } from '@shared/ai/quickFind'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
 import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
-import { HistoryIcon } from '@renderer/components/icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
 import { ContextMenu, type MenuEntry } from './ContextMenu'
@@ -140,7 +138,7 @@ import { useAsk } from './useAsk'
 import { AskDock } from './AskDock'
 import { Marks } from './Marks'
 import { CommandMenu, type Command } from './CommandMenu'
-import { HistoryList } from './HistoryList'
+import { SpaceChip } from './SpaceChip'
 import { boardDigest } from '@shared/ai/canvasDigest'
 import {
   addPreset,
@@ -221,8 +219,6 @@ interface Props {
   layout?: LayoutNode | null
   /** For the space switcher in the board's top bar: each space has its own board. */
   spaces?: Space[]
-  /** Which way the space switcher slides (see useSpaceDir). */
-  spaceDir?: number
 }
 
 type Phase = 'loading' | 'entering' | 'open' | 'leaving'
@@ -405,7 +401,6 @@ export function Canvas({
   thumbs,
   spaceId,
   spaces = [],
-  spaceDir = 1,
   onExit,
   dim = false,
   layout = null,
@@ -497,6 +492,7 @@ export function Canvas({
   /** The key that started typing into a selected shape or note (it is the first character). */
   const [firstKey, setFirstKey] = useState<string | null>(null)
   const [cmdOpen, setCmdOpen] = useState(false)
+  // the space chip's menu (spaces, and the steps that can be taken back): null while closed
   const [history, setHistory] = useState<Array<{ label: string; t: number }> | null>(null)
   const openHistory = (): void =>
     setHistory(undoStack.current.map((x) => ({ label: x.label, t: x.t })).reverse())
@@ -5016,7 +5012,7 @@ export function Canvas({
         id: 'history',
         label: 'Undo history',
         also: 'steps back',
-        run: () => undoDepth > 0 && openHistory()
+        run: () => openHistory()
       },
       ...PRESET_IDS.map((p): Command => ({
         id: `preset:${p}`,
@@ -5374,44 +5370,18 @@ export function Canvas({
         >
           {/* the board is the whole window (no top bar under it): the window's own buttons live here */}
           {window.api.platform !== 'darwin' && <WindowControls />}
-          {/* the spaces, out of sight until the pointer comes to them (or the keyboard does) */}
-          {spaces.length > 0 && (
-            <div className="cv-spaces">
-              <SpaceSwitcher
-                spaces={spaces}
-                activeSpaceId={spaceId}
-                placement="down"
-                dir={spaceDir}
-                size={18}
-              />
-            </div>
-          )}
-          {undoDepth > 0 && (
-            <div className="cv-hist-host">
-              <button
-                type="button"
-                className="cv-newbtn cv-iconbtn"
-                title="History"
-                aria-label="History"
-                aria-haspopup="menu"
-                aria-expanded={history !== null}
-                onClick={() => (history ? setHistory(null) : openHistory())}
-              >
-                <HistoryIcon />
-              </button>
-              {history && (
-                <HistoryList
-                  steps={history}
-                  onPick={(i) => {
-                    setHistory(null)
-                    const said = undo(i + 1)
-                    if (said) toastNow(i === 0 ? `Undid: ${said}` : `Went back ${i + 1} steps`)
-                  }}
-                  onClose={() => setHistory(null)}
-                />
-              )}
-            </div>
-          )}
+          <SpaceChip
+            spaces={spaces}
+            activeId={spaceId}
+            open={history !== null}
+            onOpen={openHistory}
+            onClose={() => setHistory(null)}
+            steps={history ?? []}
+            onUndo={(i) => {
+              const said = undo(i + 1)
+              if (said) toastNow(i === 0 ? `Undid: ${said}` : `Went back ${i + 1} steps`)
+            }}
+          />
         </div>
       )}
       {cmdOpen && (

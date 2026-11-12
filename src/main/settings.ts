@@ -96,6 +96,8 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
     patch.previewSwipe === 'easy'
   )
     out.previewSwipe = patch.previewSwipe
+  if (typeof patch.swipeHistory === 'boolean') out.swipeHistory = patch.swipeHistory
+  if (typeof patch.swipeTabs === 'boolean') out.swipeTabs = patch.swipeTabs
   Object.assign(out, sanitizeYouTube(patch))
   for (const key of Object.keys(APPEARANCE_LIMITS) as AppearanceKey[]) {
     const v = patch[key]

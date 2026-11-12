@@ -509,6 +509,10 @@ export interface Settings {
   touchpadSmoothing: TouchpadSmoothing
   /** Two fingers sliding down from the touchpad's top edge close the board's preview: off, from the very edge, or easier. */
   previewSwipe: PreviewSwipe
+  /** Tab view, Windows touchpad: two fingers sliding sideways on a page go back or forward. */
+  swipeHistory: boolean
+  /** Tab view, Windows touchpad: two fingers sliding in from the pad's left or right edge switch to the previous or next tab. */
+  swipeTabs: boolean
   /** Browse with tabs or with the canvas board; each space can override it (Space.browseWith). */
   browseWith: BrowseWith
   /** With tabs along the top, the address bar spans the whole row rather than sitting in the middle of it. */

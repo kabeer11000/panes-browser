@@ -72,14 +72,18 @@ describe('ContactFrames', () => {
       dx: 0,
       dy: 0,
       fingers: 2,
-      y: 0
+      x: 5,
+      y: 0,
+      xMin: 0,
+      xMax: 10
     })
     const f = c.feed(3, [
       { id: 1, tip: true, x: 1, y: 2 },
       { id: 2, tip: true, x: 11, y: 2 },
       { id: 3, tip: true, x: 50, y: 50 }
     ])
-    expect(f).toEqual({ dx: 1, dy: 2, fingers: 3, y: 18 }) // y: (2 + 2 + 50) / 3
+    // means of the three, and the outermost
+    expect(f).toEqual({ dx: 1, dy: 2, fingers: 3, x: 62 / 3, y: 18, xMin: 1, xMax: 50 })
   })
 })
 

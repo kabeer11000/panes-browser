@@ -581,6 +581,34 @@ export function Settings(): React.JSX.Element {
 
       {platform === 'win32' && (
         <Group
+          title="Touchpad swipes"
+          footer="Two fingers on a precision touchpad, in the tab view. A badge at the side of the page fills as you go; lift once it is full, or slide back to change your mind."
+        >
+          <Row
+            label="Swipe sideways to go back or forward"
+            hint="Two fingers sliding right go back, left go forward. Pages that scroll sideways themselves keep the swipe."
+          >
+            <Toggle
+              label="Swipe sideways to go back or forward"
+              on={s.swipeHistory}
+              onChange={(v) => void update({ swipeHistory: v })}
+            />
+          </Row>
+          <Row
+            label="Swipe in from the edge to switch tabs"
+            hint="Two fingers starting at the touchpad's left or right edge and sliding inwards go to the previous or next tab."
+          >
+            <Toggle
+              label="Swipe in from the edge to switch tabs"
+              on={s.swipeTabs}
+              onChange={(v) => void update({ swipeTabs: v })}
+            />
+          </Row>
+        </Group>
+      )}
+
+      {platform === 'win32' && (
+        <Group
           title="Touchpad gesture"
           footer="Windows keeps three-finger swipes for itself, and no app can see them. What it can do is press a shortcut for you: open the touchpad settings, set the swipe you want (for example three fingers up) to a custom shortcut, and press Ctrl+Shift+Space. Panes opens the panes view. The same page can move Show desktop to four fingers."
         >

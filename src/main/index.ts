@@ -58,6 +58,7 @@ import { flushAllStores } from './store'
 import { showEditMenu } from './contextMenu'
 import { TabManager } from './tabs'
 import { registerTouchpad } from './touchpad'
+import { NavGestures } from './gestures'
 
 mark('modules') // every import above has run
 applyPerformance() // Chromium's switches only count before the app is ready
@@ -225,6 +226,7 @@ function createWindow(): void {
   const ai = registerAi({ settings, tabs, history, downloads })
   suggester.setSemantic((q, exclude) => ai.features.semantic(q, exclude))
   registerTouchpad()
+  new NavGestures(win, tabs, settings)
   const canvas = registerCanvas({
     win,
     tabs,

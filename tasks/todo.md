@@ -355,11 +355,11 @@ Fixes: the flash (Chromium's viewer, then ours) and the flaky Ctrl+F in live PDF
 
 ## Board round, 2026-11-12 (preview, videos, gestures, top-left)
 
-- [ ] Edge swipe that closes the preview no longer also pans the board (board ignores touchpad and wheel until fingers lift)
-- [ ] Preview address keeps a usable width when the title is long (title gives way, not the address)
-- [ ] Preview More menu: Settings entry (opens main settings)
-- [ ] Board find / command menu: picking a tab result opens it straight away
-- [ ] Videos: all live, culled hard: no stream for cards off screen or tiny on screen; fps and resolution scale with on-screen size, from screen size; tiers hysteretic so zoom does not churn
-- [ ] Top-left: one space chip (colour dot + name) with a dropdown: spaces, New space, Undo history; history icon removed
-- [ ] Gestures (Windows touchpad): two-finger horizontal swipe on a page = back / forward with an arrow that fills; two fingers from the pad's left / right edge = previous / next tab; each on/off in Settings
+- [x] Edge swipe that closes the preview no longer also pans the board (board ignores touchpad and wheel until fingers lift)
+- [x] Preview address keeps a usable width when the title is long (title gives way, not the address)
+- [x] Preview More menu: Settings entry (opens main settings)
+- [x] Board find / command menu: picking a tab result opens it straight away
+- [x] Videos: all live, culled hard: no stream for cards off screen or tiny on screen; fps and resolution scale with on-screen size, from screen size; tiers hysteretic so zoom does not churn
+- [x] Top-left: one space chip (colour dot + name) with a dropdown: spaces, New space, Undo history; history icon removed
+- [x] Gestures (Windows touchpad): two-finger horizontal swipe on a page = back / forward with an arrow that fills; two fingers from the pad's left / right edge = previous / next tab; each on/off in Settings
 - [ ] Release

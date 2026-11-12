@@ -700,6 +700,11 @@ export class TabManager {
     }
   }
 
+  /** A page is up in the tab view (not the board, nothing laid over the pages): the touchpad swipes act on it. */
+  pageShowing(): boolean {
+    return !this.canvasMode && !this.overlay && this.current() !== null
+  }
+
   /** Where the active tab's page sits in the window, for things that hang off its corner. */
   activeRect(): Rect | null {
     return this.activeId === null ? null : (this.rects[this.activeId] ?? null)
