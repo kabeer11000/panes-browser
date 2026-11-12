@@ -22,6 +22,10 @@ files:
   - '!node_modules/adblock-rs/{target,src,benches,fuzz,data}/**'
   - '!node_modules/adblock-rs/js/{src,test}/**'
   - '!node_modules/adblock-rs/{Cargo.toml,Cargo.lock,rust-toolchain.toml,rustfmt.toml}'
+  # koffi (touchpad raw input, Windows only): just the Windows x64/arm64 binaries, not the other 16 platforms or sources
+  - '!node_modules/koffi/build/koffi/{darwin,freebsd,linux,musl,openbsd}_*/**'
+  - '!node_modules/koffi/build/koffi/win32_ia32/**'
+  - '!node_modules/koffi/{src,vendor,doc}/**'
 # Nothing is unpacked from app.asar: an app layer update (src/shared/layers.ts) replaces app.asar alone, so a file kept
 # beside it would stay the old one. Electron reads the window icon from inside the archive, and loads adblock-rs's
 # native module from it too (copying it to a temporary file first), so electron-builder's automatic unpacking of

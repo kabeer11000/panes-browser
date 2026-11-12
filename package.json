@@ -30,6 +30,7 @@
     "adblock-rs": "^0.13.5",
     "ai": "^7.0.166",
     "electron-updater": "^6.8.11",
+    "koffi": "^2",
     "motion": "^14.7.1",
     "pdfjs-dist": "^6.5.438",
     "tldts": "^7.4.19",

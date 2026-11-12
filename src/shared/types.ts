@@ -301,6 +301,10 @@ export interface PanesApi {
     inView(spaceId: number, tabIds: number[]): void
     /** The tabs whose cards play live now (main keeps those pages painting); [] when none. */
     streaming(tabIds: number[]): void
+    /** Ask for raw touchpad frames while the board is open (Windows only; false when they will not come). */
+    touchpad(on: boolean): Promise<boolean>
+    /** Two-finger touchpad motion in mm, how many fingers are down, and their mean height from the pad's top edge (mm). */
+    onTouchpad(cb: (dx: number, dy: number, fingers: number, y: number) => void): () => void
     /** A tab-capture id of a streaming tab for getUserMedia (valid 10 s, this page only); null if not allowed. */
     streamSource(tabId: number): Promise<string | null>
     /** Where the playing video is in a tab's page; null when nothing plays there. */

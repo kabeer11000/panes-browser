@@ -191,7 +191,10 @@ import { Toolbar, type Tool } from './Toolbar'
 
 /** Room for a frame's title row, in screen px: a popover that has to go below the frame's top sits under it. */
 const FRAME_HEAD_PX = 44
+/** Wheel px per mm of two-finger touchpad travel, as last measured (shared/freeScroll.ts). */
+const GAIN_KEY = 'panes.touchpadGain'
 import { MAX_K, MIN_K, useViewport } from './useViewport'
+import { DEFAULT_GAIN, FreeScroll } from '@shared/freeScroll'
 import './canvas.css'
 
 interface Props {
@@ -1984,6 +1987,54 @@ export function Canvas({
       const unit = e.deltaMode === 1 ? 16 : 1
       if (e.ctrlKey || e.metaKey) {
         if (rootRect.current.w === 0) measureRoot()
+  // ---- free touchpad scrolling on Windows (shared/freeScroll.ts): raw two-finger motion instead of railed wheels ----
+  const free = useRef<FreeScroll | null>(null)
+  useEffect(() => {
+    if (phase !== 'open') return
+    let stored = DEFAULT_GAIN
+    try {
+      stored = Number(localStorage.getItem(GAIN_KEY)) || DEFAULT_GAIN
+    } catch {
+      /* storage off: measure again */
+    }
+    const fs = new FreeScroll(
+      {
+        pan: (dx, dy) => vp.panBy(dx, dy),
+        fling: (vx, vy) => vp.fling(vx, vy),
+        stop: () => vp.stop()
+      },
+      stored
+    )
+    let saved = fs.gain
+    let live = true
+    const ask = (): void =>
+      void window.api.canvas.touchpad(true).then((ok) => {
+        if (live) free.current = ok ? fs : null
+      })
+    ask()
+    window.addEventListener('focus', ask) // another window's board may have taken the touchpad meanwhile
+    const off = window.api.canvas.onTouchpad((dx, dy, fingers) => {
+      // a preview covers the board: the fingers are for it (scrolling its page, or the swipe that closes it)
+      if (expandedRef.current) return
+      fs.touch({ dx, dy, fingers, t: performance.now() })
+      if (fingers < 2 && fs.changed(saved)) {
+        saved = fs.gain
+        try {
+          localStorage.setItem(GAIN_KEY, String(saved))
+        } catch {
+          /* fine: measured again next time */
+        }
+      }
+    })
+    return () => {
+      live = false
+      free.current = null
+      off()
+      window.removeEventListener('focus', ask)
+      void window.api.canvas.touchpad(false)
+    }
+  }, [phase, vp])
+
         const r = rootRect.current
         vp.zoomAt(
           Math.exp(-clamp(e.deltaY * unit, -40, 40) * 0.0095),
@@ -1994,6 +2045,16 @@ export function Canvas({
         const dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX
         const dy = e.shiftKey && e.deltaX === 0 ? 0 : e.deltaY
         vp.panBy(-dx * unit, -dy * unit)
+      if (
+        free.current?.wheel(
+          e.deltaX * unit,
+          e.deltaY * unit,
+          e.ctrlKey || e.metaKey,
+          performance.now()
+        )
+      )
+        return
+      vp.stop()
       }
     }
     el.addEventListener('wheel', wheel, { passive: false })
