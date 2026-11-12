@@ -2672,7 +2672,11 @@ export class TabManager {
         pip: () => this.togglePip(),
         print: () => this.printPage(),
         // chat never reads a private or Tor tab, so there is nothing to ask about there
-        askAi: tab.private || tab.tor ? null : (text) => this.askAi(text),
+        // AI turned off: no "Ask AI" in the page's menu (it would open a conversation that cannot answer)
+        askAi:
+          tab.private || tab.tor || !this.deps.settings.get().ai.enabled
+            ? null
+            : (text) => this.askAi(text),
         searchUrl: (t) => this.deps.settings.searchUrl() + encodeURIComponent(t)
       })
     )
@@ -3558,7 +3562,10 @@ export class TabManager {
           click: pick(shown ? 'reader' : 'live')
         }),
         { label: 'Pop out as a tab', click: pick('popout') },
-        ...when(!priv, { label: 'Ask about this page', click: pick('ask') }),
+        ...when(!priv && this.deps.settings.get().ai.enabled, {
+          label: 'Ask about this page',
+          click: pick('ask')
+        }),
         ...when(caps.source, sep, {
           label: 'View page source',
           accelerator: 'CmdOrCtrl+U',

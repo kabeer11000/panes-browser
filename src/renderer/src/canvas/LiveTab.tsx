@@ -3,6 +3,7 @@ import { CARD_H, CARD_W } from '@shared/ai/canvas'
 import {
   captureWidth,
   fitRegion,
+  keepCapture,
   streamCap,
   streamFps,
   WHOLE_PAGE,
@@ -10,7 +11,7 @@ import {
 } from '@shared/ai/tabStream'
 import { onBoardMotion } from './boardMotion'
 
-const FPS = streamFps(streamCap(navigator))
+const CAP = streamCap(navigator)
 /** How often the video's place in the page is asked again (theatre mode, scrolling): often at first and after
  * it moved, less once it has stayed put a while (each ask runs a script in the page). */
 const REGION_MS = 1000
@@ -72,14 +73,20 @@ export function LiveTab({
   whole?: boolean
 }): React.JSX.Element | null {
   const video = useRef<HTMLVideoElement>(null)
-  // while the board moves the video holds its frame (the stream keeps running, so it carries on at once)
+  // while the board moves the video holds its frame (the stream keeps running, so it carries on at once), and the
+  // capture is not resized or started: that waits for the board to settle (settled counts the times it has)
+  const moving = useRef(false)
+  const [settled, setSettled] = useState(0)
   useEffect(
     () =>
-      onBoardMotion((moving) => {
+      onBoardMotion((m) => {
+        moving.current = m
         const v = video.current
-        if (!v?.srcObject) return
-        if (moving) v.pause()
-        else void v.play().catch(() => undefined)
+        if (v?.srcObject) {
+          if (m) v.pause()
+          else void v.play().catch(() => undefined)
+        }
+        if (!m) setSettled((n) => n + 1)
       }),
     []
   )
@@ -149,7 +156,14 @@ export function LiveTab({
     }
   }, [id, whole])
 
-  const width = region ? captureWidth(cardPx, window.devicePixelRatio || 1, region.w) : 0
+  // the size the card asks for now, and the one captured: changed only when it must (keepCapture), never mid-move
+  const want = region ? captureWidth(cardPx, window.devicePixelRatio || 1, region.w) : 0
+  const [width, setWidth] = useState(0)
+  const nextWidth = keepCapture(width, want)
+  useEffect(() => {
+    if (nextWidth !== width && !moving.current) setWidth(nextWidth)
+  }, [nextWidth, width, settled])
+  const fps = streamFps(CAP, width)
   const fallbackAr =
     typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0
       ? Math.max(800, window.innerWidth) / Math.max(600, window.innerHeight)
@@ -178,7 +192,7 @@ export function LiveTab({
             chromeMediaSourceId: source,
             maxWidth: width,
             maxHeight: height,
-            maxFrameRate: FPS
+            maxFrameRate: fps
           }
         }
       } as unknown as MediaStreamConstraints)
@@ -203,7 +217,7 @@ export function LiveTab({
       startedAt.current = Infinity
       setHasFrame(false)
     }
-  }, [id, width, height, whole])
+  }, [id, width, height, fps, whole])
 
   const f = region
     ? fitRegion(

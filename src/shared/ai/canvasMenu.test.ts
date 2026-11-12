@@ -148,3 +148,38 @@ describe('noteOf', () => {
     })
   })
 })
+
+describe('menus with AI off', () => {
+  const noAi = ['ask', 'note', 'document']
+  test('a card leaves out what needs AI, and keeps the rest', () => {
+    const m = cardMenu({ ...tab, canDocument: true, ai: false })
+    for (const id of noAi) expect(get(m, id)).toBeUndefined()
+    expect(get(m, 'open')).toBeDefined()
+    expect(get(m, 'copy')).toBeDefined()
+    // never two separators in a row where the AI group was
+    const ids = m.map((x) => (x === 'sep' ? 'sep' : x.id))
+    expect(ids.join(',')).not.toContain('sep,sep')
+  })
+  test('a selection too', () => {
+    const m = selectionMenu({
+      n: 2,
+      private: 0,
+      canSplit: true,
+      inSection: false,
+      allTabs: true,
+      sections: [],
+      ai: false
+    })
+    expect(get(m, 'ask')).toBeUndefined()
+    expect(get(m, 'note')).toBeUndefined()
+    expect(get(m, 'split')).toBeDefined()
+  })
+  test('the board arranges by site and is not asked about', () => {
+    const m = boardMenu({ empty: false, paste: false, canPaste: false, undo: null, ai: false })
+    expect(get(m, 'tidy')!.label).toBe('Arrange by site')
+    expect(get(m, 'ask')).toBeUndefined()
+    const on = boardMenu({ empty: false, paste: false, canPaste: false, undo: null })
+    expect(get(on, 'tidy')!.label).toBe('Arrange by topic')
+    expect(get(on, 'ask')).toBeDefined()
+  })
+})

@@ -20,8 +20,16 @@ export function streamCap(nav: { hardwareConcurrency?: number; deviceMemory?: nu
   return cores <= 8 || (nav.deviceMemory !== undefined && nav.deviceMemory < 8) ? 2 : 4
 }
 
-/** Frames per second asked of each stream: a card is small, and the page keeps its full rate for itself. */
-export function streamFps(cap: number): number {
+/** A capture this narrow or less is a small card on screen: it streams at SMALL_FPS. */
+export const SMALL_CAPTURE_W = 480
+const SMALL_FPS = 15
+
+/**
+ * Frames per second asked of each stream: a card is small, and the page keeps its full rate for itself. A small
+ * capture (a card small on screen) needs fewer still: each frame is the tab drawn again offscreen.
+ */
+export function streamFps(cap: number, captureW = Infinity): number {
+  if (captureW <= SMALL_CAPTURE_W) return SMALL_FPS
   return cap <= 2 ? 24 : 30
 }
 
@@ -166,3 +174,14 @@ export const VIDEO_RECT_SCRIPT = `(() => {
   }
   return best
 })()`
+
+/**
+ * The capture width to keep, given the one running (`cur`, 0 for none) and the one the card asks for now. A new
+ * size restarts the stream (the card shows its picture for a moment), so it only changes when it must: the card
+ * needs it sharper, or it has shrunk to half or less (then the larger capture is work wasted). Zooming a little either
+ * way keeps the stream as it is.
+ */
+export function keepCapture(cur: number, want: number): number {
+  if (cur <= 0 || want <= 0) return want
+  return want > cur || want <= cur / 2 ? want : cur
+}

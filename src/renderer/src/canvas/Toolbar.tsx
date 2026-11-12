@@ -1,3 +1,4 @@
+import { arrangeLabel } from '@shared/ai/canvasMenu'
 import { useCallback, useRef, useState } from 'react'
 import { useDismiss } from './useDismiss'
 import { SHAPE_KINDS, type BlockKind, type ShapeKind } from '@shared/ai/canvasMarks'
@@ -76,6 +77,8 @@ interface Props {
   asking?: boolean
   /** Show the inline prompt in the bottom bar (only when AI is off or unavailable). */
   showPrompt?: boolean
+  /** AI is on and ready: Arrange groups by topic (else by site). */
+  ai?: boolean
   promptRef: React.RefObject<HTMLInputElement | null>
   shapeKind: ShapeKind
   onShapeKind: (k: ShapeKind) => void
@@ -100,6 +103,7 @@ export function Toolbar({
   finding,
   asking = false,
   showPrompt = false,
+  ai = true,
   promptRef,
   shapeKind,
   onShapeKind,
@@ -316,8 +320,8 @@ export function Toolbar({
       <button
         type="button"
         className={'cv-tool' + (busy ? ' busy' : '')}
-        aria-label="Arrange by topic"
-        title="Arrange: group the cards into sections by topic; your own sections stay (Shift+T)"
+        aria-label={arrangeLabel(ai)}
+        title={`${arrangeLabel(ai)}: group the cards into sections; your own sections stay (Shift+T)`}
         onClick={onTidy}
       >
         <TidyIcon />

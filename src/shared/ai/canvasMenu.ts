@@ -57,10 +57,13 @@ export interface CardFacts {
   sections: readonly SectionRef[]
   /** Its tab is in the split view: it can be taken apart. */
   split?: boolean
+  /** AI is on and ready (else what needs it is left out of the menu). */
+  ai?: boolean
 }
 
 export function cardMenu(f: CardFacts): MenuEntry[] {
   const ai = !f.private
+  const aiOn = f.ai !== false
   return tidyMenu([
     { id: 'open', label: 'Open', keys: 'Enter' },
     { id: 'live', label: 'Open live', disabled: !f.canLive },
@@ -79,9 +82,13 @@ export function cardMenu(f: CardFacts): MenuEntry[] {
       : []),
     ...(f.toggle ? [{ id: 'view', label: f.reader ? 'Show the page' : 'Show as reader' }] : []),
     'sep',
-    { id: 'ask', label: 'Ask about this', disabled: !ai },
-    { id: 'note', label: 'Make a note of it', disabled: !ai || f.note },
-    ...(f.canDocument ? [{ id: 'document', label: 'Show as document', disabled: !ai }] : []),
+    ...(aiOn
+      ? [
+          { id: 'ask', label: 'Ask about this', disabled: !ai },
+          { id: 'note', label: 'Make a note of it', disabled: !ai || f.note },
+          ...(f.canDocument ? [{ id: 'document', label: 'Show as document', disabled: !ai }] : [])
+        ]
+      : []),
     'sep',
     { id: 'copy', label: 'Copy link', disabled: !f.link || f.private },
     { id: 'duplicate', label: 'Duplicate', disabled: f.private || (!f.link && !f.answer) },
@@ -107,13 +114,19 @@ export interface SelectionFacts {
   /** All of them are real tabs (the close label says so). */
   allTabs: boolean
   sections: readonly SectionRef[]
+  /** AI is on and ready (else what needs it is left out of the menu). */
+  ai?: boolean
 }
 
 export function selectionMenu(f: SelectionFacts): MenuEntry[] {
   const open = f.n - f.private
   return tidyMenu([
-    { id: 'ask', label: `Ask about these ${f.n}`, disabled: open === 0 },
-    { id: 'note', label: `Make notes of these ${f.n}`, disabled: open === 0 },
+    ...(f.ai !== false
+      ? [
+          { id: 'ask', label: `Ask about these ${f.n}`, disabled: open === 0 },
+          { id: 'note', label: `Make notes of these ${f.n}`, disabled: open === 0 }
+        ]
+      : []),
     { id: 'split', label: 'Open side by side', disabled: !f.canSplit },
     'sep',
     { id: 'group', label: 'Group into a section', disabled: f.private > 0 },
@@ -252,6 +265,13 @@ export interface BoardFacts {
   canPaste: boolean
   /** What the last step was, when there is one to undo. */
   undo: string | null
+  /** AI is on and ready: Arrange goes by topic and the board can be asked about; else by site, and no asking. */
+  ai?: boolean
+}
+
+/** What Arrange does: by topic with AI, else by site (the grouping that needs no model). */
+export function arrangeLabel(ai: boolean): string {
+  return ai ? 'Arrange by topic' : 'Arrange by site'
 }
 
 export function boardMenu(f: BoardFacts): MenuEntry[] {
@@ -273,7 +293,7 @@ export function boardMenu(f: BoardFacts): MenuEntry[] {
       ? [{ id: 'paste', label: 'Paste here', keys: 'Ctrl+V', disabled: !f.canPaste }]
       : []),
     'sep',
-    { id: 'tidy', label: 'Arrange by topic', keys: 'Shift+T', disabled: f.empty },
+    { id: 'tidy', label: arrangeLabel(f.ai !== false), keys: 'Shift+T', disabled: f.empty },
     { id: 'fit', label: 'Fit everything', keys: 'Shift+1', disabled: f.empty },
     { id: 'all', label: 'Select all', keys: 'Ctrl+A', disabled: f.empty },
     {
@@ -283,8 +303,7 @@ export function boardMenu(f: BoardFacts): MenuEntry[] {
       disabled: !f.undo
     },
     'sep',
-    // the conversation is also where AI is turned on, so it is never disabled here
-    { id: 'ask', label: 'Ask about the board' },
+    ...(f.ai !== false ? [{ id: 'ask', label: 'Ask about the board' }] : []),
     {
       id: 'export',
       label: 'Export',

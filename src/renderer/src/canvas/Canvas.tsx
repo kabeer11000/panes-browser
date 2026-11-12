@@ -77,6 +77,7 @@ import { arrangeSplit, splitBox, splitEdge, splitMembers } from '@shared/ai/spli
 import { leaves, type LayoutNode } from '@shared/layout'
 import { suggestPlacement, placeItem, noteOf } from '@shared/ai/canvasPlace'
 import {
+  arrangeLabel,
   boardMenu,
   cardMenu,
   markMenu,
@@ -194,6 +195,8 @@ import { Toolbar, type Tool } from './Toolbar'
 const FRAME_HEAD_PX = 44
 /** Wheel px per mm of two-finger touchpad travel, as last measured (shared/freeScroll.ts). */
 const GAIN_KEY = 'panes.touchpadGain'
+/** The board's "AI is off" note was dismissed (see aiOffSeen). */
+const AI_OFF_SEEN = 'panes.aiOffSeen'
 import { MAX_K, MIN_K, useViewport } from './useViewport'
 import { DEFAULT_GAIN, FreeScroll, PanResampler, SMOOTHING_DELAY_MS } from '@shared/freeScroll'
 import { DEFAULT_SETTINGS } from '@shared/settings'
@@ -3912,8 +3915,30 @@ export function Canvas({
 
   // AI off or unconfigured is not a dead end: finding by words and grouping by site still work, and one button turns AI on
   const [aiOff, setAiOff] = useState(false)
+  // the AI-off note shows once: AI turned off on purpose need not be pointed out on every board. Turning it on
+  // again forgets the note was seen, so turning it off later says it once more.
+  const [aiOffSeen, setAiOffSeen] = useState(() => {
+    try {
+      return localStorage.getItem(AI_OFF_SEEN) === '1'
+    } catch {
+      return false
+    }
+  })
+  const seeAiOff = (seen: boolean): void => {
+    setAiOffSeen(seen)
+    try {
+      if (seen) localStorage.setItem(AI_OFF_SEEN, '1')
+      else localStorage.removeItem(AI_OFF_SEEN)
+    } catch {
+      /* storage off: it shows again next time, no worse */
+    }
+  }
   useEffect(() => {
-    const ask = (): void => void window.api.chatInfo().then((i) => setAiOff(!i.enabled))
+    const ask = (): void =>
+      void window.api.chatInfo().then((i) => {
+        setAiOff(!i.enabled)
+        if (i.enabled) seeAiOff(false)
+      })
     ask()
     return window.api.onChatChanged(ask)
   }, [])
@@ -4546,7 +4571,8 @@ export function Canvas({
             canSplit: n === 2 && privCount === 0 && selCards.every(canTab),
             inSection: framesOf.length > 0,
             allTabs: selCards.every((cid) => !isVirtual(cid)),
-            sections
+            sections,
+            ai: aiAvailable
           }),
           (act) => {
             if (act === 'ask') ask()
@@ -4605,7 +4631,8 @@ export function Canvas({
           link: web,
           section: card?.frame ?? null,
           sections,
-          split: splitRef.current.includes(id)
+          split: splitRef.current.includes(id),
+          ai: aiAvailable
         }),
         (act) => {
           if (act === 'open') expandRef.current(id, false)
@@ -4745,7 +4772,8 @@ export function Canvas({
         empty: contentBoxes(s0).length === 0,
         paste: true,
         canPaste: boardClip.canPaste,
-        undo: topUndo
+        undo: topUndo,
+        ai: aiAvailable
       }),
       (act) => {
         if (act === 'page') askNew(at.x, at.y)
@@ -4888,12 +4916,14 @@ export function Canvas({
       shape('bubble', 'Speech bubble'),
       {
         id: 'tidy',
-        label: 'Arrange by topic',
+        label: arrangeLabel(aiAvailable),
         also: 'tidy rearrange sort group reset',
         keys: 'Shift+T',
         run: () => void runTidy(false)
       },
-      { id: 'ask', label: 'Ask', also: 'question chat ai', keys: '', run: () => askInDock() },
+      ...(aiAvailable
+        ? [{ id: 'ask', label: 'Ask', also: 'question chat ai', keys: '', run: () => askInDock() }]
+        : []),
       // the board's bar keeps no Back to tabs or space switcher: they are here (and on Ctrl+Shift+K, Ctrl+Alt+1-9)
       {
         id: 'tabs',
@@ -5406,9 +5436,12 @@ export function Canvas({
           )}
         </div>
       )}
-      {aiOff && !finder.confirm && (
+      {aiOff && !aiOffSeen && !finder.confirm && (
         <div className="cv-aioff" role="status">
           <span>AI is off. Tabs still group by site, and the prompt finds by words.</span>
+          <button type="button" onClick={() => seeAiOff(true)}>
+            Not now
+          </button>
           <button
             type="button"
             className="primary"
@@ -5434,7 +5467,7 @@ export function Canvas({
           key={expanded.id}
           startLive={expanded.live}
           onLive={onPreviewLive}
-          onAsk={askInDock}
+          onAsk={aiAvailable ? askInDock : undefined}
           m={modelFor({ id: expanded.id }) ?? EMPTY_MODEL}
           from={expanded.from}
           stage={asker.open ? { w: Math.max(320, stage.w - dockShown), h: stage.h } : stage}
@@ -5582,6 +5615,7 @@ export function Canvas({
         onPrompt={onPrompt}
         onTool={setToolBoth}
         onTidy={() => void runTidy(false)}
+        ai={aiAvailable}
         onSettings={() => window.api.openInternal('settings')}
         onFit={fitAll}
         onZoom={stepZoom}

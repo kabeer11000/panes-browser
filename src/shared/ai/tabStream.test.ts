@@ -5,6 +5,7 @@ import {
   pickStreams,
   streamCap,
   streamFps,
+  keepCapture,
   videoRegion
 } from './tabStream'
 
@@ -55,9 +56,15 @@ describe('pickStreams with calls', () => {
       { id: 3, audible: false, muted: false }
     ]
     const on = new Set([1, 2, 3])
-    expect(pickStreams({ tabs: list, onScreen: on, open: null, zoomedOut: false, cap: 1 })).toEqual([2])
-    expect(pickStreams({ tabs: list, onScreen: on, open: null, zoomedOut: false, cap: 4 })).toEqual([2, 1])
-    expect(pickStreams({ tabs: list, onScreen: on, open: 2, zoomedOut: false, cap: 4 })).toEqual([1])
+    expect(pickStreams({ tabs: list, onScreen: on, open: null, zoomedOut: false, cap: 1 })).toEqual(
+      [2]
+    )
+    expect(pickStreams({ tabs: list, onScreen: on, open: null, zoomedOut: false, cap: 4 })).toEqual(
+      [2, 1]
+    )
+    expect(pickStreams({ tabs: list, onScreen: on, open: 2, zoomedOut: false, cap: 4 })).toEqual([
+      1
+    ])
   })
 })
 
@@ -126,5 +133,30 @@ describe('fitRegion', () => {
     expect(fMatch.clip.h).toBeCloseTo(100, 1)
     // In the letterboxed 1:1 frame, the page starts at y = 0.1875, so the video's top offset is shifted deeper than in a 1.6 frame
     expect(fSquare.video.y).toBeLessThan(fMatch.video.y)
+  })
+})
+
+describe('streamFps by size', () => {
+  test('a small capture streams at fewer frames; a large one as before', () => {
+    expect(streamFps(4, 480)).toBe(15)
+    expect(streamFps(4, 640)).toBe(streamFps(4))
+    expect(streamFps(2, 320)).toBe(15)
+  })
+})
+
+describe('keepCapture', () => {
+  test('starts at what is asked', () => {
+    expect(keepCapture(0, 640)).toBe(640)
+  })
+  test('grows at once when the card needs it sharper', () => {
+    expect(keepCapture(640, 800)).toBe(800)
+  })
+  test('a little smaller keeps the running stream; half or less shrinks it', () => {
+    expect(keepCapture(800, 640)).toBe(800)
+    expect(keepCapture(800, 480)).toBe(800)
+    expect(keepCapture(800, 400)).toBe(400)
+  })
+  test('nothing asked: nothing', () => {
+    expect(keepCapture(800, 0)).toBe(0)
   })
 })

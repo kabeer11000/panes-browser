@@ -3262,7 +3262,16 @@
 .cv-bar {
   transition:
     opacity 0.18s ease,
-    translate 0.22s var(--ease);
+    translate 0.22s var(--ease),
+    left 0.34s var(--ease); /* moves over as the conversation dock slides in or out, with it */
+}
+.cv-playing {
+  transition: right 0.34s var(--ease);
+}
+/* resizing the dock by its edge: they follow the pointer, not a beat behind it */
+.cv:has(.cv-dock-rz.on) .cv-bar,
+.cv:has(.cv-dock-rz.on) .cv-playing {
+  transition: none;
 }
 .cv.reading .cv-bar {
   opacity: 0;
@@ -3272,6 +3281,9 @@
 @media (prefers-reduced-motion: reduce) {
   .cv-bar {
     transition: opacity var(--dur-fast);
+  }
+  .cv-playing {
+    transition: none;
   }
   .cv.reading .cv-bar {
     translate: -50% 0;
