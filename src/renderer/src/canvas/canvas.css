@@ -2801,8 +2801,11 @@
     0 20px 60px rgb(0 0 0 / 0.32);
 }
 
-/* one slim row, no tiles, pills or dividers: text and line icons on the sheet itself */
+/* one slim row in three zones: the page on the left, how to see it centred, actions on the right. The side
+   zones share what is left equally, so the middle stays centred; the title is what gives way. */
 .cv-panel-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
   height: 40px;
@@ -2870,8 +2873,235 @@
   color: var(--fg);
   background: var(--surface-hover);
 }
-.cv-panel-head > :not(.cv-panel-title) {
+.cv-hzone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+}
+.cv-hzone > :not(.cv-panel-title) {
   flex: none;
+}
+.cv-hzone-c {
+  gap: 14px;
+}
+.cv-hzone-r {
+  justify-content: flex-end;
+}
+/* the address pill: icon, title and site in one quiet capsule */
+.cv-hzone-l .cv-panel-title {
+  flex: 0 1 auto;
+  align-items: center;
+  height: 28px;
+  margin-left: 0;
+  padding: 0 10px 0 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+}
+.cv-panel-title .cv-panel-icon {
+  flex: none;
+  align-self: center;
+}
+.cv-panel-title .cv-sitebtn {
+  width: 20px;
+  height: 20px;
+  margin: 0 -2px;
+  border-radius: 5px;
+}
+.cv-panel-title .cv-sitebtn:hover {
+  background: var(--surface-hover);
+}
+.cv-panel-title .cv-sitebtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* the bell: what the other tabs have waiting */
+.cv-bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+/* the tabs waiting, by their (badged) icons, as on the board's inbox */
+.cv-bell-fav {
+  width: auto;
+  min-width: 28px;
+  padding: 0 6px;
+}
+/* in the bar the badge sits beside the icon, not hanging off it: the button grows with "99+" rather than spilling
+   over its neighbours */
+.cv-bell-fav .fav-attn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cv-bell-fav .fav-attn > b {
+  position: static;
+  box-shadow: none;
+}
+.cv-bell-fav .fav-attn > b.count {
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  font-size: 10px;
+}
+.cv-bell-more {
+  padding: 0 4px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+}
+/* a new notification, out beside the bell for a few seconds; it covers the buttons left of it, not the page */
+.cv-bell-peek {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 4px);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: 380px;
+  height: 30px;
+  padding: 0 12px 0 8px;
+  border-radius: 9px;
+  font-size: 12px;
+  text-align: left;
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 6px 18px rgb(0 0 0 / 0.22);
+  translate: 0 -50%;
+  animation: cv-peek-in var(--dur) var(--ease) both;
+}
+.cv-bell-peek:hover {
+  background: color-mix(in srgb, var(--popover-bg) 92%, var(--fg));
+}
+.cv-bell-peek:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.cv-bell-peek .cv-bell-msg-text {
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cv-bell-peek.ringing {
+  box-shadow:
+    0 0 0 1.5px var(--badge-bg),
+    0 6px 18px rgb(0 0 0 / 0.22);
+}
+.cv-bell-peek.ringing strong::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--badge-bg);
+  animation: call-breathe 2.4s ease-in-out infinite;
+}
+@keyframes cv-peek-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-bell-peek {
+    animation: none;
+  }
+}
+.cv-bell-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  width: 340px;
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 12px 32px rgb(0 0 0 / 0.3);
+  animation: cv-attn-in var(--dur) var(--ease) both;
+}
+.cv-bell-empty {
+  margin: 0;
+  padding: 14px 12px;
+  font-size: 12.5px;
+  color: var(--fg-dim);
+}
+.cv-bell-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+}
+.cv-bell-tab:hover {
+  background: var(--surface-hover);
+}
+.cv-bell-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.cv-bell-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cv-bell-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+.cv-bell-what {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+.cv-bell-what.ringing {
+  color: var(--badge-bg);
+  font-weight: 600;
+}
+.cv-bell-msg {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-left: 24px;
+  font-size: 12px;
+}
+.cv-bell-msg-text {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--fg-dim);
+}
+.cv-bell-msg-text strong {
+  margin-right: 5px;
+  font-weight: 550;
+  color: var(--fg);
+}
+.cv-bell-msg time {
+  flex: none;
+  font-size: 11px;
+  color: var(--fg-dim);
 }
 
 /* previous / next among the section's cards */

@@ -6,6 +6,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseMarkdown, type Block, type Inline } from '@shared/ai/markdown'
 import type { CanvasReaderDoc } from '@shared/ai/canvasItems'
 import type { PageMenuPick, Rect, TabInfo } from '@shared/types'
+import type { Grouped } from '@shared/attention'
 import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
 import { LiveIcon, UnsplitIcon } from './icons'
@@ -15,16 +16,15 @@ import {
   ForwardIcon,
   MoreIcon,
   ReloadIcon,
-  SearchIcon,
-  SiteIcon,
   SpeakerIcon,
-  StarIcon,
   StopIcon
 } from '@renderer/components/icons'
 import { FindBar } from '@renderer/components/FindBar'
 import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
+import { PreviewInbox } from './PreviewInbox'
+import { EdgeSwipe } from '@shared/edgeSwipe'
 
 /** Opening and closing move alike: one smooth ease, no spring overshoot (the card it grows from must line up). */
 const MORPH = { duration: 0.32, ease: [0.32, 0.72, 0, 1] } as const
@@ -78,6 +78,10 @@ interface Props extends ExpandSource {
   page?: TabInfo
   /** Where it sits among its section's cards, for the "2 / 5" in the header. */
   place?: { at: number; of: number }
+  /** What waits in the tabs (messages, calls), one entry per site or account, for the header's bell. */
+  waiting?: Grouped<TabInfo>[]
+  /** Open another tab in the preview (picked from the bell). */
+  onOpenTab?: (tab: number) => void
 }
 
 // ---- answer text ----
@@ -636,7 +640,9 @@ export function Expanded({
   startLive = false,
   onLive,
   onAsk,
-  split
+  split,
+  waiting = [],
+  onOpenTab
 }: Props): React.JSX.Element {
   const panel = useRef<HTMLDivElement>(null)
   const scrim = useRef<HTMLDivElement>(null)
@@ -662,7 +668,11 @@ export function Expanded({
   const siteBtn = useRef<HTMLButtonElement>(null)
   const asking = useRef(false)
   const [addressOpen, setAddressOpen] = useState(false)
-  const addressOpenRef = useRef(false)
+  // the bell's list is open: like the address popover, the live page steps aside for its picture under it
+  const [bellOpen, setBellOpen] = useState(false)
+  // something is over the page: it stays stepped aside
+  const aside = addressOpen || bellOpen
+  const asideRef = useRef(false)
   const tabRef = useRef<number | null>(tab ?? null)
   // whether the live page was already shown once on its own (opened live, a video, an app with no article)
   const autoLive = useRef(false)
@@ -755,8 +765,7 @@ export function Expanded({
   const placeLive = useCallback((): void => {
     const r = slotBox(slot.current)
     const id = tabRef.current
-    if (!r || id === null || liveRef.current !== 'on' || addressOpenRef.current || closing.current)
-      return
+    if (!r || id === null || liveRef.current !== 'on' || asideRef.current || closing.current) return
     window.api.canvas.liveMove(id, r)
   }, [])
 
@@ -799,6 +808,13 @@ export function Expanded({
     void window.api
       .siteInfo()
       .then((i) => setZoom(i ? { level: i.zoom, base: i.defaultZoom } : null))
+  }, [])
+  // two fingers from the touchpad's top edge, sliding down: put the preview away (Windows; see shared/edgeSwipe)
+  useEffect(() => {
+    const swipe = new EdgeSwipe()
+    return window.api.canvas.onTouchpad((dx, dy, fingers, y) => {
+      if (swipe.touch({ dx, dy, fingers, y })) void closeRef.current()
+    })
   }, [])
   // the keys main routes here: pressed in the live page (which holds the keyboard) or caught before the board
   useEffect(
@@ -899,7 +915,7 @@ export function Expanded({
     liveRef.current = 'on'
     setLive('on')
     const rNow = slotBox(slot.current)
-    if (rNow && !addressOpenRef.current) window.api.canvas.liveMove(id, rNow)
+    if (rNow && !asideRef.current) window.api.canvas.liveMove(id, rNow)
     if (url) onLive?.(url, true)
   }
   const editAddress = async (): Promise<void> => {
@@ -914,6 +930,14 @@ export function Expanded({
     setAddressOpen(false)
     if (text) void submitUrl(text)
   }
+  const openBell = async (): Promise<void> => {
+    await takeShot() // the page stands in as a picture while the list covers it
+    setBellOpen(true)
+  }
+  // the bell lists the other sites: one whose tab is in front of the person is being looked at
+  const others = waiting.filter(
+    (w) => !w.tabs.some((id) => id === tab || split?.some((p) => p.tab === id))
+  )
   const submitUrl = async (input: string): Promise<void> => {
     const text = input.trim()
     if (!text || text === url) return
@@ -961,11 +985,11 @@ export function Expanded({
   // the address popover over the header: the live page steps aside for its picture, and comes back where the slot
   // is. (The hover sidebar and top bar no longer move it aside: main slides the view with them, frame by frame.)
   useEffect(() => {
-    addressOpenRef.current = addressOpen
+    asideRef.current = aside
     if (live !== 'on') return
-    if (addressOpen) hideLive()
+    if (aside) hideLive()
     else placeLive()
-  }, [addressOpen, live, hideLive, placeLive])
+  }, [aside, live, hideLive, placeLive])
   // the zoom level shows in the bar while it is not the site's usual one
   useEffect(() => {
     if (live === 'on') readZoom()
@@ -992,7 +1016,7 @@ export function Expanded({
   // ---- a split view: the other panes, live beside this card's page ----
   const paneEls = useRef(new Map<number, HTMLDivElement>())
   const placeCompanions = useCallback((): void => {
-    if (liveRef.current !== 'on' || addressOpenRef.current || closing.current) return
+    if (liveRef.current !== 'on' || asideRef.current || closing.current) return
     const list: Array<{ id: number; rect: Rect }> = []
     for (const [id, el] of paneEls.current) {
       const r = slotBox(el)
@@ -1001,7 +1025,7 @@ export function Expanded({
     window.api.canvas.liveCompanions?.(list)
   }, [])
   useEffect(() => {
-    if (live !== 'on' || addressOpen || !splitKey) return
+    if (live !== 'on' || aside || !splitKey) return
     placeCompanions()
     const ro = new ResizeObserver(placeCompanions)
     for (const el of paneEls.current.values()) ro.observe(el)
@@ -1009,7 +1033,7 @@ export function Expanded({
       ro.disconnect()
       window.api.canvas.liveCompanions?.([])
     }
-  }, [live, addressOpen, splitKey, placeCompanions])
+  }, [live, aside, splitKey, placeCompanions])
   const paneRef =
     (id: number) =>
     (el: HTMLDivElement | null): void => {
@@ -1105,7 +1129,8 @@ export function Expanded({
     <div className="cv-expand" role="dialog" aria-modal="false" aria-label={m.title}>
       <div className="cv-scrim" ref={scrim} onPointerDown={() => void close()} />
       <div className="cv-panel" ref={panel} style={{ left, top, width: w, height: h }}>
-        {/* one slim row: what it is on the left, how to see it in the middle, what to do with it on the right */}
+        {/* three zones: the page (nav, address) on the left, how to see it in the middle, what to do on the right.
+            The rest (bookmark, copy link, find, zoom, pop out) is in More and on a right-click of the bar. */}
         <header
           className="cv-panel-head"
           onContextMenu={(e) => {
@@ -1115,168 +1140,149 @@ export function Expanded({
             pageMenu(e.clientX, e.clientY)
           }}
         >
-          <span className="cv-panel-icon" aria-hidden="true">
-            <Favicon m={m} />
-          </span>
-          {live !== 'off' && (
-            <div className="cv-nav" role="group" aria-label="Page navigation">
-              <button
-                type="button"
-                aria-label="Back"
-                title="Back (Alt+Left)"
-                disabled={!page?.canGoBack}
-                onClick={() => nav('back')}
-              >
-                <BackIcon />
-              </button>
-              <button
-                type="button"
-                aria-label="Forward"
-                title="Forward (Alt+Right)"
-                disabled={!page?.canGoForward}
-                onClick={() => nav('forward')}
-              >
-                <ForwardIcon />
-              </button>
-              {page?.loading ? (
+          <div className="cv-hzone cv-hzone-l">
+            {live !== 'off' && (
+              <div className="cv-nav" role="group" aria-label="Page navigation">
                 <button
                   type="button"
-                  aria-label="Stop"
-                  title="Stop loading"
-                  onClick={() => nav('stop')}
+                  aria-label="Back"
+                  title="Back (Alt+Left)"
+                  disabled={!page?.canGoBack}
+                  onClick={() => nav('back')}
                 >
-                  <StopIcon />
+                  <BackIcon />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Forward"
+                  title="Forward (Alt+Right)"
+                  disabled={!page?.canGoForward}
+                  onClick={() => nav('forward')}
+                >
+                  <ForwardIcon />
+                </button>
+                {page?.loading ? (
+                  <button
+                    type="button"
+                    aria-label="Stop"
+                    title="Stop loading"
+                    onClick={() => nav('stop')}
+                  >
+                    <StopIcon />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label="Reload"
+                    title="Reload (Ctrl+R)"
+                    onClick={() => nav('reload')}
+                  >
+                    <ReloadIcon />
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="cv-panel-title" title={m.title} ref={titleEl}>
+              {/* the site icon doubles as its settings, as in the address bar */}
+              {live !== 'off' && caps.site ? (
+                <button
+                  type="button"
+                  ref={siteBtn}
+                  className="cv-panel-icon cv-sitebtn"
+                  aria-label="Site settings"
+                  title="Site settings: permissions, blocker, data"
+                  onClick={openSite}
+                >
+                  <Favicon m={m} />
                 </button>
               ) : (
+                <span className="cv-panel-icon" aria-hidden="true">
+                  <Favicon m={m} />
+                </span>
+              )}
+              <strong>{m.title}</strong>
+              {canEditUrl ? (
                 <button
                   type="button"
-                  aria-label="Reload"
-                  title="Reload (Ctrl+R)"
-                  onClick={() => nav('reload')}
+                  className="cv-panel-site"
+                  title={`${href ?? m.site} (Ctrl+L to change)`}
+                  onClick={() => void editAddress()}
                 >
-                  <ReloadIcon />
+                  {m.site || href}
                 </button>
+              ) : (
+                m.site && <span>{m.site}</span>
               )}
             </div>
-          )}
-          {live !== 'off' && caps.site && (
-            <button
-              type="button"
-              ref={siteBtn}
-              className="cv-hbtn cv-sitebtn"
-              aria-label="Site settings"
-              title="Site settings: permissions, blocker, data"
-              onClick={openSite}
-            >
-              <SiteIcon />
-            </button>
-          )}
-          <div className="cv-panel-title" title={m.title} ref={titleEl}>
-            <strong>{m.title}</strong>
-            {canEditUrl ? (
-              <button
-                type="button"
-                className="cv-panel-site"
-                title={`${href ?? m.site} (Ctrl+L to change)`}
-                onClick={() => void editAddress()}
-              >
-                {m.site || href}
-              </button>
+          </div>
+          <div className="cv-hzone cv-hzone-c">
+            {place && place.of > 1 && onStep ? (
+              <div className="cv-step" role="group" aria-label="Cards in this section">
+                <button
+                  type="button"
+                  aria-label="Previous card"
+                  title="Previous (Left arrow)"
+                  onClick={() => {
+                    hideLive()
+                    onStep(-1)
+                  }}
+                >
+                  <PrevGlyph />
+                </button>
+                <span aria-live="polite">
+                  {place.at} / {place.of}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Next card"
+                  title="Next (Right arrow)"
+                  onClick={() => {
+                    hideLive()
+                    onStep(1)
+                  }}
+                >
+                  <NextGlyph />
+                </button>
+              </div>
+            ) : null}
+            {canLive && (m.kind === 'page' || m.kind === 'video') ? (
+              <div className="cv-seg" role="radiogroup" aria-label="Show as">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={live === 'off'}
+                  className={live === 'off' ? 'on' : ''}
+                  onClick={toReader}
+                >
+                  Reader
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={live !== 'off'}
+                  className={live !== 'off' ? 'on' : ''}
+                  title="The real page, which you can use"
+                  onClick={() => void goLive()}
+                >
+                  Live
+                </button>
+              </div>
             ) : (
-              m.site && <span>{m.site}</span>
+              canLive && (
+                <button
+                  type="button"
+                  className={'cv-pill' + (live !== 'off' ? ' on' : '')}
+                  onClick={() => (live === 'off' ? void goLive() : toReader())}
+                  aria-pressed={live !== 'off'}
+                >
+                  <LiveIcon />
+                  {live === 'off' ? 'Open live' : 'Back to reader'}
+                </button>
+              )
             )}
           </div>
-          {place && place.of > 1 && onStep ? (
-            <div className="cv-step" role="group" aria-label="Cards in this section">
-              <button
-                type="button"
-                aria-label="Previous card"
-                title="Previous (Left arrow)"
-                onClick={() => {
-                  hideLive()
-                  onStep(-1)
-                }}
-              >
-                <PrevGlyph />
-              </button>
-              <span aria-live="polite">
-                {place.at} / {place.of}
-              </span>
-              <button
-                type="button"
-                aria-label="Next card"
-                title="Next (Right arrow)"
-                onClick={() => {
-                  hideLive()
-                  onStep(1)
-                }}
-              >
-                <NextGlyph />
-              </button>
-            </div>
-          ) : null}
-          {canLive && (m.kind === 'page' || m.kind === 'video') ? (
-            <div className="cv-seg" role="radiogroup" aria-label="Show as">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={live === 'off'}
-                className={live === 'off' ? 'on' : ''}
-                onClick={toReader}
-              >
-                Reader
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={live !== 'off'}
-                className={live !== 'off' ? 'on' : ''}
-                title="The real page, which you can use"
-                onClick={() => void goLive()}
-              >
-                Live
-              </button>
-            </div>
-          ) : (
-            canLive && (
-              <button
-                type="button"
-                className={'cv-pill' + (live !== 'off' ? ' on' : '')}
-                onClick={() => (live === 'off' ? void goLive() : toReader())}
-                aria-pressed={live !== 'off'}
-              >
-                <LiveIcon />
-                {live === 'off' ? 'Open live' : 'Back to reader'}
-              </button>
-            )
-          )}
-          <div className="cv-hacts">
-            {m.isTab ||
-            tab !== undefined ||
-            m.kind === 'page' ||
-            m.kind === 'video' ||
-            /^(https?|file):/i.test(url ?? '') ? (
-              <button
-                type="button"
-                className="cv-hbtn"
-                aria-label="Pop out as a tab"
-                title="Pop out: open as a tab and leave the canvas"
-                onClick={onGoToTab}
-              >
-                <PopOutGlyph />
-              </button>
-            ) : null}
-            {ownPdf(m.kind) && live === 'off' && (
-              <button
-                type="button"
-                className="cv-hbtn"
-                aria-label="Reload"
-                title="Reload the PDF"
-                onClick={() => setPdfKey((k) => k + 1)}
-              >
-                <ReloadIcon />
-              </button>
-            )}
+          {/* what comes and goes sits leftmost, so Ask, the bell, More and the way back never move */}
+          <div className="cv-hzone cv-hzone-r cv-hacts">
             {panes && (
               <button
                 type="button"
@@ -1288,16 +1294,12 @@ export function Expanded({
                 <UnsplitIcon />
               </button>
             )}
-            {/* always there for a tab, so the bar never shifts as sound starts and stops; quiet while silent (muting
-                a silent page still holds: it stays quiet when it starts) */}
-            {m.isTab ? (
+            {m.isTab && (m.audible || m.muted) ? (
               <button
                 type="button"
-                className={
-                  'cv-hbtn' + (m.muted ? ' on' : '') + (!m.audible && !m.muted ? ' quiet' : '')
-                }
+                className={'cv-hbtn' + (m.muted ? ' on' : '')}
                 aria-label={m.muted ? 'Unmute' : 'Mute'}
-                title={m.muted ? 'Unmute' : m.audible ? 'Mute' : 'Mute (nothing is playing)'}
+                title={m.muted ? 'Unmute' : 'Mute'}
                 onClick={() => window.api.toggleMute(m.id)}
               >
                 <SpeakerIcon muted={m.muted} />
@@ -1316,40 +1318,17 @@ export function Expanded({
                 {zoomLabel}
               </button>
             )}
-            {live !== 'off' && (
+            {ownPdf(m.kind) && live === 'off' && (
               <button
                 type="button"
-                className={'cv-hbtn' + (findKey !== null ? ' on' : '')}
-                aria-label="Find in page"
-                title="Find in page (Ctrl+F)"
-                onClick={openFind}
+                className="cv-hbtn"
+                aria-label="Reload"
+                title="Reload the PDF"
+                onClick={() => setPdfKey((k) => k + 1)}
               >
-                <SearchIcon />
+                <ReloadIcon />
               </button>
             )}
-            {caps.bookmark && page ? (
-              <button
-                type="button"
-                className={'cv-hbtn' + (page.bookmarked ? ' on' : '')}
-                aria-label={page.bookmarked ? 'Remove bookmark' : 'Bookmark this page'}
-                aria-pressed={page.bookmarked}
-                title={page.bookmarked ? 'Remove bookmark (Ctrl+D)' : 'Bookmark this page (Ctrl+D)'}
-                onClick={() => window.api.toggleBookmark()}
-              >
-                <StarIcon filled={page.bookmarked} />
-              </button>
-            ) : null}
-            {href && /^https?:/i.test(href) ? (
-              <button
-                type="button"
-                className={'cv-hbtn' + (copied ? ' on' : '')}
-                aria-label={copied ? 'Link copied' : 'Copy link'}
-                title={copied ? 'Copied' : 'Copy link'}
-                onClick={copy}
-              >
-                {copied ? <CheckGlyph /> : <LinkGlyph />}
-              </button>
-            ) : null}
             {onAsk && (
               <button
                 type="button"
@@ -1361,20 +1340,59 @@ export function Expanded({
                 Ask
               </button>
             )}
-            {tab !== undefined && (
+            {onOpenTab && (
+              <PreviewInbox
+                tabs={others}
+                open={bellOpen}
+                onOpen={() => void openBell()}
+                onClose={() => setBellOpen(false)}
+                onPick={(id) => {
+                  setBellOpen(false)
+                  hideLive()
+                  onOpenTab(id)
+                }}
+              />
+            )}
+            {tab !== undefined ? (
               <button
                 type="button"
                 className="cv-hbtn"
                 aria-label="More"
                 aria-haspopup="menu"
-                title="More: zoom, site settings, page source..."
+                title="More: bookmark, copy link, find, zoom, pop out..."
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
                   pageMenu(r.left, r.bottom + 4)
                 }}
               >
-                <MoreIcon />
+                <MoreIcon vertical />
               </button>
+            ) : (
+              // no tab yet, so no page menu: what it would offer that needs none
+              <>
+                {href && /^https?:/i.test(href) ? (
+                  <button
+                    type="button"
+                    className={'cv-hbtn' + (copied ? ' on' : '')}
+                    aria-label={copied ? 'Link copied' : 'Copy link'}
+                    title={copied ? 'Copied' : 'Copy link'}
+                    onClick={copy}
+                  >
+                    {copied ? <CheckGlyph /> : <LinkGlyph />}
+                  </button>
+                ) : null}
+                {m.kind === 'page' || m.kind === 'video' || /^(https?|file):/i.test(url ?? '') ? (
+                  <button
+                    type="button"
+                    className="cv-hbtn"
+                    aria-label="Pop out as a tab"
+                    title="Pop out: open as a tab and leave the canvas"
+                    onClick={onGoToTab}
+                  >
+                    <PopOutGlyph />
+                  </button>
+                ) : null}
+              </>
             )}
             {/* back down into its card on the board (the page stays open as a tab): an arrow down, not a close */}
             <button

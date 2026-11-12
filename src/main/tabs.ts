@@ -2086,7 +2086,7 @@ export class TabManager {
     const before = tab.attention.ringUntil
     tab.attention = noteNotification(
       tab.attention,
-      report.title + ' ' + report.body,
+      { title: report.title, body: report.body },
       this.looking(id),
       Date.now()
     )
@@ -2300,8 +2300,11 @@ export class TabManager {
 
   /** Ctrl+T: a new tab, or on the canvas board a new card where the person asks for it. */
   private newTabOrCard(): void {
-    if (this.canvasMode) this.send('canvas:new')
-    else this.create()
+    if (this.canvasMode) {
+      // the preview's live page is a native view over the board: the new-card popover would open under it, unseen
+      if (this.previewOpen) this.send('canvas:preview-key', 'close')
+      this.send('canvas:new')
+    } else this.create()
   }
 
   /**

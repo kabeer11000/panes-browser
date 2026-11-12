@@ -118,7 +118,7 @@ import { WidgetView } from './Widgets'
 import { WIDGET_LABEL, type Widget, type WidgetKind } from '@shared/widgets'
 import { pickStreams, streamCap } from '@shared/ai/tabStream'
 import { isCapturing } from '@shared/capture'
-import { attentionLabel } from '@shared/attention'
+import { attentionLabel, groupWaiting, NO_ATTENTION } from '@shared/attention'
 import { TabFavicon } from '@renderer/components/TabFavicon'
 import { alreadyOpen, quickFind, type FindItem } from '@shared/ai/quickFind'
 import { quickAction } from '@shared/ai/sites'
@@ -599,14 +599,27 @@ export function Canvas({
       ? (st?.items[String(expanded.id)]?.tab ?? null)
       : expanded.id
     : null
-  // tabs with something new waiting (messages, notifications), most first: the board's inbox
+  // tabs with something new waiting (messages, notifications, a call ringing), one entry per site (per account
+  // where a site keeps several), most first: the board's inbox and the preview's
   const waiting = useMemo(
     () =>
-      tabs
-        .filter((t) => !t.private && !t.tor && (t.attention.count > 0 || t.attention.unseen))
-        .sort((a, b) => b.attention.count - a.attention.count),
+      groupWaiting(
+        tabs.filter(
+          (t) =>
+            !t.private &&
+            !t.tor &&
+            (t.attention.count > 0 || t.attention.unseen || t.attention.call === 'ringing')
+        )
+      ).sort((a, b) => b.attention.count - a.attention.count),
     [tabs]
   )
+  /** A tab with something waiting, from the inbox or the preview's bell: its card, opened live. */
+  const openWaiting = (id: number): void => {
+    const c = stRef.current?.cards.find((x) => x.id === id)
+    if (!c) return
+    reveal(cardBox(c))
+    expandRef.current(id, true)
+  }
   const calls = useMemo(
     () => new Set(tabs.filter((t) => isCapturing(t.capture)).map((t) => t.id)),
     [tabs]
@@ -1974,19 +1987,6 @@ export function Canvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ---- wheel: pan, or zoom with Ctrl (a pinch arrives as Ctrl + wheel) ----
-  useEffect(() => {
-    const el = root.current
-    if (!el) return
-    const wheel = (e: WheelEvent): void => {
-      if ((e.target as HTMLElement).closest('textarea,.cv-expand')) return
-      e.preventDefault()
-      e.stopPropagation() // App turns Ctrl + wheel into the tab stack
-      if (phaseRef.current !== 'open') return
-      vp.stop()
-      const unit = e.deltaMode === 1 ? 16 : 1
-      if (e.ctrlKey || e.metaKey) {
-        if (rootRect.current.w === 0) measureRoot()
   // ---- free touchpad scrolling on Windows (shared/freeScroll.ts): raw two-finger motion instead of railed wheels ----
   const free = useRef<FreeScroll | null>(null)
   useEffect(() => {
@@ -2035,16 +2035,16 @@ export function Canvas({
     }
   }, [phase, vp])
 
-        const r = rootRect.current
-        vp.zoomAt(
-          Math.exp(-clamp(e.deltaY * unit, -40, 40) * 0.0095),
-          e.clientX - r.left,
-          e.clientY - r.top
-        )
-      } else {
-        const dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX
-        const dy = e.shiftKey && e.deltaX === 0 ? 0 : e.deltaY
-        vp.panBy(-dx * unit, -dy * unit)
+  // ---- wheel: pan, or zoom with Ctrl (a pinch arrives as Ctrl + wheel) ----
+  useEffect(() => {
+    const el = root.current
+    if (!el) return
+    const wheel = (e: WheelEvent): void => {
+      if ((e.target as HTMLElement).closest('textarea,.cv-expand')) return
+      e.preventDefault()
+      e.stopPropagation() // App turns Ctrl + wheel into the tab stack
+      if (phaseRef.current !== 'open') return
+      const unit = e.deltaMode === 1 ? 16 : 1
       if (
         free.current?.wheel(
           e.deltaX * unit,
@@ -2055,6 +2055,18 @@ export function Canvas({
       )
         return
       vp.stop()
+      if (e.ctrlKey || e.metaKey) {
+        if (rootRect.current.w === 0) measureRoot()
+        const r = rootRect.current
+        vp.zoomAt(
+          Math.exp(-clamp(e.deltaY * unit, -40, 40) * 0.0095),
+          e.clientX - r.left,
+          e.clientY - r.top
+        )
+      } else {
+        const dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX
+        const dy = e.shiftKey && e.deltaX === 0 ? 0 : e.deltaY
+        vp.panBy(-dx * unit, -dy * unit)
       }
     }
     el.addEventListener('wheel', wheel, { passive: false })
@@ -3868,7 +3880,7 @@ export function Canvas({
             unloaded: false,
             audible: false,
             muted: false,
-            attention: { count: 0, unseen: false, call: null } as TabInfo['attention'],
+            attention: NO_ATTENTION,
             aiTitle: null,
             bookmarked: false,
             canGoBack: false,
@@ -5378,6 +5390,8 @@ export function Canvas({
           }}
           onStep={(dir) => stepExpanded(dir)}
           place={placeOf(expanded.id)}
+          waiting={waiting}
+          onOpenTab={openWaiting}
         />
       )}
       {ctx && (
@@ -5427,12 +5441,7 @@ export function Canvas({
               type="button"
               title={`${t.aiTitle || t.title || 'A tab'}: ${attentionLabel(t.attention)}. Open it`}
               aria-label={`${t.aiTitle || t.title || 'A tab'}, ${attentionLabel(t.attention)}`}
-              onClick={() => {
-                const c = stRef.current?.cards.find((x) => x.id === t.id)
-                if (!c) return
-                reveal(cardBox(c))
-                expandRef.current(t.id, true)
-              }}
+              onClick={() => openWaiting(t.id)}
             >
               <TabFavicon tab={t} noSpinner />
             </button>

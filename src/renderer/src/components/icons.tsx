@@ -205,11 +205,11 @@ export const PinIcon = (): React.JSX.Element => (
     <path d="M9.8 2.5 13.5 6.2 11.6 7.1 9.9 9.5 10.2 11 8.7 9.8 5.3 13.2 4.8 12.7 8.2 9.3 7 7.8 8.5 8.1 10.9 6.4 11.8 4.5Z" />
   </Svg>
 )
-export const MoreIcon = (): React.JSX.Element => (
+export const MoreIcon = ({ vertical = false }: { vertical?: boolean }): React.JSX.Element => (
   <Svg>
-    <circle cx="3.5" cy="8" r="1" />
-    <circle cx="8" cy="8" r="1" />
-    <circle cx="12.5" cy="8" r="1" />
+    {[3.5, 8, 12.5].map((at) => (
+      <circle key={at} cx={vertical ? 8 : at} cy={vertical ? at : 8} r="1" />
+    ))}
   </Svg>
 )
 export const KeyIcon = (): React.JSX.Element => (

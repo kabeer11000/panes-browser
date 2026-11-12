@@ -8,15 +8,27 @@ import { type CaptureState } from './capture'
 /** A call coming in (it rings until answered, declined or given up on) or one the person is in. */
 export type CallState = 'ringing' | 'live'
 
+/** A notification the page showed while the person was not looking: what it said, and when (ms since epoch). */
+export interface TabMessage {
+  title: string
+  body: string
+  at: number
+}
+
+/** How many of a tab's unseen notifications are kept to show; older ones drop off. */
+export const MAX_MESSAGES = 5
+
 export interface TabAttention {
   /** The site's own unread count, from its title, while it is higher than when the person last looked; else 0. */
   count: number
   /** Something new arrived while the person was not looking (a notification, a new count, a flashing title). */
   unseen: boolean
   call: CallState | null
+  /** The notifications it showed since the person last looked, oldest first (at most MAX_MESSAGES). */
+  messages: TabMessage[]
 }
 
-export const NO_ATTENTION: TabAttention = { count: 0, unseen: false, call: null }
+export const NO_ATTENTION: TabAttention = { count: 0, unseen: false, call: null, messages: [] }
 
 /** What main remembers per tab between events, to tell what is new since the person last looked. */
 export interface AttentionMemo {
@@ -27,9 +39,16 @@ export interface AttentionMemo {
   unseen: boolean
   /** A notification said a call is coming in: it counts as ringing until then (ms since epoch). */
   ringUntil: number
+  messages: TabMessage[]
 }
 
-export const FRESH_MEMO: AttentionMemo = { seenCount: 0, count: 0, unseen: false, ringUntil: 0 }
+export const FRESH_MEMO: AttentionMemo = {
+  seenCount: 0,
+  count: 0,
+  unseen: false,
+  ringUntil: 0,
+  messages: []
+}
 
 /** How long a call announced by a notification counts as ringing; calls give up ringing after about this long. */
 export const RING_MS = 45_000
@@ -87,21 +106,28 @@ export function noteTitle(memo: AttentionMemo, title: string, looking: boolean):
   const count = titleCount(title)
   if (looking) return { ...memo, count, seenCount: count, unseen: false }
   // The site says everything is read (on the phone, say): nothing is waiting any more.
-  if (count === 0 && memo.count > 0) return { ...memo, count, seenCount: 0, unseen: false }
+  if (count === 0 && memo.count > 0)
+    return { ...memo, count, seenCount: 0, unseen: false, messages: [] }
   const seenCount = Math.min(memo.seenCount, count) // a count that fell and rose again is new again
   const rose = count > memo.count && count > seenCount
   return { ...memo, count, seenCount, unseen: memo.unseen || rose || MESSAGE_TEXT.test(title) }
 }
 
-/** The page sent a notification (title and body joined). */
+/** The page sent a notification. */
 export function noteNotification(
   memo: AttentionMemo,
-  text: string,
+  note: { title: string; body: string },
   looking: boolean,
   now: number
 ): AttentionMemo {
   if (looking) return memo
-  return { ...memo, unseen: true, ringUntil: isCallText(text) ? now + RING_MS : memo.ringUntil }
+  const ring = isCallText(note.title + ' ' + note.body)
+  return {
+    ...memo,
+    unseen: true,
+    ringUntil: ring ? now + RING_MS : memo.ringUntil,
+    messages: [...memo.messages, { ...note, at: now }].slice(-MAX_MESSAGES)
+  }
 }
 
 /**
@@ -116,8 +142,14 @@ export function noteFavicon(memo: AttentionMemo, looking: boolean): AttentionMem
 
 /** The person is looking at the tab: whatever was waiting has been seen. */
 export function noteSeen(memo: AttentionMemo): AttentionMemo {
-  if (!memo.unseen && memo.seenCount === memo.count && memo.ringUntil === 0) return memo
-  return { ...memo, seenCount: memo.count, unseen: false, ringUntil: 0 }
+  if (
+    !memo.unseen &&
+    memo.seenCount === memo.count &&
+    memo.ringUntil === 0 &&
+    memo.messages.length === 0
+  )
+    return memo
+  return { ...memo, seenCount: memo.count, unseen: false, ringUntil: 0, messages: [] }
 }
 
 export interface CallFacts {
@@ -144,7 +176,8 @@ export function tabAttention(memo: AttentionMemo, f: CallFacts, now: number): Ta
   return {
     count: memo.count > memo.seenCount ? memo.count : 0,
     unseen: memo.unseen,
-    call: callState(memo, f, now)
+    call: callState(memo, f, now),
+    messages: memo.messages
   }
 }
 
@@ -205,4 +238,132 @@ export function windowAttention(spaces: Record<number, SpaceAttention>): {
     ringing ||= s.call === 'ringing'
   }
   return { count, unseen, ringing }
+}
+
+/** How long ago a notification came, short: "now", "4m", "2h", "3d". */
+export function messageAge(at: number, now: number): string {
+  const min = Math.floor((now - at) / 60_000)
+  if (min < 1) return 'now'
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60)
+  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`
+}
+
+/** Something new in a tab, worth a word to the person even while they look at another page. */
+export type Nudge =
+  | { kind: 'call' }
+  | { kind: 'message'; msg: TabMessage }
+  | { kind: 'count'; count: number }
+  | { kind: 'activity' }
+
+/**
+ * What became new in a tab between two looks at it, or null. Every signal counts (a notification, a title count
+ * going up, a title or icon flashing, a call starting to ring), the most telling first: a ringing call, then what a
+ * notification said, then the count, then plain activity.
+ */
+export function nudge(prev: TabAttention, next: TabAttention): Nudge | null {
+  if (next.call === 'ringing' && prev.call !== 'ringing') return { kind: 'call' }
+  const msg = next.messages.at(-1)
+  if (msg && msg.at !== prev.messages.at(-1)?.at) return { kind: 'message', msg }
+  if (next.count > prev.count) return { kind: 'count', count: next.count }
+  if (next.unseen && !prev.unseen) return { kind: 'activity' }
+  return null
+}
+
+/** A nudge in words, for the line beside the tab's name. */
+export function nudgeText(n: Nudge): string {
+  if (n.kind === 'call') return 'Call coming in'
+  if (n.kind === 'message')
+    return [n.msg.title, n.msg.body].filter(Boolean).join(': ') || 'New message'
+  if (n.kind === 'count') return `${n.count} unread`
+  return 'New activity'
+}
+
+/** A tab already told about stays quiet this long about the same count (sites that flash their title re-raise it). */
+export const PEEK_QUIET_MS = 90_000
+
+/**
+ * Whether a nudge is worth a popup: only what is sure. A notification or a ringing call always is; a count only when
+ * it is higher than the one last shown for the tab, or that was a while ago. Plain activity (an icon swapped, a title
+ * flashed) is a guess: it shows as a mark, never pops up.
+ */
+export function worthPeek(
+  n: Nudge,
+  last: { count: number; at: number } | undefined,
+  now: number
+): boolean {
+  if (n.kind === 'call' || n.kind === 'message') return true
+  if (n.kind === 'activity') return false
+  return !last || n.count > last.count || now - last.at > PEEK_QUIET_MS
+}
+
+/**
+ * Which account a page is in, as far as its address tells: the site, plus the account slot for sites that keep
+ * several signed in at once in one browser session (Google's /u/1/ and ?authuser=1, a Slack workspace). Tabs of one
+ * space share their cookies, so the same site is the same account everywhere else.
+ */
+export function accountKey(url: string): string {
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    return url
+  }
+  const host = u.hostname.toLowerCase().replace(/^www\./, '')
+  const slot =
+    u.searchParams.get('authuser') ??
+    /\/u\/(\d+)(?:\/|$)/.exec(u.pathname)?.[1] ??
+    (host === 'app.slack.com' ? /^\/client\/([A-Z0-9]+)/.exec(u.pathname)?.[1] : undefined)
+  return slot ? `${host}#${slot}` : host
+}
+
+/** The same notification shown by two tabs of one account (both had the hook) is one: same words, this close. */
+const SAME_NOTE_MS = 10_000
+
+/** A site's (account's) tabs as one entry: `key` names it, `tabs` are all its tab ids, the rest is the tab to open. */
+export type Grouped<T> = T & { key: string; tabs: number[] }
+
+/**
+ * Tabs with something waiting, one entry per account rather than per tab (three YouTube tabs are one YouTube). The
+ * count is the highest of the tabs' (they show the same inbox, not three), what any of them said is merged, and
+ * the tab the entry opens is the one ringing, else the one with most unread, else the one that spoke last.
+ */
+export function groupWaiting<T extends { id: number; url: string; attention: TabAttention }>(
+  tabs: T[]
+): Grouped<T>[] {
+  const groups = new Map<string, T[]>()
+  for (const t of tabs) {
+    const k = accountKey(t.url)
+    const g = groups.get(k)
+    if (g) g.push(t)
+    else groups.set(k, [t])
+  }
+  const last = (t: T): number => t.attention.messages.at(-1)?.at ?? 0
+  return [...groups].map(([key, g]) => {
+    const pick = g.reduce((best, t) => {
+      const rank = (x: T): number[] => [
+        +(x.attention.call === 'ringing'),
+        x.attention.count,
+        last(x)
+      ]
+      const [a, b] = [rank(t), rank(best)]
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i] ? t : best
+      return best
+    })
+    const messages: TabMessage[] = []
+    for (const m of g.flatMap((t) => t.attention.messages).sort((x, y) => x.at - y.at)) {
+      const twin = messages.some(
+        (o) => o.title === m.title && o.body === m.body && Math.abs(o.at - m.at) < SAME_NOTE_MS
+      )
+      if (!twin) messages.push(m)
+    }
+    const calls = g.map((t) => t.attention.call)
+    const attention: TabAttention = {
+      count: Math.max(...g.map((t) => t.attention.count)),
+      unseen: g.some((t) => t.attention.unseen),
+      call: calls.includes('ringing') ? 'ringing' : calls.includes('live') ? 'live' : null,
+      messages: messages.slice(-MAX_MESSAGES)
+    }
+    return { ...pick, attention, key, tabs: g.map((t) => t.id) }
+  })
 }
