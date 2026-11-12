@@ -2035,6 +2035,33 @@
   width: 6.5px;
   height: 6.5px;
 }
+/* the space switcher: hidden until the pointer comes to the top-left corner where it sits (its place keeps the
+   room, so hovering there finds it), or it has focus, or one of its menus is open */
+.cv-spaces {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--surface);
+  opacity: 0;
+  translate: 0 -3px;
+  transition:
+    opacity var(--dur-fast),
+    translate var(--dur-fast);
+}
+.cv-spaces:hover,
+.cv-spaces:focus-within,
+.cv-spaces:has([aria-expanded='true']) {
+  opacity: 1;
+  translate: 0 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-spaces {
+    transition: none;
+    translate: none;
+  }
+}
 .cv-newbtn {
   height: 26px;
   display: flex;

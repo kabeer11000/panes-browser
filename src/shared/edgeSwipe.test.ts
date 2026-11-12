@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { EDGE_MM, EdgeSwipe, TRAVEL_MM, type PadFrame } from './edgeSwipe'
+import { EdgeSwipe, SWIPE_ZONES, type PadFrame } from './edgeSwipe'
+
+const EDGE_MM = SWIPE_ZONES.edge.edgeMm
+const TRAVEL_MM = SWIPE_ZONES.edge.travelMm
 
 /** Two fingers landing at `y`, then `steps` moves of (dx, dy) each, then lifting; the frames that fired. */
 function swipe(y: number, dx: number, dy: number, steps = 10): number[] {
@@ -15,14 +18,14 @@ function swipe(y: number, dx: number, dy: number, steps = 10): number[] {
 describe('EdgeSwipe', () => {
   test('fires once, when two fingers from the top edge have slid far enough down', () => {
     const step = TRAVEL_MM / 4
-    expect(swipe(2, 0, step)).toEqual([4])
+    expect(swipe(1, 0, step)).toEqual([4])
   })
   test('not from the middle of the pad: that is a scroll', () => {
     expect(swipe(EDGE_MM + 5, 0, 5)).toEqual([])
   })
   test('not when it goes up, or sideways', () => {
-    expect(swipe(2, 0, -3)).toEqual([])
-    expect(swipe(2, 6, 3)).toEqual([])
+    expect(swipe(1, 0, -3)).toEqual([])
+    expect(swipe(1, 8, 3)).toEqual([])
   })
   test('not with one finger or three', () => {
     const g = new EdgeSwipe()
@@ -44,5 +47,20 @@ describe('EdgeSwipe', () => {
     g.touch({ dx: 0, dy: 0, fingers: 0, y: 0 })
     g.touch({ dx: 0, dy: 0, fingers: 2, y: 1 })
     expect(g.touch({ dx: 0, dy: TRAVEL_MM, fingers: 2, y: 1 + TRAVEL_MM })).toBe(true)
+  })
+})
+
+describe('EdgeSwipe zones', () => {
+  test('an ordinary scroll starting 5 mm in: not on "edge", but on "easy"', () => {
+    const run = (zone: (typeof SWIPE_ZONES)['edge']): boolean => {
+      const g = new EdgeSwipe()
+      g.zone = zone
+      g.touch({ dx: 0, dy: 0, fingers: 2, y: 5 })
+      let fired = false
+      for (let i = 0; i < 10; i++) fired ||= g.touch({ dx: 0, dy: 4, fingers: 2, y: 5 + 4 * i })
+      return fired
+    }
+    expect(run(SWIPE_ZONES.edge)).toBe(false)
+    expect(run(SWIPE_ZONES.easy)).toBe(true)
   })
 })

@@ -561,6 +561,21 @@ export function Settings(): React.JSX.Element {
               onChange={(v) => void update({ touchpadSmoothing: v })}
             />
           </Row>
+          <Row
+            label="Swipe down to close the preview"
+            hint="Two fingers sliding down from the touchpad's top edge put an open preview away. From the very edge leaves ordinary scrolling alone."
+          >
+            <Segmented
+              label="Swipe down to close the preview"
+              value={s.previewSwipe}
+              options={[
+                { value: 'off', label: 'Off' },
+                { value: 'edge', label: 'From the very edge' },
+                { value: 'easy', label: 'Easier' }
+              ]}
+              onChange={(v) => void update({ previewSwipe: v })}
+            />
+          </Row>
         </Group>
       )}
 

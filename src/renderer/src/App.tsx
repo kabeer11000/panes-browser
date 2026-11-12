@@ -1108,6 +1108,7 @@ function App(): React.JSX.Element {
                   thumbs={thumbs}
                   spaceId={activeSpaceId}
                   spaces={spaces}
+                  spaceDir={spaceDir}
                   layout={layout}
                   onExit={(pick) => {
                     setQuiet(false)

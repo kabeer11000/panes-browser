@@ -110,6 +110,7 @@ import {
 } from '@shared/ai/connectors'
 import { keepAspect, snapAngle, snapBox, type Snap } from '@shared/ai/snap'
 import type { Settings, Space, TabInfo } from '@shared/types'
+import { SpaceSwitcher } from '@renderer/components/SpaceSwitcher'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
@@ -213,6 +214,8 @@ interface Props {
   layout?: LayoutNode | null
   /** For the space switcher in the board's top bar: each space has its own board. */
   spaces?: Space[]
+  /** Which way the space switcher slides (see useSpaceDir). */
+  spaceDir?: number
 }
 
 type Phase = 'loading' | 'entering' | 'open' | 'leaving'
@@ -395,6 +398,7 @@ export function Canvas({
   thumbs,
   spaceId,
   spaces = [],
+  spaceDir = 1,
   onExit,
   dim = false,
   layout = null,
@@ -2020,8 +2024,10 @@ export function Canvas({
     glide: DEFAULT_SETTINGS.touchpadGlide,
     smoothing: DEFAULT_SETTINGS.touchpadSmoothing
   })
+  const [previewSwipe, setPreviewSwipe] = useState(DEFAULT_SETTINGS.previewSwipe)
   useEffect(() => {
     const take = (s: Partial<Settings>): void => {
+      setPreviewSwipe(s.previewSwipe ?? DEFAULT_SETTINGS.previewSwipe)
       feel.current = {
         speed: s.touchpadSpeed ?? DEFAULT_SETTINGS.touchpadSpeed,
         glide: s.touchpadGlide ?? DEFAULT_SETTINGS.touchpadGlide,
@@ -5282,6 +5288,18 @@ export function Canvas({
         >
           {/* the board is the whole window (no top bar under it): the window's own buttons live here */}
           {window.api.platform !== 'darwin' && <WindowControls />}
+          {/* the spaces, out of sight until the pointer comes to them (or the keyboard does) */}
+          {spaces.length > 0 && (
+            <div className="cv-spaces">
+              <SpaceSwitcher
+                spaces={spaces}
+                activeSpaceId={spaceId}
+                placement="down"
+                dir={spaceDir}
+                size={18}
+              />
+            </div>
+          )}
           {undoDepth > 0 && (
             <div className="cv-hist-host">
               <button
@@ -5458,6 +5476,7 @@ export function Canvas({
           place={placeOf(expanded.id)}
           waiting={waiting}
           onOpenTab={openWaiting}
+          swipe={previewSwipe}
         />
       )}
       {ctx && (

@@ -90,6 +90,12 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (glide !== undefined) out.touchpadGlide = glide
   if (typeof patch.touchpadSmoothing === 'string' && patch.touchpadSmoothing in SMOOTHING_DELAY_MS)
     out.touchpadSmoothing = patch.touchpadSmoothing
+  if (
+    patch.previewSwipe === 'off' ||
+    patch.previewSwipe === 'edge' ||
+    patch.previewSwipe === 'easy'
+  )
+    out.previewSwipe = patch.previewSwipe
   Object.assign(out, sanitizeYouTube(patch))
   for (const key of Object.keys(APPEARANCE_LIMITS) as AppearanceKey[]) {
     const v = patch[key]

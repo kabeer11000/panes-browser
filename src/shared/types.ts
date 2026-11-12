@@ -441,6 +441,8 @@ export type SearchEngineId = 'duckduckgo' | 'google' | 'bing' | 'brave'
 
 /** See Settings.touchpadSmoothing and shared/freeScroll.ts. */
 export type TouchpadSmoothing = 'responsive' | 'balanced' | 'smooth'
+/** See Settings.previewSwipe and shared/edgeSwipe.ts. */
+export type PreviewSwipe = 'off' | 'edge' | 'easy'
 
 export interface Settings {
   searchEngine: SearchEngineId
@@ -505,6 +507,8 @@ export interface Settings {
   touchpadGlide: number
   /** How far the board trails the fingers to move evenly: less is snappier, more is silkier. */
   touchpadSmoothing: TouchpadSmoothing
+  /** Two fingers sliding down from the touchpad's top edge close the board's preview: off, from the very edge, or easier. */
+  previewSwipe: PreviewSwipe
   /** Browse with tabs or with the canvas board; each space can override it (Space.browseWith). */
   browseWith: BrowseWith
   /** With tabs along the top, the address bar spans the whole row rather than sitting in the middle of it. */

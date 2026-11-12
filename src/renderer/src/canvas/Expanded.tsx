@@ -5,7 +5,7 @@ import { flushSync } from 'react-dom'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseMarkdown, type Block, type Inline } from '@shared/ai/markdown'
 import type { CanvasReaderDoc } from '@shared/ai/canvasItems'
-import type { PageMenuPick, Rect, TabInfo } from '@shared/types'
+import type { PageMenuPick, PreviewSwipe, Rect, TabInfo } from '@shared/types'
 import type { Grouped } from '@shared/attention'
 import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
@@ -24,7 +24,7 @@ import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
 import { PreviewInbox } from './PreviewInbox'
-import { EdgeSwipe } from '@shared/edgeSwipe'
+import { EdgeSwipe, SWIPE_ZONES } from '@shared/edgeSwipe'
 
 /** Opening and closing move alike: one smooth ease, no spring overshoot (the card it grows from must line up). */
 const MORPH = { duration: 0.32, ease: [0.32, 0.72, 0, 1] } as const
@@ -82,6 +82,8 @@ interface Props extends ExpandSource {
   waiting?: Grouped<TabInfo>[]
   /** Open another tab in the preview (picked from the bell). */
   onOpenTab?: (tab: number) => void
+  /** The touchpad swipe that closes it (Settings): off, from the very edge, or easier. */
+  swipe?: PreviewSwipe
 }
 
 // ---- answer text ----
@@ -642,7 +644,8 @@ export function Expanded({
   onAsk,
   split,
   waiting = [],
-  onOpenTab
+  onOpenTab,
+  swipe = 'edge'
 }: Props): React.JSX.Element {
   const panel = useRef<HTMLDivElement>(null)
   const scrim = useRef<HTMLDivElement>(null)
@@ -811,11 +814,13 @@ export function Expanded({
   }, [])
   // two fingers from the touchpad's top edge, sliding down: put the preview away (Windows; see shared/edgeSwipe)
   useEffect(() => {
-    const swipe = new EdgeSwipe()
+    if (swipe === 'off') return
+    const g = new EdgeSwipe()
+    g.zone = SWIPE_ZONES[swipe]
     return window.api.canvas.onTouchpad((dx, dy, fingers, y) => {
-      if (swipe.touch({ dx, dy, fingers, y })) void closeRef.current()
+      if (g.touch({ dx, dy, fingers, y })) void closeRef.current()
     })
-  }, [])
+  }, [swipe])
   // the keys main routes here: pressed in the live page (which holds the keyboard) or caught before the board
   useEffect(
     () =>

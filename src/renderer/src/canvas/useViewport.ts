@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { Viewport } from '@shared/ai/canvas'
+import { boardMoved } from './boardMotion'
 
 export const MIN_K = 0.08
 export const MAX_K = 2.5
@@ -65,6 +66,7 @@ export function useViewport(
     if (l) l.style.transform = `translate3d(${v.x}px, ${v.y}px, 0) scale(${v.k})`
     const r = root.current
     warm() // the board is on its own layer only while it moves
+    boardMoved()
     if (r) {
       // Custom properties inherit: one set on the root makes every card, label and arrow under it recompute its
       // style, every frame of a pan (most of a pan's cost on a slow CPU). The dots' position goes on the grid

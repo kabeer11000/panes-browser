@@ -8,6 +8,7 @@ import {
   WHOLE_PAGE,
   type VideoRegion
 } from '@shared/ai/tabStream'
+import { onBoardMotion } from './boardMotion'
 
 const FPS = streamFps(streamCap(navigator))
 /** How often the video's place in the page is asked again (theatre mode, scrolling): often at first and after
@@ -71,6 +72,17 @@ export function LiveTab({
   whole?: boolean
 }): React.JSX.Element | null {
   const video = useRef<HTMLVideoElement>(null)
+  // while the board moves the video holds its frame (the stream keeps running, so it carries on at once)
+  useEffect(
+    () =>
+      onBoardMotion((moving) => {
+        const v = video.current
+        if (!v?.srcObject) return
+        if (moving) v.pause()
+        else void v.play().catch(() => undefined)
+      }),
+    []
+  )
   const [region, setRegion] = useState<VideoRegion | null>(whole ? WHOLE_PAGE : null)
   const [streamAspect, setStreamAspect] = useState<number | null>(null)
   // The crop comes from the page's answer: the stream shows only once it has a frame and an answer asked after the
