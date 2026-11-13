@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { DEFAULT_SETTINGS, type InternalPage } from '@shared/settings'
+import { originOf } from '@shared/permissions'
 import { privateTabsWarning } from '@shared/update'
 import { linksFromArgv } from '@shared/launch'
 import type { Edge } from '@shared/layout'
@@ -278,6 +279,11 @@ function createWindow(): void {
     hidden: (wc) => tabs.isHidden(wc)
   })
   permissionManager.install(tabSession, permissions)
+  // a site allowed to notify is never frozen while hidden: it could not tell of anything new
+  tabs.notifies = (url) => {
+    const origin = originOf(url)
+    return !!origin && permissions.get(origin, 'notifications') === 'allow'
+  }
   // Private and Tor tabs ask the same questions, but what they are told is kept in memory only, each session
   // apart, and never reaches the normal profile's saved answers.
   permissionManager.install(privateSession, new PermissionStore(false))

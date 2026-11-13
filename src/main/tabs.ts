@@ -72,7 +72,14 @@ import { VIDEO_RECT_SCRIPT, videoRegion, type VideoRegion } from '@shared/ai/tab
 import { applyIdentity, followIdentity } from './identity'
 import { PdfViewerHelper } from './pdf'
 import { runningMode } from './performance'
-import { pickUnloads, type MemoryPolicy, type TabFacts } from '@shared/memory'
+import {
+  pickRests,
+  pickUnloads,
+  type MemoryPolicy,
+  type Rest,
+  type RestFacts,
+  type TabFacts
+} from '@shared/memory'
 import { join } from 'path'
 import { internalUrl, type InternalPage } from '@shared/settings'
 import { pdfFileName } from '@shared/print'
@@ -199,6 +206,8 @@ interface Tab {
   failed: { url: string; code: number; desc: string } | null
   /** A page loaded into a view that had shown nothing: the view stays hidden until it has painted. */
   awaiting: boolean
+  /** Put to rest while hidden (caches given back, or frozen); woken as it is shown or scripted (see pickRests). */
+  rest: Rest
   /** Where the first load went, so the tab has an address while the page has not committed yet. */
   firstUrl: string
   /** What is new in the tab since the person last looked (see shared/attention). */
@@ -778,9 +787,42 @@ export class TabManager {
     view.setBorderRadius(VIEW_RADIUS)
     view.setBackgroundColor('#ffffff')
     view.setVisible(false)
+    this.wakeForCalls(view.webContents)
     this.win.contentView.addChildView(view)
     this.onViewAdded?.()
     return view
+  }
+
+  /**
+   * A frozen page runs no script and draws nothing: a script sent to it, or a picture asked of it, would wait until
+   * it is shown. Every such call wakes it first, here in one place for every caller (it rests again at the next sweep
+   * if it is still hidden and idle).
+   */
+  private wakeForCalls(wc: WebContents): void {
+    const calls = wc as unknown as Record<string, (...args: unknown[]) => unknown>
+    for (const name of [
+      'executeJavaScript',
+      'executeJavaScriptInIsolatedWorld',
+      'capturePage',
+      'printToPDF'
+    ]) {
+      const call = calls[name].bind(wc)
+      calls[name] = (...args: unknown[]) => {
+        const tab = [...this.tabs.values()].find((t) => !t.unloaded && t.view.webContents === wc)
+        if (tab?.rest === 'frozen') this.thaw(tab)
+        return call(...args)
+      }
+    }
+  }
+
+  /** Let a frozen page run again (without being shown): its caches stay given back. */
+  private thaw(tab: Tab): void {
+    tab.rest = 'purged'
+    const wc = liveContents(tab)
+    if (wc?.debugger.isAttached())
+      void wc.debugger
+        .sendCommand('Page.setWebLifecycleState', { state: 'active' })
+        .catch(() => undefined)
   }
 
   private inertView(): WebContentsView {
@@ -844,6 +886,7 @@ export class TabManager {
       flat: false,
       keyLock: false,
       awaiting: false,
+      rest: 'awake',
       firstUrl: ''
     }
     this.tabs.set(id, tab)
@@ -3701,10 +3744,50 @@ export class TabManager {
   /** Unload tabs the memory saver says are done with. `force` takes every tab that is safe to take. */
   sweepMemory(force = false): number {
     if (this.win.isDestroyed()) return 0
-    const ids = pickUnloads(this.memoryFacts(), this.memoryPolicy(), Date.now(), force)
+    const facts = this.memoryFacts()
+    const ids = pickUnloads(facts, this.memoryPolicy(), Date.now(), force)
     for (const id of ids) this.unload(id)
     if (ids.length > 0) this.refresh()
+    if (!force) this.rest(facts.filter((f) => !ids.includes(f.id)))
     return ids.length
+  }
+
+  /** Whether a site may send notifications (set by main/index.ts from the permission answers). */
+  notifies: (url: string) => boolean = () => false
+
+  /**
+   * Hidden tabs that stay loaded give back what they can, and stop running once they have been out of sight a while
+   * (see pickRests). Nothing is reloaded: shown again, a page is exactly as it was, at once.
+   */
+  private rest(facts: TabFacts[]): void {
+    const restFacts: RestFacts[] = []
+    for (const f of facts) {
+      const t = this.tabs.get(f.id)
+      const wc = t && liveContents(t)
+      if (!t || !wc || t.unloaded) continue
+      restFacts.push({
+        ...f,
+        rest: t.rest,
+        pid: wc.getOSProcessId(),
+        notifies: this.notifies(wc.getURL())
+      })
+    }
+    const { purge, freeze } = pickRests(restFacts, this.memoryPolicy(), Date.now())
+    const send = (t: Tab, method: string, params: object): void => {
+      const wc = liveContents(t)
+      if (wc?.debugger.isAttached())
+        void wc.debugger.sendCommand(method, params).catch(() => undefined)
+    }
+    for (const id of purge) {
+      const t = this.tabs.get(id)!
+      t.rest = 'purged'
+      send(t, 'Memory.simulatePressureNotification', { level: 'critical' })
+    }
+    for (const id of freeze) {
+      const t = this.tabs.get(id)!
+      t.rest = 'frozen'
+      send(t, 'Page.setWebLifecycleState', { state: 'frozen' })
+    }
   }
 
   /** Throw a tab's page away, keeping its title, icon, snapshot and address so it comes back when shown. */
@@ -3830,6 +3913,8 @@ export class TabManager {
     this.shownBefore = new Set(visible)
     for (const id of visible) {
       const t = this.tabs.get(id)
+      if (t?.rest === 'frozen') this.thaw(t) // Chromium wakes it as it is shown; this says so to the page too
+      if (t) t.rest = 'awake'
       if (t) this.ensureLoaded(id, t)
       if (t && this.looking(id)) t.attention = noteSeen(t.attention)
     }

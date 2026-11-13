@@ -63,7 +63,7 @@ export function MemorySection({ s, update }: Props): React.JSX.Element {
     >
       <Row
         label="Performance"
-        hint="Efficient lets tabs on the same site share one process: about a quarter less memory and half the processes, with less separation between those tabs. Auto chooses Efficient on computers with 8 GB of memory or less."
+        hint="Tabs on the same site share one process in both modes. Efficient also runs Chromium in its low-memory mode. Auto chooses Efficient on computers with 8 GB of memory or less."
       >
         <Segmented
           label="Performance"

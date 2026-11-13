@@ -23,11 +23,11 @@ describe('resolveMode', () => {
 })
 
 describe('flagsFor', () => {
-  test('Efficient shares a process per site and runs in low-end mode; Balanced does not', () => {
+  test('both modes share a process per site; only Efficient runs in low-end mode', () => {
     const names = (m: 'balanced' | 'efficient'): string[] => flagsFor(m).switches.map(([k]) => k)
     expect(names('efficient')).toContain('process-per-site')
+    expect(names('balanced')).toContain('process-per-site')
     expect(names('efficient')).toContain('enable-low-end-device-mode')
-    expect(names('balanced')).not.toContain('process-per-site')
     expect(names('balanced')).not.toContain('enable-low-end-device-mode')
   })
 

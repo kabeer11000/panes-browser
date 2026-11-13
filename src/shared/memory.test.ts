@@ -2,10 +2,14 @@ import { describe, expect, test } from 'bun:test'
 import {
   normalizeSites,
   normalizeZoom,
+  pickRests,
   pickUnloads,
   presetOf,
+  REST_FREEZE_MS,
+  REST_PURGE_MS,
   siteListed,
   type MemoryPolicy,
+  type RestFacts,
   type TabFacts
 } from './memory'
 
@@ -134,5 +138,66 @@ describe('normalizeZoom', () => {
     ).toEqual({ 'a.com': 2, 'b.com': 0, 'c.com': 8, 'e.com': 1.5 })
     expect(normalizeZoom(null)).toEqual({})
     expect(normalizeZoom([1, 2])).toEqual({})
+  })
+})
+
+describe('pickRests', () => {
+  const on = { enabled: true, neverSites: [] as string[] }
+  const rt = (id: number, over: Partial<RestFacts> = {}): RestFacts => ({
+    ...tab(id),
+    rest: 'awake',
+    pid: id,
+    notifies: false,
+    ...over
+  })
+  const at = REST_FREEZE_MS + 1
+
+  test('purges after two minutes hidden, freezes after five', () => {
+    expect(pickRests([rt(1)], on, REST_PURGE_MS - 1)).toEqual({ purge: [], freeze: [] })
+    expect(pickRests([rt(1)], on, REST_PURGE_MS)).toEqual({ purge: [1], freeze: [] })
+    expect(pickRests([rt(1)], on, at)).toEqual({ purge: [1], freeze: [1] })
+  })
+
+  test('each step happens once per hidden spell', () => {
+    expect(pickRests([rt(1, { rest: 'purged' })], on, at)).toEqual({ purge: [], freeze: [1] })
+    expect(pickRests([rt(1, { rest: 'frozen' })], on, at)).toEqual({ purge: [], freeze: [] })
+  })
+
+  test('visible, busy, unloaded, never-unload tabs and the memory saver off are left alone', () => {
+    const tabs = [
+      rt(1, { visible: true }),
+      rt(2, { busy: true }),
+      rt(3, { loaded: false }),
+      rt(4, { host: 'keep.com' })
+    ]
+    expect(pickRests(tabs, { enabled: true, neverSites: ['keep.com'] }, at)).toEqual({
+      purge: [],
+      freeze: []
+    })
+    expect(pickRests([rt(1)], { enabled: false, neverSites: [] }, at)).toEqual({
+      purge: [],
+      freeze: []
+    })
+  })
+
+  test('a site that messages or may notify is purged but never frozen', () => {
+    expect(pickRests([rt(1, { messenger: true }), rt(2, { notifies: true })], on, at)).toEqual({
+      purge: [1, 2],
+      freeze: []
+    })
+  })
+
+  test('a shared process is purged only when no page in it is on screen, busy or freshly hidden', () => {
+    const hidden = rt(1, { pid: 9 })
+    expect(pickRests([hidden, rt(2, { pid: 9, visible: true })], on, at).purge).toEqual([])
+    expect(pickRests([hidden, rt(2, { pid: 9, busy: true })], on, at).purge).toEqual([])
+    expect(pickRests([hidden, rt(2, { pid: 9, lastShownAt: at - 1000 })], on, at).purge).toEqual([])
+    expect(pickRests([hidden, rt(2, { pid: 9 })], on, at).purge).toEqual([1, 2])
+    // a frozen page in the process does not need to be awake for the others to be purged
+    expect(pickRests([hidden, rt(2, { pid: 9, rest: 'frozen' })], on, at).purge).toEqual([1])
+  })
+
+  test('no known process: never purged', () => {
+    expect(pickRests([rt(1, { pid: 0 })], on, at).purge).toEqual([])
   })
 })

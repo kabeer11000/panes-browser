@@ -29,16 +29,17 @@ const CACHE_BYTES = { balanced: 512 * 1024 ** 2, efficient: 256 * 1024 ** 2 } as
  * The Chromium switches for a mode. Measured on a window with eight tabs of one site open:
  * `process-per-site` alone halves the processes (12 to 5) and takes about 20% off private memory,
  * low-end-device mode about 9% more, and dropping the spare renderer a little more. Tabs on the same
- * site then share a process (different sites never do), so Efficient trades some isolation between
- * same-site tabs for memory; Balanced keeps one process per tab.
+ * site share a process in both modes (different sites never do): a little less separation between
+ * same-site tabs, for a lot less memory. Efficient also runs in low-end mode.
  */
 export function flagsFor(mode: RunningMode): ChromiumFlags {
   // FedCm: Google's sign-in tries the browser's own account chooser first, which embedded Chromium does not have
   // ("FedCM get() rejects with NetworkError"), and only falls back to the pop-up when the API is simply absent.
   const disableFeatures = ['SpareRendererForSitePerProcess', 'FedCm', 'FedCmAutoReauthn']
-  const switches: Array<[string, string?]> = [['disk-cache-size', String(CACHE_BYTES[mode])]]
-  if (mode === 'efficient') {
-    switches.push(['process-per-site'], ['enable-low-end-device-mode'])
-  }
+  const switches: Array<[string, string?]> = [
+    ['disk-cache-size', String(CACHE_BYTES[mode])],
+    ['process-per-site']
+  ]
+  if (mode === 'efficient') switches.push(['enable-low-end-device-mode'])
   return { switches, disableFeatures }
 }

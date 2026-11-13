@@ -136,3 +136,50 @@ export function pickUnloads(
   }
   return [...picked]
 }
+
+/** A hidden tab gives back its caches after this long out of sight, and stops running after this long. */
+export const REST_PURGE_MS = 2 * 60_000
+export const REST_FREEZE_MS = 5 * 60_000
+
+/** How far a loaded tab has been put to rest: nothing yet, caches given back, or frozen (no script runs). */
+export type Rest = 'awake' | 'purged' | 'frozen'
+
+export interface RestFacts extends TabFacts {
+  rest: Rest
+  /** Its renderer process: tabs of one site can share it, and a purge clears the whole process. */
+  pid: number
+  /** The site may send notifications: frozen, it could not, so it is never frozen. */
+  notifies: boolean
+}
+
+/**
+ * Which hidden tabs to rest now, without unloading them (they come back as they were, at once). After REST_PURGE_MS
+ * out of sight a tab gives back its caches; only when nothing else in its process is on screen or busy, since the
+ * purge is process-wide and a visible page would have to redraw its pictures. After REST_FREEZE_MS it is frozen,
+ * except a site that messages the person or may notify (frozen, it could not tell of anything new).
+ * Visible, busy and never-unload tabs are left alone. Chromium wakes a frozen page by itself as it is shown.
+ */
+export function pickRests(
+  tabs: readonly RestFacts[],
+  policy: Pick<MemoryPolicy, 'enabled' | 'neverSites'>,
+  now: number
+): { purge: number[]; freeze: number[] } {
+  if (!policy.enabled) return { purge: [], freeze: [] }
+  const idle = (t: RestFacts): number => now - t.lastShownAt
+  const restful = (t: RestFacts): boolean =>
+    t.loaded && !t.visible && !t.busy && !siteListed(t.host, policy.neverSites)
+  // a process is purged only when every page in it may be
+  const blocked = new Set(
+    tabs.filter((t) => t.pid > 0 && (!restful(t) || idle(t) < REST_PURGE_MS)).map((t) => t.pid)
+  )
+  const purge: number[] = []
+  const freeze: number[] = []
+  for (const t of tabs) {
+    if (!restful(t)) continue
+    if (t.rest === 'awake' && idle(t) >= REST_PURGE_MS && t.pid > 0 && !blocked.has(t.pid))
+      purge.push(t.id)
+    if (t.rest !== 'frozen' && idle(t) >= REST_FREEZE_MS && !t.messenger && !t.notifies)
+      freeze.push(t.id)
+  }
+  return { purge, freeze }
+}
