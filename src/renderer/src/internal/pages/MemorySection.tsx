@@ -4,6 +4,7 @@ import {
   MAX_LOADED_CHOICES,
   MEMORY_PRESETS,
   normalizeSites,
+  PRELOAD_CHOICES,
   presetOf,
   type MemoryPreset
 } from '@shared/memory'
@@ -88,6 +89,20 @@ export function MemorySection({ s, update }: Props): React.JSX.Element {
           </button>
         </Row>
       )}
+      <Row
+        label="Ready after a restart"
+        hint="Your most recently used tabs load in the background shortly after Panes opens, so they open at once. Resting tabs use little memory."
+      >
+        <Select
+          label="Ready after a restart"
+          value={s.preloadTabs}
+          options={PRELOAD_CHOICES.map((n) => ({
+            value: n as number,
+            label: n === 0 ? 'Off' : `${n} tabs`
+          }))}
+          onChange={(v) => void update({ preloadTabs: v })}
+        />
+      </Row>
       <Row
         label="Memory saver"
         hint="Unload background tabs you are not using. Helps most on computers with little memory."

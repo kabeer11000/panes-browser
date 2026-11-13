@@ -73,6 +73,7 @@ import { applyIdentity, followIdentity } from './identity'
 import { PdfViewerHelper } from './pdf'
 import { runningMode } from './performance'
 import {
+  pickPreloads,
   pickRests,
   pickUnloads,
   type MemoryPolicy,
@@ -136,6 +137,9 @@ const ZOOM_MIN = ZOOM_LEVEL_MIN
 const ZOOM_MAX = ZOOM_LEVEL_MAX
 const PARKED_X = -20000 // where views wait, out of sight, while an overlay is open
 const MEMORY_SWEEP_MS = 30_000
+/** Pre-loading after a restart waits this long after the start, and this long between tabs (see preloadRecent). */
+const PRELOAD_START_MS = 5000
+const PRELOAD_GAP_MS = 1500
 /** The tabs' state goes to the window at most this often (one frame). */
 const PUSH_EVERY_MS = 16
 const ESC_HOLD_MS = 1000
@@ -208,6 +212,8 @@ interface Tab {
   awaiting: boolean
   /** Put to rest while hidden (caches given back, or frozen); woken as it is shown or scripted (see pickRests). */
   rest: Rest
+  /** Last time it was on screen, kept across restarts (lastShownAt restarts with Panes): what pre-loading goes by. */
+  usedAt: number
   /** Where the first load went, so the tab has an address while the page has not committed yet. */
   firstUrl: string
   /** What is new in the tab since the person last looked (see shared/attention). */
@@ -393,6 +399,8 @@ export class TabManager {
       groupId?: number | null
       pinned?: boolean
       history?: NavHistory | null
+      /** Last on screen (ms since epoch), for pre-loading after a restart. */
+      shown?: number
     }>
     active: number
     groups?: Array<TabGroup & { spaceId: number }>
@@ -887,6 +895,7 @@ export class TabManager {
       keyLock: false,
       awaiting: false,
       rest: 'awake',
+      usedAt: 0,
       firstUrl: ''
     }
     this.tabs.set(id, tab)
@@ -1215,6 +1224,7 @@ export class TabManager {
         const g = t.groupId == null ? undefined : this.groups.get(t.groupId)
         if (tab && g && g.spaceId === tab.spaceId) tab.groupId = g.id
         if (tab && t.pinned === true) tab.pinned = true
+        if (tab && typeof t.shown === 'number' && Number.isFinite(t.shown)) tab.usedAt = t.shown
         return id
       })
       // each space comes back on the tab it was on, with its split view (tabs of another space are not taken in)
@@ -1241,8 +1251,51 @@ export class TabManager {
       const own = ids.filter((id) => this.tabs.get(id)?.spaceId === this.activeSpaceId)
       const pick = ids[Math.min(saved.active, ids.length - 1)]
       this.activate(own.includes(pick) ? pick : (own[0] ?? this.create()))
+      void this.preloadRecent()
     } else {
       this.create()
+    }
+  }
+
+  /**
+   * After a restart, load the tabs used most recently (Settings, preloadTabs) in the background, so they open at
+   * once instead of loading when picked. Opening Panes comes first: it starts only once the window is up and the
+   * page on screen has loaded, then takes one tab at a time with a pause between, each hidden and throttled. Once
+   * loaded they rest like any hidden tab (caches given back, then frozen; see pickRests).
+   */
+  private async preloadRecent(): Promise<void> {
+    const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms).unref())
+    const until = async (done: () => boolean, maxMs: number): Promise<void> => {
+      for (const end = Date.now() + maxMs; !done() && Date.now() < end;) await wait(250)
+    }
+    await wait(PRELOAD_START_MS)
+    // nothing on screen still loading (a slow first page has the network and CPU to itself)
+    await until(
+      () =>
+        this.onScreenIds().every((id) => {
+          const t = this.tabs.get(id)
+          const wc = t && liveContents(t)
+          return !t || t.unloaded || !wc?.isLoading()
+        }),
+      15_000
+    )
+    const picks = pickPreloads(
+      [...this.tabs].map(([id, t]) => ({
+        id,
+        usedAt: t.usedAt,
+        web: /^https?:/i.test(t.pending?.url ?? ''),
+        loaded: !t.pending
+      })),
+      this.deps.settings.get().preloadTabs
+    )
+    for (const id of picks) {
+      const t = this.tabs.get(id)
+      if (this.win.isDestroyed() || this.deps.settings.get().preloadTabs === 0) return
+      if (!t?.pending) continue // opened (or closed) meanwhile
+      t.lastShownAt = Date.now() // fresh: the memory saver does not unload it straight away
+      this.ensureLoaded(id, t)
+      await until(() => !t.awaiting, 10_000)
+      await wait(PRELOAD_GAP_MS)
     }
   }
 
@@ -1264,6 +1317,7 @@ export class TabManager {
       groupId: number | null
       pinned: boolean
       history: NavHistory | null
+      shown: number
     }> = []
     let active = 0
     const at = new Map<number, number>() // tab id -> its place in `tabs`
@@ -1281,7 +1335,8 @@ export class TabManager {
         favicon: t.favicon,
         groupId: t.groupId,
         pinned: t.pinned,
-        history: t.pending ? (t.pending.history ?? null) : wc ? historyOf(wc) : null
+        history: t.pending ? (t.pending.history ?? null) : wc ? historyOf(wc) : null,
+        shown: t.usedAt
       })
     }
     const used = new Set(tabs.map((t) => t.groupId))
@@ -2283,6 +2338,10 @@ export class TabManager {
       if (prevWc) prevWc.setBackgroundThrottling(true)
     }
     const t = id !== null ? this.tabs.get(id) : undefined
+    // looked at in the preview (and the one just left was, until now): it counts as used, for pre-loading
+    const prevTab = prevId !== null ? this.tabs.get(prevId) : undefined
+    if (prevTab && changed) prevTab.usedAt = Date.now()
+    if (t) t.usedAt = Date.now()
     if (id !== null && t) {
       this.ensureLoaded(id, t)
       t.awaiting = false
@@ -3920,6 +3979,7 @@ export class TabManager {
       const t = this.tabs.get(id)
       if (t?.rest === 'frozen') this.thaw(t) // Chromium wakes it as it is shown; this says so to the page too
       if (t) t.rest = 'awake'
+      if (t) t.usedAt = now
       if (t) this.ensureLoaded(id, t)
       if (t && this.looking(id)) t.attention = noteSeen(t.attention)
     }

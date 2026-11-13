@@ -4,6 +4,8 @@ import type { Settings } from './types'
 export const IDLE_CHOICES_MIN = [1, 2, 5, 10, 15, 30, 60, 120, 240] as const
 export const MAX_LOADED_CHOICES = [0, 3, 5, 8, 12, 20, 30] as const // 0 means no limit
 export const OTHER_SPACE_IDLE_MIN = 2
+/** How many recently used tabs load in the background after a restart, so they open at once; 0 is off. */
+export const PRELOAD_CHOICES = [0, 3, 5, 10] as const
 
 export const MEMORY_PRESETS = {
   relaxed: { unloadIdleMin: 60, maxLoadedTabs: 0 },
@@ -182,4 +184,20 @@ export function pickRests(
       freeze.push(t.id)
   }
   return { purge, freeze }
+}
+
+/**
+ * Which restored tabs to load in the background after a restart: the `count` used most recently (last on screen,
+ * newest first), web pages only, not ones already loaded. Ties keep the tab order.
+ */
+export function pickPreloads(
+  tabs: ReadonlyArray<{ id: number; usedAt: number; web: boolean; loaded: boolean }>,
+  count: number
+): number[] {
+  return tabs
+    .filter((t) => t.web && !t.loaded && t.usedAt > 0)
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => b.t.usedAt - a.t.usedAt || a.i - b.i)
+    .slice(0, Math.max(0, count))
+    .map(({ t }) => t.id)
 }

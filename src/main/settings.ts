@@ -7,7 +7,13 @@ import {
   SEARCH_ENGINES,
   type AppearanceKey
 } from '@shared/settings'
-import { IDLE_CHOICES_MIN, MAX_LOADED_CHOICES, normalizeSites, normalizeZoom } from '@shared/memory'
+import {
+  IDLE_CHOICES_MIN,
+  MAX_LOADED_CHOICES,
+  normalizeSites,
+  normalizeZoom,
+  PRELOAD_CHOICES
+} from '@shared/memory'
 import { isPerformanceMode } from '@shared/performance'
 import type { Settings } from '@shared/types'
 import { sanitizeYouTube } from '@shared/youtube'
@@ -78,6 +84,9 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   }
   if ((MAX_LOADED_CHOICES as readonly unknown[]).includes(patch.maxLoadedTabs)) {
     out.maxLoadedTabs = patch.maxLoadedTabs
+  }
+  if ((PRELOAD_CHOICES as readonly unknown[]).includes(patch.preloadTabs)) {
+    out.preloadTabs = patch.preloadTabs
   }
   if (patch.neverUnloadSites !== undefined) {
     out.neverUnloadSites = normalizeSites(patch.neverUnloadSites)

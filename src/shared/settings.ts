@@ -60,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxLoadedTabs: 0,
   unloadOtherSpaces: false,
   neverUnloadSites: [],
+  preloadTabs: 5,
   ai: DEFAULT_AI_SETTINGS,
   ...YOUTUBE_DEFAULTS
 }

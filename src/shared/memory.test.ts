@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   normalizeSites,
   normalizeZoom,
+  pickPreloads,
   pickRests,
   pickUnloads,
   presetOf,
@@ -199,5 +200,31 @@ describe('pickRests', () => {
 
   test('no known process: never purged', () => {
     expect(pickRests([rt(1, { pid: 0 })], on, at).purge).toEqual([])
+  })
+})
+
+describe('pickPreloads', () => {
+  const t = (
+    id: number,
+    usedAt: number,
+    over: Partial<{ web: boolean; loaded: boolean }> = {}
+  ) => ({
+    id,
+    usedAt,
+    web: true,
+    loaded: false,
+    ...over
+  })
+  test('the most recently used first, up to the count', () => {
+    expect(pickPreloads([t(1, 10), t(2, 30), t(3, 20)], 2)).toEqual([2, 3])
+  })
+  test('loaded, non-web and never-used tabs are skipped; 0 is off', () => {
+    expect(
+      pickPreloads([t(1, 10, { loaded: true }), t(2, 9, { web: false }), t(3, 0), t(4, 5)], 5)
+    ).toEqual([4])
+    expect(pickPreloads([t(1, 10)], 0)).toEqual([])
+  })
+  test('ties keep the tab order', () => {
+    expect(pickPreloads([t(1, 5), t(2, 5)], 2)).toEqual([1, 2])
   })
 })
