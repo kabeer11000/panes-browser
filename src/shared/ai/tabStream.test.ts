@@ -4,10 +4,9 @@ import {
   fitRegion,
   pickStreams,
   streamCap,
-  streamFps,
   keepCapture,
   liveTier,
-  tierFps,
+  tierScale,
   videoRegion
 } from './tabStream'
 
@@ -19,7 +18,6 @@ describe('streamCap', () => {
     expect(streamCap({ hardwareConcurrency: 16, deviceMemory: 4 })).toBe(2)
     expect(streamCap({ hardwareConcurrency: 16, deviceMemory: 8 })).toBe(4)
     expect(streamCap({ hardwareConcurrency: 12 })).toBe(4)
-    expect(streamFps(2)).toBeLessThan(streamFps(4))
   })
 })
 
@@ -150,10 +148,10 @@ describe('liveTier', () => {
     expect(liveTier(0.27, 2)).toBe(1) // under 0.35 * 0.8
     expect(liveTier(0.15, 1)).toBe(0)
   })
-  test('frames per tier', () => {
-    expect(tierFps(0, 4)).toBe(10)
-    expect(tierFps(1, 4)).toBe(15)
-    expect(tierFps(2, 4)).toBe(streamFps(4))
+  test('a smaller tier captures smaller, the largest at full size', () => {
+    expect(tierScale(0)).toBeLessThan(tierScale(1))
+    expect(tierScale(1)).toBeLessThan(tierScale(2))
+    expect(tierScale(2)).toBe(1)
   })
 })
 

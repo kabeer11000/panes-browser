@@ -20,22 +20,21 @@ export function streamCap(nav: { hardwareConcurrency?: number; deviceMemory?: nu
   return cores <= 8 || (nav.deviceMemory !== undefined && nav.deviceMemory < 8) ? 2 : 4
 }
 
-/** Frames per second asked of a large card's stream: a card is small, and the page keeps its full rate for itself. */
-export function streamFps(cap: number): number {
-  return cap <= 2 ? 24 : 30
-}
+/** Frames per second asked of every card's stream: motion stays smooth at any size; a small card costs less by
+ *  being captured smaller (tierScale), not by dropping frames, which reads as stutter. */
+export const STREAM_FPS = 30
 
 /** A card narrower than this share of the window is not streamed at all: it keeps its last frame. */
 export const MIN_LIVE_SHARE = 0.12
-/** Shares of the window where a card's stream steps up a tier: 10 fps below the first, 15 below the second. */
+/** Shares of the window where a card's stream steps up a tier (see tierScale). */
 const TIER_AT = [0.2, 0.35] as const
 /** A tier is left downwards only below this much of its threshold, so a zoom near one does not flip it back and forth. */
 const TIER_DOWN = 0.8
 
 /**
- * How lively a card's stream is, from how much of the window's width it takes (`share`) and the tier it has now
- * (null: none yet): 0 is 10 fps, 1 is 15, 2 is the full rate. Every frame is the tab drawn again offscreen and copied
- * to the board, so a small card on screen gets few. Up at once, down only clearly below (TIER_DOWN).
+ * How sharp a card's stream is, from how much of the window's width it takes (`share`) and the tier it has now
+ * (null: none yet): 0 and 1 are captured below the card's full pixel size, 2 at it (see tierScale). Every frame is
+ * copied to the board, so a small card's frames are made smaller. Up at once, down only clearly below (TIER_DOWN).
  */
 export function liveTier(share: number, cur: 0 | 1 | 2 | null): 0 | 1 | 2 {
   const want = share >= TIER_AT[1] ? 2 : share >= TIER_AT[0] ? 1 : 0
@@ -44,9 +43,9 @@ export function liveTier(share: number, cur: 0 | 1 | 2 | null): 0 | 1 | 2 {
   return share < TIER_AT[cur - 1] * TIER_DOWN ? want : cur
 }
 
-/** A tier's frames per second (see liveTier). */
-export function tierFps(tier: 0 | 1 | 2, cap: number): number {
-  return tier === 2 ? streamFps(cap) : tier === 1 ? 15 : 10
+/** How much of the card's own pixel size a tier captures (see liveTier): a small card hardly shows the difference. */
+export function tierScale(tier: 0 | 1 | 2): number {
+  return tier === 2 ? 1 : tier === 1 ? 0.8 : 0.6
 }
 
 /** The whole page, for a tab in a call: its people are many videos, not one to crop to. */

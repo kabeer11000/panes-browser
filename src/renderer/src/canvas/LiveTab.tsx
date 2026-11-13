@@ -5,14 +5,13 @@ import {
   fitRegion,
   keepCapture,
   liveTier,
-  streamCap,
-  tierFps,
+  STREAM_FPS,
+  tierScale,
   WHOLE_PAGE,
   type VideoRegion
 } from '@shared/ai/tabStream'
 import { onBoardMotion } from './boardMotion'
 
-const CAP = streamCap(navigator)
 /** How often the video's place in the page is asked again (theatre mode, scrolling): often at first and after
  * it moved, less once it has stayed put a while (each ask runs a script in the page). */
 const REGION_MS = 1000
@@ -163,18 +162,20 @@ export function LiveTab({
     }
   }, [id, whole])
 
-  // the size the card asks for now, and the one captured: changed only when it must (keepCapture), never mid-move
-  const want = region ? captureWidth(cardPx, window.devicePixelRatio || 1, region.w) : 0
-  const [width, setWidth] = useState(0)
-  const nextWidth = keepCapture(width, want)
-  // and how lively: a card taking little of the window gets few frames (liveTier), changed with the size, settled
+  // how sharp: a card taking little of the window is captured below its full size (liveTier), at full frame rate
   const [tier, setTier] = useState<0 | 1 | 2 | null>(null)
   const nextTier = liveTier(cardPx / Math.max(1, window.innerWidth), tier)
+  // the size the card asks for now, and the one captured: changed only when it must (keepCapture), never mid-move
+  const want = region
+    ? captureWidth(cardPx, (window.devicePixelRatio || 1) * tierScale(nextTier), region.w)
+    : 0
+  const [width, setWidth] = useState(0)
+  const nextWidth = keepCapture(width, want)
   if (!boardMoving && (nextWidth !== width || nextTier !== tier)) {
     setWidth(nextWidth)
     setTier(nextTier)
   }
-  const fps = tier === null ? 0 : tierFps(tier, CAP)
+  const fps = tier === null ? 0 : STREAM_FPS
   const fallbackAr =
     typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0
       ? Math.max(800, window.innerWidth) / Math.max(600, window.innerHeight)
