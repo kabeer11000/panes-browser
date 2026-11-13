@@ -2345,6 +2345,7 @@ export class TabManager {
     const t = this.tabs.get(id)
     if (!t) return
     this.ensureLoaded(id, t)
+    if (t.rest === 'frozen') this.thaw(t) // running again before it is shown, so its first frame is ready
     if (rect && !t.unloaded) t.view.setBounds(rect)
     const wc = liveContents(t)
     if (wc) wc.setBackgroundThrottling(false)
@@ -2369,7 +2370,11 @@ export class TabManager {
     return this.liveReady(id) ? liveContents(t) : null
   }
 
-  /** Whether the live tab has finished loading (the canvas waits for that before it swaps the snapshot out). */
+  /**
+   * Whether the live tab's page is there to show (the canvas waits for that before it swaps the snapshot out): its
+   * own document has loaded. Frames inside it (ads, embeds, chat widgets) may load for a long while yet; waiting for
+   * them kept a finished page behind its picture for seconds.
+   */
   liveReady(id: number): boolean {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
@@ -2380,7 +2385,7 @@ export class TabManager {
       !t.pending &&
       !t.navUrl &&
       !!wc &&
-      !wc.isLoading() &&
+      !wc.isLoadingMainFrame() &&
       u !== '' &&
       u !== 'about:blank'
     )

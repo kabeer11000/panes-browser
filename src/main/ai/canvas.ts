@@ -470,10 +470,14 @@ export function registerCanvas(d: {
     d.tabs.prepareLive(id, rect) // an unloaded tab starts loading now, not after the wait below
     const until = Date.now() + 7000
     while (!d.tabs.liveReady(id) && Date.now() < until && gen === liveGen)
-      await new Promise((x) => setTimeout(x, 80))
+      await new Promise((x) => setTimeout(x, 16)) // shown the frame it is ready, not up to 80 ms later
     // closed (or another page asked for) while this one loaded: showing it now would leave a page over the board
     if (gen === liveGen) d.tabs.setLive(id, rect)
     return id
+  })
+  // The preview is opening onto this tab: it loads (or wakes) now, while the panel grows, not after
+  ipcMain.on('canvas:live-prepare', (e, id: unknown) => {
+    if (mine(e) && typeof id === 'number') d.tabs.prepareLive(id)
   })
   // The preview's address field: load it in the card's tab, or (a page found on the web) in a new background tab.
   ipcMain.handle('canvas:navigate', (e, tab: unknown, input: unknown) => {
@@ -527,7 +531,10 @@ export function registerCanvas(d: {
       if (img.isEmpty()) return null
       // the page as it is now is also its card's picture from now on (or the card would show it as it was before)
       const small = img.getSize().width > 960 ? img.resize({ width: 960 }) : img
-      d.tabs.takeThumb(tabId as number, 'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64'))
+      d.tabs.takeThumb(
+        tabId as number,
+        'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64')
+      )
       return 'data:image/jpeg;base64,' + img.toJPEG(82).toString('base64')
     } catch {
       return null

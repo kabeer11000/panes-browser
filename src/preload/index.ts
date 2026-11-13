@@ -153,6 +153,7 @@ const api: PanesApi = {
     liveHide: () => ipcRenderer.send('canvas:live-hide'),
     liveCompanions: (list) => ipcRenderer.send('canvas:live-companions', list),
     liveShot: (tabId) => ipcRenderer.invoke('canvas:live-shot', tabId),
+    livePrepare: (tabId) => ipcRenderer.send('canvas:live-prepare', tabId),
     liveNav: (tabId, what) => ipcRenderer.send('canvas:live-nav', tabId, what),
     preview: (open, tab) => ipcRenderer.send('canvas:preview', open, tab),
     onPreviewKey: (cb) => subscribe<[PreviewKey]>('canvas:preview-key', cb),

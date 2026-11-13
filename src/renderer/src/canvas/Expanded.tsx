@@ -742,6 +742,12 @@ export function Expanded({
       ),
       new Promise<void>((r) => setTimeout(r, 450))
     ])
+    // the panel is 99% of the way there at three quarters of its time (the ease is mostly done early): the live page
+    // comes in then, at its exact final place (slotBox ignores the transform), not after the last pixels of the glide
+    nearlyOpen.current = Promise.race([
+      openDone.current,
+      new Promise<void>((r) => setTimeout(r, MORPH.duration * 750))
+    ])
     void openDone.current.then(() => onCover?.(true))
     const sCtrl = scrim.current
       ? animate(scrim.current, { opacity: [0, 1] }, { duration: 0.22 })
@@ -759,6 +765,13 @@ export function Expanded({
   }, [])
 
   const openDone = useRef<Promise<void>>(Promise.resolve())
+  const nearlyOpen = useRef<Promise<void>>(Promise.resolve())
+  // a card that opens live: its page gets ready while the panel grows, so it shows the moment the panel is in place
+  useEffect(() => {
+    if (live !== 'off' && tab !== undefined) window.api.canvas.livePrepare?.(tab)
+    // once, on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const hideLive = useCallback((): void => {
     window.api.canvas.liveHide()
   }, [])
@@ -896,7 +909,7 @@ export function Expanded({
     const req = ++liveReq.current
     liveRef.current = 'loading'
     flushSync(() => setLive('loading'))
-    await Promise.race([openDone.current, new Promise<void>((r) => setTimeout(r, 450))])
+    await Promise.race([nearlyOpen.current, new Promise<void>((r) => setTimeout(r, 450))])
     if (req !== liveReq.current || closing.current) return
     await new Promise((r) => requestAnimationFrame(() => r(null))) // the slot is in place
     if (req !== liveReq.current || closing.current) return
@@ -925,7 +938,9 @@ export function Expanded({
     liveRef.current = 'on'
     setLive('on')
     const rNow = slotBox(slot.current)
-    if (rNow && !asideRef.current) window.api.canvas.liveMove(id, rNow)
+    if (asideRef.current)
+      hideLive() // a popover opened while it loaded: it stays stepped aside
+    else if (rNow) window.api.canvas.liveMove(id, rNow)
     if (url) onLive?.(url, true)
   }
   const editAddress = async (): Promise<void> => {
@@ -996,7 +1011,8 @@ export function Expanded({
   // is. (The hover sidebar and top bar no longer move it aside: main slides the view with them, frame by frame.)
   useEffect(() => {
     asideRef.current = aside
-    if (live !== 'on') return
+    if (live === 'off') return
+    // while it is still loading too: hiding cancels the open waiting in main, which would show it over the popover
     if (aside) hideLive()
     else placeLive()
   }, [aside, live, hideLive, placeLive])
@@ -1009,16 +1025,8 @@ export function Expanded({
     if (live !== 'on' || !slot.current) return
     const el = slot.current
     placeLive()
-    const ro = new ResizeObserver(() => {
-      const r = slotBox(el)
-      if (r && tabRef.current !== null)
-        window.api.canvas.liveMove(tabRef.current, {
-          x: r.x,
-          y: r.y,
-          width: r.width,
-          height: r.height
-        })
-    })
+    // through placeLive: a resize while a popover is over the page must not bring the page back over it
+    const ro = new ResizeObserver(placeLive)
     ro.observe(el)
     return () => ro.disconnect()
   }, [live, splitKey, placeLive])

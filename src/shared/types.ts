@@ -350,6 +350,8 @@ export interface PanesApi {
     liveCompanions(list: Array<{ id: number; rect: Rect }>): void
     /** A picture of a tab's live page as it is now (stands in for it while it steps aside); null when it has none. */
     liveShot(tabId: number): Promise<string | null>
+    /** The preview is about to show this tab live: load or wake it now, while the panel grows. */
+    livePrepare(tabId: number): void
     /** Back, forward or reload in the live page of the preview. */
     liveNav(tabId: number, what: 'back' | 'forward' | 'reload' | 'stop'): void
     /** The preview opened, moved to another card (its tab, if any) or closed: page shortcuts follow it. */
