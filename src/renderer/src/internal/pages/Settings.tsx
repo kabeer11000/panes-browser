@@ -626,6 +626,22 @@ export function Settings(): React.JSX.Element {
         </Group>
       )}
 
+      <Group
+        title="Debugging Panes"
+        footer="For testing Panes itself. Turning this on or off reloads the interface; your tabs stay open."
+      >
+        <Row
+          label="Debug tools"
+          hint="Ctrl+Shift+F12 opens DevTools on Panes' own interface, and React Scan outlines what re-renders."
+        >
+          <Toggle
+            label="Debug tools"
+            on={s.debugPanes}
+            onChange={(v) => void update({ debugPanes: v })}
+          />
+        </Row>
+      </Group>
+
       <Group title="Shortcuts">
         {[
           ['Ctrl+T', 'New tab'],

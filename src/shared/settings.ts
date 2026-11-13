@@ -61,6 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   unloadOtherSpaces: false,
   neverUnloadSites: [],
   preloadTabs: 5,
+  debugPanes: false,
   ai: DEFAULT_AI_SETTINGS,
   ...YOUTUBE_DEFAULTS
 }

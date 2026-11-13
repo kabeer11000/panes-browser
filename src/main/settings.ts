@@ -85,6 +85,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if ((MAX_LOADED_CHOICES as readonly unknown[]).includes(patch.maxLoadedTabs)) {
     out.maxLoadedTabs = patch.maxLoadedTabs
   }
+  if (typeof patch.debugPanes === 'boolean') out.debugPanes = patch.debugPanes
   if ((PRELOAD_CHOICES as readonly unknown[]).includes(patch.preloadTabs)) {
     out.preloadTabs = patch.preloadTabs
   }

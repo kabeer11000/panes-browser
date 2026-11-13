@@ -3077,6 +3077,8 @@ export class TabManager {
       else handled = false
     } else if (mod && input.shift && !input.alt) {
       if (k === ' ') this.command('open-stack')
+      else if (k === 'f12' && this.deps.settings.get().debugPanes)
+        this.win.webContents.openDevTools({ mode: 'detach' }) // Panes' own interface (Settings, debugging)
       else if (k === 'r') this.reload(true)
       else if (k === 'n') this.newPrivateTab()
       else if (k === 'delete') this.openInternal('settings', 'clear-data')

@@ -144,11 +144,28 @@ function createWindow(): void {
   // The interface page is asked for now, not after everything below has been set up: its own process starts, loads
   // and runs React while this one goes on setting up. Safe because nothing the page sends (IPC) or the window emits
   // (ready-to-show, did-finish-load) is handled before this function returns, by which time every handler exists.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    win.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'))
+  // Debugging Panes itself (Settings): the page starts React Scan before React when its address says so. Read from the
+  // file, as the settings store is not up yet; a change later reloads the page (see below).
+  const loadUi = (debug: boolean): void => {
+    const query = debug ? '?debug=1' : ''
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      void win.loadURL(process.env['ELECTRON_RENDERER_URL'] + query)
+    } else {
+      void win.loadFile(
+        join(__dirname, '../renderer/index.html'),
+        debug ? { query: { debug: '1' } } : {}
+      )
+    }
   }
+  let uiDebug = false
+  try {
+    uiDebug =
+      JSON.parse(readFileSync(join(app.getPath('userData'), 'settings.json'), 'utf8'))
+        ?.debugPanes === true
+  } catch {
+    // no settings yet: off
+  }
+  loadUi(uiDebug)
   mark('page-requested')
 
   const tabSession = session.fromPartition('persist:panes')
@@ -203,6 +220,11 @@ function createWindow(): void {
   youtube.attach(tabSession)
   youtube.attach(privateSession)
   settings.onChange((s) => {
+    if (s.debugPanes !== uiDebug) {
+      uiDebug = s.debugPanes
+      if (!uiDebug && win.webContents.isDevToolsOpened()) win.webContents.closeDevTools()
+      loadUi(uiDebug) // React Scan only starts before React: the interface reloads (tabs are kept)
+    }
     adblock.configure(s)
     youtube.update()
     tabs.applyDarkening()

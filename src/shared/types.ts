@@ -547,6 +547,8 @@ export interface Settings {
   neverUnloadSites: string[]
   /** After a restart, this many recently used tabs load in the background so they open at once; 0 is off. */
   preloadTabs: number
+  /** Debugging Panes itself: Ctrl+Shift+F12 opens DevTools on its interface, and React Scan shows re-renders. */
+  debugPanes: boolean
   /** YouTube: hide Shorts shelves, the Shorts menu entry and Shorts in results. */
   youtubeHideShorts: boolean
   /** YouTube: hide the cards and end screen laid over a video. */
