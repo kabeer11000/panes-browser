@@ -70,6 +70,8 @@ const DRAW: ToolDef[] = [
 interface Props {
   tool: Tool
   zoom: number
+  /** The zoom label itself: the board writes it every frame of a zoom, without a render (see Canvas onMove). */
+  zoomRef?: React.Ref<HTMLSpanElement>
   busy: boolean
   /** The prompt is searching or the model is answering. */
   finding: boolean
@@ -99,6 +101,7 @@ interface Props {
 export function Toolbar({
   tool,
   zoom,
+  zoomRef,
   busy,
   finding,
   asking = false,
@@ -337,7 +340,7 @@ export function Toolbar({
         <span aria-hidden="true">-</span>
       </button>
       <button type="button" className="cv-zoom" title="Fit everything (Shift+1)" onClick={onFit}>
-        {zoom}%
+        <span ref={zoomRef}>{zoom}%</span>
       </button>
       <button
         type="button"

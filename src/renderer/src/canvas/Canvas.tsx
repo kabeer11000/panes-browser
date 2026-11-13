@@ -127,6 +127,7 @@ import { anchorAt, askSearch } from './askSearch'
 import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
+import { boardMoving, onBoardMotion } from './boardMotion'
 import { READER } from './model'
 import { ContextMenu, type MenuEntry } from './ContextMenu'
 import { PlayingItem } from './PlayingItem'
@@ -732,6 +733,8 @@ export function Canvas({
 
   // ---- visibility (only cards near the screen are mounted) ----
   /** Where the board was when the mounted cards were last worked out (see updateVisible). */
+  /** The set of cards last asked to be mounted (vis, once the transition lands). */
+  const visAsked = useRef<Set<number>>(new Set())
   const visAt = useRef<{
     x: number
     y: number
@@ -769,15 +772,14 @@ export function Canvas({
       if (c.x < view.x + view.w && c.x + cw > view.x && c.y < view.y + view.h && c.y + ch > view.y)
         next.add(c.id)
     }
-    if (!near)
-      // cards coming into view mount at low priority: rendering them yields to the pan's frames instead of
-      // stalling one (a re-render of the board mid-pan was a visible hitch)
-      startTransition(() =>
-        setVis((prev) => {
-          if (prev.size === next.size && [...next].every((i) => prev.has(i))) return prev
-          return next
-        })
-      )
+    // cards coming into view mount at low priority: rendering them yields to the pan's frames instead of stalling
+    // one (a re-render of the board mid-pan was a visible hitch). Asked for only when the set really changes: a
+    // zoom recomputes it every frame, and each request was a board render queued for nothing.
+    const asked = visAsked.current
+    if (!near && !(asked.size === next.size && [...next].every((i) => asked.has(i)))) {
+      visAsked.current = next
+      startTransition(() => setVis(next))
+    }
     // main takes fresh pictures only of the tabs on screen; told once the view has settled
     window.clearTimeout(inViewTimer.current)
     inViewTimer.current = window.setTimeout(() => {
@@ -809,15 +811,30 @@ export function Canvas({
     }, SAVE_MS)
   }, [spaceId])
 
+  // The zoom as React state (the label, card detail, live video sizes) changes only once the board settles: set every
+  // frame of a pinch it re-rendered the whole board each frame, and crossing LOD_K mid-pinch swapped every card's
+  // pictures out and back in. While it moves only the board's transform changes, and the label is written directly.
+  const zoomText = useRef<HTMLSpanElement>(null)
+  const commitZoom = useCallback((v: Viewport): void => {
+    setZoomPct(Math.round(v.k * 100))
+    setLod(v.k < LOD_K)
+  }, [])
+  useEffect(
+    () =>
+      onBoardMotion((m) => {
+        if (!m && lastView.current) commitZoom(lastView.current)
+      }),
+    [commitZoom]
+  )
   const onMove = useCallback(
     (v: Viewport): void => {
       lastView.current = v
       updateVisible(v)
-      setZoomPct(Math.round(v.k * 100))
-      setLod(v.k < LOD_K)
+      if (zoomText.current) zoomText.current.textContent = `${Math.round(v.k * 100)}%`
+      if (!boardMoving()) commitZoom(v)
       saveSoon()
     },
-    [updateVisible, saveSoon]
+    [updateVisible, saveSoon, commitZoom]
   )
   useEffect(() => {
     moveRef.current = onMove
@@ -5632,6 +5649,7 @@ export function Canvas({
       <Toolbar
         tool={tool}
         zoom={zoomPct}
+        zoomRef={zoomText}
         busy={busy}
         finding={finder.busy || asker.streaming}
         asking={asker.open}

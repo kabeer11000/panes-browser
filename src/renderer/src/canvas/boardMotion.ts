@@ -22,6 +22,9 @@ export function boardMoved(): void {
   }, SETTLE_MS)
 }
 
+/** Whether the board is moving now. */
+export const boardMoving = (): boolean => moving
+
 /** Hear when the board starts and stops moving; returns the way to stop listening. */
 export function onBoardMotion(f: (moving: boolean) => void): () => void {
   listeners.add(f)
