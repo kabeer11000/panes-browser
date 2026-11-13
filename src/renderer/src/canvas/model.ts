@@ -68,3 +68,6 @@ export const sameModel = (a: CardModel, b: CardModel): boolean => {
   }
   return true
 }
+
+/** Reader cards and the reader in the preview: off for now, a page is its picture or the live page. */
+export const READER = false

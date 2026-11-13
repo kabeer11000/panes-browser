@@ -127,6 +127,7 @@ import { anchorAt, askSearch } from './askSearch'
 import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
+import { READER } from './model'
 import { ContextMenu, type MenuEntry } from './ContextMenu'
 import { PlayingItem } from './PlayingItem'
 import { useDismiss } from './useDismiss'
@@ -1793,7 +1794,7 @@ export function Canvas({
           setToolBoth('shape')
         } else return
       } else if (!mod && !e.altKey && e.shiftKey && e.key.toLowerCase() === 't') {
-        void runTidy(false)
+        void runTidy(true)
       } else if (!mod && !e.altKey && e.shiftKey && e.key.toLowerCase() === 'm') {
         // everything playing on the board goes quiet (or, when nothing plays, what was muted comes back)
         window.api.muteSpace(spaceId)
@@ -3389,7 +3390,12 @@ export function Canvas({
     const unreadable = tabCard && ((!!url && !/^https?:/i.test(url)) || !!contents[id]?.app)
     setExpanded({
       id,
-      live: forceLive ?? (calls.has(id) || unreadable || (!!url && s.previews?.[url] === 'live')),
+      live:
+        forceLive ??
+        ((!READER && m.kind === 'page') ||
+          calls.has(id) ||
+          unreadable ||
+          (!!url && s.previews?.[url] === 'live')),
       from: {
         x: card.x * v.k + v.x,
         y: card.y * v.k + v.y,
@@ -3818,9 +3824,9 @@ export function Canvas({
       }
       if (r.effect?.kind === 'arrange') {
         pushUndo(`AI: arranged by ${r.effect.by}`)
-        if (r.effect.by === 'topic') await runTidy(false)
+        if (r.effect.by === 'topic') await runTidy(true)
         else
-          edit((st) => tidy(st, lite(), hostClusters(lite()), false), { flip: true, stagger: true })
+          edit((st) => tidy(st, lite(), hostClusters(lite()), true), { flip: true, stagger: true })
         return done(r.said, `Arranged by ${r.effect.by}.`)
       }
       if (r.effect) {
@@ -4850,7 +4856,7 @@ export function Canvas({
           setSel(new Set([`f:${made.id}`]))
           setEditing(made.id)
         } else if (act === 'paste') void boardClip.pasteAt(w)
-        else if (act === 'tidy') void runTidy(false)
+        else if (act === 'tidy') void runTidy(true)
         else if (act === 'settings') window.api.openInternal('settings')
         else if (act === 'fit') fitAll()
         else if (act === 'all') {
@@ -4971,7 +4977,7 @@ export function Canvas({
         label: arrangeLabel(aiAvailable),
         also: 'tidy rearrange sort group reset',
         keys: 'Shift+T',
-        run: () => void runTidy(false)
+        run: () => void runTidy(true)
       },
       ...(aiAvailable
         ? [{ id: 'ask', label: 'Ask', also: 'question chat ai', keys: '', run: () => askInDock() }]
@@ -5640,7 +5646,7 @@ export function Canvas({
         onMention={asker.mention}
         onPrompt={onPrompt}
         onTool={setToolBoth}
-        onTidy={() => void runTidy(false)}
+        onTidy={() => void runTidy(true)}
         ai={aiAvailable}
         onSettings={() => window.api.openInternal('settings')}
         onFit={fitAll}
@@ -5681,7 +5687,7 @@ function readerOf(
   hasSnap: boolean,
   picked: 'reader' | 'snapshot' | undefined
 ): { reader: boolean; toggle: boolean } {
-  if (!page) return { reader: false, toggle: false }
+  if (!page || !READER) return { reader: false, toggle: false }
   const reader =
     picked === 'snapshot' && hasSnap ? false : picked === 'reader' && hasText ? true : documentLike
   return { reader, toggle: hasText && hasSnap }

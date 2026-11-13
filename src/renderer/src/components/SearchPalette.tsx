@@ -352,7 +352,7 @@ export function SearchPalette({
             aria-expanded="true"
             aria-controls="pal-list"
             aria-activedescendant={results.length ? `pal-opt-${current}` : undefined}
-            defaultValue={active?.url ?? ''}
+            defaultValue={initial ?? active?.url ?? ''}
             placeholder="Search or enter address"
             spellCheck={false}
             onChange={(e) => {

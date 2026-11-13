@@ -9,6 +9,7 @@ import type { PageMenuPick, PreviewSwipe, Rect, TabInfo } from '@shared/types'
 import type { Grouped } from '@shared/attention'
 import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
+import { READER } from './model'
 import { LiveIcon, UnsplitIcon } from './icons'
 import {
   BackIcon,
@@ -655,7 +656,10 @@ export function Expanded({
   // a card that opens live is live from its first frame (its header, its page's picture), never the reader first
   const [live, setLiveState] = useState<'off' | 'loading' | 'on'>(() =>
     startLive ||
-    ((m.kind === 'video' || (m.kind === 'pdf' && !OWN_PDF_VIEWER)) && (tab !== undefined || !!url))
+    ((m.kind === 'video' ||
+      (m.kind === 'page' && !READER) ||
+      (m.kind === 'pdf' && !OWN_PDF_VIEWER)) &&
+      (tab !== undefined || !!url))
       ? 'loading'
       : 'off'
   )
@@ -883,7 +887,8 @@ export function Expanded({
     (m.kind === 'page' || m.kind === 'video' || (m.kind === 'pdf' && !OWN_PDF_VIEWER)) &&
     (tab !== undefined || !!url)
   // shown only in the page itself: a video, and a PDF while Panes' own reader is off
-  const liveOnly = m.kind === 'video' || (m.kind === 'pdf' && !OWN_PDF_VIEWER)
+  const liveOnly =
+    m.kind === 'video' || (m.kind === 'page' && !READER) || (m.kind === 'pdf' && !OWN_PDF_VIEWER)
   /** Show the live page. `to`: a tab just made for this card, not yet in its props. */
   const goLive = async (to?: number): Promise<void> => {
     autoLive.current = true
@@ -930,7 +935,7 @@ export function Expanded({
     // while the popover is up (still live, not the reader), and comes back where it was
     await takeShot()
     flushSync(() => setAddressOpen(true))
-    const text = await askSearch(anchorOver(titleEl.current), url ?? '')
+    const text = await askSearch(anchorOver(titleEl.current), href ?? '')
     asking.current = false
     setAddressOpen(false)
     if (text) void submitUrl(text)
@@ -945,7 +950,7 @@ export function Expanded({
   )
   const submitUrl = async (input: string): Promise<void> => {
     const text = input.trim()
-    if (!text || text === url) return
+    if (!text || text === href) return
     const id = await window.api.canvas.navigate(tab ?? null, text)
     if (id === null) return
     if (tab === undefined) onTab(id)
@@ -1059,7 +1064,9 @@ export function Expanded({
   const pageMenu = (x: number, y: number): void => {
     const id = tabRef.current
     if (id === null || !window.api.pageMenu) return
-    void window.api.pageMenu(id, x, y, canLive ? live === 'on' : undefined).then(onPagePick)
+    void window.api
+      .pageMenu(id, x, y, canLive && !liveOnly ? live === 'on' : undefined)
+      .then(onPagePick)
   }
   /** The site's settings (permissions, blocker, data): the address bar's own panel, a native view over the page. */
   const openSite = (): void => {
@@ -1115,7 +1122,7 @@ export function Expanded({
     <div className="cv-video-full">
       <p>Opening the PDF...</p>
     </div>
-  ) : articleEmpty && m.snap ? (
+  ) : (articleEmpty || !READER) && m.snap ? (
     // nothing to read on this page (an app, a map, a picture): how it looked is the next best thing
     <div className="cv-snap-full">
       <img src={m.snap} alt="" decoding="async" draggable={false} />
@@ -1255,7 +1262,9 @@ export function Expanded({
                 </button>
               </div>
             ) : null}
-            {canLive && (m.kind === 'page' || m.kind === 'video') ? (
+            {/* with the reader off a page is only live: the pill is there just to bring a page back that did not open */}
+            {canLive && m.kind === 'page' && !READER && live !== 'off' ? null : canLive &&
+              ((m.kind === 'page' && READER) || m.kind === 'video') ? (
               <div className="cv-seg" role="radiogroup" aria-label="Show as">
                 <button
                   type="button"

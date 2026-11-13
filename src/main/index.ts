@@ -612,7 +612,11 @@ function createWindow(): void {
       void addFileToBoard(path, name)
     }
   )
-  tabs.onViewAdded = () => dock.raise() // page views made later would otherwise cover it
+  // page views made later would otherwise cover these (the canvas preview's page over a waiting screen picker)
+  tabs.onViewAdded = () => {
+    dock.raise()
+    permissionManager.sync()
+  }
   tabs.onRefresh = () => {
     askSelection.sync() // the offer follows the page it was made for
     permissionManager.sync() // the same, and a question waiting for its tab shows once the tab is on screen

@@ -129,6 +129,8 @@ const ZOOM_MIN = ZOOM_LEVEL_MIN
 const ZOOM_MAX = ZOOM_LEVEL_MAX
 const PARKED_X = -20000 // where views wait, out of sight, while an overlay is open
 const MEMORY_SWEEP_MS = 30_000
+/** The tabs' state goes to the window at most this often (one frame). */
+const PUSH_EVERY_MS = 16
 const ESC_HOLD_MS = 1000
 const SOUND_HOLD_MS = 20_000 // how long a quiet stretch of playing media keeps its speaker
 const STACK_STEP = 160 // one card of the tab stack, in the renderer's wheel units
@@ -391,6 +393,8 @@ export class TabManager {
     spaces?: Array<{ spaceId: number; active: number | null; layout: LayoutNode | null }>
   }>('session-v2', { tabs: [], active: 0 })
   private sessionTimer: NodeJS.Timeout | null = null
+  private pushTimer: NodeJS.Timeout | NodeJS.Immediate | null = null
+  private pushedAt = 0
   private message: { id: number; text: string } | null = null
   private messageId = 0
   private messageTimer: NodeJS.Timeout | undefined
@@ -655,7 +659,7 @@ export class TabManager {
 
   /** A tab's page that is not on screen (a background tab). Anything that is not a tab's page is not hidden. */
   isHidden(wc: WebContents): boolean {
-    const visible = new Set(this.visibleIds())
+    const visible = new Set(this.onScreenIds())
     for (const [id, t] of this.tabs) if (liveContents(t) === wc) return !visible.has(id)
     return false
   }
@@ -863,6 +867,7 @@ export class TabManager {
     if (activate && !toBoard) this.activate(id, true)
     else this.refresh()
     if (toBoard) this.send('canvas:show-tab', id)
+    this.flushState() // the caller may hand the new id to the window straight away
     return id
   }
 
@@ -1840,18 +1845,28 @@ export class TabManager {
    * moment of a film or a call; a tab whose media is playing and was audible a moment ago stays marked through them.
    */
   /** Whether anything in the page really plays now (any frame's audio or video), set on `tab.media`. */
-  private checkPlaying(tab: Tab, wc: WebContents): void {
-    if (tab.private || tab.tor) return // no script into those pages for this
-    void Promise.race([
-      wc.executeJavaScript(PLAYING_SCRIPT, false),
-      new Promise((r) => setTimeout(() => r(null), 800))
-    ])
-      .then((v) => {
-        if (typeof v !== 'boolean' || wc.isDestroyed() || tab.media === v) return
-        tab.media = v
-        this.refresh()
-      })
-      .catch(() => undefined)
+  /** Ask the page whether anything plays; `fallback` is taken when it cannot say (no answer, or a private page). */
+  private checkPlaying(tab: Tab, wc: WebContents, fallback?: boolean): void {
+    const take = (v: unknown): void => {
+      const now = typeof v === 'boolean' ? v : fallback
+      if (now === undefined || wc.isDestroyed() || tab.media === now) return
+      tab.media = now
+      this.refresh()
+    }
+    if (tab.private || tab.tor) return take(null) // no script into those pages for this
+    // every frame: a video is often in one of its own (an embedded player); a frame that cannot answer counts as no
+    const frames = wc.mainFrame.framesInSubtree.filter((f) => !f.isDestroyed())
+    const ask = Promise.all(
+      frames.map((f) =>
+        f.executeJavaScript(PLAYING_SCRIPT, false).then(
+          (v) => v === true,
+          () => false
+        )
+      )
+    ).then((all) => all.some(Boolean))
+    void Promise.race([ask, new Promise((r) => setTimeout(() => r(null), 800))])
+      .then(take)
+      .catch(() => take(null))
   }
 
   private sounding(tab: Tab, wc: WebContents): boolean {
@@ -2208,6 +2223,12 @@ export class TabManager {
     this.liveRect = id !== null && rect ? rect : null
     // a video watched in the preview leaves it: its card takes the frame it was on
     if (prevId !== null && prevId !== id && this.canvasMode) this.grabStill(prevId)
+    // a page still playing as it leaves the preview streams to its card from now on: hidden (and throttled) until the
+    // board's next list, its video could be paused by Chromium and the card would show it stopped. The board's list
+    // (setStreaming) has the last word a moment later.
+    const leaving = prevId !== null && prevId !== id ? this.tabs.get(prevId) : undefined
+    if (leaving?.media && this.canvasMode && !leaving.private && !leaving.tor && !leaving.unloaded)
+      this.streaming.add(prevId!)
     if (
       prevId !== null &&
       prevId !== id &&
@@ -2327,6 +2348,9 @@ export class TabManager {
     if (this.canvasMode) {
       // the preview's live page is a native view over the board: the new-card popover would open under it, unseen
       if (this.previewOpen) this.send('canvas:preview-key', 'close')
+      // the keyboard is in a page view when Ctrl+T comes from one: the popover's field can only take typing once the
+      // window's own page has it
+      if (!this.win.isDestroyed()) this.win.webContents.focus()
       this.send('canvas:new')
     } else this.create()
   }
@@ -2631,11 +2655,9 @@ export class TabManager {
       refresh()
       this.checkPlaying(tab, wc)
     })
-    wc.on('media-paused', () => {
-      tab.media = false
-      refresh()
-      this.checkPlaying(tab, wc)
-    })
+    // not "stopped" at once: the page's answer decides, so a card's stream does not stop and start again when an
+    // ad or a hover preview pauses beside the main video. A page that cannot be asked takes the event's word.
+    wc.on('media-paused', () => this.checkPlaying(tab, wc, false))
     wc.on('did-start-navigation', (_e, _url, _inPlace, isMainFrame) => {
       if (isMainFrame) tab.media = false
     })
@@ -3032,7 +3054,7 @@ export class TabManager {
       const at = this.rects[id]
       tab.thumbSize = at ? { w: at.width, h: at.height } : { w: 0, h: 0 }
       tab.thumbAt = Date.now()
-      this.win.webContents.send('tabs:thumb', id, tab.thumb)
+      this.send('tabs:thumb', id, tab.thumb)
     } catch {
       // tab closed or view torn down mid-capture
     }
@@ -3123,7 +3145,7 @@ export class TabManager {
       tab.thumbSharp = false
       tab.thumbSize = { w: 0, h: 0 }
       tab.thumbAt = Date.now()
-      this.win.webContents.send('tabs:thumb', id, tab.thumb)
+      this.send('tabs:thumb', id, tab.thumb)
     } catch {
       // closed mid-capture
     }
@@ -3143,14 +3165,14 @@ export class TabManager {
     t.thumb = dataUrl
     t.thumbAt = Date.now()
     t.dirty = false
-    this.win.webContents.send('tabs:thumb', id, dataUrl)
+    this.send('tabs:thumb', id, dataUrl)
   }
 
   seedThumb(id: number, dataUrl: string): void {
     const t = this.tabs.get(id)
     if (!t || t.private || t.tor || t.thumb) return
     t.thumb = dataUrl
-    this.win.webContents.send('tabs:thumb', id, dataUrl)
+    this.send('tabs:thumb', id, dataUrl)
   }
 
   // ---- dark websites ----
@@ -3813,8 +3835,35 @@ export class TabManager {
     }
     this.applyVisibility()
     this.persistSession()
+    this.pushSoon()
+  }
+
+  /**
+   * Send the tabs' state to the window: at most once a frame. A page loading fires a burst of events (start, navigate,
+   * title, favicon, stop) and a busy app retitles itself often; each push rebuilds every tab's state and re-renders the
+   * whole interface, so a burst becomes one push. An event after a quiet spell still goes out at once.
+   */
+  private pushSoon(): void {
+    if (this.pushTimer) return
+    const wait = Math.max(0, this.pushedAt + PUSH_EVERY_MS - Date.now())
+    this.pushTimer = wait > 0 ? setTimeout(this.pushNow, wait) : setImmediate(this.pushNow)
+  }
+
+  /** Send any state still waiting now, so what follows reaches the window after it (a new tab's id, say). */
+  flushState(): void {
+    if (this.pushTimer) this.pushNow()
+  }
+
+  private readonly pushNow = (): void => {
+    if (this.pushTimer) {
+      clearTimeout(this.pushTimer as NodeJS.Timeout)
+      clearImmediate(this.pushTimer as NodeJS.Immediate)
+      this.pushTimer = null
+    }
+    if (this.win.isDestroyed()) return
+    this.pushedAt = Date.now()
     const state = this.state()
-    if (!this.win.isDestroyed()) this.win.webContents.send('tabs:state', state)
+    this.win.webContents.send('tabs:state', state)
     this.taskbar.update(windowAttention(state.spaceAttention))
     this.onRefresh?.()
     this.deps.spaces.setThemeOverride(
@@ -3846,6 +3895,7 @@ export class TabManager {
   }
 
   private send(channel: string, ...args: unknown[]): void {
+    this.flushState() // what is sent may name a tab the window must already know
     if (!this.win.isDestroyed()) this.win.webContents.send(channel, ...args)
   }
 }
