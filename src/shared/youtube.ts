@@ -158,13 +158,13 @@ export const YOUTUBE_OFF: YouTubeConfig = {
 
 /**
  * The page's config from the settings and the blocker's verdict for the page's site (its per-site exceptions
- * included), and whether this machine decodes AV1 in hardware. Null when there is nothing to do, so the page is left
+ * included), and which codecs this machine decodes in hardware. Null when there is nothing to do, so the page is left
  * entirely alone.
  */
 export function youtubeConfig(
   s: Settings,
   site: { blocking: boolean; cosmetic: boolean },
-  av1Hardware = true
+  hw: HwDecode = ALL_HARDWARE
 ): YouTubeConfig | null {
   const cfg: YouTubeConfig = {
     ads: site.blocking,
@@ -174,9 +174,7 @@ export function youtubeConfig(
     hideComments: s.youtubeHideComments,
     speed: s.youtubeSpeed,
     quality: s.youtubeQuality,
-    // Auto: AV1 only where the graphics card decodes it. Decoded in software it costs about half a core at 720p, for
-    // a picture VP9 (decoded in hardware nearly everywhere) gives as well
-    codec: s.youtubeCodec === 'auto' && !av1Hardware ? 'no-av1' : s.youtubeCodec,
+    codec: s.youtubeCodec === 'auto' ? autoCodec(hw) : s.youtubeCodec,
     theater: s.youtubeTheater,
     autoplay: s.youtubeAutoplay
   }
@@ -348,6 +346,26 @@ export function pickQuality(available: readonly string[], preferred: string): st
   if (preferred === 'max' || rank(preferred) < 0) return levels[0]
   return levels.find((q) => rank(q) >= rank(preferred)) ?? levels[levels.length - 1]
 }
+
+/** Which of YouTube's codecs the graphics hardware decodes (H.264 is taken as given: every machine does it). */
+export interface HwDecode {
+  av1: boolean
+  vp9: boolean
+}
+export const ALL_HARDWARE: HwDecode = { av1: true, vp9: true }
+
+/**
+ * The codec "auto" means on this machine: the best one decoded in hardware. Decoded in software, AV1 costs about
+ * half a core of a fast desktop at 720p (dav1d) and VP9 nearly as much, which a cheap laptop has not got to spare:
+ * there H.264 plays smoothly for a fraction of it (and still goes up to 1080p).
+ */
+export function autoCodec(hw: HwDecode): YouTubeCodec {
+  return !hw.vp9 ? 'h264' : !hw.av1 ? 'no-av1' : 'auto'
+}
+
+/** Run in a page of ours: [AV1, VP9] decoded in hardware at 720p (power efficient: the graphics hardware does it). */
+export const HW_DECODE_PROBE = `Promise.all(['video/mp4; codecs="av01.0.08M.08"', 'video/webm; codecs="vp09.00.40.08"'].map((contentType) =>
+  navigator.mediaCapabilities.decodingInfo({ type: 'media-source', video: { contentType, width: 1280, height: 720, bitrate: 2000000, framerate: 30 } }).then((r) => r.powerEfficient)))`
 
 /** Whether a media type may be offered to YouTube under a codec preference. */
 export function codecAllowed(type: string, codec: string): boolean {

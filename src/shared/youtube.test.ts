@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS } from './settings'
 import type { Settings } from './types'
 import {
   YOUTUBE_OFF,
+  autoCodec,
   codecAllowed,
   isYouTubeAdRequest,
   isYouTubeHost,
@@ -235,12 +236,20 @@ describe('youtubeConfig', () => {
     expect(cfg).toEqual({ ...YOUTUBE_OFF, hideShorts: true })
   })
 
-  test('auto avoids AV1 only where it would be decoded in software', () => {
+  test('auto takes the best codec the graphics hardware decodes', () => {
+    expect(autoCodec({ av1: true, vp9: true })).toBe('auto')
+    expect(autoCodec({ av1: false, vp9: true })).toBe('no-av1')
+    expect(autoCodec({ av1: false, vp9: false })).toBe('h264')
+    expect(autoCodec({ av1: true, vp9: false })).toBe('h264')
+  })
+
+  test('the hardware only changes auto, never a codec picked in Settings', () => {
     const off = { blocking: false, cosmetic: true }
-    expect(youtubeConfig(DEFAULT_SETTINGS, off, false)?.codec).toBe('no-av1')
-    expect(youtubeConfig(DEFAULT_SETTINGS, off, true)).toBeNull()
-    const h264 = { ...DEFAULT_SETTINGS, youtubeCodec: 'h264' as const }
-    expect(youtubeConfig(h264, off, false)?.codec).toBe('h264')
+    const soft = { av1: false, vp9: false }
+    expect(youtubeConfig(DEFAULT_SETTINGS, off, soft)?.codec).toBe('h264')
+    expect(youtubeConfig(DEFAULT_SETTINGS, off, { av1: true, vp9: true })).toBeNull()
+    const noAv1 = { ...DEFAULT_SETTINGS, youtubeCodec: 'no-av1' as const }
+    expect(youtubeConfig(noAv1, off, soft)?.codec).toBe('no-av1')
   })
 })
 
