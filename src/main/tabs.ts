@@ -5,6 +5,7 @@ import {
   dialog,
   Menu,
   nativeTheme,
+  powerMonitor,
   shell,
   webFrameMain,
   WebContentsView,
@@ -158,6 +159,8 @@ const WARM_MAX_MS = 350
 /** Pre-loading after a restart waits this long after the start, and this long between tabs (see preloadRecent). */
 const PRELOAD_START_MS = 5000
 const PRELOAD_GAP_MS = 1500
+/** ...and each waits until there has been no input (keys, mouse, touchpad) for this many seconds. */
+const PRELOAD_IDLE_S = 3
 /** The tabs' state goes to the window at most this often (one frame). */
 const PUSH_EVERY_MS = 16
 const ESC_HOLD_MS = 1000
@@ -1407,6 +1410,10 @@ export class TabManager {
       const t = this.tabs.get(id)
       if (this.win.isDestroyed() || this.deps.settings.get().preloadTabs === 0) return
       if (!t?.pending) continue // opened (or closed) meanwhile
+      // only while the person is not using the computer: a heavy page loading (YouTube took most of a 2-core
+      // machine for ten seconds) made the board and pages on screen stutter
+      await until(() => powerMonitor.getSystemIdleTime() >= PRELOAD_IDLE_S, 10 * 60_000)
+      if (!t.pending || this.win.isDestroyed()) continue
       t.lastShownAt = Date.now() // fresh: the memory saver does not unload it straight away
       this.ensureLoaded(id, t)
       await until(() => !t.awaiting, 10_000)
