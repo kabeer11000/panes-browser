@@ -68,7 +68,7 @@ import type { TorManager } from './tor'
 import { ZAP_PREFIX, ZAP_SCRIPT } from '@shared/zap'
 import { errorPageUrl } from '@shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
-import { totalmem } from 'os'
+import { freemem, totalmem } from 'os'
 import { VIDEO_RECT_SCRIPT, videoRegion, type VideoRegion } from '@shared/ai/tabStream'
 import { applyIdentity, followIdentity } from './identity'
 import { wantsChromeIdentity } from '@shared/identity'
@@ -77,6 +77,7 @@ import { runningMode } from './performance'
 import {
   pickPreloads,
   pickRests,
+  memoryNeedMb,
   pickUnloads,
   type MemoryPolicy,
   type Rest,
@@ -3967,8 +3968,24 @@ export class TabManager {
   private memoryFacts(): TabFacts[] {
     const facts: TabFacts[] = []
     const visible = this.onScreenIds()
+    // each tab's share of its process's memory (tabs of one site share one), for the heaviest-first picks
+    const kbOf = new Map<number, number>()
+    for (const m of app.getAppMetrics())
+      kbOf.set(m.pid, m.memory.privateBytes ?? m.memory.workingSetSize)
+    const pidOf = new Map<number, number>()
+    const sharing = new Map<number, number>()
+    for (const [id, t] of this.tabs) {
+      const wc = !t.unloaded && liveContents(t)
+      if (!wc) continue
+      const pid = wc.getOSProcessId()
+      pidOf.set(id, pid)
+      sharing.set(pid, (sharing.get(pid) ?? 0) + 1)
+    }
     for (const [id, t] of this.tabs) {
       const wc = liveContents(t)
+      const pid = pidOf.get(id)
+      const kb = pid === undefined ? undefined : kbOf.get(pid)
+      const mb = kb === undefined ? undefined : kb / 1024 / (sharing.get(pid!) ?? 1)
       const url = t.unloaded || !wc ? '' : wc.getURL()
       const isWeb = /^(https?|file):/i.test(url)
       let host = ''
@@ -3994,7 +4011,8 @@ export class TabManager {
         inActiveSpace: t.spaceId === this.activeSpaceId,
         lastShownAt: t.lastShownAt,
         // WhatsApp, Slack, mail: once it has notified or shown an unread count, it stays to tell of new ones
-        messenger: (t.notes?.size ?? 0) > 0 || t.attention.count > 0 || t.attention.seenCount > 0
+        messenger: (t.notes?.size ?? 0) > 0 || t.attention.count > 0 || t.attention.seenCount > 0,
+        mb
       })
     }
     return facts
@@ -4004,7 +4022,8 @@ export class TabManager {
   sweepMemory(force = false): number {
     if (this.win.isDestroyed()) return 0
     const facts = this.memoryFacts()
-    const ids = pickUnloads(facts, this.memoryPolicy(), Date.now(), force)
+    const needMb = force ? 0 : memoryNeedMb(freemem() / 1024 ** 2, totalmem() / 1024 ** 2)
+    const ids = pickUnloads(facts, this.memoryPolicy(), Date.now(), force, needMb)
     for (const id of ids) this.unload(id)
     if (ids.length > 0) this.refresh()
     if (!force) this.rest(facts.filter((f) => !ids.includes(f.id)))

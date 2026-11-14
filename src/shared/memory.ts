@@ -95,18 +95,40 @@ export interface TabFacts {
   /** A site that messages the person (it has sent a notification or shown an unread count): unloaded, it could
    *  not tell of new messages, so it is kept, except by "free memory now". */
   messenger?: boolean
+  /** Its share of its process's private memory, MB (tabs of one site share a process); unknown when absent. */
+  mb?: number
 }
+
+/**
+ * Free memory, MB, below which the computer is short (Chromium's own lines on Windows: 500 MB on a 4 GB machine,
+ * 1 GB above). Short, Windows soon starts paging to disk, which is the slowness people feel; hidden tabs go first.
+ */
+export const memoryShortMb = (totalMb: number): number => (totalMb <= 4096 ? 500 : 1000)
+
+/** How much to free now (MB): up to half again over the line, so one sweep is not followed by another. 0: not short. */
+export function memoryNeedMb(freeMb: number, totalMb: number): number {
+  const line = memoryShortMb(totalMb)
+  return freeMb < line ? Math.round(line * 1.5 - freeMb) : 0
+}
+
+/** Short of memory, a tab hidden at least this long may go (not one just switched away from). */
+export const SHORT_MIN_HIDDEN_MS = 60_000
+/** Over the loaded-tab limit, tabs not shown for this long go heaviest first; more recent ones only after them. */
+export const HEAVY_FIRST_AFTER_MS = 5 * 60_000
 
 /**
  * Which tabs to unload now. Visible, busy and listed-site tabs are never picked. With `force`
  * every other loaded tab goes (the "free memory now" button); otherwise a tab goes once it has
- * been idle long enough, and then the least recently shown ones go until the loaded-tab limit holds.
+ * been idle long enough, then more go until the loaded-tab limit holds, and then, when the computer
+ * is short of memory (`needMb`, see memoryNeedMb), until that much is freed. Those last two take the
+ * tabs not shown for a while heaviest first, then the least recently shown.
  */
 export function pickUnloads(
   tabs: readonly TabFacts[],
   policy: MemoryPolicy,
   now: number,
-  force = false
+  force = false,
+  needMb = 0
 ): number[] {
   if (!policy.enabled && !force) return []
   const eligible = tabs.filter(
@@ -122,15 +144,31 @@ export function pickUnloads(
     if (now - t.lastShownAt >= policy.idleMin * 60_000) picked.add(t.id)
   }
 
+  const stale = (t: TabFacts): boolean => now - t.lastShownAt >= HEAVY_FIRST_AFTER_MS
+  const byCost = (a: TabFacts, b: TabFacts): number =>
+    stale(a) !== stale(b)
+      ? stale(a)
+        ? -1
+        : 1
+      : (stale(a) && (b.mb ?? 0) - (a.mb ?? 0)) || a.lastShownAt - b.lastShownAt
   if (policy.maxLoaded > 0) {
     let loaded = tabs.filter((t) => t.loaded && !picked.has(t.id)).length
-    const oldestFirst = mayGo
-      .filter((t) => !picked.has(t.id))
-      .sort((a, b) => a.lastShownAt - b.lastShownAt)
-    for (const t of oldestFirst) {
+    for (const t of mayGo.filter((t) => !picked.has(t.id)).sort(byCost)) {
       if (loaded <= policy.maxLoaded) break
       picked.add(t.id)
       loaded--
+    }
+  }
+  if (needMb > 0) {
+    let freed = 0
+    for (const t of mayGo) if (picked.has(t.id)) freed += t.mb ?? 0
+    const more = mayGo
+      .filter((t) => !picked.has(t.id) && now - t.lastShownAt >= SHORT_MIN_HIDDEN_MS)
+      .sort(byCost)
+    for (const t of more) {
+      if (freed >= needMb) break
+      picked.add(t.id)
+      freed += t.mb ?? 0
     }
   }
   return [...picked]

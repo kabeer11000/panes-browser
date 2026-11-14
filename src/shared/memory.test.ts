@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  memoryNeedMb,
+  memoryShortMb,
   normalizeSites,
   normalizeZoom,
   pickPreloads,
@@ -32,6 +34,62 @@ const tab = (id: number, over: Partial<TabFacts> = {}): TabFacts => ({
   inActiveSpace: true,
   lastShownAt: 0,
   ...over
+})
+
+describe('memory pressure', () => {
+  test("Chromium's lines: 500 MB free on a 4 GB machine, 1 GB above", () => {
+    expect(memoryShortMb(4096)).toBe(500)
+    expect(memoryShortMb(8192)).toBe(1000)
+  })
+  test('nothing to free above the line; below it, back to half again over it', () => {
+    expect(memoryNeedMb(1000, 8192)).toBe(0)
+    expect(memoryNeedMb(600, 8192)).toBe(900)
+    expect(memoryNeedMb(200, 4096)).toBe(550)
+  })
+})
+
+describe('pickUnloads under memory pressure and the tab limit', () => {
+  const now = 100 * MIN
+  const short = { ...policy, idleMin: 240 } // nothing idle long enough on its own
+
+  test('short of memory, hidden tabs go heaviest first until enough is freed', () => {
+    const tabs = [
+      tab(1, { lastShownAt: now - 20 * MIN, mb: 100 }),
+      tab(2, { lastShownAt: now - 20 * MIN, mb: 700 }),
+      tab(3, { lastShownAt: now - 20 * MIN, mb: 300 })
+    ]
+    expect(pickUnloads(tabs, short, now, false, 0)).toEqual([])
+    expect(pickUnloads(tabs, short, now, false, 600)).toEqual([2])
+    expect(pickUnloads(tabs, short, now, false, 900).sort()).toEqual([2, 3])
+  })
+
+  test('short of memory, a tab just switched away from, a visible, busy, messaging or listed one stays', () => {
+    const tabs = [
+      tab(1, { lastShownAt: now - 30_000, mb: 900 }),
+      tab(2, { lastShownAt: now - 20 * MIN, mb: 900, visible: true }),
+      tab(3, { lastShownAt: now - 20 * MIN, mb: 900, busy: true }),
+      tab(4, { lastShownAt: now - 20 * MIN, mb: 900, messenger: true }),
+      tab(5, { lastShownAt: now - 20 * MIN, mb: 900, host: 'keep.me' }),
+      tab(6, { lastShownAt: now - 20 * MIN, mb: 50 })
+    ]
+    expect(pickUnloads(tabs, { ...short, neverSites: ['keep.me'] }, now, false, 5000)).toEqual([6])
+  })
+
+  test('short of memory with the saver off: nothing goes', () => {
+    const tabs = [tab(1, { lastShownAt: now - 20 * MIN, mb: 900 })]
+    expect(pickUnloads(tabs, { ...short, enabled: false }, now, false, 5000)).toEqual([])
+  })
+
+  test('over the tab limit, the heaviest of those not shown for a while goes before older light ones', () => {
+    const tabs = [
+      tab(1, { lastShownAt: now - 60 * MIN, mb: 80 }),
+      tab(2, { lastShownAt: now - 10 * MIN, mb: 900 }),
+      tab(3, { lastShownAt: now - 2 * MIN, mb: 2000 }), // shown just now: only after the stale ones
+      tab(4, { lastShownAt: now - 1 * MIN, mb: 10 })
+    ]
+    expect(pickUnloads(tabs, { ...short, maxLoaded: 3 }, now)).toEqual([2])
+    expect(pickUnloads(tabs, { ...short, maxLoaded: 1 }, now)).toEqual([2, 1, 3])
+  })
 })
 
 describe('pickUnloads', () => {
