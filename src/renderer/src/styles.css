@@ -53,7 +53,7 @@
 
 /* ---- tokens ---- */
 :root {
-  --bg: rgba(20, 20, 26, 0.8);
+  --bg: rgb(20 20 26);
   --surface: rgba(255, 255, 255, 0.07);
   --surface-hover: rgba(255, 255, 255, 0.12);
   --surface-active: rgba(255, 255, 255, 0.18);
@@ -2039,7 +2039,7 @@ button {
 
 /* ---- light mode: the same tokens, flipped. Applies to the root and to any element that sets data-scheme. ---- */
 [data-scheme='light'] {
-  --bg: rgb(238 238 244 / 0.86);
+  --bg: rgb(238 238 244);
   --surface: rgb(0 0 0 / 0.06);
   --surface-hover: rgb(0 0 0 / 0.1);
   --surface-active: rgb(0 0 0 / 0.15);
@@ -3495,14 +3495,6 @@ kbd {
 [data-fx='low'] .pane,
 [data-fx='low'] .tab-list {
   transition: none !important;
-}
-
-/* efficient mode also drops the see-through window background: nothing behind the window can flash through a repaint */
-[data-fx='low'] {
-  --bg: rgb(20 20 26);
-}
-[data-fx='low'][data-scheme='light'] {
-  --bg: rgb(238 238 244);
 }
 
 /* ---- tabs that look like tabs, not pills ---- */

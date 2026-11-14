@@ -130,8 +130,9 @@ function createWindow(): void {
     minHeight: 480,
     show: false,
     icon,
-    backgroundColor: '#00000000',
-    backgroundMaterial: 'mica',
+    // opaque, no Mica: a see-through window costs compositing memory and work under every frame. Its colour is only
+    // seen before the interface paints (the interface paints its own background, see --bg)
+    backgroundColor: isMac ? '#00000000' : nativeTheme.shouldUseDarkColors ? '#14141a' : '#eeeef4',
     ...(isMac
       ? {
           titleBarStyle: 'hidden' as const,
