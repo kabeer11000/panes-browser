@@ -59,8 +59,6 @@ interface CardProps {
   onStill?: (id: number, src: string) => void
   /** Its tab is in a call: the live picture is the whole page (all its people), not one video. */
   call?: boolean
-  /** How recently its tab was used (see recentHeat): 0 not lately, up to 3 just now. Drawn as a soft glow. */
-  heat?: number
 }
 
 function PdfFace({
@@ -349,8 +347,7 @@ export const CardView = memo(
     live = 0,
     onVideoAspect,
     onStill,
-    call = false,
-    heat = 0
+    call = false
   }: CardProps): React.JSX.Element {
     const label = `${m.title}${m.site ? `, ${m.site}` : ''}${m.kind === 'pdf' ? ', PDF' : m.kind === 'image' ? ', image' : m.kind === 'video' ? ', video' : m.kind === 'answer' ? ', answer' : ''}${m.current ? ', current tab' : ''}`
     const cardAspect = w / h
@@ -363,8 +360,7 @@ export const CardView = memo(
           (m.current ? ' current' : '') +
           (fresh ? ' fresh' : '') +
           (hidden ? ' away' : '') +
-          (m.asleep ? ' asleep' : '') +
-          (heat > 0 ? ` heat-${heat}` : '')
+          (m.asleep ? ' asleep' : '')
         }
         data-cid={m.id}
         style={
@@ -491,7 +487,6 @@ export const CardView = memo(
     a.onVideoAspect === b.onVideoAspect &&
     a.onStill === b.onStill &&
     a.call === b.call &&
-    a.heat === b.heat &&
     a.live === b.live &&
     sameModel(a.m, b.m)
 )

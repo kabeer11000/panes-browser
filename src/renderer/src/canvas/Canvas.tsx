@@ -119,7 +119,6 @@ import { WidgetView } from './Widgets'
 import { WIDGET_LABEL, type Widget, type WidgetKind } from '@shared/widgets'
 import { pickStreams, streamCap } from '@shared/ai/tabStream'
 import { boardLabels } from '@shared/ai/canvasLabels'
-import { recentHeat } from '@shared/ai/heat'
 import { isCapturing } from '@shared/capture'
 import { attentionLabel, groupWaiting, NO_ATTENTION } from '@shared/attention'
 import { TabFavicon } from '@renderer/components/TabFavicon'
@@ -634,14 +633,6 @@ export function Canvas({
     () => new Set(tabs.filter((t) => isCapturing(t.capture)).map((t) => t.id)),
     [tabs]
   )
-  // the cards of the tabs used last glow softly, fading over a few hours (re-read every few minutes as it cools)
-  const [heatNow, setHeatNow] = useState(() => Date.now())
-  useEffect(() => {
-    const t = window.setInterval(() => setHeatNow(Date.now()), 5 * 60_000)
-    return () => window.clearInterval(t)
-  }, [])
-  // a tab just used has a usedAt past heatNow: it reads as warmest, which it is
-  const heat = useMemo(() => recentHeat(tabs, heatNow), [tabs, heatNow])
   // how wide each card on screen is now, for the streams: too small a card is not worth one, larger ones go first
   const cardPx = useMemo(() => {
     const m = new Map<number, number>()
@@ -5335,7 +5326,6 @@ export function Canvas({
                 streams.has(c.id) ? Math.max(40, Math.round((cw * zoomPct) / 100 / 40) * 40) : 0
               }
               call={calls.has(c.id)}
-              heat={heat.get(c.id) ?? 0}
             />
           )
         })}
