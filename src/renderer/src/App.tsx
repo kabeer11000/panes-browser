@@ -511,6 +511,19 @@ function App(): React.JSX.Element {
   const effective = { ...settings, ...activeSpace?.ui }
   // the tour: once, as the first-run tour ends (onboarding just done), and whenever "Take the tour" is picked
   const [tourOpen, setTourOpen] = useState(false)
+  /** A quick action picked in the search popover, from a tab or from the canvas alike. */
+  const runSearchAction = (id: string): void => {
+    if (id === 'new-space') window.api.createSpace()
+    else if (id === 'sidebar') toggleSidebar()
+    else if (id === 'grid') void openOverlay('grid')
+    else if (id === 'canvas') toggleCanvas()
+    else if (id === 'tour') setTourOpen(true)
+    else if (id === 'chat' && !inCanvasRef.current) {
+      setChatOpen(true)
+      setChatFocus((k) => k + 1)
+    } else if (id === 'ai-settings') window.api.chatAction('settings')
+    else window.api.runAction(id) // everything else main does (TabManager.runAction)
+  }
   const [wasOnboarded, setWasOnboarded] = useState<boolean | null>(null)
   if (settingsReady && settings.onboarded !== wasOnboarded) {
     setWasOnboarded(settings.onboarded)
@@ -1128,16 +1141,7 @@ function App(): React.JSX.Element {
                   onClose={closeOverlay}
                   onAction={(id) => {
                     closeOverlay()
-                    if (id === 'new-space') window.api.createSpace()
-                    else if (id === 'sidebar') toggleSidebar()
-                    else if (id === 'grid') void openOverlay('grid')
-                    else if (id === 'canvas') toggleCanvas()
-                    else if (id === 'tour') setTourOpen(true)
-                    else if (id === 'chat' && !inCanvasRef.current) {
-                      setChatOpen(true)
-                      setChatFocus((k) => k + 1)
-                    } else if (id === 'ai-settings') window.api.chatAction('settings')
-                    else window.api.runAction(id) // everything else main does (TabManager.runAction)
+                    runSearchAction(id)
                   }}
                 />
               )}
@@ -1167,9 +1171,13 @@ function App(): React.JSX.Element {
                   variant="dropdown"
                   anchor={cvSearch.anchor}
                   initial={cvSearch.initial}
+                  thumbs={thumbs}
                   onPick={(text) => answerCvSearch(cvSearch.req, text)}
                   onClose={() => answerCvSearch(cvSearch.req, null)}
-                  onAction={() => answerCvSearch(cvSearch.req, null)}
+                  onAction={(id) => {
+                    answerCvSearch(cvSearch.req, null)
+                    runSearchAction(id)
+                  }}
                 />
               )}
             </AnimatePresence>

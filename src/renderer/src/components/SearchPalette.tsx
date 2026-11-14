@@ -285,12 +285,13 @@ export function SearchPalette({
   }
   const run = (r: SearchResult | undefined, how: 'current' | 'tab' | 'split'): void => {
     const text = shown.trim()
+    if (r?.kind === 'action') return onAction(r.actionId as string) // the same in the canvas as on a tab
     if (onPick) {
       const picked = !r
         ? text
         : r.kind === 'tab'
           ? (tabs.find((t) => t.id === r.tabId)?.url ?? text)
-          : r.kind === 'go' || r.kind === 'search' || r.kind === 'action'
+          : r.kind === 'go' || r.kind === 'search'
             ? text
             : (r.url ?? r.title)
       if (picked) onPick(picked)
@@ -301,7 +302,6 @@ export function SearchPalette({
       return onClose()
     }
     if (r.kind === 'tab') return switchTo(r.tabId as number)
-    if (r.kind === 'action') return onAction(r.actionId as string)
     const target = r.kind === 'go' || r.kind === 'search' ? text : (r.url ?? r.title)
     if (how === 'tab') window.api.createTab(target)
     else if (how === 'split') window.api.openInSplit(target)
@@ -309,12 +309,29 @@ export function SearchPalette({
     onClose()
   }
 
+  /** Put text in the field (the input is uncontrolled), leaving the list as it is. */
+  const fill = (text: string): void => {
+    if (inputRef.current) inputRef.current.value = text
+    setShown(text)
+  }
+  /** Moving the pick with the keys puts its address or suggestion in the field, to edit before opening. */
+  const pick = (i: number): void => {
+    setSel(i)
+    const r = results[i]
+    const base = dirty ? typed : (initial ?? active?.url ?? '')
+    fill(
+      !r || r.kind === 'go' || r.kind === 'search' || r.kind === 'action'
+        ? base
+        : (r.url ?? r.title)
+    )
+  }
+
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>): void => {
     const last = results.length - 1
     if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) {
-      setSel(current >= last ? 0 : current + 1)
+      pick(current >= last ? 0 : current + 1)
     } else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) {
-      setSel(current <= 0 ? last : current - 1)
+      pick(current <= 0 ? last : current - 1)
     } else if (e.key === 'Enter' && e.shiftKey) {
       // what was typed, as a search or an address, even with a tab matching it at the top
       run(
@@ -330,7 +347,7 @@ export function SearchPalette({
       const r = results[current]
       const text = r.kind === 'tab' || r.kind === 'action' ? r.title : (r.url ?? r.title)
       setForward(false)
-      setShown(text)
+      fill(text)
       setTyped(text)
       setDirty(true)
     } else if (e.key === 'Escape') {
