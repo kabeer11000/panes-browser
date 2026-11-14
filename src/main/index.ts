@@ -202,7 +202,7 @@ function createWindow(): void {
 
   // Login pages would otherwise open the Windows passkey dialog by themselves as they load (shared/passkeys.ts).
   for (const s of [tabSession, privateSession, torSession])
-    s.registerPreloadScript({ type: 'frame', filePath: join(__dirname, '../preload/passkeys.js') })
+    s.registerPreloadScript({ type: 'frame', filePath: join(__dirname, '../preload/frame.js') })
 
   const settings = new SettingsStore()
   const history = new HistoryStore()
@@ -665,6 +665,7 @@ function createWindow(): void {
   registerTabCard(win, (id) => tabs.cardInfo(id))
   // the screen-share picker opens with its list already there, not half a second to a second and a half later
   setTimeout(() => void warmShareList(), 20_000).unref()
+  setTimeout(() => permissionManager.warm(), 6_000).unref()
   // the pointer rests on a tab or a card: it is likely to be opened next, so it gets ready now
   ipcMain.on('tabs:intent', (e, id: unknown) => {
     if (e.sender === win.webContents && typeof id === 'number') tabs.prewarm(id)

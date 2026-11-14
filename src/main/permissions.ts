@@ -20,6 +20,7 @@ import { join } from 'path'
 import {
   ALWAYS_ALLOWED,
   grantIn,
+  isPermKind,
   kindsFor,
   liveGrants,
   ONCE_MS,
@@ -289,6 +290,19 @@ export class PermissionManager {
       const shown = this.shown
       if (fromView(e) && shown && shown.state.id === id) this.answer(shown, answer)
     })
+    // A page's own frames asking what they may do (preload/frame.ts): the setting, so "ask" reads as "prompt".
+    ipcMain.handle('perm:setting', (e, kind: unknown): PermSetting | null => {
+      const frame = e.senderFrame
+      const store = this.stores.get(e.sender.session)
+      if (!frame || !store || !isPermKind(kind) || kind === 'screen') return null
+      const origin = permissionOrigin([kind], frame.url, frame.top?.url)
+      return origin ? store.setting(origin, kind) : null
+    })
+  }
+
+  /** Make the card's page now, so the first question shows at once instead of after a page loads. */
+  warm(): void {
+    if (!this.d.win.isDestroyed()) this.ensureView()
   }
 
   /** The answers pages in `session` are given. */
@@ -653,6 +667,19 @@ export class PermissionManager {
       if (wc.isDestroyed() || wc.session !== session) continue
       const origin = originOf(wc.getURL())
       if (!origin || (change.origin !== null && origin !== change.origin)) continue
+      // Its frames read the new setting and tell the page (preload/frame.ts): no reload needed to see it.
+      for (const f of wc.mainFrame.framesInSubtree) {
+        try {
+          f.send('perm:changed')
+        } catch {
+          // a frame going away
+        }
+      }
+      // A page refused before now hears the new answer; one holding access that is taken away may still need a
+      // reload (a running location watch), so that stays as the page was told.
+      const told = this.answers.get(wc.id) ?? {}
+      const heard = change.kinds.filter((k) => told[k] && !told[k].granted)
+      if (heard.length > 0) this.tell(wc, store, origin, heard, null)
       // A blocked camera, microphone or screen share stops now, as in Chrome, rather than at the next reload.
       const stop = captureKindsOf(change.kinds.filter((k) => store.get(origin, k) === 'block'))
       if (stop.length === 0) continue
@@ -675,7 +702,11 @@ export class PermissionManager {
   private ensureView(): WebContentsView {
     if (this.view) return this.view
     const view = new WebContentsView({
-      webPreferences: { sandbox: true, preload: join(__dirname, '../preload/permission.js') }
+      webPreferences: {
+        sandbox: true,
+        preload: join(__dirname, '../preload/permission.js'),
+        backgroundThrottling: false // hidden between questions: the next one must draw at once
+      }
     })
     view.setBackgroundColor('#00000000')
     const devUrl = process.env['ELECTRON_RENDERER_URL']

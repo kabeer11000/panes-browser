@@ -5,7 +5,7 @@
  * whose passkey dialog then opens by itself on every login page. The same goes for a site upgrading a password to a
  * passkey after login (`create` with `mediation: 'conditional'`).
  *
- * This runs in each page's own world before its scripts (preload/passkeys.ts) and says conditional mediation is not
+ * This runs in each page's own world before its scripts (preload/frame.ts) and says conditional mediation is not
  * available, which every site already handles: it shows its "Sign in with a passkey" button instead, and a click on
  * that (an ordinary request) still opens the Windows dialog as it should. A conditional request made anyway waits,
  * as it would with nothing picked, until the page aborts it.

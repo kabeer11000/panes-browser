@@ -35,7 +35,7 @@ export default defineConfig({
           dock: resolve('src/preload/dock.ts'),
           youtube: resolve('src/preload/youtube.ts'),
           adblock: resolve('src/preload/adblock.ts'),
-          passkeys: resolve('src/preload/passkeys.ts')
+          frame: resolve('src/preload/frame.ts')
         }
       }
     }
