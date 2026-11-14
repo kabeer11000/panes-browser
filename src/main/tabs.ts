@@ -74,9 +74,11 @@ import { applyIdentity, followIdentity } from './identity'
 import { wantsChromeIdentity } from '@shared/identity'
 import { PdfViewerHelper } from './pdf'
 import { runningMode } from './performance'
+import { trimProcess } from './trim'
 import {
   pickPreloads,
   pickRests,
+  pidsToTrim,
   memoryNeedMb,
   pickUnloads,
   type MemoryPolicy,
@@ -4038,6 +4040,13 @@ export class TabManager {
    * (see pickRests). Nothing is reloaded: shown again, a page is exactly as it was, at once.
    */
   private rest(facts: TabFacts[]): void {
+    const framePids = (wc: WebContents): number[] => {
+      try {
+        return wc.mainFrame.framesInSubtree.map((f) => f.osProcessId)
+      } catch {
+        return [] // the page is going away
+      }
+    }
     const restFacts: RestFacts[] = []
     for (const f of facts) {
       const t = this.tabs.get(f.id)
@@ -4047,25 +4056,35 @@ export class TabManager {
         ...f,
         rest: t.rest,
         pid: wc.getOSProcessId(),
-        notifies: this.notifies(wc.getURL())
+        notifies: this.notifies(wc.getURL()),
+        framePids: framePids(wc)
       })
     }
     const { purge, freeze } = pickRests(restFacts, this.memoryPolicy(), Date.now())
-    const send = (t: Tab, method: string, params: object): void => {
+    const send = (t: Tab, method: string, params: object): Promise<unknown> => {
       const wc = liveContents(t)
-      if (wc?.debugger.isAttached())
-        void wc.debugger.sendCommand(method, params).catch(() => undefined)
+      return wc?.debugger.isAttached()
+        ? wc.debugger.sendCommand(method, params).catch(() => undefined)
+        : Promise.resolve()
     }
     for (const id of purge) {
       const t = this.tabs.get(id)!
       t.rest = 'purged'
-      send(t, 'Memory.simulatePressureNotification', { level: 'moderate' }) // keeps decoded images: less to redo on return
+      void send(t, 'Memory.simulatePressureNotification', { level: 'moderate' }) // keeps decoded images: less to redo on return
     }
+    const frozen: Promise<unknown>[] = []
     for (const id of freeze) {
       const t = this.tabs.get(id)!
       t.rest = 'frozen'
-      send(t, 'Page.setWebLifecycleState', { state: 'frozen' })
+      frozen.push(send(t, 'Page.setWebLifecycleState', { state: 'frozen' }))
     }
+    // a process all of whose pages are now frozen gives its memory back to Windows (main/trim.ts): shown again, the
+    // tab carries on as it was, no reload
+    const trim = pidsToTrim(restFacts, freeze)
+    if (trim.length > 0)
+      void Promise.all(frozen).then(() => {
+        for (const pid of trim) trimProcess(pid)
+      })
   }
 
   /** Throw a tab's page away, keeping its title, icon, snapshot and address so it comes back when shown. */

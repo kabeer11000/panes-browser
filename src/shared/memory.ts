@@ -187,6 +187,8 @@ export interface RestFacts extends TabFacts {
   pid: number
   /** The site may send notifications: frozen, it could not, so it is never frozen. */
   notifies: boolean
+  /** The processes of its frames from other sites (ads, embeds), which Chromium runs apart from `pid`. */
+  framePids?: readonly number[]
 }
 
 /**
@@ -241,4 +243,21 @@ export function pickPreloads(
     .sort((a, b) => b.t.usedAt - a.t.usedAt || a.i - b.i)
     .slice(0, Math.max(0, count))
     .map(({ t }) => t.id)
+}
+
+/**
+ * The processes to hand back to the system (main/trim.ts) once `frozenNow` are frozen, a tab's frames' processes
+ * included: those every loaded tab using which is frozen, with at least one just frozen (one already trimmed is not trimmed again). A process shared with a
+ * tab still running, or on screen, is left alone: that tab would only pull the memory straight back.
+ */
+export function pidsToTrim(tabs: readonly RestFacts[], frozenNow: readonly number[]): number[] {
+  const now = new Set(frozenNow)
+  const all = (t: RestFacts): number[] => [t.pid, ...(t.framePids ?? [])]
+  const ok = new Map<number, boolean>()
+  for (const t of tabs) {
+    const frozen = now.has(t.id) || t.rest === 'frozen'
+    for (const pid of all(t)) ok.set(pid, (ok.get(pid) ?? true) && frozen)
+  }
+  const pids = new Set(tabs.filter((t) => now.has(t.id)).flatMap(all))
+  return [...pids].filter((pid) => ok.get(pid))
 }

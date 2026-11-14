@@ -7,6 +7,7 @@ import {
   pickPreloads,
   OTHER_SPACE_IDLE_MIN,
   pickRests,
+  pidsToTrim,
   pickUnloads,
   presetOf,
   REST_FREEZE_MS,
@@ -298,5 +299,38 @@ describe('pickPreloads', () => {
   })
   test('ties keep the tab order', () => {
     expect(pickPreloads([t(1, 5), t(2, 5)], 2)).toEqual([1, 2])
+  })
+})
+
+describe('pidsToTrim', () => {
+  const rt = (id: number, pid: number, rest: RestFacts['rest'] = 'awake'): RestFacts => ({
+    ...tab(id),
+    rest,
+    pid,
+    notifies: false
+  })
+
+  test('a process whose only tab was just frozen is trimmed', () => {
+    expect(pidsToTrim([rt(1, 10), rt(2, 20)], [1])).toEqual([10])
+  })
+
+  test('a process shared with a tab still running (or on screen) is not', () => {
+    expect(pidsToTrim([rt(1, 10), rt(2, 10)], [1])).toEqual([])
+  })
+
+  test('shared with tabs frozen earlier, or frozen now too: trimmed once', () => {
+    expect(pidsToTrim([rt(1, 10), rt(2, 10, 'frozen')], [1])).toEqual([10])
+    expect(pidsToTrim([rt(1, 10), rt(2, 10)], [1, 2])).toEqual([10])
+  })
+
+  test("a tab's frame processes are trimmed with it, unless a running tab uses them too", () => {
+    const a = { ...rt(1, 10), framePids: [30, 40] }
+    const b = { ...rt(2, 20), framePids: [40] }
+    expect(pidsToTrim([a, b], [1]).sort()).toEqual([10, 30])
+    expect(pidsToTrim([a, b], [1, 2]).sort()).toEqual([10, 20, 30, 40])
+  })
+
+  test('nothing just frozen: nothing trimmed (an earlier trim is not repeated)', () => {
+    expect(pidsToTrim([rt(1, 10, 'frozen')], [])).toEqual([])
   })
 })
