@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sound haptics experiment</title>
+<style>
+  :root { --bg:#0e0f12; --card:#17191e; --line:#262931; --fg:#e7e9ee; --dim:#8a8f9c; --acc:#7aa2ff; --bad:#ff7b7b; --ok:#5fd28f; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:20px 24px 8px; }
+  h1 { margin:0 0 4px; font-size:20px; }
+  p.lead { margin:0; color:var(--dim); max-width:860px; }
+  .bar { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:14px; align-items:center; padding:12px 24px; background:rgba(14,15,18,.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .bar label { display:flex; gap:6px; align-items:center; color:var(--dim); }
+  select, button, input[type=number] { font:inherit; color:var(--fg); background:var(--card); border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
+  button { cursor:pointer; user-select:none; }
+  button:active { transform:translateY(1px); }
+  #scope { width:220px; height:40px; background:#0a0b0d; border:1px solid var(--line); border-radius:6px; }
+  #detect { color:var(--dim); font-size:12px; }
+  main { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; padding:18px 24px 40px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  section.wide { grid-column:1/-1; }
+  section h2 { margin:0 0 4px; font-size:15px; }
+  .hint { margin:0 0 12px; color:var(--dim); font-size:12px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .btn-primary { background:var(--acc); color:#0b1020; border:0; font-weight:600; }
+  .btn-danger { background:var(--bad); color:#200; border:0; font-weight:600; }
+  .switch { width:52px; height:30px; border-radius:15px; background:#333844; position:relative; border:0; padding:0; }
+  .switch::after { content:""; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .15s; }
+  .switch[aria-checked=true] { background:var(--ok); }
+  .switch[aria-checked=true]::after { left:25px; }
+  input[type=range] { width:100%; }
+  .tune { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px 22px; margin-bottom:14px; }
+  .tune label { display:grid; grid-template-columns:1fr auto; gap:0 8px; font-size:12px; }
+  .tune label input { grid-column:1/-1; }
+  .tune label small { grid-column:1/-1; color:var(--dim); }
+  .tune output { color:var(--acc); font-variant-numeric:tabular-nums; }
+  .picker { height:150px; overflow-y:scroll; scroll-snap-type:y mandatory; border:1px solid var(--line); border-radius:10px; mask-image:linear-gradient(transparent,#000 35%,#000 65%,transparent); }
+  .picker div { height:30px; line-height:30px; text-align:center; scroll-snap-align:center; }
+  .picker .pad { height:60px; }
+  #pad { position:relative; height:180px; border-radius:10px; background:repeating-linear-gradient(45deg,#1c1f26 0 8px,#1a1c22 8px 16px); border:1px solid var(--line); touch-action:none; overflow:hidden; }
+  #puck { position:absolute; width:36px; height:36px; border-radius:50%; background:var(--acc); left:20px; top:20px; box-shadow:0 4px 14px #0008; cursor:grab; }
+  #hold { width:100%; height:56px; position:relative; overflow:hidden; touch-action:none; }
+  #hold i { position:absolute; inset:0; width:0; background:#7aa2ff44; }
+  .grid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; }
+  .grid div { aspect-ratio:1; border-radius:8px; background:#20232b; }
+  .grid div:hover { background:#2c3140; }
+  textarea { width:100%; height:80px; font:inherit; color:var(--fg); background:#0f1014; border:1px solid var(--line); border-radius:8px; padding:8px; resize:vertical; }
+  #calOut { color:var(--dim); font-size:12px; }
+  .notes { color:var(--dim); font-size:13px; }
+  .notes li { margin:3px 0; }
+  .shake { animation:shake .3s; }
+  @keyframes shake { 20%{transform:translateX(-3px)} 60%{transform:translateX(3px)} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sound as touch</h1>
+  <p class="lead">UI feedback built from the speaker. Two layers: <b>UI sound</b> (what you hear) and <b>haptic pulses</b> (2-4 cycle sine bursts at the speaker's resonance, shaped so they move the chassis more than they make noise). Phones use the vibration motor when one exists. Everything is synthesized live.</p>
+</header>
+
+<div class="bar">
+  <label>Device
+    <select id="device">
+      <option value="laptop">Laptop speakers</option>
+      <option value="desktop">Desktop speakers / sub</option>
+      <option value="headphones">Headphones</option>
+      <option value="phone">Phone / tablet</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="layerSound" checked /> UI sound</label>
+  <label><input type="checkbox" id="layerHaptic" checked /> Haptic pulses</label>
+  <label>Master <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8" style="width:90px" /></label>
+  <canvas id="scope" width="440" height="80"></canvas>
+  <span id="detect"></span>
+  <span id="latency" style="color:var(--dim);font-size:12px"></span>
+</div>
+
+<main>
+  <section class="wide">
+    <h2>Tuning</h2>
+    <p class="hint">Saved per device. Rest your palms on the laptop while you tune: the right setting is where a pulse feels like a tap under your hand and barely sounds like anything. With headphones, you want a soft pressure push on the ears, not a boom.</p>
+    <div class="tune" id="tune"></div>
+    <div class="row">
+      <button id="test">Test pulse</button>
+      <button id="buzz">Hold: continuous buzz</button>
+      <button id="auto" class="btn-primary">Auto-find (mic)</button>
+      <button id="calStart">Find by feel</button>
+      <button id="calStop" disabled>Strongest here</button>
+      <span id="calOut"></span>
+      <span style="flex:1"></span>
+      <button id="copy">Copy settings</button>
+      <button id="reset">Reset device</button>
+    </div>
+    <canvas id="curve" width="1600" height="260" hidden style="width:100%;height:130px;margin-top:12px;background:#0a0b0d;border:1px solid var(--line);border-radius:8px"></canvas>
+  </section>
+
+  <section>
+    <h2>Buttons</h2>
+    <p class="hint">Weight maps to energy: soft is a light tap, primary a firm one, delete a double tap.</p>
+    <div class="row">
+      <button data-fx="soft">Soft</button>
+      <button class="btn-primary" data-fx="press">Primary</button>
+      <button class="btn-danger" data-fx="heavy">Delete</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Toggle</h2>
+    <p class="hint">On taps slightly higher, off slightly lower.</p>
+    <div class="row"><button class="switch" id="sw" role="switch" aria-checked="false" aria-label="Demo toggle"></button><span id="swl">Off</span></div>
+  </section>
+
+  <section>
+    <h2>Detent slider</h2>
+    <p class="hint">A tap per step, firmer at the ends and the centre notch.</p>
+    <input type="range" id="detent" min="0" max="20" step="1" value="10" aria-label="Detent slider" />
+    <div class="row" style="justify-content:space-between;color:var(--dim);font-size:12px"><span>0</span><span id="detentV">10</span><span>20</span></div>
+  </section>
+
+  <section>
+    <h2>Scroll picker</h2>
+    <p class="hint">Wheel or swipe. Each item passing the centre line clicks, like a ratchet.</p>
+    <div class="picker" id="picker"></div>
+  </section>
+
+  <section>
+    <h2>Drag texture</h2>
+    <p class="hint">Grain density follows speed. Hit a wall for an impact scaled to velocity.</p>
+    <div id="pad"><div id="puck"></div></div>
+  </section>
+
+  <section>
+    <h2>Long press to confirm</h2>
+    <p class="hint">A ratchet that speeds up as it charges, then one firm tap on commit. Release early to cancel.</p>
+    <button id="hold"><i></i><span style="position:relative">Hold to confirm</span></button>
+  </section>
+
+  <section>
+    <h2>Status</h2>
+    <p class="hint">Patterns you can tell apart with eyes closed.</p>
+    <div class="row">
+      <button data-fx="success">Success</button>
+      <button data-fx="warn">Warning</button>
+      <button data-fx="error" id="errBtn">Error</button>
+      <button data-fx="notify">Notification</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Hover ticks</h2>
+    <p class="hint">Barely-there ticks as the pointer crosses cells. Mouse and pen only, never touch.</p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section>
+    <h2>Typing</h2>
+    <p class="hint">Key ticks with slight pitch jitter. Space and Enter tap, Backspace is duller.</p>
+    <textarea placeholder="Type here..." aria-label="Typing test"></textarea>
+  </section>
+
+  <section class="wide notes">
+    <h2 style="color:var(--fg)">Why it feels like vibration</h2>
+    <ul>
+      <li><b>Resonance, not bass.</b> A laptop speaker and the plastic around it have a resonant band, usually 150-300 Hz. A burst right there moves the chassis far more than any other frequency, so you feel it in the palm rest. "Auto-find (mic)" measures that band with the built-in mic (hands off, room quiet); "Find by feel" sweeps it and you stop where your palms buzz most.</li>
+      <li><b>Few cycles, smooth window.</b> A pulse is only 2-4 cycles with a raised-cosine envelope. Too short for the ear to hear a pitch, long enough for the body to feel a push. Hard edges are what make it sound like a click, so the haptic bus is also low-passed just above the pulse frequency.</li>
+      <li><b>Headphones.</b> 35-55 Hz bursts at low level are felt as a pressure push on the ear and skull, the same trick as a phone's taptic tap. Less gain, slightly more cycles.</li>
+      <li><b>Sound helps the illusion.</b> A tiny high tick in sync with the pulse makes the brain read both as one event coming from your finger (cross-modal binding). Turn UI sound off to compare.</li>
+      <li><b>Punch</b> starts a pulse above the body frequency and drops into it. More punch = more like a kick drum (audible), less = more like a motor (felt).</li>
+      <li>Phones: <code>navigator.vibrate</code> where supported (Android Chrome). iOS Safari has no vibration API, so it uses sound only.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+// ---------- settings ----------
+// [key, label, min, max, step, unit, help]
+const SPEC = [
+  ['body', 'Pulse frequency', 25, 420, 1, 'Hz', 'Laptops: the chassis resonance (150-300). Headphones: 35-55.'],
+  ['cycles', 'Cycles per pulse', 1, 8, 0.5, '', 'Fewer = sharper tap, more = longer push.'],
+  ['ring', 'Ring tail', 0, 150, 1, 'ms', 'Decay after the pulse. Adds weight, also adds audible boom.'],
+  ['punch', 'Punch', 1, 2.5, 0.05, 'x', 'Pitch drop into the pulse. 1 = pure motor feel.'],
+  ['harmonics', 'Harmonics', 0, 1, 0.01, '', 'Adds 2nd/3rd harmonic so small speakers imply a lower note.'],
+  ['hapticGain', 'Haptic level', 0, 2, 0.01, '', 'Pulse loudness before the limiter.'],
+  ['soundGain', 'Sound level', 0, 1.5, 0.01, '', 'UI tick and tone loudness.'],
+  ['bright', 'Tick brightness', 600, 6000, 10, 'Hz', 'Centre of the click sound. Lower = softer, woodier.'],
+];
+const DEFAULTS = {
+  laptop:     { body: 190, cycles: 3,   ring: 20, punch: 1.05, harmonics: 0.2,  hapticGain: 1.3,  soundGain: 0.55, bright: 2600 },
+  desktop:    { body: 62,  cycles: 2.5, ring: 45, punch: 1.25, harmonics: 0.1,  hapticGain: 1.0,  soundGain: 0.55, bright: 2400 },
+  headphones: { body: 42,  cycles: 2.5, ring: 35, punch: 1.15, harmonics: 0.05, hapticGain: 0.75, soundGain: 0.3,  bright: 2200 },
+  phone:      { body: 200, cycles: 3,   ring: 15, punch: 1.05, harmonics: 0.25, hapticGain: 1.1,  soundGain: 0.5,  bright: 3000 },
+};
+let S = { ...DEFAULTS.laptop };
+const $ = (s) => document.querySelector(s);
+const dev = () => $('#device').value;
+const on = (id) => $(id).checked;
+const canVibrate = typeof navigator.vibrate === 'function';
+const save = () => localStorage.setItem('sh2-' + dev(), JSON.stringify(S));
+
+const tune = $('#tune');
+tune.innerHTML = SPEC.map(([k, label, min, max, step, unit, help]) =>
+  `<label>${label}<output id="o-${k}"></output><input type="range" id="t-${k}" min="${min}" max="${max}" step="${step}" /><small>${help}</small></label>`).join('');
+function syncUI() {
+  for (const [k, , , , , unit] of SPEC) { $('#t-' + k).value = S[k]; $('#o-' + k).textContent = S[k] + (unit ? ' ' + unit : ''); }
+  applyBuses();
+}
+let previewT = 0;
+for (const [k] of SPEC) $('#t-' + k).oninput = (e) => {
+  S[k] = +e.target.value; syncUI(); save();
+  if (buzzing) buzzing.o.frequency.setTargetAtTime(S.body, ctx.currentTime, 0.02);
+  else if (performance.now() - previewT > 180) { previewT = performance.now(); FX.press(); } // audition while dragging
+};
+
+// ---------- audio graph ----------
+// haptic bus: gain -> lowpass (kills the audible edge of each pulse) -> master
+// sound bus:  gain -> master;   master -> limiter -> analyser -> out
+let ctx, master, hapticBus, hapticLP, soundBus, analyser, noiseBuf;
+function audio() {
+  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return ctx; }
+  ctx = new AudioContext({ latencyHint: 0 });
+  // Soft clipper instead of DynamicsCompressor: the compressor has a built-in lookahead delay.
+  const comp = ctx.createWaveShaper(), curve = new Float32Array(1024);
+  for (let i = 0; i < 1024; i++) curve[i] = Math.tanh((i / 511.5 - 1) * 1.5) / Math.tanh(1.5);
+  comp.curve = curve;
+  master = ctx.createGain();
+  hapticBus = ctx.createGain(); hapticLP = ctx.createBiquadFilter(); hapticLP.type = 'lowpass'; hapticLP.Q.value = 0.5;
+  soundBus = ctx.createGain();
+  analyser = ctx.createAnalyser(); analyser.fftSize = 2048;
+  hapticBus.connect(hapticLP).connect(master);
+  soundBus.connect(master);
+  master.connect(comp).connect(analyser).connect(ctx.destination);
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  applyBuses(); drawScope();
+  // Report what the OS adds on top. Bluetooth outputs typically show 100-300 ms here; nothing in the page can remove that.
+  ctx.onstatechange = () => ctx.state === "running" && setTimeout(() => {
+    const ms = Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000);
+    $('#latency').textContent = `output latency ${ms} ms${ms > 80 ? ' (likely Bluetooth: use wired or speakers)' : ''}`;
+  }, 600);
+  return ctx;
+}
+function applyBuses() {
+  if (!ctx) return;
+  master.gain.value = +$('#vol').value;
+  hapticBus.gain.value = S.hapticGain;
+  soundBus.gain.value = S.soundGain;
+  hapticLP.frequency.value = Math.min(1500, S.body * (3 + S.harmonics * 3));
+}
+$('#vol').oninput = applyBuses;
+
+// Envelope: raised-cosine rise over the first 30% of the pulse, then exponential fall through the ring tail.
+const ENV_N = 128;
+function envelope(peak, pulse, total) {
+  // Rise over at most half a cycle so a slow (headphone) pulse does not land late.
+  const a = Math.min(pulse * 0.3, 0.5 * pulse / S.cycles), tau = Math.max(0.002, (total - a) / 5), out = new Float32Array(ENV_N);
+  for (let i = 0; i < ENV_N; i++) {
+    const u = (i / (ENV_N - 1)) * total;
+    out[i] = u < a ? peak * Math.sin((Math.PI / 2) * (u / a)) ** 2 : peak * Math.exp(-(u - a) / tau);
+  }
+  out[ENV_N - 1] = 0;
+  return out;
+}
+
+// The haptic primitive. strength 0..1, mult scales frequency, cycles overrides the setting.
+function pulse(strength = 1, { delay = 0, mult = 1, cycles = S.cycles, ring = S.ring } = {}) {
+  if (!on('#layerHaptic')) return;
+  const c = audio(), t = c.currentTime + delay, f = S.body * mult;
+  const dur = cycles / f, total = dur + ring / 1000;
+  for (const [k, amp] of [[1, 1], [2, S.harmonics], [3, S.harmonics * 0.6]]) {
+    if (amp <= 0.001) continue;
+    const o = c.createOscillator(), g = c.createGain();
+    g.gain.value = 0;
+    o.frequency.setValueAtTime(f * k * S.punch, t);
+    if (S.punch > 1) o.frequency.exponentialRampToValueAtTime(f * k, t + Math.min(dur * 0.6, 0.03));
+    g.gain.setValueCurveAtTime(envelope(strength * amp * 0.9, dur, total), t, total);
+    o.connect(g).connect(hapticBus); o.start(t); o.stop(t + total + 0.01);
+  }
+}
+
+// Heard layer: band-passed noise click.
+function tick(strength = 0.3, { hz = S.bright, delay = 0, len = 0.01 } = {}) {
+  if (!on('#layerSound')) return;
+  const c = audio(), t = c.currentTime + delay;
+  const s = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain();
+  s.buffer = noiseBuf; s.playbackRate.value = 0.9 + Math.random() * 0.2;
+  bp.type = 'bandpass'; bp.frequency.value = hz; bp.Q.value = 1.8;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(strength, t + 0.001);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  s.connect(bp).connect(g).connect(soundBus); s.start(t, Math.random() * 0.03); s.stop(t + len + 0.02);
+}
+
+// Soft tone: sine/triangle through a gentle lowpass, slow-ish attack so nothing snaps.
+function tone(freq, { strength = 0.15, delay = 0, decay = 0.25, type = 'sine', glide = 1 } = {}) {
+  if (!on('#layerSound')) return;
+  const c = audio(), t = c.currentTime + delay;
+  const o = c.createOscillator(), lp = c.createBiquadFilter(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (glide !== 1) o.frequency.exponentialRampToValueAtTime(freq * glide, t + decay);
+  lp.type = 'lowpass'; lp.frequency.value = 2400;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(strength, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+  o.connect(lp).connect(g).connect(soundBus); o.start(t); o.stop(t + decay + 0.05);
+}
+
+const vib = (p) => canVibrate && dev() === 'phone' && navigator.vibrate(p);
+
+// ---------- effect vocabulary ----------
+const FX = {
+  hover:   () => tick(0.04, { len: 0.005, hz: S.bright * 1.5 }),
+  detent:  (hard) => { tick(hard ? 0.22 : 0.12, { len: 0.008 }); pulse(hard ? 0.75 : 0.35, { cycles: hard ? S.cycles : Math.max(1, S.cycles - 1), ring: hard ? S.ring : 0 }); vib(hard ? 12 : 5); },
+  soft:    () => { tick(0.15); pulse(0.4, { cycles: Math.max(1, S.cycles - 1) }); vib(8); },
+  press:   () => { tick(0.22); pulse(0.9); vib(14); },
+  heavy:   () => { tick(0.2, { hz: S.bright * 0.6 }); pulse(1, { mult: 0.9 }); pulse(0.75, { delay: 0.11, mult: 0.85 }); vib([20, 70, 20]); },
+  toggleOn:  () => { tick(0.18, { hz: S.bright * 1.15 }); pulse(0.6, { mult: 1.1 }); tone(988, { strength: 0.04, decay: 0.07 }); vib(10); },
+  toggleOff: () => { tick(0.18, { hz: S.bright * 0.85 }); pulse(0.6, { mult: 0.92 }); tone(740, { strength: 0.04, decay: 0.07 }); vib(10); },
+  success: () => { pulse(0.6); pulse(0.8, { delay: 0.1 }); tone(784, { strength: 0.12, decay: 0.18 }); tone(1175, { strength: 0.12, delay: 0.1, decay: 0.4 }); vib([10, 70, 18]); },
+  warn:    () => { pulse(0.7, { mult: 0.95 }); pulse(0.7, { delay: 0.18, mult: 0.95 }); tone(659, { strength: 0.08, decay: 0.15 }); tone(659, { strength: 0.08, delay: 0.18, decay: 0.2 }); vib([25, 120, 25]); },
+  // Two soft taps that sag in pitch, with a falling minor third. Says "no" without buzzing at you.
+  error:   () => { pulse(0.85, { mult: 0.95, ring: S.ring + 15 }); pulse(0.65, { delay: 0.13, mult: 0.82, ring: S.ring + 25 });
+                   tone(523, { strength: 0.09, decay: 0.14, type: 'triangle', glide: 0.97 }); tone(440, { strength: 0.08, delay: 0.13, decay: 0.3, type: 'triangle', glide: 0.94 }); vib([30, 80, 30]); },
+  notify:  () => { pulse(0.5); pulse(0.5, { delay: 0.14 }); tone(1046, { strength: 0.08, decay: 0.45 }); tone(1568, { strength: 0.05, delay: 0.14, decay: 0.45 }); vib([15, 110, 15]); },
+  impact:  (v) => { const s = Math.min(1, v); tick(0.1 + s * 0.2, { hz: S.bright * 0.5 }); pulse(0.35 + s * 0.65, { mult: 1 - s * 0.15, ring: S.ring + s * 40 }); vib(Math.round(10 + s * 30)); },
+  grain:   (v) => { tick(0.03 + v * 0.07, { len: 0.004, hz: S.bright * (0.7 + Math.random()) }); pulse(0.12 + v * 0.3, { cycles: 1, ring: 0, mult: 0.9 + Math.random() * 0.2 }); },
+};
+
+// ---------- device ----------
+async function detect() {
+  const why = [];
+  let guess = 'desktop';
+  const coarse = matchMedia('(pointer: coarse)').matches, touch = navigator.maxTouchPoints > 0;
+  if (coarse && touch) { guess = 'phone'; why.push('coarse touch pointer'); }
+  else {
+    try {
+      const b = navigator.getBattery && (await navigator.getBattery());
+      if (b && (b.level < 1 || !b.charging || isFinite(b.dischargingTime))) { guess = 'laptop'; why.push('battery present'); }
+      else if (b) why.push('no battery drain seen');
+    } catch {}
+    if (guess === 'desktop' && touch) { guess = 'laptop'; why.push('touchscreen'); }
+    try {
+      const label = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput').map((d) => d.label).join(' ');
+      if (/headphone|headset|airpods|buds|earbud|bluetooth|hands-free/i.test(label)) { guess = 'headphones'; why.push('output label'); }
+    } catch {}
+  }
+  if (canVibrate) why.push('vibrate API');
+  $('#detect').textContent = `auto: ${guess} (${why.join(', ') || 'no signals'})`;
+  setDevice(guess);
+}
+function setDevice(name) {
+  $('#device').value = name;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('sh2-' + name)); } catch {}
+  S = { ...DEFAULTS[name], ...saved };
+  syncUI();
+}
+$('#device').onchange = (e) => { setDevice(e.target.value); FX.press(); };
+$('#reset').onclick = () => { localStorage.removeItem('sh2-' + dev()); setDevice(dev()); FX.press(); };
+$('#copy').onclick = async () => { await navigator.clipboard.writeText(JSON.stringify({ [dev()]: S })); $('#copy').textContent = 'Copied'; setTimeout(() => ($('#copy').textContent = 'Copy settings'), 1000); };
+$('#test').onpointerdown = () => FX.press();
+
+// Continuous buzz while held: drag "Pulse frequency" meanwhile to hunt the resonance by feel.
+let buzzing = null;
+$('#buzz').onpointerdown = (e) => {
+  const c = audio(); e.currentTarget.setPointerCapture(e.pointerId);
+  const o = c.createOscillator(), g = c.createGain();
+  o.frequency.value = S.body; g.gain.setValueAtTime(0, c.currentTime); g.gain.setTargetAtTime(0.5, c.currentTime, 0.03);
+  o.connect(g).connect(hapticBus); o.start();
+  buzzing = { o, g };
+};
+$('#buzz').onpointerup = $('#buzz').onpointercancel = () => {
+  if (!buzzing) return;
+  const t = ctx.currentTime; buzzing.g.gain.setTargetAtTime(0, t, 0.03); buzzing.o.stop(t + 0.2); buzzing = null;
+};
+
+// Auto-find: play steady tones across the band, listen with the built-in mic, pick the loudest response
+// above the room's noise. The laptop mic sits in the chassis, so it hears the case shaking as well as the air.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+$('#auto').onclick = async () => {
+  const out = $('#calOut');
+  if (dev() === 'headphones') { out.textContent = 'The mic cannot hear headphones: use "Find by feel".'; return; }
+  const c = audio(); await c.resume();
+  let stream;
+  try {
+    // Windows mic processing (echo cancel, noise suppression, AGC) would erase or flatten exactly what we measure.
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  } catch { out.textContent = 'Mic blocked: use "Find by feel".'; return; }
+  const btns = ['#auto', '#calStart', '#test', '#buzz'].map($);
+  btns.forEach((b) => (b.disabled = true));
+  const src = c.createMediaStreamSource(stream), an = c.createAnalyser();
+  an.fftSize = 4096; an.smoothingTimeConstant = 0; src.connect(an); // ~85 ms window, ~12 Hz bins
+  const bins = new Float32Array(an.frequencyBinCount), hzPerBin = c.sampleRate / an.fftSize;
+  const at = (f) => { const i = Math.round(f / hzPerBin); return Math.max(bins[i - 1], bins[i], bins[i + 1]); };
+  const [lo, hi] = dev() === 'desktop' ? [35, 200] : [80, 420];
+  const freqs = []; for (let f = lo; f <= hi; f *= 1.07) freqs.push(f);
+  const tone = c.createGain(); tone.gain.value = 0.35; tone.connect(master); // bypasses the haptic low-pass on purpose
+
+  try {
+    out.textContent = 'Hands off the laptop. Listening to the room...';
+    await sleep(400);
+    const noise = freqs.map(() => 0);
+    for (let k = 0; k < 6; k++) { an.getFloatFrequencyData(bins); freqs.forEach((f, i) => (noise[i] += at(f) / 6)); await sleep(60); }
+
+    const sweeps = [];
+    for (let s = 0; s < 2; s++) {
+      const row = [];
+      for (const f of freqs) {
+        out.textContent = `Sweep ${s + 1}/2: ${Math.round(f)} Hz`;
+        const o = c.createOscillator(), g = c.createGain();
+        o.frequency.value = f; g.gain.value = 0;
+        g.gain.setTargetAtTime(1, c.currentTime, 0.005);
+        o.connect(g).connect(tone); o.start();
+        await sleep(130); // let mic latency pass and the analyser window fill with this tone only
+        an.getFloatFrequencyData(bins); let v = at(f);
+        await sleep(20);
+        an.getFloatFrequencyData(bins); v = (v + at(f)) / 2;
+        g.gain.setTargetAtTime(0, c.currentTime, 0.005); o.stop(c.currentTime + 0.05);
+        row.push(v);
+      }
+      sweeps.push(row);
+    }
+    // Min across sweeps rejects a cough or a bump in one of them; then light smoothing so one room mode cannot win.
+    const raw = freqs.map((_, i) => Math.min(...sweeps.map((r) => r[i])) - noise[i]);
+    const snr = raw.map((v, i) => (raw[Math.max(0, i - 1)] + 2 * v + raw[Math.min(raw.length - 1, i + 1)]) / 4);
+    const peak = snr.indexOf(Math.max(...snr));
+    drawCurve(freqs, snr, peak);
+    if (snr[peak] < 6) { out.textContent = 'Too quiet to measure. Turn the volume up and try again.'; return; }
+    S.body = Math.round(freqs[peak]); syncUI(); save();
+    out.textContent = `Peak at ${S.body} Hz (${Math.round(snr[peak])} dB over room). Fine-tune with "Hold: continuous buzz".`;
+    setTimeout(FX.press, 300);
+  } finally {
+    stream.getTracks().forEach((t) => t.stop());
+    src.disconnect(); setTimeout(() => tone.disconnect(), 200);
+    btns.forEach((b) => (b.disabled = false));
+  }
+};
+
+function drawCurve(freqs, snr, peak) {
+  const cv = $('#curve'), g = cv.getContext('2d'), W = cv.width, H = cv.height, pad = 30;
+  cv.hidden = false;
+  const lx = (f) => pad + ((Math.log(f) - Math.log(freqs[0])) / (Math.log(freqs.at(-1)) - Math.log(freqs[0]))) * (W - 2 * pad);
+  const top = Math.max(...snr, 10), ly = (v) => H - pad - (Math.max(0, v) / top) * (H - 2 * pad);
+  g.fillStyle = '#0a0b0d'; g.fillRect(0, 0, W, H);
+  g.font = '20px system-ui'; g.fillStyle = '#8a8f9c';
+  for (const f of [40, 60, 100, 150, 200, 300, 400]) if (f >= freqs[0] && f <= freqs.at(-1)) g.fillText(f + ' Hz', lx(f) - 20, H - 6);
+  g.fillText('dB over room noise', pad, 22);
+  g.strokeStyle = '#7aa2ff'; g.lineWidth = 3; g.beginPath();
+  snr.forEach((v, i) => (i ? g.lineTo(lx(freqs[i]), ly(v)) : g.moveTo(lx(freqs[i]), ly(v))));
+  g.stroke();
+  g.strokeStyle = '#5fd28f'; g.beginPath(); g.moveTo(lx(freqs[peak]), pad); g.lineTo(lx(freqs[peak]), H - pad); g.stroke();
+}
+
+// Resonance sweep: 70 -> 420 Hz, one strong pulse per step. User stops where the palm rest buzzes most.
+let calTimer, calHz;
+$('#calStart').onclick = () => {
+  audio(); $('#layerHaptic').checked = true;
+  calHz = dev() === 'headphones' ? 25 : 70;
+  const top = dev() === 'headphones' ? 120 : 420;
+  $('#calStop').disabled = false; $('#calStart').disabled = true;
+  const saved = S.body;
+  const done = (hz) => {
+    clearInterval(calTimer); $('#calStop').disabled = true; $('#calStart').disabled = false;
+    S.body = hz ? Math.round(hz) : saved; syncUI(); save();
+    $('#calOut').textContent = hz ? `set to ${S.body} Hz` : 'sweep ended, kept previous';
+    if (hz) setTimeout(FX.press, 300);
+  };
+  calTimer = setInterval(() => {
+    S.body = calHz; pulse(1, { cycles: 4, ring: 20 });
+    $('#calOut').textContent = `${Math.round(calHz)} Hz`;
+    calHz *= 1.05;
+    if (calHz > top) done(null);
+  }, 380);
+  $('#calStop').onclick = () => done(calHz / 1.05);
+};
+
+// ---------- widgets ----------
+document.querySelectorAll('[data-fx]').forEach((b) => b.addEventListener('pointerdown', () => FX[b.dataset.fx]()));
+$('#errBtn').addEventListener('pointerdown', (e) => { const b = e.currentTarget; b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); });
+
+// Fire on press, not release (click waits for pointerup). Keyboard activation still comes through click with detail 0.
+const toggleSwitch = () => { const s = $('#sw'), v = s.getAttribute('aria-checked') !== 'true'; s.setAttribute('aria-checked', v); $('#swl').textContent = v ? 'On' : 'Off'; v ? FX.toggleOn() : FX.toggleOff(); };
+$('#sw').onpointerdown = toggleSwitch;
+$('#sw').onclick = (e) => e.detail === 0 && toggleSwitch();
+
+let lastDetent = 10;
+$('#detent').oninput = (e) => { const v = +e.target.value; if (v === lastDetent) return; lastDetent = v; $('#detentV').textContent = v; FX.detent(v === 0 || v === 20 || v === 10); };
+
+const picker = $('#picker');
+picker.innerHTML = '<div class="pad"></div>' + Array.from({ length: 40 }, (_, i) => `<div>${String(i).padStart(2, '0')}:00</div>`).join('') + '<div class="pad"></div>';
+let lastItem = 0;
+picker.onscroll = () => { const i = Math.round(picker.scrollTop / 30); if (i !== lastItem) { lastItem = i; FX.detent(false); } };
+
+const pad = $('#pad'), puck = $('#puck');
+let drag = null, px = 20, py = 20, lastGrain = 0;
+puck.onpointerdown = (e) => { audio(); puck.setPointerCapture(e.pointerId); drag = { x: e.clientX, y: e.clientY, t: performance.now() }; FX.soft(); };
+puck.onpointermove = (e) => {
+  if (!drag) return;
+  const now = performance.now(), dx = e.clientX - drag.x, dy = e.clientY - drag.y, dt = Math.max(1, now - drag.t);
+  const speed = Math.hypot(dx, dy) / dt;
+  const maxX = pad.clientWidth - 36, maxY = pad.clientHeight - 36;
+  let nx = px + dx, ny = py + dy, hit = false;
+  if (nx < 0 || nx > maxX) { nx = Math.max(0, Math.min(maxX, nx)); hit = px > 0 && px < maxX; }
+  if (ny < 0 || ny > maxY) { ny = Math.max(0, Math.min(maxY, ny)); hit = hit || (py > 0 && py < maxY); }
+  if (hit) FX.impact(speed / 2);
+  px = nx; py = ny; puck.style.left = px + 'px'; puck.style.top = py + 'px';
+  const v = Math.min(1, speed / 2);
+  if (speed > 0.05 && now - lastGrain > 75 - v * 55) { lastGrain = now; FX.grain(v); }
+  drag = { x: e.clientX, y: e.clientY, t: now };
+};
+puck.onpointerup = puck.onpointercancel = () => { if (drag) FX.soft(); drag = null; };
+
+// Long press: accelerating ratchet of small pulses, rising in strength and pitch.
+const hold = $('#hold'), fill = hold.querySelector('i'), holdLabel = hold.lastChild;
+const HOLD_MS = 900;
+let holdRaf = 0, holding = false;
+hold.onpointerdown = (e) => {
+  audio(); hold.setPointerCapture(e.pointerId);
+  const t0 = performance.now(); let next = 0; holding = true;
+  const step = () => {
+    if (!holding) return;
+    const now = performance.now(), p = Math.min(1, (now - t0) / HOLD_MS);
+    fill.style.width = p * 100 + '%';
+    if (now >= next) {
+      pulse(0.2 + 0.5 * p, { cycles: Math.max(1, S.cycles - 1), ring: 0, mult: 1 + 0.2 * p });
+      tick(0.03 + 0.08 * p, { hz: S.bright * (0.7 + 0.5 * p), len: 0.006 });
+      vib(6);
+      next = now + 120 - 85 * p;
+    }
+    if (p < 1) { holdRaf = requestAnimationFrame(step); return; }
+    holding = false; FX.press(); FX.success(); holdLabel.textContent = 'Confirmed';
+    setTimeout(() => { holdLabel.textContent = 'Hold to confirm'; fill.style.width = 0; }, 1100);
+  };
+  holdRaf = requestAnimationFrame(step);
+};
+hold.onpointerup = hold.onpointercancel = () => {
+  if (!holding) return;
+  holding = false; cancelAnimationFrame(holdRaf); fill.style.width = 0;
+  pulse(0.3, { mult: 0.85 }); tick(0.08, { hz: S.bright * 0.6 });
+};
+
+const grid = $('#grid');
+grid.innerHTML = '<div></div>'.repeat(24);
+grid.onpointerover = (e) => { if (e.pointerType !== 'touch' && e.target !== grid) FX.hover(); };
+
+$('textarea').onkeydown = (e) => {
+  if (e.repeat) return;
+  if (e.key === ' ' || e.key === 'Enter') { tick(0.14, { hz: S.bright * 0.6, len: 0.014 }); pulse(0.35, { cycles: Math.max(1, S.cycles - 1), ring: 0 }); }
+  else if (e.key === 'Backspace') tick(0.12, { hz: S.bright * 0.4, len: 0.012 });
+  else if (e.key.length === 1) tick(0.11, { hz: S.bright * (0.85 + Math.random() * 0.3), len: 0.007 });
+};
+
+// ---------- scope ----------
+function drawScope() {
+  const cv = $('#scope'), g = cv.getContext('2d'), buf = new Float32Array(analyser.fftSize);
+  (function loop() {
+    analyser.getFloatTimeDomainData(buf);
+    g.fillStyle = '#0a0b0d'; g.fillRect(0, 0, cv.width, cv.height);
+    g.strokeStyle = '#7aa2ff'; g.lineWidth = 2; g.beginPath();
+    for (let i = 0; i < buf.length; i++) { const x = (i / buf.length) * cv.width, y = cv.height / 2 - buf[i] * cv.height * 0.45; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+    g.stroke(); requestAnimationFrame(loop);
+  })();
+}
+
+addEventListener('pointerdown', audio, { once: true, capture: true });
+addEventListener('keydown', audio, { once: true, capture: true });
+audio(); // build the graph now; the first gesture only has to resume it
+detect();
+</script>
+</body>
+</html>
