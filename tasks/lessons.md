@@ -70,3 +70,16 @@ and the board's split effect had a 3-try guard that, once spent, never reset, so
 - Drive the change in the running app (CDP drag, then read the DOM after it settles; mid-animation boxes lie) before
   saying it is fixed.
 - A "give up after N tries" guard must reset when the input changes, or it silently disables the feature.
+
+## Measuring the dev app (2026-11-14)
+
+- `--disable-features=...` passed on the dev command line is overridden by Panes' own `disable-features` switch
+  (main/performance.ts), so Windows occlusion stays on: with the window behind the terminal, tab pages report
+  `hidden`, never paint, and first-paint or picker tests give false results. Check `document.visibilityState` of the
+  page under test before trusting a paint or permission measurement.
+- `PANES_DEBUG=1` is not a plain log switch: any value runs the debug-page branch in main/index.ts (opens an internal
+  tab and takes debug screenshots), which adds startup stalls. Leave it off when measuring.
+- CDP `Page.captureScreenshot` of the UI page never contains the native page views; a blurred `.pane-frozen` picture
+  in it is the backdrop under the view, not an overlay.
+- Main-thread JS profiling misses GPU cost: compare the GPU process's `cpuTime` (SystemInfo.getProcessInfo on the
+  browser target) with and without a style injected, as for the recent-use glow (blur cost 10-13% during zoom).
