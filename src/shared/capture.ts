@@ -114,7 +114,8 @@ export function shareTab(
  * stalls Windows Graphics Capture for 5 s waiting for a first frame, one after another.
  */
 export type SharePass = 'names' | 'screens'
-export const SHARE_REFRESH_MS = 2500
+/** Seldom: on Windows a pass holds Panes' main thread for half a second or more (everything stops with it). */
+export const SHARE_REFRESH_MS = 10_000
 
 export function nextSharePass(done: SharePass | null): { pass: SharePass; delay: number } {
   if (done === null) return { pass: 'names', delay: 0 }

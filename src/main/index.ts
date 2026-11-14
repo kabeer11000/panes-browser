@@ -38,7 +38,7 @@ import {
   serveInternalPages
 } from './internal'
 import icon from '../../resources/icon.png?asset'
-import { PermissionManager, PermissionStore, warmShareList } from './permissions'
+import { PermissionManager, PermissionStore } from './permissions'
 import { AskSelection } from './askSelection'
 import { Reader } from './reader'
 import { continueReading, habits, pickBoards, type SmartNewTab } from '@shared/newtab'
@@ -664,7 +664,6 @@ function createWindow(): void {
   })
   registerTabCard(win, (id) => tabs.cardInfo(id))
   // the screen-share picker opens with its list already there, not half a second to a second and a half later
-  setTimeout(() => void warmShareList(), 20_000).unref()
   setTimeout(() => permissionManager.warm(), 6_000).unref()
   // the pointer rests on a tab or a card: it is likely to be opened next, so it gets ready now
   ipcMain.on('tabs:intent', (e, id: unknown) => {
