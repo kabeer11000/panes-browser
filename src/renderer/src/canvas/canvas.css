@@ -4392,10 +4392,8 @@
   padding: 7px 14px;
   border-radius: 999px;
   white-space: nowrap;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 6px 20px rgb(0 0 0 / 0.18);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
   /* just above the middle of what it names, so it never covers its cards */
   transform: translate(-50%, calc(-100% - 8px)) scale(calc(1 / var(--vk, 1)));
   transform-origin: 50% calc(100% + 8px);
@@ -4415,34 +4413,29 @@
   color: var(--fg-dim);
 }
 .cv-blabel:hover .cv-blabel-in {
-  box-shadow:
-    0 0 0 2px var(--space),
-    0 6px 20px rgb(0 0 0 / 0.22);
+  box-shadow: 0 0 0 2px var(--space);
 }
 
-/* ---- recent use: the cards of the tabs used last glow in the space's colour, fading over a few hours. No badge, no
-   number and never red: that is how notifications speak. A halo behind the card that keeps its size on screen when
-   zoomed out (--vk, the root's, updated as the board settles), so the trail still shows over the whole board. */
+/* ---- recent use: the cards of the tabs used last get a ring in the space's colour, fading over a few hours. No
+   badge, no number and never red: that is how notifications speak. A ring, not a soft glow: a blurred shadow this size
+   is redrawn every time the zoom settles, on every warm card. It keeps about its size on screen zoomed out (--vk, the
+   root's, set as the board settles), up to a cap. */
 .cv-card[class*='heat-']::before {
-  --gk: max(1, 1 / var(--vk, 1));
+  --gk: clamp(1, 1 / var(--vk, 1), 8);
   content: '';
   position: absolute;
-  inset: calc(-5px * var(--gk));
-  border-radius: calc(14px + 5px * var(--gk));
+  inset: calc(-4px * var(--gk));
+  border-radius: calc(14px + 4px * var(--gk));
   pointer-events: none;
-  box-shadow:
-    0 0 0 calc(2.5px * var(--gk)) color-mix(in srgb, var(--space) var(--heat-ring), transparent),
-    0 0 calc(26px * var(--gk)) color-mix(in srgb, var(--space) var(--heat-glow), transparent);
+  border: calc(2.5px * var(--gk)) solid
+    color-mix(in srgb, var(--space) var(--heat-ring), transparent);
 }
 .cv-card.heat-3 {
-  --heat-ring: 70%;
-  --heat-glow: 45%;
+  --heat-ring: 75%;
 }
 .cv-card.heat-2 {
   --heat-ring: 45%;
-  --heat-glow: 25%;
 }
 .cv-card.heat-1 {
-  --heat-ring: 25%;
-  --heat-glow: 0%;
+  --heat-ring: 22%;
 }
