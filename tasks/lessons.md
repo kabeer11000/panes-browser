@@ -83,3 +83,11 @@ and the board's split effect had a 3-try guard that, once spent, never reset, so
   in it is the backdrop under the view, not an overlay.
 - Main-thread JS profiling misses GPU cost: compare the GPU process's `cpuTime` (SystemInfo.getProcessInfo on the
   browser target) with and without a style injected, as for the recent-use glow (blur cost 10-13% during zoom).
+
+## Facts measured, not assumed (2026-11-14, beta.52)
+- `desktopCapturer.getSources` on Windows blocks the main thread for its whole run (690 ms names, 440 ms screen pictures). Never call it speculatively; every call freezes pages, board and touchpad input.
+- Chromium already runs hidden tab renderers at idle priority (os.getPriority 19). Lowering them by hand raises them. Check before "fixing" priority.
+- A page being tab-captured keeps painting at full size even when its view is hidden. Hiding streamed views or disabling the track during a pan saved nothing.
+- Electron's permission check handler is boolean: "ask" reads as "denied" to `navigator.permissions.query` and `Notification.permission`, and no `change` events fire. The frame preload shim (preload/frame.ts) fixes both.
+- With `--disable-gpu` the window tops out around 30-37 fps whatever is drawn: Chromium's software compositor redraws the whole window each frame. Not caused by board content, shadows, blur or Mica (each A/B'd).
+- A/B before shipping a perf idea: three of today's plausible fixes measured as zero gain.
