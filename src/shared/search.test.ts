@@ -6,6 +6,7 @@ import {
   isUrlLike,
   matchActions,
   rankLocal,
+  rankTabs,
   sectionOf
 } from './search'
 import type { Bookmark, HistoryEntry, TabInfo } from './types'
@@ -27,10 +28,11 @@ const mark = (id: number, url: string, title: string): Bookmark => ({
   favicon: null,
   time: NOW - 40 * DAY
 })
-const tab = (id: number, url: string, title: string): TabInfo => ({
+const tab = (id: number, url: string, title: string, usedAt = 0): TabInfo => ({
   id,
   url,
   title,
+  usedAt,
   favicon: null,
   loading: false,
   bookmarked: false,
@@ -139,6 +141,55 @@ describe('buildResults', () => {
   test('sections group results sensibly', () => {
     expect(sectionOf('search')).toBeNull()
     expect(sectionOf('history')).toBe(sectionOf('bookmark'))
+  })
+})
+
+describe('rankTabs', () => {
+  const H = 3_600_000
+  const tabs = [
+    tab(1, 'https://docs.google.com/d/1', 'Budget 2026 - Google Sheets', NOW - 1000),
+    tab(2, 'https://github.com/rafay/panes', 'rafay/panes: a browser', NOW - 5 * H),
+    tab(3, 'https://music.youtube.com/', 'YouTube Music', NOW - 2 * H),
+    tab(4, 'https://news.example.com/github-story', 'A story about GitHub', NOW - 60_000)
+  ]
+  const ids = (q: string, active: number | null = 1): number[] =>
+    rankTabs(tabs, q, active, NOW).tabs.map((t) => t.id)
+  test('a site that starts with the word beats a mention, even one used more recently', () => {
+    expect(ids('git')).toEqual([2, 4])
+  })
+  test('initials and camel humps find a tab', () => {
+    expect(ids('ym')).toEqual([3])
+    expect(ids('hub')).toContain(2)
+  })
+  test('every word must match; a loose in-order match still finds it', () => {
+    expect(ids('github story')).toEqual([4])
+    expect(ids('ytmsc')).toEqual([3])
+    expect(ids('zzz')).toEqual([])
+  })
+  test('empty query: the tabs used last, newest first, not the one you are on', () => {
+    expect(ids('')).toEqual([4, 3, 2])
+  })
+  test('strong when the best match is a site or word start, not when an address with a path is typed', () => {
+    expect(rankTabs(tabs, 'github', 1, NOW).strong).toBe(true)
+    expect(rankTabs(tabs, 'github.com', 1, NOW).strong).toBe(true)
+    expect(rankTabs(tabs, 'github.com/x', 1, NOW).strong).toBe(false)
+    expect(rankTabs(tabs, 'g', 1, NOW).strong).toBe(false)
+    expect(rankTabs(tabs, 'ytmsc', 1, NOW).strong).toBe(false)
+    expect(rankTabs(tabs, 'budget', 1, NOW).strong).toBe(false) // the tab you are on is not switched to
+  })
+  test('a strong tab goes above the search row, so Enter switches to it', () => {
+    const r = buildResults({
+      query: 'github',
+      tabs,
+      activeId: 1,
+      local: [],
+      remote: [],
+      engineName: 'X',
+      now: NOW
+    })
+    expect(r[0]).toMatchObject({ kind: 'tab', tabId: 2 })
+    expect(r[1].kind).toBe('search')
+    expect(r.filter((x) => x.tabId === 2)).toHaveLength(1)
   })
 })
 

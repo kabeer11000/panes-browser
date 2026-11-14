@@ -271,6 +271,84 @@ const hasAll = (text: string, tokens: string[]): boolean => {
   return tokens.every((tok) => t.includes(tok))
 }
 
+/** The words of a title, camel humps split too ("GitHub" gives git, hub), lower-cased. */
+const wordsOf = (text: string): string[] =>
+  text
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+
+/** Every letter of `tok` appears in `text`, in order (a loose, typo-tolerant match). */
+const inOrder = (text: string, tok: string): boolean => {
+  let i = 0
+  for (const ch of text) if (ch === tok[i] && ++i === tok.length) return true
+  return false
+}
+
+/** A tab's match for one typed word: how good (0: none). A site or word that starts with it beats a mention. */
+function tokenScore(
+  tok: string,
+  host: string,
+  words: string[],
+  title: string,
+  url: string
+): number {
+  if (host.startsWith(tok) || host.split('.').some((p) => p.startsWith(tok))) return 10
+  if (words.some((w) => w.startsWith(tok))) return 8
+  const initials = words.map((w) => w[0]).join('')
+  if (tok.length >= 2 && initials[0] === tok[0] && inOrder(initials, tok)) return 6 // initials, in order: "gh" for GitHub, "ym" for YouTube Music
+  if (title.includes(tok) || host.includes(tok)) return 5
+  if (url.includes(tok)) return 3
+  if (tok.length >= 3 && (inOrder(host, tok) || inOrder(title, tok))) return 1
+  return 0
+}
+
+/** Match quality at or above which a tab is what was meant: it goes above the search row, so Enter switches to it. */
+const STRONG_PER_TOKEN = 8
+
+/**
+ * Open tabs matching the query, best first: every typed word must match (see tokenScore), and among equal matches
+ * the one used last wins. Empty query: the tabs used last, newest first. `strong`: the best is clearly what was meant.
+ */
+export function rankTabs(
+  tabs: readonly TabInfo[],
+  query: string,
+  activeId: number | null,
+  now: number
+): { tabs: TabInfo[]; strong: boolean } {
+  const tokens = tokensOf(query)
+  const recency = (t: TabInfo): number =>
+    t.usedAt > 0 ? 3 * Math.exp(-Math.max(0, now - t.usedAt) / (6 * 3_600_000)) : 0
+  const scored = tabs
+    .filter((t) => t.url && (t.id !== activeId || tokens.length > 0))
+    .map((t) => {
+      const host = displayHost(t.url).toLowerCase()
+      const title = t.title.toLowerCase()
+      const words = wordsOf(t.title)
+      let match = 0
+      for (const tok of tokens) {
+        const m = tokenScore(tok, host, words, title, t.url.toLowerCase())
+        if (m === 0) return null
+        match += m
+      }
+      return { t, match, score: match + recency(t) }
+    })
+    .filter((x) => x !== null)
+    .sort((a, b) => b.score - a.score || b.t.usedAt - a.t.usedAt)
+  const best = scored[0]
+  return {
+    tabs: scored.map((x) => x.t),
+    strong:
+      !!best &&
+      tokens.length > 0 &&
+      query.trim().length >= 2 &&
+      best.t.id !== activeId &&
+      best.match >= STRONG_PER_TOKEN * tokens.length &&
+      !/[/:]/.test(query) // a full address typed (scheme or path) is meant to be loaded
+  }
+}
+
 /** True when the text would be loaded as an address rather than searched for. */
 export function isUrlLike(input: string): boolean {
   const probe = 'SEARCH:'
@@ -360,6 +438,8 @@ interface BuildInput {
   semantic?: LocalSuggestion[]
   engineName: string
   maxLocal?: number
+  /** For how recently each tab was used (tests pass a fixed one). */
+  now?: number
 }
 
 /**
@@ -375,10 +455,10 @@ export function buildResults({
   remote,
   semantic = [],
   engineName,
-  maxLocal = 5
+  maxLocal = 5,
+  now = Date.now()
 }: BuildInput): SearchResult[] {
   const q = query.trim()
-  const tokens = tokensOf(q)
   const results: SearchResult[] = []
   const shownUrls = new Set<string>()
 
@@ -392,6 +472,13 @@ export function buildResults({
     url: t.url
   })
 
+  const ranked = rankTabs(tabs, q, activeId, now)
+  const tabMatches = ranked.tabs.slice(0, MAX_TABS + (q ? 0 : 3))
+  // the tab clearly meant goes first, so Enter switches to it (Shift+Enter still searches or goes)
+  if (ranked.strong) {
+    results.push({ ...tabResult(tabMatches[0]), id: 'top:tab' })
+    shownUrls.add(tabMatches[0].url)
+  }
   if (q) {
     results.push(
       isUrlLike(q)
@@ -399,12 +486,7 @@ export function buildResults({
         : { id: 'top:search', kind: 'search', title: q, subtitle: `Search ${engineName}`, url: q }
     )
   }
-
-  const tabMatches = tabs
-    .filter((t) => t.id !== activeId || q)
-    .filter((t) => t.url && (tokens.length === 0 || hasAll(`${t.title} ${t.url}`, tokens)))
-    .slice(0, MAX_TABS + (q ? 0 : 3))
-  for (const t of tabMatches) {
+  for (const t of ranked.strong ? tabMatches.slice(1) : tabMatches) {
     results.push(tabResult(t))
     shownUrls.add(t.url)
   }

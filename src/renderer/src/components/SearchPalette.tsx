@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import {
   buildResults,
   inlineCompletion,
+  rankTabs,
   type LocalSuggestion,
   type SearchResult
 } from '@shared/search'
@@ -57,9 +58,13 @@ interface Props {
    * gives its address.
    */
   onPick?: (text: string) => void
+  /** Pictures of the tabs (by id): the recent strip and the picked tab's preview show them. */
+  thumbs?: Record<number, string>
 }
 
 const REMOTE_DEBOUNCE_MS = 110
+/** Tabs in the recent strip, shown before anything is typed (Alt+1 .. Alt+5 jump to them). */
+const RECENT_COUNT = 5
 const POPOVER_MIN_WIDTH = 560
 const EDGE = 8
 
@@ -164,8 +169,10 @@ export function SearchPalette({
   onClose,
   onAction,
   initial,
-  onPick
+  onPick,
+  thumbs
 }: Props): React.JSX.Element {
+  const [openedAt] = useState(() => Date.now())
   const [shown, setShown] = useState(initial ?? active?.url ?? '') // what the input displays, completion included
   const [typed, setTyped] = useState('') // what the user actually typed
   const [dirty, setDirty] = useState(false) // the prefilled address is not a search until edited
@@ -219,10 +226,41 @@ export function SearchPalette({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effective, local])
 
+  const listed = useMemo(
+    () =>
+      buildResults({
+        query: effective,
+        tabs,
+        activeId: active?.id ?? null,
+        local,
+        remote: effective ? remote : [],
+        semantic: effective.length >= 3 ? similar : [],
+        engineName,
+        now: openedAt
+      }),
+    [effective, tabs, active?.id, local, remote, similar, engineName, openedAt]
+  )
+  // before anything is typed: the tabs used last, as pictures, above the list (and not repeated in it)
+  const recent = useMemo(
+    () =>
+      effective || onPick
+        ? []
+        : rankTabs(tabs, '', active?.id ?? null, openedAt)
+            .tabs.filter((t, i, all) => all.findIndex((x) => x.url === t.url) === i) // one per page
+            .slice(0, RECENT_COUNT),
+    [effective, onPick, tabs, active?.id, openedAt]
+  )
+  const results = useMemo(() => {
+    const inStrip = new Set(recent.map((t) => t.url))
+    return listed.filter((r) => r.kind !== 'tab' || !inStrip.has(r.url ?? ''))
+  }, [listed, recent])
+  /** A tab clearly meant by what was typed is first: Enter switches to it, so no site name is filled in. */
+  const tabFirst = results[0]?.kind === 'tab' && !!effective
+
   // Chrome-style inline completion: finish a site name you are typing, with the rest selected.
   const completion = useMemo(
-    () => (dirty && forward ? inlineCompletion(typed, local) : null),
-    [dirty, forward, typed, local]
+    () => (dirty && forward && !tabFirst ? inlineCompletion(typed, local) : null),
+    [dirty, forward, typed, local, tabFirst]
   )
   useEffect(() => {
     const input = inputRef.current
@@ -233,19 +271,6 @@ export function SearchPalette({
     setShown(completion)
   }, [completion, typed])
 
-  const results = useMemo(
-    () =>
-      buildResults({
-        query: effective,
-        tabs,
-        activeId: active?.id ?? null,
-        local,
-        remote: effective ? remote : [],
-        semantic: effective.length >= 3 ? similar : [],
-        engineName
-      }),
-    [effective, tabs, active?.id, local, remote, similar, engineName]
-  )
   const current = Math.min(sel, Math.max(0, results.length - 1))
 
   useEffect(() => {
@@ -254,6 +279,10 @@ export function SearchPalette({
       ?.scrollIntoView({ block: 'nearest' })
   }, [current])
 
+  const switchTo = (id: number): void => {
+    window.api.activateTab(id)
+    onClose()
+  }
   const run = (r: SearchResult | undefined, how: 'current' | 'tab' | 'split'): void => {
     const text = shown.trim()
     if (onPick) {
@@ -271,10 +300,7 @@ export function SearchPalette({
       if (text) window.api.navigate(text) // nothing matched: treat the text as an address or search
       return onClose()
     }
-    if (r.kind === 'tab') {
-      window.api.activateTab(r.tabId as number)
-      return onClose()
-    }
+    if (r.kind === 'tab') return switchTo(r.tabId as number)
     if (r.kind === 'action') return onAction(r.actionId as string)
     const target = r.kind === 'go' || r.kind === 'search' ? text : (r.url ?? r.title)
     if (how === 'tab') window.api.createTab(target)
@@ -289,8 +315,16 @@ export function SearchPalette({
       setSel(current >= last ? 0 : current + 1)
     } else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) {
       setSel(current <= 0 ? last : current - 1)
+    } else if (e.key === 'Enter' && e.shiftKey) {
+      // what was typed, as a search or an address, even with a tab matching it at the top
+      run(
+        results.find((r) => r.kind === 'go' || r.kind === 'search'),
+        e.altKey ? 'tab' : 'current'
+      )
     } else if (e.key === 'Enter') {
       run(results[current], e.altKey ? 'tab' : e.ctrlKey || e.metaKey ? 'split' : 'current')
+    } else if (e.altKey && /^[1-9]$/.test(e.key) && recent[Number(e.key) - 1]) {
+      switchTo(recent[Number(e.key) - 1].id)
     } else if (e.key === 'Tab' && results[current]) {
       // complete to the highlighted result so you can keep refining it
       const r = results[current]
@@ -367,6 +401,30 @@ export function SearchPalette({
           />
         </div>
 
+        {recent.length > 0 && (
+          <div className="pal-recent" aria-label="Recent tabs">
+            {recent.map((t, i) => (
+              <button
+                key={t.id}
+                type="button"
+                className="pal-recent-tab"
+                title={`${t.title || t.url} (Alt+${i + 1})`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => switchTo(t.id)}
+              >
+                <span className="pal-recent-pic">
+                  {thumbs?.[t.id] ? (
+                    <img src={thumbs[t.id]} alt="" />
+                  ) : t.favicon ? (
+                    <img className="pal-recent-fav" src={t.favicon} alt="" />
+                  ) : null}
+                  <kbd>{i + 1}</kbd>
+                </span>
+                <span className="pal-recent-name">{t.title || t.url}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="pal-list" id="pal-list" role="listbox" ref={listRef}>
           {results.map((r, i) => (
             <div
@@ -398,6 +456,10 @@ export function SearchPalette({
                 {r.subtitle && <span className="pal-sub">{r.subtitle}</span>}
               </span>
               {KIND_LABEL[r.kind] && <span className="pal-kind">{KIND_LABEL[r.kind]}</span>}
+              {r.kind === 'tab' && thumbs?.[r.tabId as number] && (
+                // the tab as it looks: easier to tell two tabs of one site apart
+                <img className="pal-preview" src={thumbs[r.tabId as number]} alt="" />
+              )}
             </div>
           ))}
           {results.length === 0 && (

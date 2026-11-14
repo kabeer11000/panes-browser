@@ -2603,6 +2603,85 @@ kbd {
   color: var(--fg-dim);
   font-size: var(--fs-s);
 }
+/* the tabs used last, as pictures, before anything is typed: Alt+1 .. Alt+5 */
+.pal-recent {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border);
+}
+.pal-recent-tab {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 4px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.pal-recent-tab:hover {
+  background: var(--surface-active);
+}
+.pal-recent-pic {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.pal-recent-pic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+}
+.pal-recent-pic .pal-recent-fav {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+.pal-recent-pic kbd {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 10.5px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--fg-dim);
+  background: var(--popover-bg);
+}
+.pal-recent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-s);
+  color: var(--fg-dim);
+}
+/* a tab's picture, at the end of its row (fits the row: the list never changes height as the pick moves) */
+.pal-preview {
+  flex: none;
+  width: 48px;
+  height: 30px;
+  border-radius: 5px;
+  object-fit: cover;
+  object-position: top left;
+  box-shadow: 0 0 0 1px var(--border);
+}
 .pal-empty {
   padding: 24px 12px;
   text-align: center;

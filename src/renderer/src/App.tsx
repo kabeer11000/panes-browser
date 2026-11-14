@@ -1120,6 +1120,7 @@ function App(): React.JSX.Element {
                 <SearchPalette
                   key="search"
                   tabs={tabs}
+                  thumbs={thumbs}
                   active={active}
                   engineName={SEARCH_ENGINES[settings.searchEngine].name}
                   variant={settings.searchStyle}
