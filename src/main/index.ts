@@ -402,6 +402,8 @@ function createWindow(): void {
         })
       }
       if (kinds.includes('cache')) await tabSession.clearCache()
+      // the pages saved to disk show what was browsed: they go with the history or the cache
+      if (kinds.includes('history') || kinds.includes('cache')) await tabs.clearSavedPages()
     }
   })
 

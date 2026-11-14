@@ -75,6 +75,7 @@ import { wantsChromeIdentity } from '@shared/identity'
 import { PdfViewerHelper } from './pdf'
 import { runningMode } from './performance'
 import { trimProcess } from './trim'
+import { SavedPages } from './savedPages'
 import {
   pickPreloads,
   pickRests,
@@ -241,6 +242,13 @@ interface Tab {
   failed: { url: string; code: number; desc: string } | null
   /** A page loaded into a view that had shown nothing: the view stays hidden until it has painted. */
   awaiting: boolean
+  /** While it is `awaiting`: its page as saved to disk (SavedPages), shown in its place once drawn. */
+  copy: {
+    view: WebContentsView
+    ready: boolean
+    y: number | null
+    scrolled: () => Promise<number | null>
+  } | null
   /** Put to rest while hidden (caches given back, or frozen); woken as it is shown or scripted (see pickRests). */
   rest: Rest
   /**
@@ -426,6 +434,7 @@ export class TabManager {
   private nextGroupId = 1
   /** One empty view shared by every unloaded tab, so they hold no page and no renderer process. */
   private inert: WebContentsView | null = null
+  private saved = new SavedPages()
   private shownBefore = new Set<number>()
 
   private fullscreenId: number | null = null
@@ -996,6 +1005,7 @@ export class TabManager {
       flat: false,
       keyLock: false,
       awaiting: false,
+      copy: null,
       rest: 'awake',
       warming: false,
       warmSize: null,
@@ -1161,6 +1171,7 @@ export class TabManager {
     const idx = ids.indexOf(id)
     if (tab.thumbTimer) clearTimeout(tab.thumbTimer)
     this.tabs.delete(id)
+    this.dropCopy(tab)
     this.destroyView(tab)
     if (tab.tor) this.torTabsChanged()
     if (tab.private) this.forgetPrivateIfDone()
@@ -1284,7 +1295,50 @@ export class TabManager {
       tab.unloaded = false
       this.wire(id, tab)
     }
+    // the saved copy starts loading first: from disk it is drawn long before the live page
+    if (!tab.private && !tab.tor) this.openCopy(tab, url)
     this.load(tab, url, history)
+  }
+
+  /** Show the tab's page as saved to disk while the live one loads (see SavedPages): dropped once that has drawn. */
+  private openCopy(tab: Tab, url: string): void {
+    const opened = this.saved.open(url, () => {
+      const copy = tab.copy
+      if (!copy || copy.view !== opened?.view || !tab.awaiting) return
+      copy.ready = true
+      void copy.scrolled().then((y) => (copy.y = y))
+      this.applyVisibility()
+    })
+    if (!opened) return
+    this.win.contentView.addChildView(opened.view)
+    this.onViewAdded?.()
+    tab.copy = { ...opened, ready: false, y: null }
+  }
+
+  /**
+   * The live page has drawn: the saved copy goes. Scrolled meanwhile, the live page is taken to the same place
+   * first, so reading carries on where it was.
+   */
+  private dropCopy(tab: Tab): void {
+    const copy = tab.copy
+    if (!copy) return
+    tab.copy = null
+    const close = (): void => {
+      if (copy.view.webContents.isDestroyed()) return
+      this.win.contentView.removeChildView(copy.view)
+      copy.view.webContents.close()
+    }
+    const wc = liveContents(tab)
+    if (!copy.ready || !wc) return close()
+    void copy
+      .scrolled()
+      .then((y) =>
+        y !== null && copy.y !== null && y !== copy.y && !wc.isDestroyed()
+          ? wc.executeJavaScript(`window.scrollTo(0, ${y})`, false)
+          : undefined
+      )
+      .catch(() => undefined)
+      .finally(close)
   }
 
   /**
@@ -1307,20 +1361,30 @@ export class TabManager {
       wc.executeJavaScript(PAINTED_SCRIPT, false).then(release, () => {}) // a failure leaves it to the timer
     }
     let done = false
+    // only the page itself failing: a frame in it that fails (an ad, an embed) leaves it loading
+    const onFail = (
+      _e: unknown,
+      _code: number,
+      _desc: string,
+      _url: string,
+      main: boolean
+    ): void => {
+      if (main) release()
+    }
     const release = (): void => {
       clearTimeout(timer)
       if (done || wc.isDestroyed()) return
       done = true
       wc.off('dom-ready', onReady)
-      wc.off('did-fail-load', release)
+      wc.off('did-fail-load', onFail)
       wc.off('did-stop-loading', onReady)
       if (!tab.awaiting) return
       tab.awaiting = false
       this.refresh() // re-applies visibility, which now reveals the view
+      this.dropCopy(tab)
     }
     wc.on('dom-ready', onReady)
     wc.on('did-fail-load', release)
-    wc.on('did-stop-loading', onReady)
     this.go(tab, url, history)
   }
 
@@ -2872,6 +2936,12 @@ export class TabManager {
         !this.settling &&
         (live || liveFull || streamed || !this.canvasMode)
       const show = wanted && !tab.awaiting
+      // its saved copy stands in for it, in its place, until the live page has drawn
+      if (tab.copy) {
+        const on = wanted && tab.awaiting && tab.copy.ready && rect !== null
+        if (on) tab.copy.view.setBounds(rect)
+        tab.copy.view.setVisible(on)
+      }
       // A full-screen page has no window edge to be rounded against.
       const flat = this.fullscreenId === id
       if (flat !== tab.flat && !tab.unloaded) {
@@ -4020,6 +4090,9 @@ export class TabManager {
     return facts
   }
 
+  /** Clearing browsing data: the pages saved to disk go too. */
+  clearSavedPages = (): Promise<void> => this.saved.clear()
+
   /** Unload tabs the memory saver says are done with. `force` takes every tab that is safe to take. */
   sweepMemory(force = false): number {
     if (this.win.isDestroyed()) return 0
@@ -4027,6 +4100,15 @@ export class TabManager {
     const needMb = force ? 0 : memoryNeedMb(freemem() / 1024 ** 2, totalmem() / 1024 ** 2)
     const ids = pickUnloads(facts, this.memoryPolicy(), Date.now(), force, needMb)
     for (const id of ids) this.unload(id)
+    // saved pages of tabs that are gone go too (none before the tabs are restored: they would all look gone)
+    if (this.tabs.size > 0) {
+      const keep = new Set<string>()
+      for (const t of this.tabs.values()) {
+        const url = t.pending?.url || liveContents(t)?.getURL()
+        if (url) keep.add(url)
+      }
+      this.saved.prune(keep)
+    }
     if (ids.length > 0) this.refresh()
     if (!force) this.rest(facts.filter((f) => !ids.includes(f.id)))
     return ids.length
@@ -4217,6 +4299,10 @@ export class TabManager {
       // Just left the screen: from now on its notifications are what the person would miss.
       if (t && !visible.includes(id)) this.hookNotifications(t)
       // and a sharp picture of it as it was, which stands in for it, full size, when it comes back (see warm)
+      // and the page itself saved to disk, to show at once if it is unloaded or Panes restarts (see SavedPages)
+      const wc = t && !visible.includes(id) && !t.private && !t.tor && liveContents(t)
+      if (t && wc && !t.awaiting)
+        void this.saved.save(wc, wc.getURL(), t.dirty || !this.saved.fresh(wc.getURL()))
       if (
         t &&
         !visible.includes(id) &&
