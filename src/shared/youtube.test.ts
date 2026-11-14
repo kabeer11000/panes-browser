@@ -234,6 +234,14 @@ describe('youtubeConfig', () => {
     const cfg = youtubeConfig(s, { blocking: false, cosmetic: true })
     expect(cfg).toEqual({ ...YOUTUBE_OFF, hideShorts: true })
   })
+
+  test('auto avoids AV1 only where it would be decoded in software', () => {
+    const off = { blocking: false, cosmetic: true }
+    expect(youtubeConfig(DEFAULT_SETTINGS, off, false)?.codec).toBe('no-av1')
+    expect(youtubeConfig(DEFAULT_SETTINGS, off, true)).toBeNull()
+    const h264 = { ...DEFAULT_SETTINGS, youtubeCodec: 'h264' as const }
+    expect(youtubeConfig(h264, off, false)?.codec).toBe('h264')
+  })
 })
 
 describe('youtubeCss', () => {

@@ -1,4 +1,4 @@
-import { ipcMain, webContents, type Session, type WebFrameMain } from 'electron'
+import { ipcMain, webContents, type Session, type WebContents, type WebFrameMain } from 'electron'
 import { join } from 'path'
 import {
   YOUTUBE_MATCHES,
@@ -20,6 +20,8 @@ import type { SettingsStore } from './settings'
  */
 export class YouTube {
   private sessions = new Set<Session>()
+  /** Whether the graphics card decodes AV1 (see probeAv1); assumed until known. */
+  private av1Hardware = true
 
   constructor(
     private settings: SettingsStore,
@@ -49,7 +51,22 @@ export class YouTube {
   /** The config for a frame, from its top page's site (an embed follows the exceptions of the page it is on). */
   private config(frame: WebFrameMain): YouTubeConfig | null {
     const page = frame.top?.url || frame.url
-    return youtubeConfig(this.settings.get(), this.adblock.siteState(page))
+    return youtubeConfig(this.settings.get(), this.adblock.siteState(page), this.av1Hardware)
+  }
+
+  /**
+   * Ask a page of ours whether AV1 decodes in hardware here (power efficient: the graphics card does it). YouTube
+   * pages that start after the answer follow it.
+   * ponytail: asked once per start; a YouTube page restored before the answer can still get AV1 until it reloads.
+   */
+  probeAv1(wc: WebContents): void {
+    wc.executeJavaScript(
+      `navigator.mediaCapabilities.decodingInfo({ type: 'media-source', video: { contentType: 'video/mp4; codecs="av01.0.08M.08"', width: 1280, height: 720, bitrate: 2000000, framerate: 30 } }).then((r) => r.powerEfficient)`
+    )
+      .then((hw: unknown) => {
+        this.av1Hardware = hw !== false
+      })
+      .catch(() => undefined)
   }
 
   private start(frame: WebFrameMain | null): YouTubeStart | null {

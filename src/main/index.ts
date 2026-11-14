@@ -784,6 +784,7 @@ function createWindow(): void {
     mark('page-loaded')
     flushTrace()
     noteLayerHealthy() // the code running now works: a new app layer is not rolled back
+    youtube.probeAv1(win.webContents)
     const fx = runningMode() === 'efficient' ? 'low' : 'full'
     void win.webContents
       // remembered too, so the next start has it before its first paint (public/boot.js)

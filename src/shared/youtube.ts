@@ -158,11 +158,13 @@ export const YOUTUBE_OFF: YouTubeConfig = {
 
 /**
  * The page's config from the settings and the blocker's verdict for the page's site (its per-site exceptions
- * included). Null when there is nothing to do, so the page is left entirely alone.
+ * included), and whether this machine decodes AV1 in hardware. Null when there is nothing to do, so the page is left
+ * entirely alone.
  */
 export function youtubeConfig(
   s: Settings,
-  site: { blocking: boolean; cosmetic: boolean }
+  site: { blocking: boolean; cosmetic: boolean },
+  av1Hardware = true
 ): YouTubeConfig | null {
   const cfg: YouTubeConfig = {
     ads: site.blocking,
@@ -172,7 +174,9 @@ export function youtubeConfig(
     hideComments: s.youtubeHideComments,
     speed: s.youtubeSpeed,
     quality: s.youtubeQuality,
-    codec: s.youtubeCodec,
+    // Auto: AV1 only where the graphics card decodes it. Decoded in software it costs about half a core at 720p, for
+    // a picture VP9 (decoded in hardware nearly everywhere) gives as well
+    codec: s.youtubeCodec === 'auto' && !av1Hardware ? 'no-av1' : s.youtubeCodec,
     theater: s.youtubeTheater,
     autoplay: s.youtubeAutoplay
   }
