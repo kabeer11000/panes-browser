@@ -1,6 +1,47 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { Viewport } from '@shared/ai/canvas'
-import { boardMoved } from './boardMotion'
+import { boardMoved, onBoardMotion } from './boardMotion'
+
+/**
+ * The elements whose styles read the zoom in canvas.css. --vk (the zoom itself): the bars over a selection, which keep
+ * their size on screen. --hs (the label scale): labels, handles and outlines, and it only changes below 62% zoom.
+ * Each is set on these elements directly, so a frame of a zoom restyles a handful and not every card under the root.
+ * Add a selector here when a new rule reads either property.
+ */
+const VK_READERS = '.cv-fbar, .cv-kbar, .cv-mbar'
+const HS_READERS = [
+  '.cv-badges',
+  '.cv-crz',
+  '.cv-frame',
+  '.cv-frame-head',
+  '.cv-guides',
+  '.cv-handle',
+  '.cv-kend',
+  '.cv-nrz',
+  '.cv-rz',
+  '.cv-splithead'
+].join(', ')
+
+const hsOf = (k: number): string => String(Math.min(2.6, Math.max(1, 0.62 / k)))
+let lastHs = '1'
+
+/**
+ * The zoom on the elements that read it (a shared style rule changed each frame cost Chromium a rebuild of its style
+ * sheet each time). The root gets both too once the board settles (rootZoom), for whatever is drawn later.
+ */
+function zoomVars(root: HTMLElement, k: number): void {
+  const vk = String(k)
+  for (const el of root.querySelectorAll<HTMLElement>(VK_READERS)) el.style.setProperty('--vk', vk)
+  const hs = hsOf(k)
+  if (hs === lastHs) return
+  lastHs = hs
+  for (const el of root.querySelectorAll<HTMLElement>(HS_READERS)) el.style.setProperty('--hs', hs)
+}
+
+function rootZoom(root: HTMLElement, k: number): void {
+  root.style.setProperty('--vk', String(k))
+  root.style.setProperty('--hs', hsOf(k))
+}
 
 export const MIN_K = 0.08
 export const MAX_K = 2.5
@@ -44,6 +85,14 @@ export function useViewport(
   useEffect(() => {
     moved.current = onMove
   }, [onMove])
+  // the board settled: the zoom goes on the root as well, once, for what is drawn later (see zoomVars)
+  useEffect(
+    () =>
+      onBoardMotion((m) => {
+        if (!m && root.current) rootZoom(root.current, view.current.k)
+      }),
+    []
+  )
   const pending = useRef(false)
   const idle = useRef(0)
 
@@ -69,13 +118,12 @@ export function useViewport(
     boardMoved()
     if (r) {
       // Custom properties inherit: one set on the root makes every card, label and arrow under it recompute its
-      // style, every frame of a pan (most of a pan's cost on a slow CPU). The dots' position goes on the grid
-      // alone, and what the board's contents read (--vk, --hs) is set only when the zoom changes.
+      // style, every frame of a pan or a zoom (most of a zoom's cost). The dots' position goes on the grid alone,
+      // and what the board's contents read (--vk, --hs) goes on the few elements that read it (zoomVars).
       const g = grid.current
       if (v.k !== lastK.current) {
         lastK.current = v.k
-        r.style.setProperty('--vk', String(v.k))
-        r.style.setProperty('--hs', String(Math.min(2.6, Math.max(1, 0.62 / v.k))))
+        zoomVars(r, v.k)
         if (g) {
           // the fine grid keeps between 12 and 48 screen px apart (steps of 4, as the coarse grid is 4 of it), and
           // fades out as it gets dense, so the density on screen stays even and nothing pops or moires
