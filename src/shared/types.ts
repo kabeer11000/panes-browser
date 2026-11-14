@@ -52,6 +52,8 @@ export interface TabInfo {
   pip: boolean
   /** The page has been unloaded to save memory (or not loaded yet) and loads when shown. */
   unloaded: boolean
+  /** When it was last on screen or open in the canvas preview (ms since epoch; 0: never): what the board's recent-use glow goes by. */
+  usedAt: number
   /** The page is currently making sound. */
   audible: boolean
   /** Its media plays (sound or not, muted or not): what a play/pause button shows. Asked of the page itself. */

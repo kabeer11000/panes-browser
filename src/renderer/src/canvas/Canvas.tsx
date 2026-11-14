@@ -118,6 +118,8 @@ import { CardView, FrameBar, FrameView, NoteView } from './Cards'
 import { WidgetView } from './Widgets'
 import { WIDGET_LABEL, type Widget, type WidgetKind } from '@shared/widgets'
 import { pickStreams, streamCap } from '@shared/ai/tabStream'
+import { boardLabels } from '@shared/ai/canvasLabels'
+import { recentHeat } from '@shared/ai/heat'
 import { isCapturing } from '@shared/capture'
 import { attentionLabel, groupWaiting, NO_ATTENTION } from '@shared/attention'
 import { TabFavicon } from '@renderer/components/TabFavicon'
@@ -632,6 +634,14 @@ export function Canvas({
     () => new Set(tabs.filter((t) => isCapturing(t.capture)).map((t) => t.id)),
     [tabs]
   )
+  // the cards of the tabs used last glow softly, fading over a few hours (re-read every few minutes as it cools)
+  const [heatNow, setHeatNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = window.setInterval(() => setHeatNow(Date.now()), 5 * 60_000)
+    return () => window.clearInterval(t)
+  }, [])
+  // a tab just used has a usedAt past heatNow: it reads as warmest, which it is
+  const heat = useMemo(() => recentHeat(tabs, heatNow), [tabs, heatNow])
   // how wide each card on screen is now, for the streams: too small a card is not worth one, larger ones go first
   const cardPx = useMemo(() => {
     const m = new Map<number, number>()
@@ -4064,6 +4074,7 @@ export function Canvas({
             id,
             url: `https://site${i % 17}.example/page${i}`,
             title: `Benchmark page ${i} about topic ${i % 9}`,
+            usedAt: Date.now() - i * 10 * 60_000,
             favicon: null,
             loading: false,
             private: false,
@@ -5086,6 +5097,11 @@ export function Canvas({
     for (const c of st?.cards ?? []) if (c.frame) m.set(c.frame, (m.get(c.frame) ?? 0) + 1)
     return m
   }, [st])
+  // zoomed far out, the board reads like a map: each section and each group of loose cards named in big type
+  const labels = useMemo(
+    () => (lod && st ? boardLabels(st.frames, shownCards(st), counts) : []),
+    [lod, st, counts]
+  )
   const onClose = useCallback((id: number) => closeCards([id]), [closeCards])
   const onPdf = useCallback(
     (id: number, f: { pages: number }): void => {
@@ -5319,6 +5335,7 @@ export function Canvas({
                 streams.has(c.id) ? Math.max(40, Math.round((cw * zoomPct) / 100 / 40) * 40) : 0
               }
               call={calls.has(c.id)}
+              heat={heat.get(c.id) ?? 0}
             />
           )
         })}
@@ -5353,6 +5370,25 @@ export function Canvas({
           />
         )}
         <svg ref={guides} className="cv-guides" width="1" height="1" overflow="visible" />
+        {labels.map((l) => (
+          <button
+            key={l.key}
+            type="button"
+            className="cv-blabel"
+            title={`Go to ${l.title}`}
+            style={{ transform: `translate3d(${l.x + l.w / 2}px, ${l.y}px, 0)` }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              const { w, h } = size()
+              vp.animateTo(fitView(l, w, h, 110, 1), 460)
+            }}
+          >
+            <span className="cv-blabel-in">
+              <b>{l.title}</b>
+              <span>{l.count}</span>
+            </span>
+          </button>
+        ))}
         {selMarkBar && phase === 'open' && (
           <MarkBar
             marks={selMarkBar.marks}

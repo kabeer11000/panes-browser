@@ -553,6 +553,7 @@ export class TabManager {
         capture: t.capture,
         pip: this.pip.tabId === id,
         unloaded: t.unloaded,
+        usedAt: t.usedAt,
         audible: this.sounding(t, wc),
         muted: wc.audioMuted,
         attention: attention.get(id) ?? NO_ATTENTION,
