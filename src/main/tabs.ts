@@ -70,6 +70,7 @@ import { FullscreenNotice } from './fullscreenNotice'
 import { totalmem } from 'os'
 import { VIDEO_RECT_SCRIPT, videoRegion, type VideoRegion } from '@shared/ai/tabStream'
 import { applyIdentity, followIdentity } from './identity'
+import { wantsChromeIdentity } from '@shared/identity'
 import { PdfViewerHelper } from './pdf'
 import { runningMode } from './performance'
 import {
@@ -129,7 +130,21 @@ const THUMB_WIDTH = 800
 const CANVAS_THUMB_WIDTH = 480 // pictures taken for the canvas are small at once: about 30 KB each
 const THUMB_INTERVAL_MS = 2500
 const SNAPSHOT_TIMEOUT_MS = 250 // overlays open without waiting longer than this for snapshots
-const FIRST_PAINT_MS = 90 // after dom-ready, before a freshly loaded page is revealed
+/** After dom-ready, a freshly loaded page is revealed once it has drawn content, or after this long at most. */
+const HOLD_AFTER_READY_MS = 800
+/**
+ * Resolves two frames after the page's first contentful paint (at once if that is past): what a browser waits for
+ * before it swaps the old picture for a new page (paint holding), so the page is never seen drawing itself in.
+ */
+const PAINTED_SCRIPT = `new Promise((r) => {
+  const done = () => requestAnimationFrame(() => requestAnimationFrame(() => r(1)))
+  const fcp = (list) => list.some((e) => e.name === 'first-contentful-paint')
+  if (fcp(performance.getEntriesByType('paint'))) return done()
+  try {
+    const o = new PerformanceObserver((l) => { if (fcp(l.getEntries())) { o.disconnect(); done() } })
+    o.observe({ type: 'paint', buffered: true })
+  } catch { done() }
+})`
 const AWAIT_PAINT_MAX_MS = 2500 // never keep a view hidden longer than this, whatever the page does
 const VIEW_RADIUS = 12
 const ZOOM_STEP = 0.5
@@ -372,6 +387,11 @@ export class TabManager {
   private canvasMode = false
   /** The one tab whose real page is shown inside the canvas, and where. */
   private liveId: number | null = null
+  /**
+   * The tab the canvas preview is about to show (see prepareLive): it paints out of sight until it goes live, so it
+   * shows a finished frame, never an empty surface drawing itself in.
+   */
+  private preparedId: number | null = null
   private liveRect: Rect | null = null
   /** The preview pane last clicked or typed in (a split shows several): where page actions and Ctrl+W go. */
   private previewFocus: number | null = null
@@ -803,6 +823,9 @@ export class TabManager {
     })
     view.setBorderRadius(VIEW_RADIUS)
     view.setBackgroundColor('#ffffff')
+    // a page loaded out of sight (pre-loading) lays out at its real size, not 0x0: no second layout when shown
+    const at = this.activeRect()
+    if (at) view.setBounds(at)
     view.setVisible(false)
     this.wakeForCalls(view.webContents)
     this.win.contentView.addChildView(view)
@@ -1043,13 +1066,34 @@ export class TabManager {
     }
     tab.navUrl = url
     this.refresh()
-    const ready = (tab.identity ??= applyIdentity(tab.view.webContents, this.identities(tab), url))
+    const wc = tab.view.webContents
+    const ids = this.identities(tab)
+    const plain = (): void => void wc.loadURL(url).catch(() => {}) // ERR_ABORTED on redirects is normal
+    // Restoring (scroll and forms kept, from cache) is only allowed as a view's very first load, so it cannot wait
+    // for the identity's blank first page: done first, the identity set up after. Only for a page that does not need
+    // the Chrome identity from its first request; one that does (Google's) loads afresh below.
+    if (history && !tab.identity && wc.getURL() === '' && !wantsChromeIdentity(url)) {
+      // set up once the page commits, not once it has loaded: a navigation asked for meanwhile waits on it
+      const committed = new Promise<void>((resolve) => {
+        const done = (): void => {
+          wc.off('did-navigate', done)
+          wc.off('did-fail-load', done)
+          wc.off('destroyed', done)
+          resolve()
+        }
+        wc.once('did-navigate', done)
+        wc.once('did-fail-load', done)
+        wc.once('destroyed', done)
+      })
+      wc.navigationHistory.restore(history).catch(plain)
+      tab.identity = committed.then(() =>
+        wc.isDestroyed() ? undefined : applyIdentity(wc, ids, url, false)
+      )
+      return
+    }
+    const ready = (tab.identity ??= applyIdentity(wc, ids, url))
     void ready.then(() => {
-      const wc = tab.view.webContents
-      if (wc.isDestroyed()) return
-      const plain = (): void => void wc.loadURL(url).catch(() => {}) // ERR_ABORTED on redirects is normal
-      if (history) wc.navigationHistory.restore(history).catch(plain)
-      else plain()
+      if (!wc.isDestroyed()) plain() // a view that has loaded a page (the blank one) can no longer restore
     })
   }
 
@@ -1221,6 +1265,7 @@ export class TabManager {
     tab.pending = null
     if (tab.unloaded) {
       tab.view = this.makeView(tab.private, tab.tor)
+      tab.identity = null // a new page: its identity is set up again (see go)
       tab.flat = false
       tab.unloaded = false
       this.wire(id, tab)
@@ -1238,28 +1283,30 @@ export class TabManager {
     tab.awaiting = true
     tab.firstUrl = url
     let timer: NodeJS.Timeout = setTimeout(() => release(), AWAIT_PAINT_MAX_MS)
+    // dom-ready, or the load ending first (a quick page): revealed once it has drawn, HOLD_AFTER_READY_MS at most
+    let painting = false
     const onReady = (): void => {
-      if (wc.isDestroyed() || wc.getURL() === 'about:blank' || tab.navUrl) return
+      if (painting || wc.isDestroyed() || wc.getURL() === 'about:blank' || tab.navUrl) return
+      painting = true
       clearTimeout(timer)
-      timer = setTimeout(() => release(), FIRST_PAINT_MS) // dom-ready comes just before the first frame
+      timer = setTimeout(() => release(), HOLD_AFTER_READY_MS)
+      wc.executeJavaScript(PAINTED_SCRIPT, false).then(release, () => {}) // a failure leaves it to the timer
     }
-    const onStop = (): void => {
-      if (wc.isDestroyed() || wc.getURL() === 'about:blank' || tab.navUrl) return
-      release()
-    }
+    let done = false
     const release = (): void => {
       clearTimeout(timer)
-      if (wc.isDestroyed()) return
+      if (done || wc.isDestroyed()) return
+      done = true
       wc.off('dom-ready', onReady)
       wc.off('did-fail-load', release)
-      wc.off('did-stop-loading', onStop)
+      wc.off('did-stop-loading', onReady)
       if (!tab.awaiting) return
       tab.awaiting = false
       this.refresh() // re-applies visibility, which now reveals the view
     }
     wc.on('dom-ready', onReady)
     wc.on('did-fail-load', release)
-    wc.on('did-stop-loading', onStop)
+    wc.on('did-stop-loading', onReady)
     this.go(tab, url, history)
   }
 
@@ -2384,6 +2431,18 @@ export class TabManager {
   setLive(id: number | null, rect?: Rect): void {
     const prevId = this.liveId
     const changed = prevId !== id
+    const prepared = this.preparedId !== null ? this.tabs.get(this.preparedId) : undefined
+    if (prepared && !prepared.warming) prepared.warmSize = null
+    if (
+      prepared &&
+      this.preparedId !== id &&
+      !this.streaming.has(this.preparedId!) &&
+      !this.companions.has(this.preparedId!)
+    ) {
+      const pw = liveContents(prepared)
+      if (pw) pw.setBackgroundThrottling(true) // was readied for the preview, but never shown in it
+    }
+    this.preparedId = null
     this.liveId = id
     this.liveRect = id !== null && rect ? rect : null
     // a video watched in the preview leaves it: its card takes the frame it was on
@@ -2472,11 +2531,14 @@ export class TabManager {
     if (!t) return
     this.ensureLoaded(id, t)
     if (t.rest === 'frozen') this.thaw(t) // running again before it is shown, so its first frame is ready
-    if (rect && !t.unloaded) t.view.setBounds(rect)
     const wc = liveContents(t)
     if (wc) wc.setBackgroundThrottling(false)
-    // a fresh frame painted out of sight while the preview grows, so it is shown complete, not drawing itself in
-    if (id !== this.liveId) void this.warm(id, rect)
+    // painting out of sight, at the slot's size, while the preview grows and the page loads: shown complete
+    if (id !== this.liveId) {
+      this.preparedId = id
+      t.warmSize = rect ?? t.warmSize
+      this.applyVisibility()
+    }
   }
 
   /** The canvas preview opened, changed card or closed (see pageTab). */
@@ -2757,21 +2819,26 @@ export class TabManager {
               : placed && this.fullscreenId === null
                 ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
                 : placed
-      const show =
+      const wanted =
         rect !== null &&
         !this.isBlank(tab) &&
-        !tab.awaiting &&
         !tab.torTarget &&
         !this.settling &&
         (live || liveFull || streamed || !this.canvasMode)
+      const show = wanted && !tab.awaiting
       // A full-screen page has no window edge to be rounded against.
       const flat = this.fullscreenId === id
       if (flat !== tab.flat && !tab.unloaded) {
         tab.flat = flat
         tab.view.setBorderRadius(flat ? 0 : VIEW_RADIUS)
       }
-      if (tab.warming && !tab.unloaded) {
-        // painting out of sight before it is shown (see warm): at its real size, all but a corner pixel outside
+      // Painting out of sight before it is shown, at its real size, all but a corner pixel outside: a page coming back
+      // (see warm), one loading for its place (see load: revealed once it has drawn), one the preview is about to show.
+      const aside =
+        tab.warming ||
+        (tab.awaiting && (wanted || (!this.canvasMode && shown.includes(id)))) || // (its slot may not be known yet)
+        (this.canvasMode && id === this.preparedId && id !== this.liveId)
+      if (aside && !tab.unloaded) {
         const size = tab.warmSize ?? rect ?? this.rects[id] ?? this.activeRect()
         tab.view.setBounds({
           x: w - 3,

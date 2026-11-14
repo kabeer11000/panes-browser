@@ -14,8 +14,20 @@ describe('keepHistory', () => {
     const list = [e(1), { url: 'panes://newtab', title: 'New tab' }, e(2), e(3)]
     expect(keepHistory(list, 2)).toEqual({ entries: [e(1), e(2), e(3)], index: 1 })
   })
-  test('nothing to go back or forward to, or the current page is internal: null', () => {
-    expect(keepHistory([e(1)], 0)).toBeNull()
+  test('a single page is kept, so it is restored (from cache, where it was) rather than loaded afresh', () => {
+    expect(keepHistory([e(1)], 0)).toEqual({ entries: [e(1)], index: 0 })
+  })
+  test('keeps the saved page state of the current entry only, and not when it is huge', () => {
+    const st = (n: number, pageState: unknown): object => ({ ...e(n), pageState })
+    expect(keepHistory([st(1, 'a'), st(2, 'b')], 1)).toEqual({
+      entries: [e(1), { ...e(2), pageState: 'b' }],
+      index: 1
+    })
+    expect(keepHistory([st(1, 'x'.repeat(70_000))], 0)).toEqual({ entries: [e(1)], index: 0 })
+    expect(keepHistory([st(1, 5)], 0)).toEqual({ entries: [e(1)], index: 0 })
+    expect(keepHistory([st(1, '')], 0)).toEqual({ entries: [e(1)], index: 0 })
+  })
+  test('the current page is internal or missing: null', () => {
     expect(keepHistory([e(1), { url: 'about:blank', title: '' }], 1)).toBeNull()
     expect(keepHistory([e(1), e(2)], 5)).toBeNull()
   })
