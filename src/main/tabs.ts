@@ -137,6 +137,9 @@ const ZOOM_MIN = ZOOM_LEVEL_MIN
 const ZOOM_MAX = ZOOM_LEVEL_MAX
 const PARKED_X = -20000 // where views wait, out of sight, while an overlay is open
 const MEMORY_SWEEP_MS = 30_000
+/** A tab out of sight this long paints out of sight before it is shown again (see warm), at most this long. */
+const WARM_AFTER_MS = 3000
+const WARM_MAX_MS = 350
 /** Pre-loading after a restart waits this long after the start, and this long between tabs (see preloadRecent). */
 const PRELOAD_START_MS = 5000
 const PRELOAD_GAP_MS = 1500
@@ -212,6 +215,12 @@ interface Tab {
   awaiting: boolean
   /** Put to rest while hidden (caches given back, or frozen); woken as it is shown or scripted (see pickRests). */
   rest: Rest
+  /**
+   * Coming back on screen, it paints out of sight first (see warm), while its picture stands in: a page that was
+   * hidden a while has no frame to show, and revealed at once it would draw itself in like a page loading.
+   */
+  warming: boolean
+  warmSize: { width: number; height: number } | null
   /** Last time it was on screen, kept across restarts (lastShownAt restarts with Panes): what pre-loading goes by. */
   usedAt: number
   /** Where the first load went, so the tab has an address while the page has not committed yet. */
@@ -823,6 +832,62 @@ export class TabManager {
     }
   }
 
+  /**
+   * Have a tab's page paint a fresh frame out of sight, then let it be shown: placed so that only its transparent
+   * rounded corner is inside the window (as captureHidden does), it counts as visible, wakes if frozen, and draws.
+   * Its picture shows in its place meanwhile. Done after two animation frames in the page, or WARM_MAX_MS at most.
+   * `size`: the size it will be shown at (the canvas preview's slot), else its place in the tab view.
+   */
+  async warm(id: number, size?: { width: number; height: number }): Promise<void> {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (
+      !t ||
+      !wc ||
+      t.unloaded ||
+      t.awaiting ||
+      t.warming ||
+      this.isBlank(t) ||
+      wc.isLoadingMainFrame()
+    )
+      return
+    if (t.rest === 'frozen') this.thaw(t)
+    t.warming = true
+    t.warmSize = size ?? null
+    this.applyVisibility()
+    const started = Date.now()
+    try {
+      await Promise.race([
+        wc.executeJavaScript(
+          'new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))',
+          false
+        ),
+        new Promise((r) => setTimeout(r, WARM_MAX_MS))
+      ])
+    } catch {
+      // gone, or navigating: shown as it is
+    }
+    if (process.env['PANES_DEBUG'])
+      console.log('[warm]', wc.getURL().slice(0, 60), Date.now() - started, 'ms')
+    t.warming = false
+    t.warmSize = null
+    if (!this.win.isDestroyed()) this.applyVisibility()
+  }
+
+  /**
+   * The pointer rests on a tab, so it is likely to be opened next: a frozen page starts running and one that was
+   * unloaded starts loading, out of sight, so the click finds it ready.
+   */
+  prewarm(id: number): void {
+    const t = this.tabs.get(id)
+    if (!t || this.onScreenIds().includes(id)) return
+    if (t.rest === 'frozen') this.thaw(t)
+    if (t.pending && !t.private && !t.tor) {
+      t.lastShownAt = Date.now() // not unloaded again by the next sweep
+      this.ensureLoaded(id, t)
+    }
+  }
+
   /** Let a frozen page run again (without being shown): its caches stay given back. */
   private thaw(tab: Tab): void {
     tab.rest = 'purged'
@@ -895,6 +960,8 @@ export class TabManager {
       keyLock: false,
       awaiting: false,
       rest: 'awake',
+      warming: false,
+      warmSize: null,
       usedAt: 0,
       firstUrl: ''
     }
@@ -2408,6 +2475,8 @@ export class TabManager {
     if (rect && !t.unloaded) t.view.setBounds(rect)
     const wc = liveContents(t)
     if (wc) wc.setBackgroundThrottling(false)
+    // a fresh frame painted out of sight while the preview grows, so it is shown complete, not drawing itself in
+    if (id !== this.liveId) void this.warm(id, rect)
   }
 
   /** The canvas preview opened, changed card or closed (see pageTab). */
@@ -2700,6 +2769,18 @@ export class TabManager {
       if (flat !== tab.flat && !tab.unloaded) {
         tab.flat = flat
         tab.view.setBorderRadius(flat ? 0 : VIEW_RADIUS)
+      }
+      if (tab.warming && !tab.unloaded) {
+        // painting out of sight before it is shown (see warm): at its real size, all but a corner pixel outside
+        const size = tab.warmSize ?? rect ?? this.rects[id] ?? this.activeRect()
+        tab.view.setBounds({
+          x: w - 3,
+          y: h - 3,
+          width: Math.max(320, size?.width ?? w),
+          height: Math.max(240, size?.height ?? h)
+        })
+        tab.view.setVisible(true)
+        continue
       }
       if (show) tab.view.setBounds(rect)
       tab.view.setVisible(show)
@@ -3148,9 +3229,11 @@ export class TabManager {
     return Math.abs(r.width - t.thumbSize.w) <= 3 && Math.abs(r.height - t.thumbSize.h) <= 3
   }
 
-  private async snapshot(id: number, sharp = false): Promise<void> {
+  /** `leaving`: it is going off screen this moment (a just-hidden page can still be captured). */
+  private async snapshot(id: number, sharp = false, leaving = false): Promise<void> {
     const tab = this.tabs.get(id)
-    if (!tab || this.overlay || !this.visibleIds().includes(id) || this.isBlank(tab)) return
+    if (!tab || this.overlay || (!leaving && !this.visibleIds().includes(id)) || this.isBlank(tab))
+      return
     try {
       tab.dirty = false // before the capture: a change that lands while it runs marks it again
       const img = await tab.view.webContents.capturePage()
@@ -3847,7 +3930,7 @@ export class TabManager {
     for (const id of purge) {
       const t = this.tabs.get(id)!
       t.rest = 'purged'
-      send(t, 'Memory.simulatePressureNotification', { level: 'critical' })
+      send(t, 'Memory.simulatePressureNotification', { level: 'moderate' }) // keeps decoded images: less to redo on return
     }
     for (const id of freeze) {
       const t = this.tabs.get(id)!
@@ -3969,12 +4052,31 @@ export class TabManager {
     this.pruneGroups()
     const visible = this.onScreenIds()
     const now = Date.now()
+    // coming back after a while out of sight: painted out of sight first (lastShownAt is still when it left)
+    for (const id of visible) {
+      const t = this.tabs.get(id)
+      if (
+        t &&
+        !this.shownBefore.has(id) &&
+        (t.rest !== 'awake' || now - t.lastShownAt >= WARM_AFTER_MS)
+      )
+        void this.warm(id)
+    }
     // A tab is "recently shown" while on screen and from the moment it leaves it, so idle time starts then.
     for (const id of new Set([...visible, ...this.shownBefore])) {
       const t = this.tabs.get(id)
       if (t) t.lastShownAt = now
       // Just left the screen: from now on its notifications are what the person would miss.
       if (t && !visible.includes(id)) this.hookNotifications(t)
+      // and a sharp picture of it as it was, which stands in for it, full size, when it comes back (see warm)
+      if (
+        t &&
+        !visible.includes(id) &&
+        !this.canvasMode &&
+        !t.unloaded &&
+        (!t.thumbSharp || t.dirty)
+      )
+        void this.snapshot(id, true, true)
     }
     this.shownBefore = new Set(visible)
     for (const id of visible) {

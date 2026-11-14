@@ -1861,6 +1861,26 @@ export function Canvas({
     [root, vp]
   )
   useEffect(() => window.api.canvas.onNew(() => askNew()), [askNew])
+  // the pointer resting on a tab's card: it is likely to be opened next, so main gets its page ready (wakes or loads it)
+  useEffect(() => {
+    const el = root.current
+    if (!el) return
+    let timer = 0
+    let over = 0
+    const move = (e: PointerEvent): void => {
+      const card = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-cid]') : null
+      const id = card ? Number(card.dataset.cid) : 0
+      if (id === over) return
+      over = id
+      window.clearTimeout(timer)
+      if (id > 0 && e.buttons === 0) timer = window.setTimeout(() => window.api.tabIntent(id), 120)
+    }
+    el.addEventListener('pointerover', move)
+    return () => {
+      el.removeEventListener('pointerover', move)
+      window.clearTimeout(timer)
+    }
+  }, [root])
   // a blank tab made some other way (the sidebar's New tab): the board asks what goes in it
   useEffect(() => {
     const ask = (): void => askNew()

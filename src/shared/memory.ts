@@ -75,7 +75,7 @@ export interface MemoryPolicy {
   idleMin: number
   /** Most tabs kept loaded; 0 means no limit. */
   maxLoaded: number
-  /** Tabs in spaces you are not in unload after OTHER_SPACE_IDLE_MIN. */
+  /** Tabs in spaces you are not in rest (caches given back, frozen) after OTHER_SPACE_IDLE_MIN; see pickRests. */
   otherSpaces: boolean
   neverSites: readonly string[]
 }
@@ -118,11 +118,8 @@ export function pickUnloads(
 
   const picked = new Set<number>()
   for (const t of mayGo) {
-    const idleMin =
-      !t.inActiveSpace && policy.otherSpaces
-        ? Math.min(policy.idleMin, OTHER_SPACE_IDLE_MIN)
-        : policy.idleMin
-    if (now - t.lastShownAt >= idleMin * 60_000) picked.add(t.id)
+    // other spaces rest early instead (pickRests): unloaded, switching back to a space reloaded every page in it
+    if (now - t.lastShownAt >= policy.idleMin * 60_000) picked.add(t.id)
   }
 
   if (policy.maxLoaded > 0) {
@@ -163,24 +160,30 @@ export interface RestFacts extends TabFacts {
  */
 export function pickRests(
   tabs: readonly RestFacts[],
-  policy: Pick<MemoryPolicy, 'enabled' | 'neverSites'>,
+  policy: Pick<MemoryPolicy, 'enabled' | 'neverSites'> & { otherSpaces?: boolean },
   now: number
 ): { purge: number[]; freeze: number[] } {
   if (!policy.enabled) return { purge: [], freeze: [] }
+  // a tab of a space you are not in, with "other spaces" on, counts as out of sight long enough sooner
+  const early = (t: RestFacts): boolean => !!policy.otherSpaces && !t.inActiveSpace
   const idle = (t: RestFacts): number => now - t.lastShownAt
+  const purgeAt = (t: RestFacts): number =>
+    early(t) ? OTHER_SPACE_IDLE_MIN * 60_000 : REST_PURGE_MS
+  const freezeAt = (t: RestFacts): number =>
+    early(t) ? OTHER_SPACE_IDLE_MIN * 60_000 : REST_FREEZE_MS
   const restful = (t: RestFacts): boolean =>
     t.loaded && !t.visible && !t.busy && !siteListed(t.host, policy.neverSites)
   // a process is purged only when every page in it may be
   const blocked = new Set(
-    tabs.filter((t) => t.pid > 0 && (!restful(t) || idle(t) < REST_PURGE_MS)).map((t) => t.pid)
+    tabs.filter((t) => t.pid > 0 && (!restful(t) || idle(t) < purgeAt(t))).map((t) => t.pid)
   )
   const purge: number[] = []
   const freeze: number[] = []
   for (const t of tabs) {
     if (!restful(t)) continue
-    if (t.rest === 'awake' && idle(t) >= REST_PURGE_MS && t.pid > 0 && !blocked.has(t.pid))
+    if (t.rest === 'awake' && idle(t) >= purgeAt(t) && t.pid > 0 && !blocked.has(t.pid))
       purge.push(t.id)
-    if (t.rest !== 'frozen' && idle(t) >= REST_FREEZE_MS && !t.messenger && !t.notifies)
+    if (t.rest !== 'frozen' && idle(t) >= freezeAt(t) && !t.messenger && !t.notifies)
       freeze.push(t.id)
   }
   return { purge, freeze }

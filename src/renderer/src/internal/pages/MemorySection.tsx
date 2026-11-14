@@ -152,11 +152,11 @@ export function MemorySection({ s, update }: Props): React.JSX.Element {
             />
           </Row>
           <Row
-            label="Unload other spaces quickly"
-            hint="Tabs in spaces you are not using unload after 2 minutes."
+            label="Rest other spaces quickly"
+            hint="Tabs in spaces you are not using stop running after 2 minutes. They still come back instantly."
           >
             <Toggle
-              label="Unload other spaces quickly"
+              label="Rest other spaces quickly"
               on={s.unloadOtherSpaces}
               onChange={(v) => void update({ unloadOtherSpaces: v })}
             />

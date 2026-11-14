@@ -663,6 +663,10 @@ function createWindow(): void {
     if (e.sender === win.webContents) dock.setHidden(hide === true)
   })
   registerTabCard(win, (id) => tabs.cardInfo(id))
+  // the pointer rests on a tab or a card: it is likely to be opened next, so it gets ready now
+  ipcMain.on('tabs:intent', (e, id: unknown) => {
+    if (e.sender === win.webContents && typeof id === 'number') tabs.prewarm(id)
+  })
   ipcMain.on('tabs:mute-space', (_e, id: unknown) => {
     if (typeof id === 'number') tabs.toggleSpaceMute(id)
   })

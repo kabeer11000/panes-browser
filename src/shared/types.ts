@@ -215,6 +215,8 @@ export interface PanesApi {
   pageMenu(id: number, x?: number, y?: number, live?: boolean): Promise<PageMenuPick | null>
   /** The pointer rests on a tab (with where it is) or has left it (null): show or hide its card. */
   tabHover(id: number | null, anchor?: TabHoverAnchor): void
+  /** The pointer rests on a tab or its card: main gets it ready (wakes or loads it) before it is opened. */
+  tabIntent(id: number): void
   /** Open the email app with a message to the developer. */
   sendFeedback(): void
   /** Take the downloads bin off the window (the pane view is open over its edge), or let it back. */
@@ -541,7 +543,7 @@ export interface Settings {
   unloadIdleMin: number
   /** Most tabs kept loaded at once; 0 means no limit. */
   maxLoadedTabs: number
-  /** Tabs in spaces you are not using unload after a couple of minutes. */
+  /** Tabs in spaces you are not using rest (stop running) after a couple of minutes, instead of the usual wait. */
   unloadOtherSpaces: boolean
   /** Sites whose tabs are never unloaded (host names; subdomains match too). */
   neverUnloadSites: string[]

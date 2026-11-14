@@ -3,6 +3,7 @@ import {
   normalizeSites,
   normalizeZoom,
   pickPreloads,
+  OTHER_SPACE_IDLE_MIN,
   pickRests,
   pickUnloads,
   presetOf,
@@ -70,11 +71,10 @@ describe('pickUnloads', () => {
     expect(pickUnloads(tabs, p, 999 * MIN, true)).toEqual([])
   })
 
-  test('other spaces use the short threshold when enabled', () => {
+  test('other spaces are no longer unloaded early (they rest instead)', () => {
     const now = 10 * MIN
     const tabs = [tab(1, { inActiveSpace: false, lastShownAt: now - 3 * MIN })]
-    expect(pickUnloads(tabs, policy, now)).toEqual([])
-    expect(pickUnloads(tabs, { ...policy, otherSpaces: true }, now)).toEqual([1])
+    expect(pickUnloads(tabs, { ...policy, otherSpaces: true }, now)).toEqual([])
   })
 
   test('the loaded-tab limit unloads the least recently shown first and counts protected tabs', () => {
@@ -196,6 +196,20 @@ describe('pickRests', () => {
     expect(pickRests([hidden, rt(2, { pid: 9 })], on, at).purge).toEqual([1, 2])
     // a frozen page in the process does not need to be awake for the others to be purged
     expect(pickRests([hidden, rt(2, { pid: 9, rest: 'frozen' })], on, at).purge).toEqual([1])
+  })
+
+  test('with other spaces on, a tab of another space rests fully after two minutes', () => {
+    const other = rt(1, { inActiveSpace: false })
+    const two = OTHER_SPACE_IDLE_MIN * MIN
+    expect(pickRests([other], { ...on, otherSpaces: true }, two - 1)).toEqual({
+      purge: [],
+      freeze: []
+    })
+    expect(pickRests([other], { ...on, otherSpaces: true }, two)).toEqual({
+      purge: [1],
+      freeze: [1]
+    })
+    expect(pickRests([other], on, two)).toEqual({ purge: [1], freeze: [] })
   })
 
   test('no known process: never purged', () => {

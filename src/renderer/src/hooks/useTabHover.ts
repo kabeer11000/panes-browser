@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 
 const DELAY_MS = 450 // the pointer has to rest on a tab before its card opens
 const QUICK_MS = 300 // moving on from one card to the next tab opens that card at once
+const INTENT_MS = 120 // resting this long on a tab gets it ready to open (main wakes or loads it)
 
 const TAB = '.tab-row[data-tab-id], .htab[data-tab-id]'
 
@@ -13,6 +14,7 @@ const TAB = '.tab-row[data-tab-id], .htab[data-tab-id]'
 export function useTabHover(): void {
   useEffect(() => {
     let timer: number | undefined
+    let intent: number | undefined
     let current: number | null = null
     let hovered: HTMLElement | null = null
     let open = false
@@ -20,6 +22,7 @@ export function useTabHover(): void {
 
     const hide = (): void => {
       window.clearTimeout(timer)
+      window.clearTimeout(intent)
       current = null
       if (!open) return
       open = false
@@ -47,6 +50,7 @@ export function useTabHover(): void {
         open = true
       }
       timer = window.setTimeout(show, Date.now() - closedAt < QUICK_MS ? 0 : DELAY_MS)
+      intent = window.setTimeout(() => window.api.tabIntent(id), INTENT_MS)
     }
 
     // A native view (the card itself, a popover) appearing under the pointer reads as the pointer leaving the

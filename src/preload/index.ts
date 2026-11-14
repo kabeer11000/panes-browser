@@ -48,6 +48,7 @@ const api: PanesApi = {
   tabMenu: (id, picked) => ipcRenderer.send('tabs:tab-menu', id, picked),
   pageMenu: (id, x, y, live) => ipcRenderer.invoke('tabs:page-menu', id, x, y, live),
   tabHover: (id, anchor) => ipcRenderer.send('tabs:hover', id, anchor),
+  tabIntent: (id) => ipcRenderer.send('tabs:intent', id),
   hideDock: (hide) => ipcRenderer.send('ui:dock-hide', hide),
   sendFeedback: () => ipcRenderer.send('app:feedback'),
   toggleSitePanel: (anchor) => ipcRenderer.send('site:panel-toggle', anchor),
