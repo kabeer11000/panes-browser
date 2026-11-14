@@ -17,8 +17,10 @@
   position: absolute;
   left: calc(-1 * var(--ds2, 96px));
   top: calc(-1 * var(--ds2, 96px));
-  right: 0;
-  bottom: 0;
+  /* a third more than the frame, so the layer still covers it scaled down to 3/4 mid-zoom (see shared/gridDots) */
+  right: -34%;
+  bottom: -34%;
+  transform-origin: 0 0;
   pointer-events: none;
   will-change: transform;
   background-image: radial-gradient(

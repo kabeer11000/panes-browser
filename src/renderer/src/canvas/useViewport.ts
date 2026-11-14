@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { Viewport } from '@shared/ai/canvas'
 import { boardMoved, onBoardMotion } from './boardMotion'
+import { dotAlpha, placeGrid } from '@shared/gridDots'
 
 /**
  * The elements whose styles read the zoom in canvas.css. --vk (the zoom itself): the bars over a selection, which keep
@@ -76,8 +77,8 @@ export function useViewport(
   const layer = useRef<HTMLDivElement>(null)
   const grid = useRef<HTMLDivElement>(null)
   const lastK = useRef(NaN)
-  /** The coarse grid's tile, in screen px (the dots repeat every this far). */
-  const tile = useRef(96)
+  /** The fine dots' spacing as last painted (the grid layer is scaled from it to the true one, see gridDots). */
+  const painted = useRef(NaN)
   const view = useRef<Viewport>(initial)
   const raf = useRef(0)
   const anim = useRef(0)
@@ -85,13 +86,34 @@ export function useViewport(
   useEffect(() => {
     moved.current = onMove
   }, [onMove])
-  // the board settled: the zoom goes on the root as well, once, for what is drawn later (see zoomVars)
+  /**
+   * The dots: they slide as one layer, by the pan modulo one coarse tile, so a pan never repaints them (moving a painted
+   * background was a full-screen repaint a frame). A zoom scales that layer too, and repaints the dots only now and
+   * then (`exact`: at the true spacing, once the board settles); see shared/gridDots.
+   */
+  const placeDots = useCallback((exact: boolean): void => {
+    const g = grid.current
+    if (!g) return
+    const v = view.current
+    const p = placeGrid(v.x, v.y, v.k, painted.current, exact)
+    if (p.repaint) {
+      painted.current = p.painted
+      g.style.setProperty('--ds', `${p.painted}px`)
+      g.style.setProperty('--ds2', `${p.painted * 4}px`)
+      g.style.setProperty('--da', dotAlpha(p.painted).toFixed(3))
+    }
+    g.style.transform = `translate3d(${p.tx}px, ${p.ty}px, 0) scale(${p.scale})`
+  }, [])
+  // the board settled: the zoom goes on the root as well, once, for what is drawn later (see zoomVars), and the dots
+  // are repainted sharp at their true spacing
   useEffect(
     () =>
       onBoardMotion((m) => {
-        if (!m && root.current) rootZoom(root.current, view.current.k)
+        if (m) return
+        if (root.current) rootZoom(root.current, view.current.k)
+        placeDots(true)
       }),
-    []
+    [placeDots]
   )
   const pending = useRef(false)
   const idle = useRef(0)
@@ -120,31 +142,11 @@ export function useViewport(
       // Custom properties inherit: one set on the root makes every card, label and arrow under it recompute its
       // style, every frame of a pan or a zoom (most of a zoom's cost). The dots' position goes on the grid alone,
       // and what the board's contents read (--vk, --hs) goes on the few elements that read it (zoomVars).
-      const g = grid.current
       if (v.k !== lastK.current) {
         lastK.current = v.k
         zoomVars(r, v.k)
-        if (g) {
-          // the fine grid keeps between 12 and 48 screen px apart (steps of 4, as the coarse grid is 4 of it), and
-          // fades out as it gets dense, so the density on screen stays even and nothing pops or moires
-          let ds = 24 * v.k
-          while (ds < 12) ds *= 4
-          while (ds >= 48) ds /= 4
-          tile.current = ds * 4
-          g.style.setProperty('--ds', `${ds}px`)
-          g.style.setProperty('--ds2', `${ds * 4}px`)
-          g.style.setProperty('--da', String(Math.min(1, Math.max(0, (ds - 10) / 14)).toFixed(3)))
-        }
       }
-      if (g) {
-        // The dots slide as one layer, by the pan modulo one coarse tile (the grid is a tile bigger than the board on
-        // each side), so a pan never repaints them: moving a painted background was a full-screen repaint a frame.
-        // Whole pixels: dots that land between pixels shimmer as the board moves.
-        const t = tile.current
-        const ox = ((Math.round(v.x) % t) + t) % t
-        const oy = ((Math.round(v.y) % t) + t) % t
-        g.style.transform = `translate3d(${ox}px, ${oy}px, 0)`
-      }
+      placeDots(false)
     }
     if (!pending.current) {
       pending.current = true
@@ -153,7 +155,7 @@ export function useViewport(
         moved.current(view.current)
       })
     }
-  }, [warm])
+  }, [warm, placeDots])
 
   const stop = useCallback((): void => {
     cancelAnimationFrame(anim.current)
