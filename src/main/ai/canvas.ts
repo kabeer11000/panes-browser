@@ -468,9 +468,18 @@ export function registerCanvas(d: {
     const gen = ++liveGen
     d.tabs.setLive(null)
     d.tabs.prepareLive(id, rect) // an unloaded tab starts loading now, not after the wait below
+    // shown as Chrome shows a page: from its first paint, the rest loading in view (not behind the picture until the
+    // whole page has loaded, unclickable for seconds)
     const until = Date.now() + 7000
-    while (!d.tabs.liveReady(id) && Date.now() < until && gen === liveGen)
-      await new Promise((x) => setTimeout(x, 16)) // shown the frame it is ready, not up to 80 ms later
+    // shown the frame it is ready, not up to 80 ms later
+    const poll = async (ready: () => boolean): Promise<void> => {
+      while (!ready() && Date.now() < until && gen === liveGen)
+        await new Promise((x) => setTimeout(x, 16))
+    }
+    await poll(() => d.tabs.liveCommitted(id))
+    // never later than the page's load, as before: a page that cannot paint yet (frozen, hidden) does not hold it
+    if (gen === liveGen)
+      await Promise.race([d.tabs.painted(id, until - Date.now()), poll(() => d.tabs.liveReady(id))])
     // closed (or another page asked for) while this one loaded: showing it now would leave a page over the board
     if (gen === liveGen) d.tabs.setLive(id, rect)
     return id

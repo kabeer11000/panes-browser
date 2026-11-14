@@ -2576,17 +2576,38 @@ export class TabManager {
   liveReady(id: number): boolean {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
+    return this.liveCommitted(id) && !!wc && !wc.isLoadingMainFrame()
+  }
+
+  /**
+   * Whether the tab's page has committed: its own document (past the about:blank a new view starts with), not held
+   * behind its picture until it paints (see load). The canvas preview shows it from its first paint (see painted).
+   */
+  liveCommitted(id: number): boolean {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
     const u = wc ? wc.getURL() : ''
     return (
       !!t &&
       !t.unloaded &&
       !t.pending &&
+      !t.awaiting &&
       !t.navUrl &&
       !!wc &&
-      !wc.isLoadingMainFrame() &&
       u !== '' &&
       u !== 'about:blank'
     )
+  }
+
+  /** Resolves once the tab's page has drawn its first content (Chrome's paint holding), or after `ms` at most. */
+  async painted(id: number, ms: number): Promise<void> {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (!wc || ms <= 0) return
+    await Promise.race([
+      wc.executeJavaScript(PAINTED_SCRIPT, false).catch(() => {}),
+      new Promise<void>((r) => setTimeout(r, ms))
+    ])
   }
 
   /** Ctrl+T: a new tab, or on the canvas board a new card where the person asks for it. */
