@@ -117,6 +117,27 @@ async function listPass(pass: SharePass): Promise<ScreenSource[] | null> {
   )
 }
 
+/**
+ * The last screens and windows listed, with their pictures: an opening picker shows these at once and corrects them
+ * as its first listing comes in. Every listing costs about half a second (and the screens' pictures another second),
+ * which the picker otherwise spent empty.
+ */
+let known: ScreenSource[] = []
+const kindsOf = (pass: SharePass): ScreenSource['kind'][] =>
+  pass === 'names' ? ['screen', 'window'] : ['screen']
+
+/**
+ * Fill the share list in once Panes has settled, so even the first picker opens full. Windows only: elsewhere listing
+ * screens can raise the system's own screen-recording question, which must come from a share, not from a launch.
+ */
+export async function warmShareList(): Promise<void> {
+  if (process.platform !== 'win32' || known.length > 0) return
+  for (const pass of ['names', 'screens'] as const) {
+    const found = await listPass(pass)
+    if (found) known = mergeSources(known, found, kindsOf(pass))
+  }
+}
+
 const CARD_WIDTH = 340
 const PAD = 36 // room around the card for its shadow (blur 24 + offset 8 + slack), so the view never clips it
 const INSET = 12 // from the top-left corner of the page
@@ -463,7 +484,7 @@ export class PermissionManager {
     wc: WebContents | null
   ): Promise<Streams | null> {
     const { pending, outcome } = this.enqueue(
-      { origin, kinds: ['screen'], sources: [], loading: true, audio },
+      { origin, kinds: ['screen'], sources: known, loading: known.length === 0, audio },
       wc
     )
     void this.listSources(pending)
@@ -506,7 +527,8 @@ export class PermissionManager {
         continue
       }
       if (found) {
-        const kinds: ScreenSource['kind'][] = pass === 'names' ? ['screen', 'window'] : ['screen']
+        const kinds = kindsOf(pass)
+        known = mergeSources(known, found, kinds)
         this.restate(p, {
           loading: false,
           sources: mergeSources(p.state.sources ?? [], found, kinds)
