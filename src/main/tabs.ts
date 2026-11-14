@@ -146,6 +146,13 @@ const PAINTED_SCRIPT = `new Promise((r) => {
     o.observe({ type: 'paint', buffered: true })
   } catch { done() }
 })`
+/**
+ * Whether cards may show their tab live (tab streams, any site's video). Only with the graphics hardware compositing:
+ * drawn in software, one live card took a whole core of a 2-core machine and the video in it dropped most of its
+ * frames (measured: 95% CPU, 89 of 150 frames dropped; 0 dropped with the card's picture instead).
+ */
+const liveCardsAllowed = (): boolean =>
+  app.getGPUFeatureStatus().gpu_compositing.startsWith('enabled')
 const AWAIT_PAINT_MAX_MS = 2500 // never keep a view hidden longer than this, whatever the page does
 const VIEW_RADIUS = 12
 const ZOOM_STEP = 0.5
@@ -2459,7 +2466,14 @@ export class TabManager {
     // board's next list, its video could be paused by Chromium and the card would show it stopped. The board's list
     // (setStreaming) has the last word a moment later.
     const leaving = prevId !== null && prevId !== id ? this.tabs.get(prevId) : undefined
-    if (leaving?.media && this.canvasMode && !leaving.private && !leaving.tor && !leaving.unloaded)
+    if (
+      leaving?.media &&
+      this.canvasMode &&
+      !leaving.private &&
+      !leaving.tor &&
+      !leaving.unloaded &&
+      liveCardsAllowed()
+    )
       this.streaming.add(prevId!)
     if (
       prevId !== null &&
@@ -2657,7 +2671,7 @@ export class TabManager {
     const next = new Set(
       ids.filter((id) => {
         const t = this.tabs.get(id)
-        return this.canvasMode && !!t && !t.private && !t.tor && !t.unloaded
+        return this.canvasMode && !!t && !t.private && !t.tor && !t.unloaded && liveCardsAllowed()
       })
     )
     for (const id of new Set([...this.streaming, ...next])) {
