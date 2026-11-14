@@ -758,6 +758,7 @@ body {
 .wl-imp {
   width: 100%;
   max-width: 440px;
+  margin-inline: auto; /* narrower than the step's import column: centred in it, under the heading */
   display: flex;
   flex-direction: column;
   gap: 16px;
