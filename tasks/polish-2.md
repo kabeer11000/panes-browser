@@ -11,10 +11,10 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
       seen this way; those few checks still use agent-desktop and are batched, with a warning first.
 
 ## 1. Stability
-- [ ] Canvas white screen when editing text (reported 2026-11-13): reproduce, fix root cause, test.
+- [x] Canvas white screen when editing text (reported 2026-11-13): reproduce, fix root cause, test.
 - [ ] Notifications: audit the attention/notification path end to end (badges, inbox, popups, grouping), list every
       failure found, fix, unit-test the state logic in shared/.
-- [ ] Renderer crash guard: any React tree that throws shows a recoverable state, never a blank window.
+- [x] Renderer crash guard: any React tree that throws shows a recoverable state, never a blank window.
 
 ## 2. Always reachable UI
 - [ ] Tour card says "1 / 7" but its text says "Six short stops".
@@ -51,10 +51,18 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
       Not doing: running the user's `claude -p` inside Panes (subscription policy risk).
 - [ ] Model efficiency: measure the current local model on the bench; consider a smaller default.
 
+## 7. Circle to search (asked 2026-11-16)
+- [ ] Circle or drag over any part of a page: the region is cut out and a small bar offers Copy text (Windows OCR,
+      Windows.Media.Ocr, local, no download), Search with Google Lens (upload in a split), Ask AI (image to an online
+      vision model; local model gets the OCR text), Edit this (page-edit scoped to the elements under the circle).
+- [ ] Cactus Mirage not usable: Cactus engine has no Windows x64 build.
+
 ## Decisions (2026-11-16)
 - Page edits: online model when signed in, local model only for simple CSS edits.
 - Order: stability first (as listed).
 - Split view: free grid (split any pane edge, drag headers, every divider resizes).
 
 ## Log
+- 2026-11-16: canvas white screen fixed (label width loop, flex-shrink), empty hint fixed, Recover error boundary; beta.61.
+- Downloads bin sliver (12px, bottom right) also shows over the canvas: decide in the reachability pass.
 - 2026-11-16: test rig done (f01bff8). PANES_OFFSCREEN + scripts/drive.ts (click/key/type/eval/shot/winshot). Verified: click landed, foreground stayed on the terminal.

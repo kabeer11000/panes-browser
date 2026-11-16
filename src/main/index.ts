@@ -125,6 +125,8 @@ function parkOffscreen(win: BrowserWindow): void {
   win.setPosition(left - win.getBounds().width - 200, 0)
   win.show = () => win.showInactive()
   win.focus = () => undefined
+  // focusing a page view activates its window on Windows: unfocusable, nothing here can take the foreground
+  win.setFocusable(false)
 }
 
 // Camera/mic are allowed so video calls work; location, notifications etc. are denied until there is a prompt UI.
@@ -316,6 +318,9 @@ function createWindow(): void {
     const origin = originOf(url)
     return !!origin && permissions.get(origin, 'notifications') === 'allow'
   }
+  permissions.onChange(({ origin, kinds }) => {
+    if (kinds.includes('notifications')) tabs.notificationsAllowed(origin)
+  })
   // Private and Tor tabs ask the same questions, but what they are told is kept in memory only, each session
   // apart, and never reaches the normal profile's saved answers.
   permissionManager.install(privateSession, new PermissionStore(false))
@@ -783,7 +788,8 @@ function createWindow(): void {
   ipcMain.on('tabs:open-in-split', (_e, input: string) => tabs.openInSplit(String(input)))
 
   // the test driver reaches these over the main process inspector (scripts/drive.ts main)
-  if (offscreenTest) Object.assign(globalThis, { panesTest: { win, tabs, spaces, settings } })
+  if (offscreenTest)
+    Object.assign(globalThis, { panesTest: { win, tabs, spaces, settings, permissions } })
   win.on('close', () => tabs.shutdown())
   win.on('ready-to-show', () => {
     mark('ready-to-show')
