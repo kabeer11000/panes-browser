@@ -1,7 +1,5 @@
+import { ai } from './sdk'
 import { safeStorage } from 'electron'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
-import { createOpenAI } from '@ai-sdk/openai'
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { EmbeddingModel, LanguageModel } from 'ai'
 import { randomUUID } from 'crypto'
 import {
@@ -128,7 +126,7 @@ export interface ModelChoice {
 
 /** The model for the llama-server Panes runs itself. */
 export function localModels(ep: Endpoint, role: 'chat' | 'embed'): ModelChoice {
-  const p = createOpenAICompatible({
+  const p = ai().createOpenAICompatible({
     name: 'panes-local',
     baseURL: ep.baseURL,
     apiKey: ep.apiKey,
@@ -144,7 +142,7 @@ export function localModels(ep: Endpoint, role: 'chat' | 'embed'): ModelChoice {
 
 /** A server the person runs themselves (Ollama, LM Studio): their URL and model, their key if it wants one. */
 export function compatibleModels(s: AiSettings, keys: KeyStore): ModelChoice {
-  const p = createOpenAICompatible({
+  const p = ai().createOpenAICompatible({
     name: 'user-server',
     baseURL: s.compatibleUrl,
     apiKey: keys.secret('openai-compatible')
@@ -170,7 +168,7 @@ export function cloudModels(
   const embedId = CLOUD_EMBED_MODELS[provider]
   switch (provider) {
     case 'openai': {
-      const p = createOpenAI({ apiKey })
+      const p = ai().createOpenAI({ apiKey })
       return {
         chat: p.languageModel(id),
         structured: true,
@@ -179,7 +177,7 @@ export function cloudModels(
       }
     }
     case 'google': {
-      const p = createGoogleGenerativeAI({ apiKey })
+      const p = ai().createGoogleGenerativeAI({ apiKey })
       return {
         chat: p.languageModel(id),
         structured: true,
@@ -189,7 +187,7 @@ export function cloudModels(
     }
     case 'openrouter': {
       // OpenRouter speaks the OpenAI protocol; which models take a JSON schema varies, so ask for JSON in words
-      const p = createOpenAICompatible({ name: 'openrouter', baseURL: OPENROUTER_URL, apiKey })
+      const p = ai().createOpenAICompatible({ name: 'openrouter', baseURL: OPENROUTER_URL, apiKey })
       return {
         chat: p.chatModel(id),
         structured: false,
@@ -206,7 +204,7 @@ export function cloudModels(
  * output cap (see developers.openai.com/siwc/token-sharing-open-source/preview-limitations).
  */
 export function chatgptChat(accessToken: string, modelId: string): LanguageModel {
-  return createOpenAI({ apiKey: accessToken }).responses(modelId)
+  return ai().createOpenAI({ apiKey: accessToken }).responses(modelId)
 }
 
 export const CHATGPT_PROVIDER_OPTIONS = {

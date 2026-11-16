@@ -1,4 +1,4 @@
-import { embedMany, generateText, jsonSchema, Output } from 'ai'
+import { ai, loadAi } from './sdk'
 import { route, type Route } from '@shared/ai/policy'
 import { parseJsonObject } from '@shared/ai/titles'
 import type { AiContext, AiSettings, AiTask } from '@shared/ai/types'
@@ -128,6 +128,7 @@ export class AiRouter {
     r: Exclude<Route, 'deny'>,
     role: 'chat' | 'embed'
   ): Promise<ModelChoice | null> {
+    await loadAi() // every use of the SDK here comes after this
     const s = this.deps.settings()
     if (r === 'cloud')
       return s.cloudProvider ? cloudModels(s.cloudProvider, s, this.deps.keys) : null
@@ -168,21 +169,21 @@ export class AiRouter {
       abortSignal
     }
     if (m.structured) {
-      const schema = jsonSchema<Record<string, string>>({
+      const schema = ai().jsonSchema<Record<string, string>>({
         type: 'object',
         properties: { [req.field]: { type: 'string' } },
         required: [req.field],
         additionalProperties: false
       })
-      const res = await generateText({
+      const res = await ai().generateText({
         ...common,
         prompt: req.prompt,
-        output: Output.object({ schema })
+        output: ai().Output.object({ schema })
       })
       const v = (res.output as Record<string, unknown> | undefined)?.[req.field]
       return typeof v === 'string' ? v : null
     }
-    const res = await generateText({
+    const res = await ai().generateText({
       ...common,
       prompt: `${req.prompt}\n\nAnswer with JSON only, like {"${req.field}": "..."}`
     })
@@ -204,7 +205,7 @@ export class AiRouter {
       try {
         const m = await this.model(r, 'embed')
         if (!m?.embed) return null
-        const res = await embedMany({
+        const res = await ai().embedMany({
           model: m.embed,
           values: texts,
           maxRetries: 0,

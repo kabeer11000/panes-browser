@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import type { AppUpdater } from 'electron-updater'
 import { existsSync, rmSync, writeFileSync } from 'fs'
 import { showInstallProgress } from './installProgress'
 import { join } from 'path'
@@ -62,8 +62,24 @@ export class UpdateManager {
   constructor(private confirmRestart: () => Promise<boolean> = async () => true) {
     const reason = this.fake ? null : whyDisabled()
     this.state = reason ? { kind: 'disabled', reason } : { kind: 'idle', checkedAt: null }
-    if (reason || this.fake) return
+  }
 
+  /**
+   * electron-updater, loaded and wired on first use (a check, minutes after start): required at startup it cost about
+   * 110 ms before the window.
+   */
+  private updater: Promise<AppUpdater> | null = null
+  private lib(): Promise<AppUpdater> {
+    this.updater ??= import('electron-updater').then((m) => {
+      // a CommonJS package: import() puts its exports under default (its autoUpdater is a getter it cannot see)
+      const autoUpdater = m.autoUpdater ?? (m as unknown as { default: typeof m }).default.autoUpdater
+      this.wire(autoUpdater)
+      return autoUpdater
+    })
+    return this.updater
+  }
+
+  private wire(autoUpdater: AppUpdater): void {
     autoUpdater.autoDownload = true // only ever asked when a release needs the installer
     // The installer is fetched whole. Differential downloads read pieces of it over many range requests that
     // GitHub answers with redirects; when one fails, or the asset changed while a release was still being
@@ -155,8 +171,8 @@ export class UpdateManager {
         return this.retrySoon()
       }
     }
-    autoUpdater
-      .checkForUpdates()
+    this.lib()
+      .then((u) => u.checkForUpdates())
       .catch((err: unknown) =>
         this.dispatch({ type: 'error', message: message(err), at: Date.now() })
       )
@@ -221,7 +237,7 @@ export class UpdateManager {
 
   private quitIntoInstaller(): void {
     // Silent: the new version is put in place without the installer wizard, and Panes starts again by itself.
-    autoUpdater.quitAndInstall(true, true)
+    void this.lib().then((u) => u.quitAndInstall(true, true))
   }
 
   private dispatch(e: UpdateEvent): void {

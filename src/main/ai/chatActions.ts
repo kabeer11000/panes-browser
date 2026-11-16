@@ -1,3 +1,4 @@
+import { ai } from './sdk'
 import type { WebContents } from 'electron'
 import { pickResult, searchFor, wantsPdf } from '@shared/ai/findOpen'
 import { siteSearchUrl, type QuickAction } from '@shared/ai/sites'
@@ -12,7 +13,7 @@ import {
 } from '@shared/ai/play'
 import { readFile } from 'fs/promises'
 import { fileURLToPath } from 'url'
-import { jsonSchema, tool, type ToolSet } from 'ai'
+import type { ToolSet } from 'ai'
 import type { JSONSchema7 } from 'ai'
 import { canShareTab } from '@shared/ai/policy'
 import {
@@ -234,9 +235,9 @@ export function buildTools(env: ToolEnv): ToolSet {
   const out: ToolSet = {}
   const cap = env.weak ? LOCAL_TOOL_CAP : CLOUD_TOOL_CAP
   for (const spec of toolsFor(env.weak, env.mode)) {
-    out[spec.name] = tool({
+    out[spec.name] = ai().tool({
       description: spec.description,
-      inputSchema: jsonSchema(spec.schema as JSONSchema7),
+      inputSchema: ai().jsonSchema(spec.schema as JSONSchema7),
       execute: async (input: unknown) => {
         const part: ToolPart = {
           type: 'tool',
@@ -558,14 +559,17 @@ async function run(
         filterScript({ keep: v.keep, hide: v.hide, reset: v.reset }),
         true
       )) as FilterResult
-      if (v.reset) return finish('done', `Everything shown on ${label(t)}`, 'Every item shows again.')
+      if (v.reset)
+        return finish('done', `Everything shown on ${label(t)}`, 'Every item shows again.')
       if (!r.items)
         return finish(
           'error',
           'No list found',
           'Error: this page has no list of items to filter. Try find_in_page or scroll_to instead.'
         )
-      const what = [...v.keep.map((k) => `with "${k}"`), ...v.hide.map((h) => `no "${h}"`)].join(', ')
+      const what = [...v.keep.map((k) => `with "${k}"`), ...v.hide.map((h) => `no "${h}"`)].join(
+        ', '
+      )
       return finish(
         'done',
         short(`${r.items - r.hidden} of ${r.items} shown: ${what}`, 60),

@@ -100,4 +100,9 @@ function start(): void {
   require(join(__dirname, 'index.js'))
 }
 
-start()
+// Only one Panes runs. A second one (a link or file handed to Panes as the default browser) finds out here, before
+// any of the app's code loads, passes its arguments to the running one ('second-instance', index.ts) and exits:
+// loading the app first made every link opened from another app wait about half a second. index.ts asks again in
+// singleInstance.ts (for loaders older than this), which in the process holding the lock just says yes.
+if (app.requestSingleInstanceLock()) start()
+else app.exit(0)

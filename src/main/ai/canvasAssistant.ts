@@ -1,6 +1,7 @@
+import { ai } from './sdk'
 import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
-import { jsonSchema, tool, type ToolSet } from 'ai'
+import type { ToolSet } from 'ai'
 import type { JSONSchema7 } from 'json-schema'
 import { boardToolsFor, checkBoardCall } from '@shared/ai/canvasTools'
 import type { ToolName } from '@shared/ai/chatTools'
@@ -70,7 +71,7 @@ export async function addCardToBoard(url: string): Promise<boolean> {
 
 /**
  * Put a finished download on the board (the download shelf's "Show in canvas"). `file` must be a download's own path:
- * the board reads it through main, which only serves finished downloads. Not a model tool.
+ * the board reads it through main, which only serves finished downloads. Not a model ai().tool.
  */
 export async function addFileToBoard(file: string, name: string): Promise<boolean> {
   return untilBoard('add_file', { file, name })
@@ -99,9 +100,9 @@ export function boardTools(env: {
 }): ToolSet {
   const out: ToolSet = {}
   for (const spec of boardToolsFor(env.weak)) {
-    out[spec.name] = tool({
+    out[spec.name] = ai().tool({
       description: spec.description,
-      inputSchema: jsonSchema(spec.schema as JSONSchema7),
+      inputSchema: ai().jsonSchema(spec.schema as JSONSchema7),
       execute: async (input: unknown) => {
         const part: ToolPart = {
           type: 'tool',

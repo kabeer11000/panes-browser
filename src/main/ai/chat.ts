@@ -1,3 +1,4 @@
+import { ai, loadAi } from './sdk'
 import {
   dialog,
   ipcMain,
@@ -10,7 +11,7 @@ import { quickAction, siteSearchUrl, type QuickAction } from '@shared/ai/sites'
 import { quickCommand, type Command } from '@shared/ai/commands'
 import { displayHost } from '@shared/url'
 import { randomUUID } from 'crypto'
-import { generateText, stepCountIs, streamText, type ModelMessage, type ToolSet } from 'ai'
+import type { ModelMessage, ToolSet } from 'ai'
 import { type ChatTarget } from '@shared/ai/policy'
 import { chatState, localUsable, type LocalFacts } from '@shared/ai/chatState'
 import { MODELS } from '@shared/ai/models'
@@ -309,6 +310,7 @@ export class ChatService {
   private async modelFor(
     target: ChatTarget
   ): Promise<{ model: ReturnType<typeof chatgptChat>; gpt: boolean }> {
+    await loadAi()
     const { router, keys, runtime, signin } = this.d
     const s = router.settings()
     if (target === 'local') {
@@ -333,6 +335,7 @@ export class ChatService {
 
   /** Start a turn and return at once; the answer streams to the panel as ai:chat-event. */
   async send(win: ChatSink, req: SendRequest): Promise<{ dropped: number[] }> {
+    await loadAi() // the quick commands below build the SDK's tools before any model is picked
     const info = this.info()
     const emit = (e: ChatEvent): void => {
       if (!win.isDestroyed()) win.webContents.send('ai:chat-event', { turnId: req.turnId, ...e })
@@ -464,7 +467,7 @@ export class ChatService {
         })
       ))
         tools[name] = { ...t, execute: undefined }
-      await generateText({
+      await ai().generateText({
         model: p.model,
         system: p.system,
         messages: p.messages,
@@ -597,13 +600,13 @@ export class ChatService {
             })
         })
       }
-      const result = streamText({
+      const result = ai().streamText({
         model,
         system,
         messages,
         tools,
         // driving a site takes many small steps: look, click, look, type...
-        stopWhen: stepCountIs(
+        stopWhen: ai().stepCountIs(
           weak ? LOCAL_STEPS : mode === 'popover' ? 10 : mode === 'canvas' ? 20 : 30
         ),
         abortSignal: run.ctrl.signal,
@@ -655,7 +658,7 @@ export class ChatService {
           else {
             // a lookup is only useful with its result: hand it back as a real call and let the model answer
             const steps = (await result.response).messages
-            const again = streamText({
+            const again = ai().streamText({
               model,
               system,
               messages: [
@@ -679,7 +682,7 @@ export class ChatService {
               ],
               // the same tools as the first round: they are part of the prompt the server has cached
               tools,
-              stopWhen: stepCountIs(2),
+              stopWhen: ai().stepCountIs(2),
               abortSignal: run.ctrl.signal,
               maxRetries: 1,
               temperature: 0.4,
