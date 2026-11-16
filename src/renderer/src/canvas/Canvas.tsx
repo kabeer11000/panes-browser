@@ -969,13 +969,13 @@ export function Canvas({
     const delayOf = (el: HTMLElement): number => {
       if (!p.stagger) return 0
       const fid = el.dataset.fid ?? frameOfCard.get(Number(el.dataset.cid))
-      return Math.min((fid ? (turn.get(fid) ?? 0) : 0) * 45, 220)
+      return Math.min((fid ? (turn.get(fid) ?? 0) : 0) * 20, 80) // a ripple, not a queue: it reads as one move
     }
     if (p.stagger) {
       root.current
         .querySelector('.cv-links')
-        ?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.6 }, { opacity: 1 }], {
-          duration: 900,
+        ?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.7 }, { opacity: 1 }], {
+          duration: 480,
           easing: 'ease-out'
         })
     }
@@ -1027,7 +1027,7 @@ export function Canvas({
         const dy = from.y - to.y
         if (dx === 0 && dy === 0) return
         el.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0px 0px' }], {
-          duration: p.stagger ? 560 : 300,
+          duration: p.stagger ? 380 : 300,
           easing: EASE,
           delay: delayOf(el),
           fill: 'backwards'
