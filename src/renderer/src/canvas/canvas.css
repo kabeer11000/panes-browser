@@ -3793,6 +3793,9 @@
 .cv-mt.auto .cv-mt-in {
   max-width: none;
   white-space: pre;
+  /* measured for the label's width (Marks.tsx fit): shrunk to the old width, it grew 2px per render and a pasted
+     line ran past React's update limit (blank board) */
+  flex-shrink: 0;
 }
 
 /* back, forward and reload for the live page, left of the title */
