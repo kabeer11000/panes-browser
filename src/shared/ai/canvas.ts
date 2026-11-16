@@ -173,6 +173,14 @@ export const emptyState = (boot = ''): CanvasState => ({
   view: null
 })
 
+/** Nothing on the board at all: no cards, notes, sections, arrows, drawings or labels (the empty hint shows). */
+export const boardIsEmpty = (s: CanvasState): boolean =>
+  s.cards.length === 0 &&
+  s.notes.length === 0 &&
+  s.frames.length === 0 &&
+  !s.connectors?.length &&
+  !s.marks?.length
+
 /**
  * A board laid out while sections kept their title inside, on a 44px row above the cards: what is in each section
  * moves up into the room the title left, and the section is that much shorter. The same state for a current board.
@@ -904,7 +912,8 @@ export function tidy(
   const links = (prev.connectors ?? []).flatMap((k) =>
     k.from.kind === 'card' && k.to.kind === 'card' ? [[k.from.id, k.to.id] as const] : []
   )
-  if (links.length) for (const plan of plans) if (!plan.keep) plan.ids = linkedOrder(plan.ids, links)
+  if (links.length)
+    for (const plan of plans) if (!plan.keep) plan.ids = linkedOrder(plan.ids, links)
 
   // sizes; frames that keep their cards keep their box; a pinned one keeps its corner
   const notesOf = new Map<string, CanvasNote[]>()
@@ -1222,7 +1231,10 @@ export function resizeCard(s: CanvasState, id: number, box: Box): CanvasState {
  * The same cards with every card followed by those it is linked to (and theirs), so linked cards come out next to
  * each other in a grid; otherwise the order stays as it was.
  */
-export function linkedOrder(ids: number[], links: ReadonlyArray<readonly [number, number]>): number[] {
+export function linkedOrder(
+  ids: number[],
+  links: ReadonlyArray<readonly [number, number]>
+): number[] {
   const inHere = new Set(ids)
   const next = new Map<number, number[]>()
   for (const [a, b] of links) {

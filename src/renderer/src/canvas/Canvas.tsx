@@ -71,7 +71,8 @@ import {
   type Viewport,
   seatSplit,
   setPreview,
-  liftSections
+  liftSections,
+  boardIsEmpty
 } from '@shared/ai/canvas'
 import { arrangeSplit, splitBox, splitEdge, splitMembers } from '@shared/ai/split'
 import { leaves, type LayoutNode } from '@shared/layout'
@@ -5472,7 +5473,7 @@ export function Canvas({
           {ghostSrc && <img src={ghostSrc} alt="" draggable={false} />}
         </div>
       )}
-      {s && s.cards.length === 0 && phase === 'open' && (
+      {s && boardIsEmpty(s) && phase === 'open' && (
         <p className="cv-empty">Nothing here yet. Open a page, or find or ask something below.</p>
       )}
       {quick !== null && (

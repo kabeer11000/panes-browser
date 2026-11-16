@@ -15,6 +15,7 @@ import {
   linkedOrder,
   videoCardSize,
   emptyState,
+  boardIsEmpty,
   fitView,
   forDisk,
   frameAt,
@@ -423,7 +424,15 @@ describe('saving', () => {
 describe('linkedOrder (Arrange keeps arrows short)', () => {
   test('a card is followed by the cards it is linked to; the rest keep their order', () => {
     expect(linkedOrder([1, 2, 3, 4, 5], [[1, 4]])).toEqual([1, 4, 2, 3, 5])
-    expect(linkedOrder([1, 2, 3, 4, 5], [[5, 2], [2, 4]])).toEqual([1, 2, 4, 5, 3])
+    expect(
+      linkedOrder(
+        [1, 2, 3, 4, 5],
+        [
+          [5, 2],
+          [2, 4]
+        ]
+      )
+    ).toEqual([1, 2, 4, 5, 3])
     expect(linkedOrder([1, 2, 3], [])).toEqual([1, 2, 3])
     expect(linkedOrder([1, 2], [[1, 9]])).toEqual([1, 2])
   })
@@ -446,5 +455,20 @@ describe('linkedOrder (Arrange keeps arrows short)', () => {
     const a = s.cards.find((c) => c.id === 1)!
     const b = s.cards.find((c) => c.id === 6)!
     expect(Math.abs(a.y - b.y) < 1 && b.x > a.x).toBe(true)
+  })
+})
+
+describe('boardIsEmpty', () => {
+  test('a new board is empty', () => expect(boardIsEmpty(emptyState('b'))).toBe(true))
+  test('a text label alone is not empty (the hint overlapped it)', () => {
+    const s = {
+      ...emptyState('b'),
+      marks: [{ id: 'm1', kind: 'text', x: 0, y: 0, w: 40, h: 26, text: 'Hi' }]
+    }
+    expect(boardIsEmpty(s as never)).toBe(false)
+  })
+  test('notes or sections count', () => {
+    expect(boardIsEmpty({ ...emptyState('b'), notes: [{}] } as never)).toBe(false)
+    expect(boardIsEmpty({ ...emptyState('b'), frames: [{}] } as never)).toBe(false)
   })
 })
