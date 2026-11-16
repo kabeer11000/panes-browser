@@ -32,7 +32,7 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [x] Renderer crash guard: any React tree that throws shows a recoverable state, never a blank window.
 
 ## 2. Always reachable UI
-- [ ] Tour card says "1 / 7" but its text says "Six short stops".
+- [x] Tour card says "1 / 7" but its text says "Six short stops".
 - [ ] Inventory every surface (sidebar, top bar, canvas toolbar, preview bar, popovers, panels) x every way in/out
       (shortcut, click, hover, Esc, resize, fullscreen, split, small window). Fix any state where a control is lost.
 - [ ] Canvas toolbar: never off-screen or hidden behind a card/preview at any window size.
@@ -74,14 +74,14 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 
 ## 8. User-reported polish queue (2026-11-17)
 - [ ] Preview dialog: top of the website has odd rounding / overflow.
-- [ ] Canvas cursors: right cursor for every surface (grab/grabbing, resize, text, pointer, crosshair for tools).
-- [ ] Drag handles: look and feel (size, hover, hit area, spring).
-- [ ] Tidy (arrange) takes arrows into account: connected cards placed near each other, fewer crossings.
+- [x] Canvas cursors: right cursor for every surface (grab/grabbing, resize, text, pointer, crosshair for tools).
+- [x] Drag handles: look and feel (size, hover, hit area, spring).
+- [x] Tidy (arrange) takes arrows into account: connected cards placed near each other, fewer crossings.
 - [ ] Efficient mode / low-end: switch off transparency, blur, grain (a "Reduce transparency" setting, on by default in efficient).
 - [ ] Search popover: serves many usage patterns (keyboard-first, mouse, power shortcuts, actions, tabs, history,
       bookmarks, calc/units, site search); measured latency.
 - [ ] Context menus: one menu system, simple, consistent items, not many kinds.
-- [ ] Fully zoomed-out canvas: section headers scale smoothly with zoom (no sudden switch), overall polish of the board.
+- [x] Fully zoomed-out canvas: section headers scale smoothly with zoom (no sudden switch), overall polish of the board.
 
 ## Decisions (2026-11-16)
 - Page edits: online model when signed in, local model only for simple CSS edits.

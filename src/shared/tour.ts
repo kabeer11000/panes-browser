@@ -41,7 +41,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: 'hello',
     title: 'A quick tour of Panes',
-    body: 'Six short stops, and you do each one yourself. Press the key it shows and the tour moves on; Esc ends it any time.'
+    body: 'Five short stops, and you do each one yourself. Press the key it shows and the tour moves on; Esc ends it any time.'
   },
   {
     id: 'address',
