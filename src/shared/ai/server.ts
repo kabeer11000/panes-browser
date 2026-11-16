@@ -6,6 +6,20 @@ import type { ModelRole } from './models'
  * 8-bit prompt. 8192 tokens at 16-bit is ~940 MB, given back when the server idles out.
  */
 export const CONTEXT_TOKENS = 8192
+
+/** At or under this much RAM a machine is "small": the chat model gets half the context and leaves sooner. */
+export const SMALL_RAM_BYTES = 8.5 * 1024 ** 3
+
+/**
+ * The chat model's context on a machine with `totalRam` bytes. A small machine gets 4096 tokens (~470 MB less while
+ * the model is loaded); chat then fits less of a page into a question (localBudget), nothing fails.
+ */
+export const chatContextTokens = (totalRam: number): number =>
+  totalRam <= SMALL_RAM_BYTES ? CONTEXT_TOKENS / 2 : CONTEXT_TOKENS
+
+/** How long the chat model stays loaded after its last job: shorter on a small machine, where 2 GB is a lot. */
+export const chatIdleMs = (totalRam: number): number =>
+  totalRam <= SMALL_RAM_BYTES ? 2 * 60_000 : 5 * 60_000
 // an indexed page is at most ~1900 characters (~600 tokens); a smaller batch halves the embedder's compute buffers
 export const EMBED_TOKENS = 1024
 
@@ -18,6 +32,8 @@ export interface ServerArgsInput {
   gpu: boolean
   /** Logical CPUs. The server's threads leave some of them free (see aiThreads). */
   cpus?: number
+  /** The chat model's context (chatContextTokens); CONTEXT_TOKENS when not given. */
+  contextTokens?: number
 }
 
 /**
@@ -50,7 +66,8 @@ export function serverArgs({
   port,
   apiKey,
   gpu,
-  cpus
+  cpus,
+  contextTokens = CONTEXT_TOKENS
 }: ServerArgsInput): string[] {
   const args = [
     '-m',
@@ -62,7 +79,7 @@ export function serverArgs({
     '--api-key',
     apiKey,
     '-c',
-    String(role === 'embed' ? EMBED_TOKENS : CONTEXT_TOKENS),
+    String(role === 'embed' ? EMBED_TOKENS : contextTokens),
     '-np',
     '1', // one slot: a parallel slot splits the context and costs memory
     '--no-webui'

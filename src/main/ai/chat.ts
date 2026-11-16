@@ -1,3 +1,4 @@
+import { totalmem } from 'os'
 import { ai, loadAi } from './sdk'
 import {
   dialog,
@@ -15,7 +16,7 @@ import type { ModelMessage, ToolSet } from 'ai'
 import { type ChatTarget } from '@shared/ai/policy'
 import { chatState, localUsable, type LocalFacts } from '@shared/ai/chatState'
 import { MODELS } from '@shared/ai/models'
-import { CONTEXT_TOKENS } from '@shared/ai/server'
+import { chatContextTokens } from '@shared/ai/server'
 import {
   chatSystem,
   CLOUD_HISTORY_CHARS,
@@ -521,7 +522,7 @@ export class ChatService {
   }> {
     const { model, gpt } = await this.modelFor(target)
     // the local model's small context is shared out so a long page or paste is cut to fit, never refused
-    const fit = weak ? localBudget(CONTEXT_TOKENS, asked.length, scale) : null
+    const fit = weak ? localBudget(chatContextTokens(totalmem()), asked.length, scale) : null
     const typed =
       fit && asked.length > fit.typed ? `${asked.slice(0, fit.typed)}\n[cut to fit]` : asked
     const prior = toModelHistory(history, fit ? fit.history : CLOUD_HISTORY_CHARS)

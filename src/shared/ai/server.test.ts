@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { aiThreads, serverArgs } from './server'
+import { aiThreads, chatContextTokens, chatIdleMs, serverArgs } from './server'
 
 const base = { modelPath: '/m/x.gguf', port: 5123, apiKey: 'k'.repeat(64) }
 const after = (a: string[], flag: string): string => a[a.indexOf(flag) + 1]
@@ -49,5 +49,25 @@ describe('serverArgs', () => {
   test('the chat server runs the jinja template so that tool calls work', () => {
     expect(serverArgs({ ...base, role: 'chat', gpu: false })).toContain('--jinja')
     expect(serverArgs({ ...base, role: 'embed', gpu: false })).not.toContain('--jinja')
+  })
+})
+
+describe('small machines', () => {
+  const GB = 1024 ** 3
+  test('8 GB or less: half the chat context and a shorter stay', () => {
+    expect(chatContextTokens(8 * GB)).toBe(4096)
+    expect(chatContextTokens(16 * GB)).toBe(8192)
+    expect(chatIdleMs(8 * GB)).toBeLessThan(chatIdleMs(16 * GB))
+  })
+  test('the chat server gets the context it is given', () => {
+    const c = serverArgs({
+      role: 'chat',
+      modelPath: 'm',
+      port: 1,
+      apiKey: 'k',
+      gpu: false,
+      contextTokens: 4096
+    })
+    expect(c[c.indexOf('-c') + 1]).toBe('4096')
   })
 })

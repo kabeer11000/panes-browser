@@ -12,7 +12,7 @@ import {
   writeFileSync
 } from 'fs'
 import { copyFile, rename, rm } from 'fs/promises'
-import { availableParallelism, constants, setPriority } from 'os'
+import { availableParallelism, constants, setPriority, totalmem } from 'os'
 import { basename, dirname, join, resolve } from 'path'
 import {
   cpuOnlyHolds,
@@ -23,7 +23,7 @@ import {
   type ModelSpec,
   type RuntimeBuild
 } from '@shared/ai/models'
-import { serverArgs } from '@shared/ai/server'
+import { chatContextTokens, chatIdleMs, serverArgs } from '@shared/ai/server'
 import type { AiStatus, ServerStatus } from '@shared/ai/types'
 import { exe, fetchVerified, freePort, run, tarCommand } from '../fetchVerified'
 
@@ -33,7 +33,7 @@ const GPU_HEALTH_MS = 15_000
 const GPU_SLOW_MS = 45_000
 const CPU_HEALTH_MS = 120_000
 // both servers give their RAM back when unused; the omnibox warms the embedder again on focus
-const IDLE_MS: Record<ModelRole, number> = { chat: 5 * 60_000, embed: 15 * 60_000 }
+const IDLE_MS: Record<ModelRole, number> = { chat: chatIdleMs(totalmem()), embed: 15 * 60_000 }
 const CRASH_WINDOW_MS = 10 * 60_000
 const CRASH_LIMIT = 3
 const NOTIFY_MS = 200
@@ -427,7 +427,8 @@ export class LocalRuntime {
         port: s.port,
         apiKey: s.key,
         gpu: b.gpu,
-        cpus: availableParallelism()
+        cpus: availableParallelism(),
+        contextTokens: chatContextTokens(totalmem())
       })
       const proc = spawn(bin, args, {
         cwd: dirname(bin),

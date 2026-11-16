@@ -54,8 +54,14 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [ ] Close the gap with what exists (trim, unload, process limits) and anything the measurement points at.
 
 ## 6. AI
-- [ ] Cactus: engine kernels are ARM only, no Windows x64, no Node binding (docs v1.9); Needle 3 is a tool-call model,
-      too small to write page code. Not usable on this machine. Keep llama.cpp.
+- [x] Cactus re-checked 2026-11-17 (v4.1.1): now ships windows-x86_64 cactus.exe, a win_amd64 Python wheel and a
+      browser/Node WASM build (cactus.js + cactus.wasm, 1.2 MB, exports cactus_load/describe/complete/embed/transcribe).
+      The CLI has no image input; vision is cactus_describe(rgb, w, h, ...). Measured on this machine (4 cores):
+      Mirage (21.6 MB, Apache-2.0) loads in ~115 ms in WASM; describe takes ~3.7-5 s in WASM (single thread, 148 MB
+      heap) and ~1.5 s native (Python wheel). Input is resized to 512 px, so a small crop is no faster. On page
+      screenshots it finds mostly "text label" boxes with masks: useful for "select this object" (mask) in circle to
+      search, weak for understanding web UI. Needle 3 is a tool-call model, too small to write page code: llama.cpp
+      stays for chat. Whistle (speech, 16.9 MB, CPU) is a candidate for voice input.
 - [ ] Page edits ("make YouTube's home mine", "sort this", "nyan cat in the corner", "latest Jira cards"): the model
       writes CSS/JS that Panes injects into that page, saved per site and re-applied, with an undo and a list to remove.
 - [ ] Outside AI (asked 2026-11-16): use the user's own Claude Code CLI / claude.ai / ChatGPT from Panes, sending page
@@ -70,7 +76,8 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [ ] Circle or drag over any part of a page: the region is cut out and a small bar offers Copy text (Windows OCR,
       Windows.Media.Ocr, local, no download), Search with Google Lens (upload in a split), Ask AI (image to an online
       vision model; local model gets the OCR text), Edit this (page-edit scoped to the elements under the circle).
-- [ ] Cactus Mirage not usable: Cactus engine has no Windows x64 build.
+- [ ] Mirage (WASM in a worker, no native binary to ship) for "pick the object under the lasso": its masks cut the
+      object out. ~4 s in WASM: run it behind the shimmer, never block the gesture.
 
 ## 8. User-reported polish queue (2026-11-17)
 - [ ] Preview dialog: top of the website has odd rounding / overflow.
