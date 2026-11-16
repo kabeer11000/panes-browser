@@ -16,6 +16,7 @@ import {
   videoCardSize,
   emptyState,
   boardIsEmpty,
+  linkedSections,
   GAP,
   regridFrame,
   fitView,
@@ -487,5 +488,67 @@ describe('regridFrame row heights', () => {
     const ys = [...new Set(out.cards.map((c) => c.y))].sort((a, b) => a - b)
     expect(ys.length).toBeGreaterThan(1)
     expect(ys[1] - ys[0]).toBe(170 + GAP)
+  })
+})
+
+describe('linkedSections', () => {
+  test('a section linked to the first comes right after it, ahead of bigger unlinked ones', () => {
+    expect(linkedSections(['a', 'b', 'c', 'd'], [['a', 'd']])).toEqual(['a', 'd', 'b', 'c'])
+  })
+  test('the most linked goes next; ties and unlinked keep their order', () => {
+    const links: Array<[string, string]> = [
+      ['a', 'c'],
+      ['a', 'd'],
+      ['a', 'd'],
+      ['d', 'b']
+    ]
+    expect(linkedSections(['a', 'b', 'c', 'd'], links)).toEqual(['a', 'd', 'b', 'c'])
+  })
+  test('no links: unchanged', () => {
+    expect(linkedSections(['a', 'b', 'c'], [])).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('tidy with arrows between sections', () => {
+  test('a section joined by an arrow is laid out right after the one it is joined to', () => {
+    const sites = ['a.com', 'b.com', 'c.com', 'd.com']
+    const per = [6, 5, 4, 3]
+    const list: ReturnType<typeof tab>[] = []
+    const groups: Array<{ name: string; ids: number[] }> = []
+    let id = 1
+    sites.forEach((site, i) => {
+      const ids: number[] = []
+      for (let n = 0; n < per[i]; n++) {
+        list.push(tab(id, site))
+        ids.push(id++)
+      }
+      groups.push({ name: site, ids })
+    })
+    const first = groups[0].ids[0]
+    const last = groups[3].ids[0]
+    const prev = {
+      ...emptyState('b'),
+      connectors: [
+        {
+          id: 'k1',
+          from: { kind: 'card', id: first },
+          to: { kind: 'card', id: last },
+          shape: 'curved',
+          heads: 'end',
+          label: ''
+        }
+      ]
+    } as never
+    const s = tidy(prev, list, groups, true)
+    const frameOf = (cardId: number): { x: number; y: number } => {
+      const c = s.cards.find((x) => x.id === cardId)!
+      const f = s.frames.find((x) => x.id === c.frame)!
+      return { x: f.x, y: f.y }
+    }
+    const order = [groups[0], groups[1], groups[2], groups[3]]
+      .map((g) => ({ name: g.name, ...frameOf(g.ids[0]) }))
+      .sort((p, q) => p.y - q.y || p.x - q.x)
+      .map((p) => p.name)
+    expect(order.indexOf('d.com')).toBe(order.indexOf('a.com') + 1)
   })
 })

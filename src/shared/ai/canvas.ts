@@ -1037,6 +1037,22 @@ export function tidy(
   const rank = (p: Plan): number =>
     p.frame.kind === 'private' ? 2 : p.frame.kind === 'other' ? 1 : 0
   flow.sort((a, b) => rank(a) - rank(b) || b.ids.length - a.ids.length)
+  // sections joined by arrows are laid out one after another (side by side in the shelf rows), so their lines stay
+  // short instead of crossing the board
+  if (links.length) {
+    const home = new Map<number, string>()
+    for (const p of flow) for (const id of p.ids) home.set(id, p.frame.id)
+    const order = linkedSections(
+      flow.map((p) => p.frame.id),
+      links.flatMap(([a, b]) => {
+        const fa = home.get(a)
+        const fb = home.get(b)
+        return fa && fb && fa !== fb ? [[fa, fb] as const] : []
+      })
+    )
+    const at = new Map(order.map((id, i) => [id, i]))
+    flow.sort((a, b) => at.get(a.frame.id)! - at.get(b.frame.id)!)
+  }
   const sizes = flow.map((p) => ({ id: p.frame.id, ...sizeOf(p) }))
   const area = sizes.reduce((a, z) => a + (z.w + FRAME_GAP) * (z.h + FRAME_GAP), 0)
   const rowWidth = Math.max(1500, ...sizes.map((z) => z.w), Math.round(Math.sqrt(area * 1.9)))
@@ -1228,6 +1244,36 @@ export function resizeCard(s: CanvasState, id: number, box: Box): CanvasState {
       return next
     })
   })
+}
+
+/**
+ * Sections in an order that keeps linked ones together: the first stays first, then each next is the one with the
+ * most links to those already placed (ties, and sections with no links, keep their order). `links` are pairs of
+ * section ids, one per arrow between their cards.
+ */
+export function linkedSections(
+  ids: readonly string[],
+  links: ReadonlyArray<readonly [string, string]>
+): string[] {
+  if (ids.length < 3 || links.length === 0) return [...ids]
+  const weight = new Map<string, number>()
+  const key = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`)
+  for (const [a, b] of links) weight.set(key(a, b), (weight.get(key(a, b)) ?? 0) + 1)
+  const out = [ids[0]]
+  const left = ids.slice(1)
+  while (left.length > 0) {
+    let best = 0
+    let bestW = 0
+    left.forEach((id, i) => {
+      const w = out.reduce((sum, o) => sum + (weight.get(key(id, o)) ?? 0), 0)
+      if (w > bestW) {
+        best = i
+        bestW = w
+      }
+    })
+    out.push(left.splice(best, 1)[0])
+  }
+  return out
 }
 
 /**
