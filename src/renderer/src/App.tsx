@@ -48,6 +48,7 @@ import type { LoginEdits, PasswordPrompt, Settings } from '@shared/types'
 import { chromeVars } from '@shared/color'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 import { Recover } from './Recover'
+import { narrowStep } from '@shared/narrow'
 
 type Mode = 'grid' | 'stack' | 'search' | 'canvas' | null
 
@@ -160,6 +161,22 @@ function App(): React.JSX.Element {
     chatOpenRef.current = chatOpen
     sidebarOpenRef.current = sidebarOpen
   }, [chatOpen, sidebarOpen])
+  // A narrow window keeps its width for the page: the pinned sidebar tucks away, and comes back when it is wide again
+  useEffect(() => {
+    let state = { narrow: false, tucked: false }
+    const check = (): void => {
+      const step = narrowStep(
+        state,
+        innerWidth,
+        sidebarOpenRef.current && !openedByHoverRef.current
+      )
+      state = step.next
+      if (step.sidebar) setSidebar(step.sidebar === 'open')
+    }
+    check()
+    addEventListener('resize', check)
+    return () => removeEventListener('resize', check)
+  }, [setSidebar])
   useEffect(() => {
     if (mode === 'canvas') {
       if (beforeCanvas.current) return
