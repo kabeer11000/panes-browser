@@ -16,6 +16,8 @@ import {
   videoCardSize,
   emptyState,
   boardIsEmpty,
+  GAP,
+  regridFrame,
   fitView,
   forDisk,
   frameAt,
@@ -470,5 +472,20 @@ describe('boardIsEmpty', () => {
   test('notes or sections count', () => {
     expect(boardIsEmpty({ ...emptyState('b'), notes: [{}] } as never)).toBe(false)
     expect(boardIsEmpty({ ...emptyState('b'), frames: [{}] } as never)).toBe(false)
+  })
+})
+
+describe('regridFrame row heights', () => {
+  test('a row of short page cards is as tall as they are, not the default card height', () => {
+    const base = emptyState('b')
+    const s = {
+      ...base,
+      frames: [{ id: 'f1', name: 'Other', x: 0, y: 0, w: 1200, h: 900 }],
+      cards: [1, 2, 3, 4, 5, 6].map((id) => ({ id, x: id * 10, y: 0, w: 320, h: 170, frame: 'f1' }))
+    } as never
+    const out = regridFrame(s, 'f1')
+    const ys = [...new Set(out.cards.map((c) => c.y))].sort((a, b) => a - b)
+    expect(ys.length).toBeGreaterThan(1)
+    expect(ys[1] - ys[0]).toBe(170 + GAP)
   })
 })

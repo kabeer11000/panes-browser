@@ -562,7 +562,8 @@ export function regridFrame(s: CanvasState, id: string, keepCols = false): Canva
   const totalCells = cell + ns.length
   const rows = Math.max(1, Math.ceil(totalCells / cols))
   const colW = Array.from({ length: cols }, () => CARD_W)
-  const rowH = Array.from({ length: rows }, () => CARD_H)
+  // a row is as tall as its tallest item (a row of short page cards left a card's default height of gap under it)
+  const rowH = Array.from({ length: rows }, () => 0)
   const byId = new Map(cs.map((c) => [c.id, c]))
   for (const [cid, i] of cellOf) {
     const c = byId.get(cid)
@@ -585,6 +586,7 @@ export function regridFrame(s: CanvasState, id: string, keepCols = false): Canva
     colX.push(cx)
     cx += colW[c] + GAP
   }
+  for (let r = 0; r < rows; r++) if (rowH[r] === 0) rowH[r] = CARD_H
   const rowY: number[] = []
   let ry = HEAD
   for (let r = 0; r < rows; r++) {
@@ -942,7 +944,7 @@ export function tidy(
     const cols = gridCols(total)
     const rows = Math.max(1, Math.ceil(total / cols))
     const colW = Array.from({ length: cols }, () => CARD_W)
-    const rowH = Array.from({ length: rows }, () => CARD_H)
+    const rowH = Array.from({ length: rows }, () => 0) // as tall as its tallest item, as in regridFrame
     plan.ids.forEach((id, i) => {
       const sz = sizeById.get(id)
       const w = sz?.w ?? CARD_W
@@ -965,6 +967,7 @@ export function tidy(
       colX.push(cx)
       cx += colW[c] + GAP
     }
+    for (let r = 0; r < rows; r++) if (rowH[r] === 0) rowH[r] = CARD_H
     const rowY: number[] = []
     let ry = HEAD
     for (let r = 0; r < rows; r++) {
