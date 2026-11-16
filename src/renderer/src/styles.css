@@ -3496,6 +3496,17 @@ kbd {
 [data-fx='low'] .tab-list {
   transition: none !important;
 }
+/* efficient mode: nothing see-through. A backdrop blur is redrawn whenever what is under it moves (every frame of a
+   board pan or a playing card), and the grain is a whole-window blended layer. The surfaces that had a blur are 60-97%
+   opaque already, so they read the same without it. */
+[data-fx='low'] *,
+[data-fx='low'] *::before,
+[data-fx='low'] *::after {
+  backdrop-filter: none !important;
+}
+[data-fx='low'] .themed::before {
+  display: none;
+}
 
 /* ---- tabs that look like tabs, not pills ---- */
 .tab-row {

@@ -84,7 +84,7 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [x] Canvas cursors: right cursor for every surface (grab/grabbing, resize, text, pointer, crosshair for tools).
 - [x] Drag handles: look and feel (size, hover, hit area, spring).
 - [x] Tidy (arrange) takes arrows into account: connected cards placed near each other, fewer crossings.
-- [ ] Efficient mode / low-end: switch off transparency, blur, grain (a "Reduce transparency" setting, on by default in efficient).
+- [x] Efficient mode / low-end: switch off transparency, blur, grain (a "Reduce transparency" setting, on by default in efficient).
 - [ ] Search popover: serves many usage patterns (keyboard-first, mouse, power shortcuts, actions, tabs, history,
       bookmarks, calc/units, site search); measured latency.
 - [ ] Context menus: one menu system, simple, consistent items, not many kinds.
