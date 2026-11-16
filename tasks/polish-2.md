@@ -3,10 +3,10 @@
 Goal: no new features except AI page edits. Make what exists stable, always reachable, fast to open, light on RAM.
 
 ## 0. Test rig (first, everything else depends on it)
-- [ ] Scratch Panes driven only over CDP (`PANES_USERDATA` scratch profile, own `--remote-debugging-port`, own
+- [x] Scratch Panes driven only over CDP (`PANES_USERDATA` scratch profile, own `--remote-debugging-port`, own
       `--inspect`). Clicks and keys go in as `Input.dispatch*` events on the chrome and page targets, screenshots with
       `Page.captureScreenshot`. No OS focus needed, so the user's terminal and windows are never touched.
-- [ ] Window parked off-screen; occlusion and background throttling off for the test instance only, so it still paints.
+- [x] Window parked off-screen; occlusion and background throttling off for the test instance only, so it still paints.
 - [ ] Limits: native menus, the real cursor (hover sidebar/top bar read it from main) and OS notifications cannot be
       seen this way; those few checks still use agent-desktop and are batched, with a warning first.
 
@@ -17,6 +17,7 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [ ] Renderer crash guard: any React tree that throws shows a recoverable state, never a blank window.
 
 ## 2. Always reachable UI
+- [ ] Tour card says "1 / 7" but its text says "Six short stops".
 - [ ] Inventory every surface (sidebar, top bar, canvas toolbar, preview bar, popovers, panels) x every way in/out
       (shortcut, click, hover, Esc, resize, fullscreen, split, small window). Fix any state where a control is lost.
 - [ ] Canvas toolbar: never off-screen or hidden behind a card/preview at any window size.
@@ -43,7 +44,11 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [ ] Page edits ("make YouTube's home mine", "sort this", "nyan cat in the corner", "latest Jira cards"): the model
       writes CSS/JS that Panes injects into that page, saved per site and re-applied, with an undo and a list to remove.
 - [ ] Outside AI (asked 2026-11-16): use the user's own Claude Code CLI / claude.ai / ChatGPT from Panes, sending page
-      context in and taking the answer back. Options and recommendation pending.
+      context in and taking the answer back. Chosen: A) "Ask in Claude/ChatGPT/Gemini" opens the site in a split with
+      the page context prefilled; B) Panes MCP server so Claude Code/Codex can read tabs, edit pages, use the canvas.
+      MCP for claude.ai / ChatGPT web needs a public HTTPS URL: later step, a Panes relay tunnel with OAuth and a
+      per-action approval in Panes. Local MCP (Claude Code, Claude desktop, Codex, Cursor) first.
+      Not doing: running the user's `claude -p` inside Panes (subscription policy risk).
 - [ ] Model efficiency: measure the current local model on the bench; consider a smaller default.
 
 ## Decisions (2026-11-16)
@@ -52,3 +57,4 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - Split view: free grid (split any pane edge, drag headers, every divider resizes).
 
 ## Log
+- 2026-11-16: test rig done (f01bff8). PANES_OFFSCREEN + scripts/drive.ts (click/key/type/eval/shot/winshot). Verified: click landed, foreground stayed on the terminal.

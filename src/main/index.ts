@@ -782,6 +782,8 @@ function createWindow(): void {
   ai.chat.attach(win)
   ipcMain.on('tabs:open-in-split', (_e, input: string) => tabs.openInSplit(String(input)))
 
+  // the test driver reaches these over the main process inspector (scripts/drive.ts main)
+  if (offscreenTest) Object.assign(globalThis, { panesTest: { win, tabs, spaces, settings } })
   win.on('close', () => tabs.shutdown())
   win.on('ready-to-show', () => {
     mark('ready-to-show')

@@ -19,6 +19,9 @@
  *   type <text>             insert text where the focus is
  *   key <combo>             e.g. ctrl+t, Escape, ctrl+shift+e, Enter
  *   eval <js>               evaluate in the target, prints the JSON result
+ *   main <js>               evaluate in the main process (needs `-- --inspect=<port+1>` on the dev command);
+ *                           `panesTest` holds { win, tabs, spaces, settings }, e.g.
+ *                           main "panesTest.win.webContents.send('ui:command', 'toggle-canvas')"
  *
  * The default target is the Panes interface. `--target youtube` picks the first page whose url contains it.
  * Mouse events sent to the interface page land on the interface, not on a tab page under it: send those to the tab's
@@ -165,6 +168,23 @@ async function main(): Promise<void> {
     ])
     if (r.exitCode !== 0) throw new Error(r.stderr.toString())
     console.log(out)
+    return
+  }
+  if (cmd === 'main') {
+    const list = (await (await fetch(`http://127.0.0.1:${port + 1}/json/list`)).json()) as Target[]
+    const m = await Session.open(list[0].webSocketDebuggerUrl)
+    const r = await m.send<{
+      result: { value?: unknown }
+      exceptionDetails?: { text: string; exception?: { description?: string } }
+    }>('Runtime.evaluate', {
+      expression: rest.join(' '),
+      returnByValue: true,
+      awaitPromise: true,
+      includeCommandLineAPI: true
+    })
+    if (r.exceptionDetails)
+      throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text)
+    console.log(JSON.stringify(r.result.value, null, 1))
     return
   }
   const s = await Session.open((await pick()).webSocketDebuggerUrl)
