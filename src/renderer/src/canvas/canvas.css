@@ -1617,6 +1617,12 @@
 .cv-prompt:focus-within kbd {
   display: none;
 }
+/* a narrow window: the key hint gives its room to the placeholder, which was cut off */
+@media (max-width: 900px) {
+  .cv-prompt kbd {
+    display: none;
+  }
+}
 .cv-prompt-dot {
   display: none;
   width: 7px;
