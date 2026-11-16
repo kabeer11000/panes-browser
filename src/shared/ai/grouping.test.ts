@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  cleanGroupName,
   fallbackName,
+  groupNamesPrompt,
   GroupSuggestionState,
   type GroupTab,
   nameFromReply,
+  parseGroupNames,
   planGroups,
   sanitizeGroupName,
   SUGGEST_INTERVAL_MS
@@ -82,5 +85,32 @@ describe('GroupSuggestionState', () => {
         [7, 8, 9]
       ])
     ).toEqual([[7, 8, 9]])
+  })
+})
+
+describe('naming several groups in one call', () => {
+  test('one cleaned name per group, in order', () => {
+    expect(parseGroupNames('japan trip | Programming languages - | home and', 3)).toEqual([
+      'Japan trip',
+      'Programming languages',
+      'Home'
+    ])
+  })
+  test('numbered names lose their numbers', () => {
+    expect(parseGroupNames('Group 1: Cooking | 2. Travel', 2)).toEqual(['Cooking', 'Travel'])
+  })
+  test('a reply with the wrong count names nothing', () => {
+    expect(parseGroupNames('Cooking | Travel', 3)).toEqual([null, null, null])
+    expect(parseGroupNames(null, 2)).toEqual([null, null])
+  })
+  test('an empty part is null, the others still count', () => {
+    expect(parseGroupNames('Cooking |  ', 2)).toEqual(['Cooking', null])
+  })
+  test('the prompt numbers each group', () => {
+    expect(groupNamesPrompt([['a', 'b'], ['c']])).toBe('Group 1:\n- a\n- b\n\nGroup 2:\n- c')
+  })
+  test('cleanGroupName matches single-name cleanup', () => {
+    expect(cleanGroupName('ramen shops -')).toBe('Ramen shops')
+    expect(cleanGroupName('')).toBeNull()
   })
 })

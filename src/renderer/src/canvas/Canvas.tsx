@@ -1039,21 +1039,29 @@ export function Canvas({
   // ---- names from the model for frames the board just made ----
   const nameFrames = useCallback(
     async (ids: string[]): Promise<void> => {
-      for (const id of ids) {
-        const s = stRef.current
-        const f = s?.frames.find((x) => x.id === id)
-        if (!s || !f || f.pinned || f.kind !== 'topic') continue
-        const members = s.cards.filter((c) => c.frame === id).map((c) => c.id)
-        const was = f.name
-        const name = await window.api.canvas.name(spaceId, members)
-        if (!name) continue
-        edit((cur) => ({
-          ...cur,
-          frames: cur.frames.map((x) =>
-            x.id === id && !x.pinned && x.name === was ? { ...x, name } : x
-          )
-        }))
-      }
+      const s = stRef.current
+      if (!s) return
+      const todo = s.frames.filter((f) => ids.includes(f.id) && !f.pinned && f.kind === 'topic')
+      if (todo.length === 0) return
+      // one call names them all (a call per section kept the model busy for many seconds after a tidy)
+      const names = await window.api.canvas.names(
+        spaceId,
+        todo.map((f) => s.cards.filter((c) => c.frame === f.id).map((c) => c.id))
+      )
+      const named = new Map(
+        todo.flatMap((f, i) =>
+          names[i] ? [[f.id, { was: f.name, name: names[i]! }] as const] : []
+        )
+      )
+      if (named.size === 0) return
+      // a section renamed or pinned meanwhile keeps what the person gave it
+      edit((cur) => ({
+        ...cur,
+        frames: cur.frames.map((x) => {
+          const n = named.get(x.id)
+          return n && !x.pinned && x.name === n.was ? { ...x, name: n.name } : x
+        })
+      }))
     },
     [spaceId, edit]
   )

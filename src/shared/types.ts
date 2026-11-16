@@ -317,7 +317,8 @@ export interface PanesApi {
     /** Where the playing video is in a tab's page; null when nothing plays there. */
     videoRegion(tabId: number): Promise<VideoRegion | null>
     cluster(spaceId: number): Promise<{ groups: Group[]; semantic: boolean }>
-    name(spaceId: number, tabIds: number[]): Promise<string | null>
+    /** Model names for clusters of tab ids, one per cluster in order (null where none). */
+    names(spaceId: number, clusters: number[][]): Promise<(string | null)[]>
     assign(spaceId: number, tabId: number, frames: Record<string, number[]>): Promise<string | null>
     /** Bring back the last n closed tabs (the undo of closing tabs from the board). */
     reopen(n: number): void

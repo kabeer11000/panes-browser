@@ -60,6 +60,12 @@ Use 2 or 3 words naming the subject they share, the way a person would label a f
 Name the topic, never the website or format: not "Wikipedia", "YouTube", "Articles", "Web pages", "Links" or "Tabs".
 Examples: pages on ramen shops and Kyoto hotels -> {"name": "Japan trip"}; pages on Python, Rust and Go -> {"name": "Programming languages"}.`
 
+/** GROUP_SYSTEM for several groups at once (groupNamesPrompt), so a whole board is named in one call. */
+export const GROUPS_SYSTEM = `You name groups of related web pages by the topic each group shares. Answer with JSON: {"names": "first | second | ..."}: one name per group, in the order given, separated by " | ", with exactly as many names as groups.
+Each name is 2 or 3 words naming the subject its pages share, the way a person would label a folder, in the language of the titles.
+Name the topic, never the website or format: not "Wikipedia", "YouTube", "Articles", "Web pages", "Links" or "Tabs".
+Example: Group 1 has pages on ramen shops and Kyoto hotels, Group 2 on Python, Rust and Go -> {"names": "Japan trip | Programming languages"}.`
+
 /** Most of a file read for naming (a PDF's Info dictionary can be near either end). */
 const HEAD_BYTES = 2 * 1024 * 1024
 const TAIL_BYTES = 256 * 1024

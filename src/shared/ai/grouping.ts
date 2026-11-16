@@ -60,6 +60,33 @@ export function sanitizeGroupName(raw: unknown): string | null {
   return words.slice(0, GROUP_NAME_MAX).trim() || null
 }
 
+/** A model's group name as a section shows it: no trailing dash, colon or "and", first letter capital. */
+export function cleanGroupName(raw: string | null | undefined): string | null {
+  // a model likes to trail off with a dash or a colon
+  const name = raw ? sanitizeGroupName(raw.replace(/[\s\-–—:,;]+$/, '')) : null
+  const trimmed = name ? name.replace(/(\s+(and|or|of|the|with|for|in|on|to|a|&))+$/i, '') : ''
+  return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : null
+}
+
+/** Groups named in one model call at most: the reply's names must fit its short output budget. */
+export const NAMES_PER_CALL = 8
+
+/** One prompt for several groups: each group's page titles under its number. */
+export const groupNamesPrompt = (groups: readonly (readonly string[])[]): string =>
+  groups
+    .map((titles, i) => `Group ${i + 1}:\n${titles.map((t) => `- ${t}`).join('\n')}`)
+    .join('\n\n')
+
+/**
+ * The names in a reply to groupNamesPrompt ("first | second | ..."), one per group in order. A reply with a
+ * different count cannot be matched to its groups: every name is null then, and the sections keep the ones they had.
+ */
+export function parseGroupNames(raw: string | null | undefined, count: number): (string | null)[] {
+  const parts = (raw ?? '').split('|')
+  if (parts.length !== count) return Array(count).fill(null)
+  return parts.map((p) => cleanGroupName(p.replace(/^\s*(group\s*)?\d+\s*[:.)-]\s*/i, '')))
+}
+
 /** Pulls {"name": "..."} out of a model's reply. */
 export const nameFromReply = (text: string): string | null =>
   sanitizeGroupName(parseJsonObject(text)?.name)

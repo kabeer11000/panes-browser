@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { serverArgs } from './server'
+import { aiThreads, serverArgs } from './server'
 
 const base = { modelPath: '/m/x.gguf', port: 5123, apiKey: 'k'.repeat(64) }
 const after = (a: string[], flag: string): string => a[a.indexOf(flag) + 1]
@@ -34,10 +34,13 @@ describe('serverArgs', () => {
     expect(e).not.toContain('-ctk')
   })
 
-  test('prompts are read on every logical CPU; the prompt cache in RAM is bounded', () => {
+  test('threads leave CPUs free for the person; the prompt cache in RAM is bounded', () => {
     const c = serverArgs({ ...base, role: 'chat', gpu: false, cpus: 8 })
-    expect(after(c, '-tb')).toBe('8')
-    expect(c).not.toContain('-t')
+    expect(after(c, '-t')).toBe('3')
+    expect(after(c, '-tb')).toBe('6')
+    expect(aiThreads(4)).toEqual({ generate: 1, read: 2 })
+    expect(aiThreads(2)).toEqual({ generate: 1, read: 1 })
+    expect(aiThreads(16)).toEqual({ generate: 7, read: 14 })
     expect(Number(after(c, '--cache-ram'))).toBeLessThanOrEqual(1024)
     expect(after(serverArgs({ ...base, role: 'embed', gpu: false }), '--cache-ram')).toBe('0')
     expect(serverArgs({ ...base, role: 'chat', gpu: false })).not.toContain('-tb')

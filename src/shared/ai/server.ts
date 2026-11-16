@@ -16,7 +16,7 @@ export interface ServerArgsInput {
   apiKey: string
   /** A GPU build: layers go to the GPU. */
   gpu: boolean
-  /** Logical CPUs. Reading a prompt uses all of them (hyperthreads read ~35% faster on a 4-core laptop CPU). */
+  /** Logical CPUs. The server's threads leave some of them free (see aiThreads). */
   cpus?: number
 }
 
@@ -26,6 +26,19 @@ export interface ServerArgsInput {
  * prompt is ~100-500 MB for the 1.7B model.
  */
 export const CACHE_RAM_MB = 768
+
+/**
+ * Threads for a server on `cpus` logical CPUs. On every one (what llama.cpp does by default) a background job, such as
+ * naming a board's sections, held a 4-core laptop at 100% and froze it. Writing tokens is bound by memory, not
+ * compute, so a few threads lose little; reading a prompt is compute, so it gets all but two logical CPUs. The
+ * server also runs at below-normal priority (runtime.ts), so what the person is doing comes first.
+ */
+export function aiThreads(cpus: number): { generate: number; read: number } {
+  return {
+    generate: Math.max(1, Math.floor(cpus / 2) - 1),
+    read: Math.max(1, cpus - 2)
+  }
+}
 
 /**
  * The command line for one llama-server. It listens on the loopback address only and refuses any request that
@@ -54,7 +67,10 @@ export function serverArgs({
     '1', // one slot: a parallel slot splits the context and costs memory
     '--no-webui'
   ]
-  if (cpus && cpus > 1) args.push('-tb', String(cpus))
+  if (cpus && cpus > 1) {
+    const t = aiThreads(cpus)
+    args.push('-t', String(t.generate), '-tb', String(t.read))
+  }
   if (role === 'embed')
     args.push(
       '--embeddings',

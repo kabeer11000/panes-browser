@@ -21,7 +21,14 @@ import {
   type Group,
   type TabLite
 } from '@shared/ai/canvas'
-import { fallbackName, planGroups, sanitizeGroupName } from '@shared/ai/grouping'
+import {
+  cleanGroupName,
+  fallbackName,
+  groupNamesPrompt,
+  NAMES_PER_CALL,
+  parseGroupNames,
+  planGroups
+} from '@shared/ai/grouping'
 import type { AiContext } from '@shared/ai/types'
 import { cleanTitle } from '@shared/ai/titles'
 import { fallbackSummary, parsePlacement, type Placement } from '@shared/ai/canvasPlace'
@@ -35,7 +42,7 @@ import { canvasBridge } from './canvasAssistant'
 import { CanvasContent } from './canvasContent'
 import { registerCanvasExport } from './canvasExport'
 import { CanvasFinder } from './canvasFind'
-import { GROUP_SYSTEM } from './features'
+import { GROUP_SYSTEM, GROUPS_SYSTEM } from './features'
 import type { EmbeddingIndex } from './index'
 import type { AiRouter } from './router'
 import { aiRoot } from './runtime'
@@ -238,27 +245,40 @@ export class CanvasService {
     return { groups: [...groups, ...hostClusters(bare)], semantic: true }
   }
 
-  /** A name for a cluster from the model (2 or 3 words), or null. */
-  async name(spaceId: number, ids: number[]): Promise<string | null> {
+  /**
+   * Names for clusters from the model (2 or 3 words each, null where it had none), NAMES_PER_CALL clusters to a
+   * call: one call for a whole tidy, not one per section (each call reads a prompt, which is most of its cost).
+   */
+  async names(spaceId: number, clusters: number[][]): Promise<(string | null)[]> {
     const own = new Map(this.normalTabs(spaceId).map((t) => [t.id, t]))
-    const titles = ids
-      .flatMap((id) =>
-        own.has(id) ? [cleanTitle(own.get(id)!.title, own.get(id)!.url).title.slice(0, 100)] : []
-      )
-      .filter((t) => t.trim() !== '')
-      .slice(0, 12)
-    if (titles.length < 2) return null
-    const raw = await this.deps.router.generate({
-      task: 'group-name',
-      ctx: NORMAL,
-      system: GROUP_SYSTEM,
-      prompt: titles.map((t) => `- ${t}`).join('\n'),
-      field: 'name'
-    })
-    // a model likes to trail off with a dash or a colon
-    const name = raw ? sanitizeGroupName(raw.replace(/[\s\-–—:,;]+$/, '')) : null
-    const trimmed = name ? name.replace(/(\s+(and|or|of|the|with|for|in|on|to|a|&))+$/i, '') : ''
-    return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : null
+    const titlesOf = (ids: number[]): string[] =>
+      ids
+        .flatMap((id) =>
+          own.has(id) ? [cleanTitle(own.get(id)!.title, own.get(id)!.url).title.slice(0, 80)] : []
+        )
+        .filter((t) => t.trim() !== '')
+        .slice(0, 6)
+    const out: (string | null)[] = clusters.map(() => null)
+    // a cluster with fewer than two titles has nothing for the model to find in common
+    const asked = clusters
+      .map((ids, i) => ({ i, titles: titlesOf(ids) }))
+      .filter((c) => c.titles.length >= 2)
+    for (let at = 0; at < asked.length; at += NAMES_PER_CALL) {
+      const part = asked.slice(at, at + NAMES_PER_CALL)
+      const raw = await this.deps.router.generate({
+        task: 'group-name',
+        ctx: NORMAL,
+        system: part.length === 1 ? GROUP_SYSTEM : GROUPS_SYSTEM,
+        prompt:
+          part.length === 1
+            ? part[0].titles.map((t) => `- ${t}`).join('\n')
+            : groupNamesPrompt(part.map((c) => c.titles)),
+        field: part.length === 1 ? 'name' : 'names'
+      })
+      const got = part.length === 1 ? [cleanGroupName(raw)] : parseGroupNames(raw, part.length)
+      part.forEach((c, k) => (out[c.i] = got[k]))
+    }
+    return out
   }
 
   /** Key points of a page, as Markdown bullets; null when no model may or can answer. */
@@ -380,8 +400,8 @@ export function registerCanvas(d: {
   ipcMain.handle('canvas:cluster', (e, spaceId: unknown) =>
     mine(e) ? svc.cluster(num(spaceId)) : { groups: [], semantic: false }
   )
-  ipcMain.handle('canvas:name', (e, spaceId: unknown, list: unknown) =>
-    mine(e) ? svc.name(num(spaceId), ids(list)) : null
+  ipcMain.handle('canvas:names', (e, spaceId: unknown, list: unknown) =>
+    mine(e) && Array.isArray(list) ? svc.names(num(spaceId), list.slice(0, 200).map(ids)) : []
   )
   ipcMain.handle('canvas:assign', (e, spaceId: unknown, tabId: unknown, frames: unknown) => {
     if (!mine(e) || !frames || typeof frames !== 'object') return null

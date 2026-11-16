@@ -12,7 +12,7 @@ import {
   writeFileSync
 } from 'fs'
 import { copyFile, rename, rm } from 'fs/promises'
-import { availableParallelism } from 'os'
+import { availableParallelism, constants, setPriority } from 'os'
 import { basename, dirname, join, resolve } from 'path'
 import {
   cpuOnlyHolds,
@@ -435,6 +435,14 @@ export class LocalRuntime {
         stdio: ['ignore', 'ignore', 'pipe']
       })
       s.proc = proc
+      // below the person's apps and Panes itself: an AI job waits for the CPU instead of freezing the machine
+      if (proc.pid) {
+        try {
+          setPriority(proc.pid, constants.priority.PRIORITY_BELOW_NORMAL)
+        } catch {
+          // not allowed here: it runs at normal priority
+        }
+      }
       let tail = ''
       proc.stderr?.on('data', (c: Buffer) => {
         tail = (tail + c.toString()).slice(-1500)
