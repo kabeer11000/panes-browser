@@ -5136,7 +5136,7 @@ export function Canvas({
         (reduced ? ' reduced' : '') +
         (lod ? ' lod' : '') +
         (tool === 'hand' ? ' hand' : '') +
-        (tool !== 'select' && tool !== 'hand' ? ' draw' : '') +
+        (tool === 'text' ? ' tool-text' : tool !== 'select' && tool !== 'hand' ? ' draw' : '') +
         (dim ? ' dim' : '') +
         (expanded ? ' reading' : '') +
         (asker.open ? ' docked' : '')

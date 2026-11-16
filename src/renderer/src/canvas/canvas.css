@@ -38,7 +38,7 @@
   opacity: 1;
 }
 .cv.hand,
-.cv.hand * {
+.cv.hand .cv-board * {
   cursor: grab;
 }
 /* A gesture's cursor comes from a sheet over the board, not from every element in it: a rule on '.cv.x *' restyles the
@@ -52,9 +52,18 @@
   z-index: 1000;
   cursor: grabbing;
 }
+/* moving things keeps the arrow, as in Figma; the closed hand is for panning the board only */
+.cv.dragging::before {
+  cursor: default;
+}
+/* a tool's cursor is over the board only: the toolbar, menus and fields keep their own */
 .cv.draw,
-.cv.draw * {
+.cv.draw .cv-board * {
   cursor: crosshair;
+}
+.cv.tool-text,
+.cv.tool-text .cv-board * {
+  cursor: text;
 }
 .cv-board {
   position: absolute;
@@ -198,7 +207,7 @@
   transform: scale(var(--fhs, 1));
   transform-origin: 0 100%;
   pointer-events: auto;
-  cursor: grab;
+  cursor: default;
 }
 .cv-frame-icon {
   display: grid;
@@ -2168,7 +2177,7 @@
   display: none;
 }
 .cv.over-frame {
-  cursor: move;
+  cursor: default;
 }
 
 /* how a card is placed: the quiet chip and its menu */
@@ -2459,7 +2468,11 @@
   cursor: nwse-resize;
 }
 .cv-mark-handles circle.grip {
-  cursor: grab;
+  /* a curved arrow (rotate), with the usual hand where custom cursors are off */
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M5 12a7 7 0 1 1 2.05 4.95' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M5 12a7 7 0 1 1 2.05 4.95' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3Cpath d='M2 9l3 4 3-4' fill='black' stroke='white' stroke-width='1' stroke-linejoin='round'/%3E%3C/svg%3E")
+      12 12,
+    grab;
 }
 .cv-draft {
   fill: none;
@@ -4431,4 +4444,24 @@
 }
 .cv-blabel:hover .cv-blabel-in {
   box-shadow: 0 0 0 2px var(--space);
+}
+
+/* ---- resize handles, one look everywhere (sections, cards, notes): a white square in an accent ring as in Figma, a
+   grab area wider than the square, and a small grow under the pointer ---- */
+:is(.cv-rz, .cv-crz.nw, .cv-crz.ne, .cv-crz.sw, .cv-crz.se, .cv-nrz.se) {
+  background: #fff;
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 1px 3px rgb(0 0 0 / 0.3);
+  transition:
+    opacity var(--dur-fast),
+    scale var(--dur-fast) var(--ease);
+}
+:is(.cv-rz, .cv-crz.nw, .cv-crz.ne, .cv-crz.sw, .cv-crz.se, .cv-nrz.se)::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+:is(.cv-rz, .cv-crz.nw, .cv-crz.ne, .cv-crz.sw, .cv-crz.se, .cv-nrz.se):hover {
+  scale: calc(var(--hs, 1) * 1.3);
 }
