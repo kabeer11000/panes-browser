@@ -72,12 +72,24 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
       vision model; local model gets the OCR text), Edit this (page-edit scoped to the elements under the circle).
 - [ ] Cactus Mirage not usable: Cactus engine has no Windows x64 build.
 
+## 8. User-reported polish queue (2026-11-17)
+- [ ] Preview dialog: top of the website has odd rounding / overflow.
+- [ ] Canvas cursors: right cursor for every surface (grab/grabbing, resize, text, pointer, crosshair for tools).
+- [ ] Drag handles: look and feel (size, hover, hit area, spring).
+- [ ] Tidy (arrange) takes arrows into account: connected cards placed near each other, fewer crossings.
+- [ ] Efficient mode / low-end: switch off transparency, blur, grain (a "Reduce transparency" setting, on by default in efficient).
+- [ ] Search popover: serves many usage patterns (keyboard-first, mouse, power shortcuts, actions, tabs, history,
+      bookmarks, calc/units, site search); measured latency.
+- [ ] Context menus: one menu system, simple, consistent items, not many kinds.
+- [ ] Fully zoomed-out canvas: section headers scale smoothly with zoom (no sudden switch), overall polish of the board.
+
 ## Decisions (2026-11-16)
 - Page edits: online model when signed in, local model only for simple CSS edits.
 - Order: stability first (as listed).
 - Split view: free grid (split any pane edge, drag headers, every divider resizes).
 
 ## Log
+- Startup: AI SDK + providers (~350 ms) and electron-updater (~110 ms) now load on first use; lock taken in loader.ts. Packaged, warm: first code 510 -> 360 ms, page loaded median 1200 -> 760 ms; link hand-off to a running Panes ~170 ms total (was >500 ms before the check).
 - 720x480 pass: sidebar ~1/3 of width (auto-collapse below ~900?); canvas search placeholder clipped; AI-off banner sits over cards; bin sliver over canvas. Esc from CDP did not close canvas (CDP keys skip before-input-event; recheck with real keys).
 - 2026-11-16: canvas white screen fixed (label width loop, flex-shrink), empty hint fixed, Recover error boundary; beta.61.
 - Downloads bin sliver (12px, bottom right) also shows over the canvas: decide in the reachability pass.
