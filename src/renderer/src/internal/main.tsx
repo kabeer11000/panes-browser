@@ -6,6 +6,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Shell } from './Shell'
 import { Reader } from './pages/Reader'
+import { Recover } from '@renderer/Recover'
 
 // Before the first paint: the tokens default to dark, so without this a light page would flash dark
 // while its settings load. prefers-color-scheme already matches the active space (see SpaceStore).
@@ -20,6 +21,6 @@ document.documentElement.style.setProperty('--stage-bg', 'transparent')
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* panes://reader shares this entry (and its preload API) but not the settings shell around it */}
-    {location.hostname === 'reader' ? <Reader /> : <Shell />}
+    <Recover what="this page">{location.hostname === 'reader' ? <Reader /> : <Shell />}</Recover>
   </StrictMode>
 )

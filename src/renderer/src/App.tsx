@@ -47,6 +47,7 @@ import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '@shared/settings'
 import type { LoginEdits, PasswordPrompt, Settings } from '@shared/types'
 import { chromeVars } from '@shared/color'
 import { DragLayer, DropIndicator } from './components/DragLayer'
+import { Recover } from './Recover'
 
 type Mode = 'grid' | 'stack' | 'search' | 'canvas' | null
 
@@ -1113,21 +1114,26 @@ function App(): React.JSX.Element {
                 <div key="boot" className="cv" aria-hidden="true" />
               )}
               {mode === 'canvas' && (
-                <Canvas
+                <Recover
                   key={`canvas-${activeSpaceId}`}
-                  quiet={quietBoard}
-                  tabs={tabs}
-                  activeId={activeId}
-                  thumbs={thumbs}
-                  spaceId={activeSpaceId}
-                  spaces={spaces}
-                  layout={layout}
-                  onExit={(pick) => {
-                    setQuiet(false)
-                    if (pick !== null) window.api.activateTab(pick)
-                    closeOverlay()
-                  }}
-                />
+                  what="the board"
+                  leave={{ label: 'Back to pages', run: closeOverlay }}
+                >
+                  <Canvas
+                    quiet={quietBoard}
+                    tabs={tabs}
+                    activeId={activeId}
+                    thumbs={thumbs}
+                    spaceId={activeSpaceId}
+                    spaces={spaces}
+                    layout={layout}
+                    onExit={(pick) => {
+                      setQuiet(false)
+                      if (pick !== null) window.api.activateTab(pick)
+                      closeOverlay()
+                    }}
+                  />
+                </Recover>
               )}
               {mode === 'search' && (
                 <SearchPalette

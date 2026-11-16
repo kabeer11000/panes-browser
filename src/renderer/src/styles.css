@@ -4809,3 +4809,59 @@ kbd {
     stroke-dashoffset: 0;
   }
 }
+
+/* Recover.tsx: what a render error shows instead of a blank window */
+.recover {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-5);
+  background: var(--overlay-solid, var(--bg));
+  color: var(--fg);
+  font-family: var(--font);
+  text-align: center;
+}
+.recover-title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 600;
+}
+.recover-sub {
+  margin: 0;
+  max-width: 420px;
+  font-size: var(--fs-m);
+  color: var(--fg-dim);
+}
+.recover-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.recover-btn {
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-m);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.recover-btn:hover {
+  background: var(--surface-hover);
+}
+.recover-btn:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+.recover-btn.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: #fff;
+}
