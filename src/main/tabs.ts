@@ -59,7 +59,8 @@ import {
   type AttentionMemo,
   type TabAttention
 } from '@shared/attention'
-import { NOTIFY_SCRIPT, parseNotify } from '@shared/notify'
+import { notifyScript, parseNotify } from '@shared/notify'
+import { originOf } from '@shared/permissions'
 import { ESC_SCRIPT, isPreviewEsc } from '@shared/previewEsc'
 import { TaskbarAttention } from './attention'
 import { dumpableTabs, type TabDump } from '@shared/dumps'
@@ -2373,19 +2374,31 @@ export class TabManager {
    * Put the notification hook into the tab's page if its site may notify (the script checks, and does nothing
    * otherwise). Runs at dom-ready and again when the tab leaves the screen, which covers a site allowed after load.
    */
-  private hookNotifications(tab: Tab): void {
+  private hookNotifications(tab: Tab, allowed = false): void {
     const wc = liveContents(tab)
     if (!wc || tab.unloaded || tab.notes || !/^https?:/i.test(wc.getURL())) return
     const notes = new Set<number>()
     tab.notes = notes // set before the answer, so a second call while this one runs does not hook twice
     void wc
-      .executeJavaScript(NOTIFY_SCRIPT)
+      .executeJavaScript(notifyScript(allowed))
       .then((installed: unknown) => {
         if (installed !== true && tab.notes === notes) tab.notes = null
       })
       .catch(() => {
         if (tab.notes === notes) tab.notes = null
       })
+  }
+
+  /**
+   * A site was just allowed to notify (`origin`, or null for any site): its open pages get the hook now. Waiting for
+   * them to leave the screen missed what a page in front sent while the person was in another app.
+   */
+  notificationsAllowed(origin: string | null): void {
+    for (const tab of this.tabs.values()) {
+      const wc = liveContents(tab)
+      if (wc && (origin === null || originOf(wc.getURL()) === origin))
+        this.hookNotifications(tab, true)
+    }
   }
 
   private onNotifyReport(id: number, tab: Tab, message: string): void {

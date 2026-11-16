@@ -31,10 +31,12 @@ export function parseNotify(message: string): NotifyReport | null {
  * - `registration.showNotification(...)` from the page: Electron drops notifications from service workers without
  *   showing anything, so the page's call is shown as a page notification instead (actions are not possible there).
  * Returns whether it installed, so main knows the page's reports can be trusted for this document.
+ * `allowed`: main has just recorded the site's allow, which the page's `Notification.permission` learns a moment
+ * later; the page's own check would still say no.
  */
-export const NOTIFY_SCRIPT = `(() => {
+export const notifyScript = (allowed = false): string => `(() => {
   const Real = window.Notification
-  if (typeof Real !== 'function' || Real.permission !== 'granted') return false
+  if (typeof Real !== 'function' || (${allowed ? 'false' : "Real.permission !== 'granted'"})) return false
   const say = console.debug.bind(console)
   const report = (data) => say('${NOTIFY_PREFIX}' + JSON.stringify(data))
   let next = 0
@@ -61,3 +63,5 @@ export const NOTIFY_SCRIPT = `(() => {
   }
   return true
 })()`
+
+export const NOTIFY_SCRIPT = notifyScript()

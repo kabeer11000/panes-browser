@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { NOTIFY_PREFIX, NOTIFY_SCRIPT, parseNotify } from './notify'
+import { NOTIFY_PREFIX, NOTIFY_SCRIPT, notifyScript, parseNotify } from './notify'
 
 const msg = (v: unknown): string => NOTIFY_PREFIX + JSON.stringify(v)
 
@@ -31,7 +31,10 @@ describe('parseNotify', () => {
 })
 
 /** Runs the page script against a stand-in window, as a page with the given permission would. */
-function runScript(permission: string): {
+function runScript(
+  permission: string,
+  script = NOTIFY_SCRIPT
+): {
   installed: boolean
   logs: string[]
   win: Record<string, unknown>
@@ -62,7 +65,7 @@ function runScript(permission: string): {
     ServiceWorkerRegistration: FakeSWR
   }
   const console = { debug: (m: string) => logs.push(m) }
-  const installed = new Function('window', 'console', 'return ' + NOTIFY_SCRIPT)(win, console)
+  const installed = new Function('window', 'console', 'return ' + script)(win, console)
   return { installed, logs, win, shown }
 }
 
@@ -72,6 +75,11 @@ describe('NOTIFY_SCRIPT', () => {
     expect(r.installed).toBe(false)
     expect(typeof r.win.Notification).toBe('function')
     expect((r.win.Notification as { permission: string }).permission).toBe('default')
+  })
+
+  test('installs when main has just allowed the site, before the page has heard', () => {
+    const r = runScript('default', notifyScript(true))
+    expect(r.installed).toBe(true)
   })
 
   test('reports shows and clicks, and the real notification is still made', () => {
