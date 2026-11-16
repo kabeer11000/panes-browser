@@ -355,6 +355,16 @@ export class TabManager {
 
   /** Ctrl+Shift+Y: show the ask chip for the page's current selection and put the keyboard on it. */
   onAskSelection: (() => void) | null = null
+  /** Ctrl+Shift+S, or a shake of the mouse over the page: circle to search (main/circle.ts). */
+  onCircle: (() => void) | null = null
+
+  /** The page circle to search works on (the canvas preview's while it is open): where its view sits, and its kind. */
+  circleTarget(): { wc: WebContents; bounds: Rect; kind: TabKind } | null {
+    const t = this.pageTab()
+    const wc = t && !t.unloaded ? liveContents(t) : null
+    if (!t || !wc || wc.isDestroyed() || !t.view.getVisible() || this.overlay) return null
+    return { wc, bounds: t.view.getBounds(), kind: kindOf(t) }
+  }
   /** Ctrl+P (our print view) and Ctrl+Shift+P (the system dialog). */
   onPrint: ((system: boolean) => void) | null = null
   /** Reader mode for the page on screen (wired in index.ts). */
@@ -1996,6 +2006,7 @@ export class TabManager {
       mute: () => active !== null && this.toggleMute(active),
       reader: () => this.onReader?.(),
       'ask-selection': () => this.onAskSelection?.(),
+      circle: () => this.onCircle?.(),
       find: () => this.command('find'),
       bookmark: () => this.toggleBookmark(),
       reload: () => this.reload(),
@@ -3368,6 +3379,7 @@ export class TabManager {
       else if (k === 'p') this.onPrint?.(true)
       else if (k === 'e') this.runAction('reader')
       else if (k === 'y') this.runAction('ask-selection')
+      else if (k === 's') this.runAction('circle')
       else if (k === 'k') this.command('toggle-canvas')
       else if (k === 'l') this.command('toggle-chat')
       else if (k === 't') this.reopenClosed()

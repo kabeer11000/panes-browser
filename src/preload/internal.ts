@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { InternalApi } from '@shared/types'
 import { installAutofill } from './autofill'
-import { installSelectionWatch } from './selection'
+import { installSelectionWatch, installShakeWatch } from './selection'
 
 // This script is attached to every tab; it only exposes anything to panes:// pages.
 if (location.protocol === 'panes:') {
@@ -113,4 +113,5 @@ if (location.protocol === 'panes:') {
 } else {
   installAutofill()
   installSelectionWatch()
+  installShakeWatch()
 }

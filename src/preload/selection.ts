@@ -1,4 +1,5 @@
 import { ipcRenderer } from 'electron'
+import { ShakeWatch } from '@shared/circle'
 
 const SETTLE_MS = 350 // after the last change: a drag in progress, or Shift+arrows, is not "a selection" yet
 const MAX_TEXT = 2000
@@ -78,4 +79,20 @@ export function installSelectionWatch(): void {
   )
   addEventListener('scroll', clear, { capture: true, passive: true })
   addEventListener('keydown', (e) => e.key === 'Escape' && clear(), true)
+}
+
+/**
+ * A fast wave of the mouse over the page (no button held) opens circle to search (main/circle.ts). Only positions are
+ * looked at, in the preload's own world; the page sees nothing.
+ */
+export function installShakeWatch(): void {
+  const watch = new ShakeWatch()
+  addEventListener(
+    'mousemove',
+    (e) => {
+      if (e.buttons !== 0) return watch.reset()
+      if (watch.move(e.screenX, e.timeStamp)) ipcRenderer.send('circle:shake')
+    },
+    { passive: true, capture: true }
+  )
 }

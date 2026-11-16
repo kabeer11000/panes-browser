@@ -73,9 +73,12 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [ ] Model efficiency: measure the current local model on the bench; consider a smaller default.
 
 ## 7. Circle to search (asked 2026-11-16)
-- [ ] Circle or drag over any part of a page: the region is cut out and a small bar offers Copy text (Windows OCR,
-      Windows.Media.Ocr, local, no download), Search with Google Lens (upload in a split), Ask AI (image to an online
-      vision model; local model gets the OCR text), Edit this (page-edit scoped to the elements under the circle).
+- [x] Circle to search v1 (2026-11-17): Ctrl+Shift+S, the command bar, or a fast mouse shake over the page. A frozen
+      picture of the page with a glowing lasso; circle, scribble or tap (a tap picks the element, a picture whole).
+      Text comes from the page's DOM (exact, local, isolated world). Bar: Search (default engine), Search image
+      (Google Lens upload from the tab's own session), Copy (text, or the picture), Ask AI (normal tabs only).
+      Draw again to re-pick, Esc closes. Not yet: text inside iframes/shadow roots, Windows OCR for text in pictures,
+      "Edit this" (page edits scoped to the circle), a setting to turn the shake off.
 - [ ] Mirage (WASM in a worker, no native binary to ship) for "pick the object under the lasso": its masks cut the
       object out. ~4 s in WASM: run it behind the shimmer, never block the gesture.
 

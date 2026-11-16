@@ -100,6 +100,12 @@ export const ACTIONS: SearchAction[] = [
     shortcut: 'Ctrl+Shift+Y'
   },
   {
+    id: 'circle',
+    title: 'Circle to search',
+    keywords: 'circle search lens lasso select region screen picture image copy text ocr',
+    shortcut: 'Ctrl+Shift+S'
+  },
+  {
     id: 'reader',
     title: 'Reader mode',
     keywords: 'reader mode read article simplify clean distraction',

@@ -41,6 +41,7 @@ import {
 import icon from '../../resources/icon.png?asset'
 import { PermissionManager, PermissionStore } from './permissions'
 import { AskSelection } from './askSelection'
+import { CircleSearch } from './circle'
 import { Reader } from './reader'
 import { continueReading, habits, pickBoards, type SmartNewTab } from '@shared/newtab'
 import { SitePanel } from './sitePanel'
@@ -620,6 +621,17 @@ function createWindow(): void {
     continueInChat: (draft) => tabs.askAi(draft)
   })
   tabs.onAskSelection = () => askSelection.offerNow()
+  const circle = new CircleSearch({
+    win,
+    target: () => tabs.circleTarget(),
+    open: (input) => tabs.create(input),
+    ask: (text) => tabs.askAi(text)
+  })
+  tabs.onCircle = () => void circle.start()
+  // a shake of the mouse over the page on screen (preload/internal.ts), not over one behind it
+  ipcMain.on('circle:shake', (e) => {
+    if (e.sender === tabs.circleTarget()?.wc) void circle.start()
+  })
   const reader = new Reader({
     win,
     active: () => tabs.activeContents(),
