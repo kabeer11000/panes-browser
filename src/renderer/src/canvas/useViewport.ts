@@ -25,6 +25,12 @@ const HS_READERS = [
 
 const hsOf = (k: number): string => String(Math.min(2.6, Math.max(1, 0.62 / k)))
 let lastHs = '1'
+/**
+ * --fhs, a section header's scale: it grows as the board shrinks below 95%, without a cap, so the name keeps about the
+ * same size on screen at any zoom and nothing switches (a separate name took over below 22% before, a jump).
+ */
+const FHS_READERS = '.cv-frame-head'
+const fhsOf = (k: number): string => String(Math.max(1, 0.95 / k))
 
 /**
  * The zoom on the elements that read it (a shared style rule changed each frame cost Chromium a rebuild of its style
@@ -33,6 +39,9 @@ let lastHs = '1'
 function zoomVars(root: HTMLElement, k: number): void {
   const vk = String(k)
   for (const el of root.querySelectorAll<HTMLElement>(VK_READERS)) el.style.setProperty('--vk', vk)
+  const fhs = fhsOf(k)
+  for (const el of root.querySelectorAll<HTMLElement>(FHS_READERS))
+    el.style.setProperty('--fhs', fhs)
   const hs = hsOf(k)
   if (hs === lastHs) return
   lastHs = hs
@@ -42,6 +51,7 @@ function zoomVars(root: HTMLElement, k: number): void {
 function rootZoom(root: HTMLElement, k: number): void {
   root.style.setProperty('--vk', String(k))
   root.style.setProperty('--hs', hsOf(k))
+  root.style.setProperty('--fhs', fhsOf(k))
 }
 
 export const MIN_K = 0.08

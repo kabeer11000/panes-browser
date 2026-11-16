@@ -187,12 +187,15 @@
   left: 0;
   bottom: 100%;
   height: 36px;
-  width: calc(100% / var(--hs, 1));
-  padding: 0 14px 4px 24px;
+  /* as wide as its section, or as its name when the section is narrow on screen (zoomed out), up to a limit */
+  width: max-content;
+  min-width: calc(100% / var(--fhs, 1));
+  max-width: max(calc(100% / var(--fhs, 1)), 360px);
+  padding: 0 14px 4px 0; /* the name chip lines up with the section edge, as in FigJam */
   display: flex;
   align-items: center;
   gap: 9px;
-  transform: scale(var(--hs, 1));
+  transform: scale(var(--fhs, 1));
   transform-origin: 0 100%;
   pointer-events: auto;
   cursor: grab;

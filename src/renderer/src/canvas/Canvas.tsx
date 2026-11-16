@@ -353,6 +353,8 @@ const DOCK_W = 380
 const DOCK_MIN = 300
 const DOCK_MAX = 720
 const LOD_K = 0.22
+/** The board's height under the toolbar at the bottom (and its banners): fitting leaves it out, so nothing lands behind them. */
+const BAR_ROOM = 84
 const SAVE_MS = 700
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const isEditable = (t: EventTarget | null): boolean =>
@@ -1085,7 +1087,7 @@ export function Canvas({
               b.y * vv.k + vv.y < h
           )
           if (rearrange || !anyInSight) {
-            vp.animateTo(fitView(boundsOf(boxes), w, h, 80, 1))
+            vp.animateTo(fitView(boundsOf(boxes), w, h - BAR_ROOM, 80, 1))
           }
         }
       } finally {
@@ -1150,7 +1152,7 @@ export function Canvas({
       firstBoardOfRun = false
       if (!alive) return
       if (!v || !inSight(v) || (fromTabs && active && !onScreen(cardBox(active), v))) {
-        const fit = fitView(all, w, h, 72, 1)
+        const fit = fitView(all, w, h - BAR_ROOM, 72, 1)
         v =
           fit.k >= 0.42 || !active
             ? fit
@@ -1544,7 +1546,7 @@ export function Canvas({
   const fitAll = (): void => {
     const s = stRef.current
     const { w, h } = size()
-    if (s) vp.animateTo(fitView(boundsOf(contentBoxes(s)), w, h, 80, 1))
+    if (s) vp.animateTo(fitView(boundsOf(contentBoxes(s)), w, h - BAR_ROOM, 80, 1))
   }
   const fitSelection = (): void => {
     const s = stRef.current
@@ -1555,7 +1557,7 @@ export function Canvas({
       return b ? [b] : []
     })
     const { w, h } = size()
-    if (boxes.length) vp.animateTo(fitView(boundsOf(boxes), w, h, 120, 1.2))
+    if (boxes.length) vp.animateTo(fitView(boundsOf(boxes), w, h - BAR_ROOM, 120, 1.2))
   }
   /** Bring `b` into sight if it is not; returns the view the board ends at (it glides there). */
   const reveal = (b: Box): Viewport => {
@@ -3623,7 +3625,7 @@ export function Canvas({
     const x = b.x * v.k + v.x
     const y = b.y * v.k + v.y
     const inside = x > 40 && y > 40 && x + b.w * v.k < w - 40 && y + b.h * v.k < h - 110
-    if (!inside) vp.animateTo(fitView(b, w, h, 110, 1), 460)
+    if (!inside) vp.animateTo(fitView(b, w, h - BAR_ROOM, 110, 1), 460)
   }
   const finder = useFinder({
     spaceId,
@@ -4568,7 +4570,7 @@ export function Canvas({
     flushSync(() => setSel(new Set()))
     el.classList.add('exporting')
     const { w, h } = size()
-    vp.set(fitView(boundsOf(contentBoxes(s0)), w, h, 32, 2))
+    vp.set(fitView(boundsOf(contentBoxes(s0)), w, h - BAR_ROOM, 32, 2))
     await new Promise((r) => setTimeout(r, 450)) // cards that came into view draw their pictures
     const r = el.getBoundingClientRect()
     const data = await window.api.canvas.capture({
@@ -4592,7 +4594,7 @@ export function Canvas({
     const made = addPreset(s0, id, near)
     edit(() => made.state, { flip: true, undo: `Added the ${PRESETS[id].label} board` })
     const b = presetBox(made.state, made.ids)
-    if (b) vp.animateTo(fitView(b, size().w, size().h, 80, 1), 460)
+    if (b) vp.animateTo(fitView(b, size().w, size().h - BAR_ROOM, 80, 1), 460)
     if (!topic.trim())
       return toastNow(`Type a topic after "${PRESETS[id].label}" to have it filled`)
     if (!chatReadyRef.current || privateNow())
@@ -4843,7 +4845,7 @@ export function Canvas({
           if (act === 'rename') startRename(f.id)
           else if (act === 'fit') {
             const { w: sw, h: sh } = size()
-            vp.animateTo(fitView(f, sw, sh, 120, 1.2))
+            vp.animateTo(fitView(f, sw, sh - BAR_ROOM, 120, 1.2))
           } else if (act.startsWith('color:')) {
             const v = act.slice(6)
             onFrameColor(f.id, v === 'none' ? null : Number(v))
@@ -5361,25 +5363,28 @@ export function Canvas({
           />
         )}
         <svg ref={guides} className="cv-guides" width="1" height="1" overflow="visible" />
-        {labels.map((l) => (
-          <button
-            key={l.key}
-            type="button"
-            className="cv-blabel"
-            title={`Go to ${l.title}`}
-            style={{ transform: `translate3d(${l.x + l.w / 2}px, ${l.y}px, 0)` }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => {
-              const { w, h } = size()
-              vp.animateTo(fitView(l, w, h, 110, 1), 460)
-            }}
-          >
-            <span className="cv-blabel-in">
-              <b>{l.title}</b>
-              <span>{l.count}</span>
-            </span>
-          </button>
-        ))}
+        {/* sections name themselves (their header grows as the board shrinks): the map names only loose groups */}
+        {labels
+          .filter((l) => !l.frame)
+          .map((l) => (
+            <button
+              key={l.key}
+              type="button"
+              className="cv-blabel"
+              title={`Go to ${l.title}`}
+              style={{ transform: `translate3d(${l.x + l.w / 2}px, ${l.y}px, 0)` }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => {
+                const { w, h } = size()
+                vp.animateTo(fitView(l, w, h - BAR_ROOM, 110, 1), 460)
+              }}
+            >
+              <span className="cv-blabel-in">
+                <b>{l.title}</b>
+                <span>{l.count}</span>
+              </span>
+            </button>
+          ))}
         {selMarkBar && phase === 'open' && (
           <MarkBar
             marks={selMarkBar.marks}
