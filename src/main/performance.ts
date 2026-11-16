@@ -12,6 +12,12 @@ import {
 
 let running: RunningMode = 'balanced'
 
+/**
+ * `PANES_OFFSCREEN=1`: a test copy driven over the debugging port. Its window sits beyond every screen, never takes
+ * focus, and keeps painting, so tests do not touch the desktop the user is working on.
+ */
+export const offscreenTest = !!process.env['PANES_OFFSCREEN']
+
 /** The mode this run started in. Switches only count before the app is ready, so changing the setting needs a restart. */
 export const runningMode = (): RunningMode => running
 
@@ -32,6 +38,13 @@ export function applyPerformance(): void {
   for (const [name, value] of switches) {
     if (value === undefined) app.commandLine.appendSwitch(name)
     else app.commandLine.appendSwitch(name, value)
+  }
+  if (offscreenTest) {
+    // keeps painting while off-screen and behind other windows (see offscreenTest)
+    disableFeatures.push('CalculateNativeWinOcclusion')
+    app.commandLine.appendSwitch('disable-renderer-backgrounding')
+    app.commandLine.appendSwitch('disable-background-timer-throttling')
+    app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
   }
   if (disableFeatures.length > 0) {
     app.commandLine.appendSwitch('disable-features', disableFeatures.join(','))

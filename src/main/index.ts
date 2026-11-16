@@ -17,7 +17,7 @@ import type { Edge } from '@shared/layout'
 import type { ClearKind, Rect, SpacePatch } from '@shared/types'
 import { Adblock } from './adblock'
 import { YouTube } from './youtube'
-import { applyPerformance, runningMode } from './performance'
+import { applyPerformance, offscreenTest, runningMode } from './performance'
 import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
 import { BookmarkStore, HistoryStore } from './history'
@@ -119,6 +119,14 @@ function chromeUserAgent(): string {
   )
 }
 
+/** See offscreenTest: left of the leftmost screen, and showing or focusing it never takes the foreground. */
+function parkOffscreen(win: BrowserWindow): void {
+  const left = Math.min(...screen.getAllDisplays().map((d) => d.bounds.x))
+  win.setPosition(left - win.getBounds().width - 200, 0)
+  win.show = () => win.showInactive()
+  win.focus = () => undefined
+}
+
 // Camera/mic are allowed so video calls work; location, notifications etc. are denied until there is a prompt UI.
 function createWindow(): void {
   const isMac = process.platform === 'darwin'
@@ -142,6 +150,7 @@ function createWindow(): void {
       : { frame: false }),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true }
   })
+  if (offscreenTest) parkOffscreen(win)
   // The interface page is asked for now, not after everything below has been set up: its own process starts, loads
   // and runs React while this one goes on setting up. Safe because nothing the page sends (IPC) or the window emits
   // (ready-to-show, did-finish-load) is handled before this function returns, by which time every handler exists.
