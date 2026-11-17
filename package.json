@@ -1,6 +1,6 @@
 {
   "name": "panes",
-  "version": "0.1.0-beta.75",
+  "version": "0.1.0-beta.76",
   "description": "Panes browser",
   "main": "./out/main/loader.js",
   "author": "Panes Authors",
