@@ -117,7 +117,7 @@ import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
 import { recentOthers } from '@shared/ai/previewBar'
 import { AiGlow } from './AiGlow'
-import { CardView, FrameBar, FrameView, NoteView } from './Cards'
+import { CardView, FrameBar, FrameHead, FrameView, NoteView } from './Cards'
 import { WidgetView } from './Widgets'
 import { WIDGET_LABEL, type Widget, type WidgetKind } from '@shared/widgets'
 import { pickStreams, streamCap } from '@shared/ai/tabStream'
@@ -351,6 +351,20 @@ const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 /** A whole-board rearrange: long and soft, quick to leave and slow to land, so everything settles as one motion. */
 const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const TIDY_GLIDE_MS = 760
+/** How long a tidy waits for the model's section names before it moves without them (they follow). */
+const NAME_WAIT_MS = 2500
+
+/** Section names from the model, by section, with the name each had when asked. */
+type Named = Map<string, { was: string; name: string }>
+
+/** The model's names put on their sections; one the person renamed or pinned meanwhile keeps theirs. */
+const withNames = (s: CanvasState, named: Named): CanvasState => ({
+  ...s,
+  frames: s.frames.map((x) => {
+    const n = named.get(x.id)
+    return n && !x.pinned && x.name === n.was ? { ...x, name: n.name } : x
+  })
+})
 const UNDO_MAX = 60
 const DRAG_PX = 4
 const MARGIN = 360
@@ -364,6 +378,12 @@ const SAVE_MS = 700
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const isEditable = (t: EventTarget | null): boolean =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
+
+/** Where every card and section is (and how big a section is): a tidy that would change none of it is not run. */
+const layoutKey = (s: CanvasState): string =>
+  s.cards.map((c) => `${c.id}:${c.x},${c.y},${c.frame}`).join(';') +
+  '|' +
+  s.frames.map((f) => `${f.id}:${f.x},${f.y},${f.w},${f.h}`).join(';')
 
 const positionsOf = (s: CanvasState, off?: Pos): Pos => {
   const out: Pos = new Map()
@@ -1044,60 +1064,83 @@ export function Canvas({
   }, [st])
 
   // ---- names from the model for frames the board just made ----
-  const nameFrames = useCallback(
-    async (ids: string[]): Promise<void> => {
-      const s = stRef.current
-      if (!s) return
+  /** The model's names for these sections of `s` (one call names them all: a call each kept it busy for seconds). */
+  const askNames = useCallback(
+    async (s: CanvasState, ids: string[]): Promise<Named> => {
       const todo = s.frames.filter((f) => ids.includes(f.id) && !f.pinned && f.kind === 'topic')
-      if (todo.length === 0) return
-      // one call names them all (a call per section kept the model busy for many seconds after a tidy)
+      if (todo.length === 0) return new Map()
       setNaming((n) => n + 1)
       const names = await window.api.canvas
         .names(
           spaceId,
           todo.map((f) => s.cards.filter((c) => c.frame === f.id).map((c) => c.id))
         )
+        .catch(() => [] as (string | null)[])
         .finally(() => setNaming((n) => n - 1))
-      const named = new Map(
+      return new Map(
         todo.flatMap((f, i) =>
           names[i] ? [[f.id, { was: f.name, name: names[i]! }] as const] : []
         )
       )
-      if (named.size === 0) return
-      // a section renamed or pinned meanwhile keeps what the person gave it
-      edit((cur) => ({
-        ...cur,
-        frames: cur.frames.map((x) => {
-          const n = named.get(x.id)
-          return n && !x.pinned && x.name === n.was ? { ...x, name: n.name } : x
-        })
-      }))
     },
-    [spaceId, edit]
+    [spaceId]
+  )
+  const nameFrames = useCallback(
+    async (ids: string[]): Promise<void> => {
+      const s = stRef.current
+      if (!s) return
+      const named = await askNames(s, ids)
+      if (named.size) edit((cur) => withNames(cur, named))
+    },
+    [askNames, edit]
   )
 
   // ---- tidy up ----
   const tidying = useRef(false)
+  // where everything stood after the last tidy: pressed again with nothing moved since, there is nothing to do
+  const tidied = useRef('')
   const runTidy = useCallback(
     async (rearrange = false): Promise<void> => {
       // a second press while it runs would cluster and move everything again
       if (!stRef.current || tidying.current) return
+      if (layoutKey(stRef.current) === tidied.current) return
       tidying.current = true
       setBusy(true)
       const t0 = performance.now()
       try {
         const res = await window.api.canvas.cluster(spaceId)
-        const before = new Set(stRef.current.frames.map((f) => f.id))
-        edit((s) => tidy(s, lite(), res.groups, rearrange), {
-          flip: true,
-          stagger: true,
-          undo: 'Arranged the board'
-        })
+        const s0 = stRef.current
+        if (!s0) return
+        const before = new Set(s0.frames.map((f) => f.id))
+        let planned = tidy(s0, lite(), res.groups, rearrange)
+        const fresh = planned.frames
+          .filter((f) => !before.has(f.id) && f.kind === 'topic')
+          .map((f) => f.id)
+        // One move, names and all: the model names the new sections while the light is up, and the board moves once
+        // they are in. A slow model does not hold the board: after NAME_WAIT_MS it moves, and the names follow.
+        let late: Promise<Named> | null = null
+        if (fresh.length) {
+          const asking = askNames(planned, fresh)
+          const got = await Promise.race([
+            asking,
+            new Promise<null>((r) => setTimeout(() => r(null), NAME_WAIT_MS))
+          ])
+          if (got) planned = withNames(planned, got)
+          else late = asking
+        }
+        const opts = { flip: true, stagger: true, undo: 'Arranged the board' }
+        // the board changed while the names were coming: arrange what it is now, and name its new sections after
+        if (stRef.current !== s0) {
+          const was = new Set(stRef.current?.frames.map((f) => f.id))
+          edit((s) => tidy(s, lite(), res.groups, rearrange), opts)
+          late = null
+          const now = stRef.current?.frames.filter((f) => !was.has(f.id) && f.kind === 'topic')
+          if (now?.length) void nameFrames(now.map((f) => f.id))
+        } else edit(() => planned, opts)
+        if (late) void late.then((named) => named.size && edit((cur) => withNames(cur, named)))
         const next = stRef.current
         if (next) {
-          void nameFrames(
-            next.frames.filter((f) => !before.has(f.id) && f.kind === 'topic').map((f) => f.id)
-          )
+          tidied.current = layoutKey(next)
           const { w, h } = size()
           const vv = vp.get()
           const boxes = contentBoxes(next)
@@ -1108,9 +1151,9 @@ export function Canvas({
               b.x * vv.k + vv.x < w &&
               b.y * vv.k + vv.y < h
           )
-          if (rearrange || !anyInSight) {
-            vp.animateTo(fitView(boundsOf(boxes), w, h - BAR_ROOM, 80, 1))
-          }
+          // the board's view moves with the cards, over the same time: one motion
+          if (rearrange || !anyInSight)
+            vp.animateTo(fitView(boundsOf(boxes), w, h - BAR_ROOM, 80, 1), TIDY_GLIDE_MS - 120)
         }
       } finally {
         // the light stays up for the whole glide, so the move and the light read as one gesture
@@ -1121,7 +1164,7 @@ export function Canvas({
         setBusy(false)
       }
     },
-    [spaceId, edit, lite, nameFrames, vp]
+    [spaceId, edit, lite, askNames, nameFrames, vp]
   )
 
   // the preview that was open when the board was last saved: it opens again once the board is up
@@ -5276,8 +5319,6 @@ export function Canvas({
             count={counts.get(f.id) ?? 0}
             selected={sel.has(`f:${f.id}`)}
             editing={editing === f.id}
-            onRename={onRename}
-            onEdit={startRename}
             onFan={fanOut}
           />
         ))}
@@ -5375,6 +5416,16 @@ export function Canvas({
             />
           )
         })}
+        {s?.frames.map((f) => (
+          <FrameHead
+            key={f.id}
+            frame={f}
+            count={counts.get(f.id) ?? 0}
+            editing={editing === f.id}
+            onRename={onRename}
+            onEdit={startRename}
+          />
+        ))}
         {s && marksOf(s).length > 0 && (
           <Marks
             marks={marksOf(s)}

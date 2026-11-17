@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
 /**
- * The board's "AI is working" light: a slow river of colour along the window's edges, like a voice assistant
- * listening. `level` 2 is the full light (the board is being arranged), 1 a calmer one (the model is still naming
+ * The board's "AI is working" light: soft pools of colour drifting round the window's edges, like a voice
+ * assistant listening. `level` 2 is the full light (the board is being arranged), 1 a calmer one (the model is still naming
  * what it made), 0 off. It fades out on its own before it unmounts. Only transforms and opacity animate, under a
  * fixed edge mask, so the compositor runs it without repainting the board.
  */
@@ -18,6 +18,8 @@ export function AiGlow({ level }: { level: 0 | 1 | 2 }): React.JSX.Element | nul
         if (level === 0 && e.target === e.currentTarget) setShown(false)
       }}
     >
+      <i />
+      <i />
       <i />
       <i />
     </div>

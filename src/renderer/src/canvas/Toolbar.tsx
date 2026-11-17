@@ -323,6 +323,8 @@ export function Toolbar({
       <button
         type="button"
         className={'cv-tool' + (busy ? ' busy' : '')}
+        disabled={busy}
+        aria-busy={busy}
         aria-label={arrangeLabel(ai)}
         title={`${arrangeLabel(ai)}: group the cards into sections; your own sections stay (Shift+T)`}
         onClick={onTidy}

@@ -495,9 +495,8 @@ interface FrameProps {
   frame: CanvasFrame
   count: number
   selected: boolean
+  /** Its name is being edited (in FrameHead): no resize handles meanwhile. */
   editing: boolean
-  onRename: (id: string, name: string | null) => void
-  onEdit: (id: string) => void
   /** Open a folded frame (a stack) back into its cards. */
   onFan?: (id: string) => void
 }
@@ -507,17 +506,8 @@ export const FrameView = memo(function FrameView({
   count,
   selected,
   editing,
-  onRename,
-  onEdit,
   onFan
 }: FrameProps): React.JSX.Element {
-  const input = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (editing) {
-      input.current?.focus()
-      input.current?.select()
-    }
-  }, [editing])
   return (
     <div
       className={
@@ -554,6 +544,47 @@ export const FrameView = memo(function FrameView({
           <span>Open</span>
         </button>
       )}
+    </div>
+  )
+})
+
+interface FrameHeadProps {
+  frame: CanvasFrame
+  count: number
+  editing: boolean
+  onRename: (id: string, name: string | null) => void
+  onEdit: (id: string) => void
+}
+
+/**
+ * A section's name, above its top edge. It is drawn in its own layer after every card (not inside its section, which
+ * sits under the cards), so a section close below another never has its name under that one's cards. It carries its
+ * section's `data-fid`, so dragging the section and the board's glides move it with it.
+ */
+export const FrameHead = memo(function FrameHead({
+  frame,
+  count,
+  editing,
+  onRename,
+  onEdit
+}: FrameHeadProps): React.JSX.Element {
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (editing) {
+      input.current?.focus()
+      input.current?.select()
+    }
+  }, [editing])
+  return (
+    <div
+      className={
+        'cv-fhead-at ' +
+        frame.kind +
+        (frame.color !== undefined ? ` fc${frame.color % FRAME_COLORS}` : '')
+      }
+      data-fid={frame.id}
+      style={{ ...at(frame.x, frame.y), width: frame.w }}
+    >
       <div className="cv-frame-head" data-fhead={frame.id}>
         {frame.kind === 'private' && (
           <span className="cv-frame-icon">
