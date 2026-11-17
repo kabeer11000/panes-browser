@@ -407,3 +407,132 @@
     animation: none;
   }
 }
+
+/* ---- cards: the page itself, edge to edge, with its name on a clean strip below; a soft layered shadow that grows
+   under the pointer; selection is an accent ring with a halo, as on notes and sections ---- */
+.cv .cv-card {
+  border-radius: 14px;
+}
+.cv .cv-card > :is(.cv-snap, .cv-doc, .cv-video, .cv-answer, .cv-private, .cv-shimmer) {
+  border-radius: 14px;
+}
+.cv .cv-snap {
+  background: var(--card-bg);
+  box-shadow: var(--lift-1);
+  transition: box-shadow 0.22s ease;
+}
+.cv .cv-card:hover > .cv-snap,
+.cv .cv-card:hover > .cv-doc {
+  box-shadow: var(--lift-2);
+}
+.cv .cv-snap img {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: calc(100% - 36px);
+  border-radius: 0;
+  box-shadow: 0 0.5px 0 var(--rim);
+}
+.cv .cv-cap {
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 36px;
+  line-height: 36px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: color-mix(in srgb, var(--fg) 78%, transparent);
+}
+.cv .cv-card.sel {
+  outline: none;
+}
+.cv .cv-card.sel > :is(.cv-snap, .cv-doc, .cv-video, .cv-answer, .cv-private, .cv-blank, .cv-pdf) {
+  box-shadow:
+    0 0 0 calc(2px * var(--hs, 1)) var(--accent),
+    0 0 0 calc(6px * var(--hs, 1)) color-mix(in srgb, var(--accent) 16%, transparent),
+    0 10px 24px -10px rgb(0 0 0 / 0.4);
+}
+/* still loading: the site's icon on a tile, its name, and a shine passing over the card */
+.cv .cv-snap-ph {
+  gap: 6px;
+  background: var(--card-bg);
+  overflow: hidden;
+}
+.cv .cv-ph-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  border-radius: 11px;
+  font-size: 17px;
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  box-shadow: inset 0 0 0 0.5px var(--rim);
+}
+.cv .cv-ph-icon img {
+  width: 22px;
+  height: 22px;
+}
+.cv .cv-snap-ph h3 {
+  font-size: 13.5px;
+  letter-spacing: -0.005em;
+  -webkit-line-clamp: 3;
+}
+.cv .cv-ph-bar {
+  inset: 0;
+  height: auto;
+  background: none;
+  pointer-events: none;
+}
+.cv .cv-ph-bar::after {
+  width: 60%;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--fg) 6%, transparent) 50%,
+    transparent 80%
+  );
+  animation: cv-shine 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes cv-shine {
+  from {
+    translate: -110% 0;
+  }
+  to {
+    translate: 190% 0;
+  }
+}
+/* a new tab: an outline waiting to be filled */
+.cv .cv-blank {
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--fg) 2%, transparent);
+  box-shadow: none;
+  outline: 1.5px dashed color-mix(in srgb, var(--fg) 16%, transparent);
+  outline-offset: -1.5px;
+  transition:
+    background-color 0.15s ease,
+    outline-color 0.15s ease;
+}
+.cv .cv-card:hover > .cv-blank {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  outline-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  color: var(--fg);
+}
+.cv .cv-blank-plus {
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  transition: scale var(--spring-bouncy-dur) var(--spring-bouncy);
+}
+.cv .cv-card:hover .cv-blank-plus {
+  scale: 1.1;
+}
+[data-fx='low'] .cv .cv-ph-bar::after {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv .cv-ph-bar::after {
+    animation: none;
+  }
+}
