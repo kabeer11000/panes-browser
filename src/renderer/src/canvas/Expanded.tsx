@@ -77,8 +77,6 @@ interface Props extends ExpandSource {
   split?: Array<{ tab: number; snap?: string }>
   /** The card's tab as the browser knows it (address, loading, history, bookmark, sound), when it has one. */
   page?: TabInfo
-  /** Where it sits among its section's cards, for the "2 / 5" in the header, and the cards either side. */
-  place?: { at: number; of: number; prev?: string; next?: string }
   /** The preview's recent tabs, this one among them, in an order kept while the preview is open. */
   recent?: CardModel[]
   /** Put another card in this preview, in place (one of `recent`). */
@@ -256,8 +254,6 @@ const CheckGlyph = (): React.JSX.Element => <Glyph d="m3.4 8.4 3 3 6.2-6.6" />
 const PopOutGlyph = (): React.JSX.Element => (
   <Glyph d="M9.5 2.5h4v4M13.5 2.5 8 8M12 9.5V12a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 3 12V5.5A1.5 1.5 0 0 1 4.5 4H7" />
 )
-const PrevGlyph = (): React.JSX.Element => <Glyph d="M9.8 3.6 5.4 8l4.4 4.4" />
-const NextGlyph = (): React.JSX.Element => <Glyph d="M6.2 3.6 10.6 8l-4.4 4.4" />
 
 // ---- reader view ----
 
@@ -650,7 +646,6 @@ export function Expanded({
   onSwitch,
   swapped = false,
   swapFrom,
-  place,
   page,
   startLive = false,
   onLive,
@@ -1287,35 +1282,6 @@ export function Expanded({
             </div>
           </div>
           <div className="cv-hzone cv-hzone-c">
-            {place && place.of > 1 && onStep ? (
-              <div className="cv-step" role="group" aria-label="Cards in this section">
-                <button
-                  type="button"
-                  aria-label={place.prev ? `Previous: ${place.prev}` : 'Previous card'}
-                  title={place.prev ? `${place.prev} (Left arrow)` : 'Previous (Left arrow)'}
-                  onClick={() => {
-                    hideLive()
-                    onStep(-1)
-                  }}
-                >
-                  <PrevGlyph />
-                </button>
-                <span aria-live="polite">
-                  {place.at} / {place.of}
-                </span>
-                <button
-                  type="button"
-                  aria-label={place.next ? `Next: ${place.next}` : 'Next card'}
-                  title={place.next ? `${place.next} (Right arrow)` : 'Next (Right arrow)'}
-                  onClick={() => {
-                    hideLive()
-                    onStep(1)
-                  }}
-                >
-                  <NextGlyph />
-                </button>
-              </div>
-            ) : null}
             {recent && recent.length > 1 && onSwitch && (
               <div className="cv-recent" role="tablist" aria-label="Recent tabs" ref={strip}>
                 <i className="cv-recent-pill" aria-hidden="true" />
@@ -1340,46 +1306,16 @@ export function Expanded({
                 ))}
               </div>
             )}
-            {/* with the reader off a page is only live: the pill is there just to bring a page back that did not open */}
-            {canLive && m.kind === 'page' && !READER && live !== 'off' ? null : canLive &&
-              ((m.kind === 'page' && READER) || m.kind === 'video') ? (
-              <div className="cv-seg" role="radiogroup" aria-label="Show as">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={live === 'off'}
-                  className={live === 'off' ? 'on' : ''}
-                  onClick={toReader}
-                >
-                  Reader
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={live !== 'off'}
-                  className={live !== 'off' ? 'on' : ''}
-                  title="The real page, which you can use"
-                  onClick={() => void goLive()}
-                >
-                  Live
-                </button>
-              </div>
-            ) : (
-              canLive && (
-                <button
-                  type="button"
-                  className={'cv-pill' + (live !== 'off' ? ' on' : '')}
-                  onClick={() => (live === 'off' ? void goLive() : toReader())}
-                  aria-pressed={live !== 'off'}
-                >
-                  <LiveIcon />
-                  {live === 'off' ? 'Open live' : 'Back to reader'}
-                </button>
-              )
-            )}
           </div>
           {/* what comes and goes sits leftmost, so Ask, the bell, More and the way back never move */}
           <div className="cv-hzone cv-hzone-r cv-hacts">
+            {/* no reader: a page that did not open live gets a way to try again, nothing else */}
+            {canLive && live === 'off' && (
+              <button type="button" className="cv-pill" onClick={() => void goLive()}>
+                <LiveIcon />
+                Open live
+              </button>
+            )}
             {panes && (
               <button
                 type="button"

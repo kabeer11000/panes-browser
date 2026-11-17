@@ -4488,16 +4488,7 @@ export function Canvas({
       .sort((a, b) => a.y - b.y || a.x - b.x)
       .map((x) => x.id)
   }
-  const placeOf = (
-    id: number
-  ): { at: number; of: number; prev?: string; next?: string } | undefined => {
-    const list = neighbours(st, id, modelFor)
-    const at = list.indexOf(id)
-    if (at < 0) return undefined
-    const name = (n: number | undefined): string | undefined =>
-      n === undefined ? undefined : modelFor({ id: n })?.title || undefined
-    return { at: at + 1, of: list.length, prev: name(list[at - 1]), next: name(list[at + 1]) }
-  }
+
   /**
    * Another card into the open preview, in place: the page changes inside the preview, which neither closes nor flies
    * out of the new card. The board glides to that card behind it, where the preview will shrink back to on close.
@@ -5710,7 +5701,6 @@ export function Canvas({
             if (it) edit((s0) => setItem(s0, expanded.id, { ...it, text }))
           }}
           onStep={(dir) => stepExpanded(dir)}
-          place={placeOf(expanded.id)}
           recent={strip.flatMap((id) => modelFor({ id }) ?? [])}
           swapFrom={expanded.swap}
           onSwitch={(id) => switchPreview(id, true)}
