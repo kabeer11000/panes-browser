@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { Viewport } from '@shared/ai/canvas'
 import { boardMoved, onBoardMotion } from './boardMotion'
+import { noteBoardFrame } from './strain'
 import { dotAlpha, placeGrid } from '@shared/gridDots'
 import { Camera } from '@shared/boardPhysics'
 import { SPRINGS, type SpringParams } from '@shared/spring'
@@ -222,6 +223,7 @@ export function useViewport(
       const c = cam.current
       if (!c) return
       // a dropped frame or a hidden window: never more than 1/20 s in one step (exact, but keep it visible)
+      if (lastFrame.current) noteBoardFrame(now - lastFrame.current) // for the strain (canvas/strain.ts)
       const dt = Math.min(0.05, lastFrame.current ? (now - lastFrame.current) / 1000 : 1 / 60)
       lastFrame.current = now
       c.step(dt)

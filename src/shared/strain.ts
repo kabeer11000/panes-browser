@@ -16,6 +16,12 @@ export interface StrainSample {
   /** Frames the live card videos showed and dropped in that window (getVideoPlaybackQuality deltas). */
   videoFrames: number
   videoDropped: number
+  /**
+   * Frames the board drew while moving (its own frame loop) and how many of them missed the display's refresh: a pan
+   * at 30 fps blocks nothing for long, but drops every other frame. Absent: the board did not move.
+   */
+  boardFrames?: number
+  boardSlow?: number
   /** The system's CPU pressure, when the API is there. */
   pressure: Pressure | null
   /** Running on battery: kept at least a little strained, so a laptop unplugged lasts. */
@@ -32,6 +38,9 @@ const BLOCKED_AWFUL_MS = 450
 const DROPS_BAD = 0.12
 const DROPS_AWFUL = 0.35
 const DROPS_MIN_FRAMES = 20
+/** Share of the board's moving frames that missed the refresh, strained / struggling (with enough frames to tell). */
+const SLOW_BAD = 0.15
+const SLOW_AWFUL = 0.4
 
 /** How bad one window was: 0 calm, 1 bad, 2 awful. */
 export function windowScore(s: StrainSample): 0 | 1 | 2 {
@@ -45,6 +54,12 @@ export function windowScore(s: StrainSample): 0 | 1 | 2 {
     const ratio = s.videoDropped / (s.videoFrames + s.videoDropped)
     if (ratio >= DROPS_AWFUL) worse(2)
     else if (ratio >= DROPS_BAD) worse(1)
+  }
+  const bf = s.boardFrames ?? 0
+  if (bf >= DROPS_MIN_FRAMES) {
+    const slow = (s.boardSlow ?? 0) / bf
+    if (slow >= SLOW_AWFUL) worse(2)
+    else if (slow >= SLOW_BAD) worse(1)
   }
   if (s.pressure === 'critical') worse(2)
   else if (s.pressure === 'serious') worse(1)

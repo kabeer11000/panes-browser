@@ -36,6 +36,12 @@ describe('windowScore', () => {
     expect(windowScore({ ...quiet, pressure: 'serious' })).toBe(1)
     expect(windowScore({ ...quiet, pressure: 'critical' })).toBe(2)
   })
+  test('the board missing frames while it moves', () => {
+    expect(windowScore({ ...quiet, boardFrames: 100, boardSlow: 10 })).toBe(0)
+    expect(windowScore({ ...quiet, boardFrames: 100, boardSlow: 20 })).toBe(1)
+    expect(windowScore({ ...quiet, boardFrames: 100, boardSlow: 50 })).toBe(2)
+    expect(windowScore({ ...quiet, boardFrames: 10, boardSlow: 10 })).toBe(0)
+  })
   test('the worst signal wins', () => {
     expect(windowScore({ ...quiet, blockedMs: 200, pressure: 'critical' })).toBe(2)
   })

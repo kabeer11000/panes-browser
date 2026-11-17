@@ -34,6 +34,19 @@ const emit = (): void => {
   for (const f of listeners) f()
 }
 
+/** The board's moving frames this window and how many missed the refresh (see noteBoardFrame). */
+let boardFrames = 0
+let boardSlow = 0
+/** A frame longer than this missed the display's refresh (at 60 Hz, one is 16.7 ms). */
+const SLOW_FRAME_MS = 25
+
+/** The board's frame loop drew a frame while moving, `dtMs` after the last one: counted toward the strain. */
+export function noteBoardFrame(dtMs: number): void {
+  if (users === 0 || dtMs <= 0 || dtMs > 1000) return
+  boardFrames++
+  if (dtMs > SLOW_FRAME_MS) boardSlow++
+}
+
 /** The live videos' frame counts last window, per element, to take deltas from. */
 const seen = new WeakMap<HTMLVideoElement, { total: number; dropped: number }>()
 
@@ -121,10 +134,13 @@ function start(): () => void {
       blockedMs: blocked,
       videoFrames: v.frames,
       videoDropped: v.dropped,
+      boardFrames,
+      boardSlow,
       pressure,
       onBattery
     })
     blocked = 0
+    boardFrames = boardSlow = 0
     if (next.level !== state.level) {
       state = next
       emit()
