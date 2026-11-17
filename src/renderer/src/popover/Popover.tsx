@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PopoverApi, PopoverState } from '@shared/types'
 import { SavePrompt } from '@renderer/components/SavePrompt'
+import { PROMPT_PAD } from '@shared/anchor'
 
 declare global {
   interface Window {
@@ -31,7 +32,9 @@ export function Popover(): React.JSX.Element | null {
   useEffect(() => {
     const el = box.current
     if (!el) return
-    const ro = new ResizeObserver(() => api.resize(el.getBoundingClientRect().height - 28))
+    const ro = new ResizeObserver(() =>
+      api.resize(el.getBoundingClientRect().height - PROMPT_PAD.top - PROMPT_PAD.bottom)
+    )
     ro.observe(el)
     return () => ro.disconnect()
   }, [api, state?.prompt])
@@ -39,7 +42,11 @@ export function Popover(): React.JSX.Element | null {
   if (!state?.prompt) return null
   const { origin, username, kind } = state.prompt
   return (
-    <div className="pop-root" ref={box}>
+    <div
+      className="pop-root"
+      ref={box}
+      style={{ padding: `${PROMPT_PAD.top}px ${PROMPT_PAD.side}px ${PROMPT_PAD.bottom}px` }}
+    >
       <SavePrompt
         key={`${origin}|${username}|${kind}`}
         prompt={state.prompt}

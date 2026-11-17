@@ -3,8 +3,8 @@ html,
 body {
   background: transparent;
 }
+/* padding comes from PROMPT_PAD (shared/anchor.ts), which must leave room for the shadow below */
 .pop-root {
-  padding: 14px;
   animation: pop-in 0.22s var(--ease) both;
   transform-origin: top left;
 }
@@ -22,12 +22,17 @@ body {
 .pop-root .sp-clip {
   overflow: visible;
 }
-/* an opaque body: the tinted fill the sidebar uses would show the page through it */
+/* An opaque body: the tinted fill the sidebar uses would show the page through it. No frosted glass either: this view
+   floats over a native page view its blur cannot see, so the card came out see-through. The popover tint is laid over
+   the solid card colour so it still matches the window. */
 .pop-root .sp-card {
-  background: var(--popover-bg);
+  background:
+    linear-gradient(var(--popover-bg), var(--popover-bg)),
+    var(--card-bg);
+  backdrop-filter: none;
   box-shadow:
     inset 0 0 0 1px var(--border),
-    0 12px 36px rgb(0 0 0 / 0.4);
+    0 12px 28px rgb(0 0 0 / 0.32);
 }
 @media (prefers-reduced-motion: reduce) {
   .pop-root {

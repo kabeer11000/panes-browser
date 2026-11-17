@@ -45,6 +45,7 @@ import { useTabs } from './hooks/useTabs'
 import { useSidebarClip } from '@renderer/tabClip'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '@shared/settings'
 import type { LoginEdits, PasswordPrompt, Settings } from '@shared/types'
+import { promptBox } from '@shared/anchor'
 import { chromeVars } from '@shared/color'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 import { Recover } from './Recover'
@@ -757,31 +758,52 @@ function App(): React.JSX.Element {
     scheme
   ])
 
-  // With the sidebar closed the save prompt is a popover view over the page; tell it where the address bar is.
+  // With the sidebar closed the save prompt is a popover view over the page; tell it what to hang under: the
+  // address bar, or on the canvas (no top bar, no sidebar) the open page's header, else the top of the window.
   const promptOpen = passwordPrompt !== null
   useEffect(() => {
     if (showSidebar || !promptOpen) return
+    let last = ''
     const send = (): void => {
-      const r = document.querySelector('.strip .address')?.getBoundingClientRect()
-      if (!r) return
-      window.api.setPromptAnchor({
-        x: r.left,
-        y: r.top,
-        width: r.width,
-        height: r.height,
+      const head = document.querySelector('.cv-panel-head')?.getBoundingClientRect()
+      const title = document.querySelector('.cv-panel-title')?.getBoundingClientRect()
+      const box = promptBox(
+        [
+          document.querySelector('.strip .address')?.getBoundingClientRect(),
+          head && title
+            ? { x: title.left, y: head.top, width: title.width, height: head.height }
+            : null
+        ],
+        window.innerWidth
+      )
+      const anchor = {
+        ...box,
         theme: { scheme, color: theme.color, color2: theme.color2 ?? theme.color }
-      })
+      }
+      const key = JSON.stringify(anchor)
+      if (key === last) return
+      last = key
+      window.api.setPromptAnchor(anchor)
     }
     send()
     // The top bar may still be sliding in when the prompt arrives; measure again once it has settled.
     const settled = window.setTimeout(send, 400)
     window.addEventListener('resize', send)
+    // A page opening or closing on the canvas moves what the card hangs under.
+    let frame = 0
+    const observer = new MutationObserver(() => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(send)
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
     return () => {
       window.clearTimeout(settled)
       window.removeEventListener('resize', send)
+      observer.disconnect()
+      cancelAnimationFrame(frame)
       window.api.setPromptAnchor(null)
     }
-  }, [showSidebar, promptOpen, scheme, theme.color, theme.color2])
+  }, [showSidebar, promptOpen, board, scheme, theme.color, theme.color2])
 
   const toggleGrid = (): void => (mode === 'grid' ? closeOverlay() : void openOverlay('grid'))
 

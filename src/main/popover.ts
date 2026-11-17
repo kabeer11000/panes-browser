@@ -2,10 +2,9 @@ import { is } from '@electron-toolkit/utils'
 import { type BrowserWindow, WebContentsView, type WebContents } from 'electron'
 import { join } from 'path'
 import type { PasswordPrompt, PopoverState, PromptAnchor } from '@shared/types'
+import { PROMPT_CARD_WIDTH, PROMPT_PAD } from '@shared/anchor'
 import { paintView } from './chromeTheme'
 
-const CARD_WIDTH = 296
-const PAD = 14 // room around the card for its shadow, so the view never clips it
 const GAP = 4 // between the address bar and the card
 const DEFAULT_THEME: PromptAnchor['theme'] = { scheme: 'dark', color: '#6e7bff', color2: '#6e7bff' }
 
@@ -71,11 +70,12 @@ export class PromptPopover {
     }
     const view = this.ensureView()
     const [winW, winH] = this.win.getContentSize()
-    const width = CARD_WIDTH + PAD * 2
-    const height = Math.min(this.height + PAD * 2, winH)
+    // The view is the card plus room for its shadow on every side (PROMPT_PAD), so the shadow is never clipped.
+    const width = PROMPT_CARD_WIDTH + PROMPT_PAD.side * 2
+    const height = Math.min(this.height + PROMPT_PAD.top + PROMPT_PAD.bottom, winH)
     // Left edges line up with the address bar; the card slides left rather than leaving the window.
-    const x = Math.max(0, Math.min(Math.round(this.anchor.x) - PAD, winW - width))
-    const y = Math.round(this.anchor.y + this.anchor.height + GAP) - PAD
+    const x = Math.max(0, Math.min(Math.round(this.anchor.x) - PROMPT_PAD.side, winW - width))
+    const y = Math.max(0, Math.round(this.anchor.y + this.anchor.height + GAP) - PROMPT_PAD.top)
     view.setBounds({ x, y, width, height })
     // Re-adding moves it to the top, above any tab views created since it was last shown.
     this.win.contentView.addChildView(view)
