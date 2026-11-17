@@ -41,6 +41,7 @@ import {
   NOTE_W,
   NOTE_MIN_W,
   OTHER_ID,
+  dropMarks,
   dropNote,
   fitFrames,
   noteHeight,
@@ -211,6 +212,11 @@ import { MAX_K, MIN_K, useViewport } from './useViewport'
 import { DEFAULT_GAIN, FreeScroll, PanResampler, SMOOTHING_DELAY_MS } from '@shared/freeScroll'
 import { DEFAULT_SETTINGS } from '@shared/settings'
 import './canvas.css'
+import './board.css'
+import { drop, glide, lift, moveHeld, owned, rebase, resetLift, settleMs } from './lift'
+import { reducedMotion, springAnimate } from '@renderer/motion'
+import { SPRINGS, springCurve } from '@shared/spring'
+import { staggerDelay } from '@shared/boardPhysics'
 
 interface Props {
   /** Chrome (the sidebar or the top bar) is out over the board: it blurs and dims. */
@@ -237,6 +243,62 @@ type Phase = 'loading' | 'entering' | 'open' | 'leaving'
  * instead of showing the page behind it (the new space's blank tab) for a moment and then flying a page into a card.
  */
 let boardSpace: number | null = null
+
+// ---- a space switch on the board: the whole board slides (spring `space`) ----
+/** A board for another space is mounting in place of this one (when, and which way along the spaces it goes). */
+let swapping: { at: number; dir: number } | null = null
+/** The board on screen (the newest mounted). */
+let liveRoot: HTMLDivElement | null = null
+/** The board that left, held over the new one until the new one is ready, then sliding away. */
+let swapOut: { wrap: HTMLDivElement; timer: number } | null = null
+
+/** The old board, unmounted: its layer stays on screen over the new board (no blank frame) until `slideSwap`. */
+function holdLeaving(l: HTMLDivElement): void {
+  const host = liveRoot
+  if (!swapping || performance.now() - swapping.at > 500 || !host || reducedMotion()) return
+  swapOut?.wrap.remove()
+  const wrap = document.createElement('div')
+  wrap.className = 'cv-swapout'
+  wrap.setAttribute('aria-hidden', 'true')
+  wrap.inert = true
+  wrap.appendChild(l)
+  const grid = host.querySelector(':scope > .cv-grid')
+  if (grid) grid.after(wrap)
+  else host.prepend(wrap)
+  // the new board never came (an error): the old one goes anyway
+  swapOut = { wrap, timer: window.setTimeout(() => slideSwap(null, 1, 0), 1500) }
+}
+
+/** The new board is ready: the old one leaves up (blurring, fading), the new one rises from below, as one move. */
+function slideSwap(layer: HTMLDivElement | null, dir: number, h: number): void {
+  const out = swapOut
+  swapOut = null
+  const dist = Math.max(200, h || window.innerHeight) * 0.9 * dir
+  const blur = document.documentElement.dataset.fx !== 'low'
+  if (out) {
+    window.clearTimeout(out.timer)
+    const a = springAnimate(
+      out.wrap,
+      [
+        { translate: '0 0', opacity: 1, filter: blur ? 'blur(0px)' : 'none' },
+        { translate: `0 ${-dist}px`, opacity: 0, filter: blur ? 'blur(8px)' : 'none' }
+      ],
+      'space',
+      { fill: 'forwards' }
+    )
+    const done = (): void => out.wrap.remove()
+    a.finished.then(done, done)
+  }
+  if (layer)
+    springAnimate(
+      layer,
+      [
+        { translate: `0 ${dist}px`, opacity: 0 },
+        { translate: '0 0', opacity: 1 }
+      ],
+      'space'
+    )
+}
 /** No board has opened yet in this run (the first one may be Panes coming back onto the board after a restart). */
 let firstBoardOfRun = true
 /** A file on its way onto the board: what it is called, and how to keep a copy of it or read it as text. */
@@ -271,6 +333,8 @@ type Gesture =
       els: SVGElement[]
       ldx: number
       ldy: number
+      /** The section they would join if let go here (lit). */
+      target: string | null
     }
   | {
       /** Resizing or turning a drawn mark. */
@@ -350,8 +414,6 @@ type Gesture =
     }
 
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
-/** A whole-board rearrange: long and soft, quick to leave and slow to land, so everything settles as one motion. */
-const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 const TIDY_GLIDE_MS = 760
 /** How long a tidy waits for the model's section names before it moves without them (they follow). */
 const NAME_WAIT_MS = 2500
@@ -391,6 +453,11 @@ const positionsOf = (s: CanvasState, off?: Pos): Pos => {
   const out: Pos = new Map()
   for (const c of s.cards) out.set(`c${c.id}`, { x: c.x, y: c.y })
   for (const f of s.frames) out.set(`f${f.id}`, { x: f.x, y: f.y })
+  for (const n of s.notes) out.set(`n${n.id}`, { x: n.x, y: n.y })
+  for (const m of marksOf(s)) {
+    const b = markBox(m)
+    out.set(`m${m.id}`, { x: b.x, y: b.y })
+  }
   // the split view's box glides with its cards
   const box = s.split ? splitBox(s, s.split) : null
   if (box) out.set('split', { x: box.x, y: box.y })
@@ -413,14 +480,51 @@ const parseKey = (k: string): Ref | null => {
   return null
 }
 
-const keyOf = (el: HTMLElement): string | null =>
+const keyOf = (el: HTMLElement | SVGElement): string | null =>
   el.dataset.cid
     ? `c${el.dataset.cid}`
     : el.dataset.fid
       ? `f${el.dataset.fid}`
       : el.dataset.splitbox !== undefined
         ? 'split'
-        : null
+        : el.dataset.nid
+          ? `n${el.dataset.nid}`
+          : el.dataset.mid !== undefined && el.dataset.mh === undefined
+            ? `m${el.dataset.mid}`
+            : null
+
+/** Where a held thing is on the board (by its key), for the pivot a group turns about. */
+const boxOfKey = (s: CanvasState, key: string): Box | null => {
+  const id = key.slice(1)
+  if (key === 'split') return s.split ? splitBox(s, s.split) : null
+  if (key[0] === 'c') {
+    const c = s.cards.find((x) => x.id === Number(id))
+    return c ? cardBox(c) : null
+  }
+  if (key[0] === 'n') return s.notes.find((x) => x.id === id) ?? null
+  if (key[0] === 'f') return s.frames.find((x) => x.id === id) ?? null
+  if (key[0] === 'm') {
+    const m = marksOf(s).find((x) => x.id === id)
+    return m ? markBox(m) : null
+  }
+  return null
+}
+
+/**
+ * How a held set turns: one card or note about its own middle (null); several, or a drawing, together about the
+ * middle of all of them, so they stay one rigid thing.
+ */
+const groupOf = (
+  s: CanvasState,
+  items: Array<{ key: string; el: Element }>
+): { origin: { x: number; y: number }; size: number } | null => {
+  if (items.length === 1 && !(items[0].el instanceof SVGElement)) return null
+  const b = boundsOf(items.flatMap((it) => boxOfKey(s, it.key) ?? []))
+  return b ? { origin: { x: b.x + b.w / 2, y: b.y + b.h / 2 }, size: Math.hypot(b.w, b.h) } : null
+}
+
+/** Efficient mode (Settings): shorter motion, nothing optional. */
+const lowFx = (): boolean => document.documentElement.dataset.fx === 'low'
 
 /** A web page's shape in its tab: the screen's, kept between 4:3 and 21:9 (a portrait or odd screen gives 16:10). */
 function pageAspect(): number {
@@ -447,6 +551,20 @@ export function Canvas({
     shutRef.current()
   })
   const { root, grid, layer } = vp
+  // the board on screen; on its way out for another space's board, its layer stays over that one until it is ready
+  useLayoutEffect(() => {
+    const r = root.current
+    const l = layer.current
+    liveRoot = r
+    return () => {
+      if (liveRoot === r) liveRoot = null
+      resetLift()
+      // after the commit (the new board is in by then; the old element is already out of the page)
+      if (l) queueMicrotask(() => holdLeaving(l))
+    }
+    // once: the board is keyed by its space
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const lastView = useRef<Viewport | null>(null)
   const ghost = useRef<HTMLDivElement>(null)
   const marquee = useRef<HTMLDivElement>(null)
@@ -455,6 +573,14 @@ export function Canvas({
   const stRef = useRef<CanvasState | null>(null)
   const [phase, setPhaseState] = useState<Phase>('loading')
   const [swap] = useState(() => boardSpace !== null && boardSpace !== spaceId)
+  // which way the board slides: down the row of spaces to a later one, the new board rises from below
+  const [swapDir] = useState(() => {
+    const from = spaces.findIndex((x) => x.id === boardSpace)
+    const to = spaces.findIndex((x) => x.id === spaceId)
+    const dir = to >= from ? 1 : -1
+    if (boardSpace !== null && boardSpace !== spaceId) swapping = { at: performance.now(), dir }
+    return dir
+  })
   const phaseRef = useRef<Phase>('loading')
   const [vis, setVis] = useState<Set<number>>(new Set())
   // the instant find's words (null: closed) and which of its matches is picked
@@ -517,7 +643,7 @@ export function Canvas({
   const flyRef = useRef<number[] | null>(null)
   const promptRef = useRef<HTMLInputElement>(null)
   const [ranks, setRanks] = useState<Map<number, number>>(new Map())
-  const pendingFlip = useRef<{ before: Pos; stagger: boolean } | null>(null)
+  const pendingFlip = useRef<{ before: Pos; stagger: boolean; off?: Pos } | null>(null)
   const gesture = useRef<Gesture | null>(null)
   const saveTimer = useRef<number | undefined>(undefined)
   const bootRef = useRef('')
@@ -909,7 +1035,8 @@ export function Canvas({
       const next = pruneConnectors(fitFrames(fitVideoCards(fn(cur), videoAspectOf)))
       if (next === cur) return false
       if (o.undo) record(o.undo, cur, o.merge)
-      if (o.flip) pendingFlip.current = { before: positionsOf(cur, o.off), stagger: !!o.stagger }
+      if (o.flip)
+        pendingFlip.current = { before: positionsOf(cur, o.off), stagger: !!o.stagger, off: o.off }
       stRef.current = next
       setStState(next)
       saveSoon()
@@ -980,46 +1107,107 @@ export function Canvas({
     root.current
       ?.querySelectorAll<HTMLElement>('[data-cid],[data-fid],[data-nid],[data-splitbox]')
       .forEach((el) => {
+        // what was let go settles on its own (lift.ts) and lets go of its styles when it lands
+        if (owned(el)) return
         el.style.translate = ''
-        el.classList.remove('lifted')
+        el.removeAttribute('data-lift')
       })
     root.current?.querySelectorAll('.drop').forEach((el) => el.classList.remove('drop'))
+  }
+
+  /** The board as last laid out, and its cards' and notes' elements then: what a change took away leaves from them. */
+  const shownState = useRef<CanvasState | null>(null)
+  const shownEls = useRef(new Map<string, HTMLElement>())
+
+  /**
+   * Cards and notes that left the board (closed, removed) go out where they were: their last element, put back for a
+   * moment, shrinks a little and fades (spring `exit`), while what fills their place glides in.
+   */
+  const leaveGone = (was: CanvasState, now: CanvasState): void => {
+    const l = layer.current
+    if (!l || reduced) return
+    const have = new Set([...now.cards.map((c) => `c${c.id}`), ...now.notes.map((n) => `n${n.id}`)])
+    const gone = [...was.cards.map((c) => `c${c.id}`), ...was.notes.map((n) => `n${n.id}`)].filter(
+      (k) => !have.has(k)
+    )
+    if (gone.length === 0 || gone.length > 24) return
+    const before = l.querySelector('[data-cid],[data-nid]')
+    const exit = springCurve(SPRINGS.exit)
+    for (const key of gone) {
+      const el = shownEls.current.get(key)
+      if (!el || el.isConnected) continue
+      // no longer the board's: nothing finds it, nothing hits it
+      el.removeAttribute('data-cid')
+      el.removeAttribute('data-nid')
+      el.classList.remove('sel', 'fresh')
+      el.removeAttribute('data-lift')
+      el.removeAttribute('data-front')
+      el.classList.add('cv-gone')
+      el.setAttribute('aria-hidden', 'true')
+      el.inert = true
+      el.querySelectorAll('video,audio').forEach((m) => (m as HTMLMediaElement).pause())
+      l.insertBefore(el, before)
+      const a = el.animate(
+        [
+          { opacity: 1, scale: '1' },
+          { opacity: 0, scale: '0.9' }
+        ],
+        { duration: lowFx() ? 140 : 200, easing: exit.easing, fill: 'forwards' }
+      )
+      const done = (): void => el.remove()
+      a.finished.then(done, done)
+    }
   }
 
   // After a state change: put dragged things back to rest, and glide everything that moved from where it was.
   useLayoutEffect(() => {
     updateVisible(vp.get())
-    const p = pendingFlip.current ?? (flyRef.current ? { before: new Map(), stagger: false } : null)
+    const was = shownState.current
+    shownState.current = st
+    if (was && st && was !== st && phaseRef.current === 'open') leaveGone(was, st)
+    // the elements now, for the next change's leavers (no layout read: attributes only)
+    const els = new Map<string, HTMLElement>()
+    root.current?.querySelectorAll<HTMLElement>('[data-cid],[data-nid]').forEach((el) => {
+      els.set(el.dataset.cid ? `c${el.dataset.cid}` : `n${el.dataset.nid}`, el)
+    })
+    shownEls.current = els
+    const p: { before: Pos; stagger: boolean; off?: Pos } | null =
+      pendingFlip.current ?? (flyRef.current ? { before: new Map(), stagger: false } : null)
     pendingFlip.current = null
     if (!p || !st) return
     clearDrag()
-    if (reduced || !root.current) return
+    if (!root.current) return
     const after = positionsOf(st)
+    // what was let go (or is still settling) stays where it is on screen while its place changes under it
+    for (const el of root.current.querySelectorAll<HTMLElement | SVGElement>(
+      '[data-cid],[data-fid],[data-nid],[data-splitbox],.cv-marks [data-mid]:not([data-mh])'
+    )) {
+      if (!owned(el)) continue
+      const key = keyOf(el)
+      const from = key ? p.before.get(key) : undefined
+      const to = key ? after.get(key) : undefined
+      const held = key ? p.off?.get(key) : undefined
+      if (from && to) rebase(el, from.x - (held?.x ?? 0) - to.x, from.y - (held?.y ?? 0) - to.y)
+    }
+    if (reduced) return
     const fly = flyRef.current
     flyRef.current = null
     const prompt = promptRef.current?.closest('.cv-prompt')?.getBoundingClientRect()
-    // a frame and its cards move together: they share the delay of their frame's turn
+    // a stagger ripples in order, a frame apart: sections in turn with their cards, then top to bottom
     const turn = new Map(st.frames.map((f, i) => [f.id, i]))
     const frameOfCard = new Map(st.cards.map((c) => [c.id, c.frame]))
-    const delayOf = (el: HTMLElement): number => {
-      if (!p.stagger) return 0
+    const turnOf = (el: HTMLElement): number => {
       const fid = el.dataset.fid ?? frameOfCard.get(Number(el.dataset.cid))
-      return Math.min((fid ? (turn.get(fid) ?? 0) : 0) * 20, 80) // a ripple, not a queue: it reads as one move
+      return fid ? (turn.get(fid) ?? 0) : 0
     }
-    if (p.stagger) {
-      root.current
-        .querySelector('.cv-links')
-        ?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.7 }, { opacity: 1 }], {
-          duration: 480,
-          easing: 'ease-out'
-        })
-    }
+    const moves: Array<{ el: HTMLElement; key: string; dx: number; dy: number; order: number }> = []
+    const born: HTMLElement[] = []
     root.current
-      .querySelectorAll<HTMLElement>('[data-cid],[data-fid],[data-splitbox]')
+      .querySelectorAll<HTMLElement>('[data-cid],[data-fid],[data-nid],[data-splitbox]')
       .forEach((el) => {
         const key = keyOf(el)
         const to = key && after.get(key)
-        if (!key || !to) return
+        if (!key || !to || owned(el)) return
         const from = p.before.get(key)
         const flyAt = fly ? fly.indexOf(Number(el.dataset.cid)) : -1
         if (!from && flyAt >= 0 && prompt && el.dataset.cid) {
@@ -1044,30 +1232,34 @@ export function Canvas({
           return
         }
         if (!from) {
-          el.animate(
-            [
-              { opacity: 0, scale: '0.94' },
-              { opacity: 1, scale: '1' }
-            ],
-            {
-              duration: 280,
-              easing: EASE,
-              delay: delayOf(el),
-              fill: 'backwards'
-            }
-          )
+          // a fresh card has its own entrance (.fresh); a section or a split box has none
+          if (!el.classList.contains('fresh') && !el.dataset.fid) born.push(el)
           return
         }
         const dx = from.x - to.x
         const dy = from.y - to.y
         if (dx === 0 && dy === 0) return
-        el.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0px 0px' }], {
-          duration: p.stagger ? TIDY_GLIDE_MS - 120 : 300,
-          easing: p.stagger ? GLIDE : EASE,
-          delay: delayOf(el),
-          fill: 'backwards'
-        })
+        moves.push({ el, key, dx, dy, order: turnOf(el) * 1e7 + to.y * 1e3 + to.x / 1e3 })
       })
+    // a group moves without overshoot (smooth); staggered, the later ones are quicker so all land together
+    const natural = settleMs(SPRINGS.smooth)
+    if (p.stagger) moves.sort((a, b) => a.order - b.order)
+    const last = p.stagger ? staggerDelay(moves.length - 1) : 0
+    moves.forEach((m, i) => {
+      const delay = p.stagger ? staggerDelay(i) : 0
+      glide(m.el, m.key, m.dx, m.dy, { delay, dur: natural + last - delay })
+    })
+    // something new on the board grows into place, a little bouncy
+    born.forEach((el, i) => {
+      const delay = p.stagger ? staggerDelay(i) : 0
+      springAnimate(el, [{ scale: '0.85' }, { scale: '1' }], 'bouncy', { delay })
+      el.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 160,
+        easing: 'ease-out',
+        delay,
+        fill: 'backwards'
+      })
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [st])
 
@@ -1112,8 +1304,7 @@ export function Canvas({
       // a second press while it runs would cluster and move everything again
       if (!stRef.current || tidying.current) return
       // nothing moved since the last tidy: say so, rather than pressing the button and seeing nothing happen
-      const already = (): void =>
-        setToast({ text: 'Already tidy', label: 'Undo', key: Date.now() })
+      const already = (): void => setToast({ text: 'Already tidy', label: 'Undo', key: Date.now() })
       if (layoutKey(stRef.current) === tidied.current) return already()
       tidying.current = true
       setBusy(true)
@@ -1293,7 +1484,9 @@ export function Canvas({
     const card = s?.cards.find((c) => c.id === activeId)
     const { w, h } = size()
     if (swap && !reduced) {
-      // a space switch: the board's own entrance (its cards rise) is all there is
+      // a space switch: the old board slides away as this one slides in
+      slideSwap(layer.current, swapDir, h)
+      swapping = null
       const t = window.setTimeout(() => setPhase('open'), 460)
       return () => window.clearTimeout(t)
     }
@@ -1469,28 +1662,32 @@ export function Canvas({
     if (phaseRef.current === 'loading') return
     let added: number[] = []
     let placed: number | null = null
-    edit((s) => {
-      const r = syncTabs(s, lite())
-      added = r.added
-      const link = linkOpened.current
-      if (link && Date.now() - link.at < 8000 && added.includes(link.id)) {
-        linkOpened.current = null
-        placed = link.id
-        return withLink(r.state, link)
-      }
-      const want = placeNext.current
-      if (want && Date.now() - want.t < 8000) {
-        const id = added.find((i) => !r.state.cards.find((c) => c.id === i)?.private)
-        if (id !== undefined) {
-          placeNext.current = null
-          placed = id
-          return placeCard(r.state, id, want)
+    edit(
+      (s) => {
+        const r = syncTabs(s, lite())
+        added = r.added
+        const link = linkOpened.current
+        if (link && Date.now() - link.at < 8000 && added.includes(link.id)) {
+          linkOpened.current = null
+          placed = link.id
+          return withLink(r.state, link)
         }
-      }
-      return r.state.cards === s.cards && r.state.frames === s.frames && added.length === 0
-        ? s
-        : r.state
-    })
+        const want = placeNext.current
+        if (want && Date.now() - want.t < 8000) {
+          const id = added.find((i) => !r.state.cards.find((c) => c.id === i)?.private)
+          if (id !== undefined) {
+            placeNext.current = null
+            placed = id
+            return placeCard(r.state, id, want)
+          }
+        }
+        return r.state.cards === s.cards && r.state.frames === s.frames && added.length === 0
+          ? s
+          : r.state
+        // a tab closed or opened elsewhere: what fills its place glides there (the one that went leaves, leaveGone)
+      },
+      { flip: true }
+    )
     markFresh(added)
     if (placed !== null) setSel(new Set([`c:${placed}`]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2318,19 +2515,24 @@ export function Canvas({
         )
       )
         return
-      vp.stop()
       if (e.ctrlKey || e.metaKey) {
         if (rootRect.current.w === 0) measureRoot()
         const r = rootRect.current
-        vp.zoomAt(
-          Math.exp(-clamp(e.deltaY * unit, -40, 40) * 0.0095),
-          e.clientX - r.left,
-          e.clientY - r.top
-        )
+        const d = e.deltaY * unit
+        // a pinch reports fine fractional steps; a mouse wheel whole notches (chased on a spring either way, see
+        // useViewport: smoothed toward the asked zoom about the cursor, giving a little past the limits)
+        const pinch = e.deltaMode === 0 && (Math.abs(d) < 40 || !Number.isInteger(d))
+        vp.wheelZoom(-clamp(d, -40, 40) * 0.0095, e.clientX - r.left, e.clientY - r.top, pinch)
       } else {
         const dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX
         const dy = e.shiftKey && e.deltaX === 0 ? 0 : e.deltaY
-        vp.panBy(-dx * unit, -dy * unit)
+        // a mouse's notch glides there; a touchpad's fine steps already come once a frame and move at once
+        const notch =
+          e.deltaMode !== 0 ||
+          (Number.isInteger(dx) &&
+            Number.isInteger(dy) &&
+            Math.max(Math.abs(dx), Math.abs(dy)) >= 50)
+        vp.wheelPan(-dx * unit, -dy * unit, notch)
       }
     }
     el.addEventListener('wheel', wheel, { passive: false })
@@ -2645,7 +2847,8 @@ export function Canvas({
           copy: e.altKey,
           els: [],
           ldx: 0,
-          ldy: 0
+          ldy: 0,
+          target: null
         })
         return
       }
@@ -2699,7 +2902,11 @@ export function Canvas({
       root.current!.setPointerCapture(e.pointerId)
     } else if (toolRef.current === 'note') {
       e.preventDefault() // the click must not move focus off the note about to be written
-      const r = addNote(stRef.current!, { x: w.x - NOTE_W / 2, y: w.y - NOTE_H / 2 }, stRef.current!.notes.length)
+      const r = addNote(
+        stRef.current!,
+        { x: w.x - NOTE_W / 2, y: w.y - NOTE_H / 2 },
+        stRef.current!.notes.length
+      )
       edit(() => r.state, { undo: 'Added a note' })
       setSel(new Set([`n:${r.id}`]))
       setEditing(r.id)
@@ -2754,6 +2961,9 @@ export function Canvas({
           ...root.current!.querySelectorAll<SVGElement>('.cv-marks [data-mid]:not([data-mh])')
         ].filter((el) => want.has(el.dataset.mid ?? ''))
         root.current!.classList.add('dragging')
+        // drawings lift and lean like everything else, together about their middle
+        const items = g.els.map((el) => ({ key: `m${el.dataset.mid}`, el }))
+        lift(items, groupOf(s, items))
       }
       let dx = (e.clientX - g.sx) / v.k
       let dy = (e.clientY - g.sy) / v.k
@@ -2766,8 +2976,12 @@ export function Canvas({
       drawGuides(sn)
       g.ldx = dx
       g.ldy = dy
-      for (const el of g.els) el.style.translate = `${dx}px ${dy}px`
-      if (!g.copy) conn.current?.drag(new Map(g.ids.map((id) => [`m${id}`, { x: dx, y: dy }])))
+      moveHeld(e.timeStamp, e.clientX, e.clientY, dx, dy, v.k)
+      // the section they would join lights up (not the one they are already in, nor Private)
+      const w = world(e.clientX, e.clientY)
+      const f = frameAt(s, w.x, w.y)
+      const home = (s.marks ?? []).every((m) => !g.ids.includes(m.id) || m.frame === f?.id)
+      showDrop(g, f && f.kind !== 'private' && !home ? f.id : null)
     } else if (g.kind === 'markop') {
       if (!g.moved && Math.hypot(e.clientX - g.sx, e.clientY - g.sy) < DRAG_PX) return
       if (!g.moved) {
@@ -2940,6 +3154,8 @@ export function Canvas({
           want.push(`[data-fid="${g.id}"]`)
           for (const c of s.cards) if (c.frame === g.id) want.push(`[data-cid="${c.id}"]`)
           for (const n of s.notes) if (n.frame === g.id) want.push(`[data-nid="${n.id}"]`)
+          for (const m of s.marks ?? [])
+            if (m.frame === g.id) want.push(`.cv-marks [data-mid="${m.id}"]:not([data-mh])`)
         } else want.push(`[data-nid="${g.id}"]`)
         if (g.what === 'note') for (const id of g.cards) want.push(`[data-cid="${id}"]`)
         for (const n of g.notes ?? []) want.push(`[data-nid="${n}"]`)
@@ -2964,7 +3180,9 @@ export function Canvas({
                 : `n${el.dataset.nid}`),
           el
         }))
-        for (const it of g.items) it.el.classList.add('lifted')
+        // picked up: cards and notes on their own lean with the hand and lift; a section, a split view or a big
+        // selection moves flat, as one
+        lift(g.items, groupOf(s, g.items))
         root.current!.classList.add('dragging')
         shutBar()
       }
@@ -2979,8 +3197,8 @@ export function Canvas({
       drawGuides(sn)
       g.ldx = dx
       g.ldy = dy
-      for (const it of g.items) it.el.style.translate = `${dx}px ${dy}px`
-      conn.current?.drag(new Map(g.items.map((it) => [it.key, { x: dx, y: dy }])))
+      // the held things go exactly with the pointer; their connectors follow on the same frame (lift.ts)
+      moveHeld(e.timeStamp, e.clientX, e.clientY, dx, dy, v.k)
       if (
         g.what === 'card' &&
         g.cards.length === 1 &&
@@ -3008,15 +3226,19 @@ export function Canvas({
         const w = world(e.clientX, e.clientY)
         const f = frameAt(s, w.x, w.y)
         const priv = byId.get(g.cards[0])?.private || byId.get(g.cards[0])?.tor
-        const ok = f && (f.kind === 'private') === !!priv ? f.id : null
-        if (ok !== g.target) {
-          if (g.target)
-            root.current?.querySelector(`[data-fid="${g.target}"]`)?.classList.remove('drop')
-          if (ok) root.current?.querySelector(`[data-fid="${ok}"]`)?.classList.add('drop')
-          g.target = ok
-        }
+        // lit only when letting go here would move them in: not for the section they are already in
+        const home = f && g.cards.every((id) => s.cards.find((c) => c.id === id)?.frame === f.id)
+        showDrop(g, f && !home && (f.kind === 'private') === !!priv ? f.id : null)
       }
     }
+  }
+
+  /** Light the section a held thing would join, one at a time (null: none). */
+  const showDrop = (g: { target: string | null }, id: string | null): void => {
+    if (id === g.target) return
+    if (g.target) root.current?.querySelector(`[data-fid="${g.target}"]`)?.classList.remove('drop')
+    if (id) root.current?.querySelector(`[data-fid="${id}"]`)?.classList.add('drop')
+    g.target = id
   }
 
   const onGestureEnd = (e: PointerEvent): void => {
@@ -3052,16 +3274,20 @@ export function Canvas({
       el.classList.remove('dragging')
       if (!g.moved) return
       drawGuides(null)
-      conn.current?.drag(null)
-      for (const m of g.els) m.style.translate = ''
+      showDrop(g, null)
+      drop()
       const dx = g.ldx
       const dy = g.ldy
+      const off: Pos = new Map(g.ids.map((id) => [`m${id}`, { x: dx, y: dy }]))
+      // let go inside a section, they join it (dropMarks); outside one, they are loose
       if (g.copy) {
         const dup = duplicateMarks(stRef.current!, g.ids, 0)
-        if (edit(() => moveMarks(dup.state, dup.ids, dx, dy), { undo: 'Duplicated' }))
+        if (edit(() => dropMarks(dup.state, dup.ids, dx, dy), { undo: 'Duplicated' }))
           setSel(new Set(dup.ids.map((i) => `m:${i}`)))
       } else
-        edit((s0) => moveMarks(s0, g.ids, dx, dy), {
+        edit((s0) => dropMarks(s0, g.ids, dx, dy), {
+          flip: true,
+          off,
           undo: g.ids.length === 1 ? 'Moved a drawing' : `Moved ${g.ids.length} drawings`
         })
     } else if (g.kind === 'markop') {
@@ -3172,7 +3398,7 @@ export function Canvas({
       const extraNotes = g.notes ?? []
       const extraMarks = g.marks ?? []
       const alsoMoved = (s: CanvasState): CanvasState =>
-        moveMarks(
+        dropMarks(
           extraNotes.reduce((acc, n) => dropNote(acc, n, dx, dy), s),
           extraMarks,
           dx,
@@ -3182,7 +3408,9 @@ export function Canvas({
         g.cards.length + extraNotes.length + extraMarks.length + (g.what === 'note' ? 1 : 0)
       const movedLabel =
         count > 1 ? `Moved ${count} things` : g.what === 'note' ? 'Moved a note' : 'Moved a card'
-      conn.current?.drag(null)
+      // let go: everything held settles from where it is, carrying the throw (lift.ts); the edit below moves where
+      // it settles to, and the board's layout effect keeps it in place on screen meanwhile
+      drop()
       let changed: boolean
       root.current?.querySelectorAll('.split-into').forEach((n) => n.classList.remove('split-into'))
       const splitTo = g.splitTo
@@ -3233,23 +3461,12 @@ export function Canvas({
                 ? dropCards(dropNote(s, g.id, dx, dy), g.cards, dx, dy, w)
                 : dropNote(s, g.id, dx, dy)
             ),
-          { undo: movedLabel }
+          { flip: true, off, undo: movedLabel }
         )
       // drawings were moved by translate, not by the board's own re-layout: let them go
-      for (const it of g.items) if (it.el instanceof SVGElement) it.el.style.translate = ''
-      if (!changed || g.what === 'note') {
-        if (g.what === 'note') clearDrag()
-        else
-          for (const it of g.items) {
-            it.el.classList.remove('lifted')
-            it.el.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0px 0px' }], {
-              duration: 240,
-              easing: EASE
-            })
-            it.el.style.translate = ''
-          }
-        el.querySelectorAll('.drop').forEach((n) => n.classList.remove('drop'))
-      }
+      // (drawings held along settle like the rest: the layout effect moves their offset with their place)
+      // nothing changed (or the drop was refused): what was held springs back home on its own
+      if (!changed) el.querySelectorAll('.drop').forEach((n) => n.classList.remove('drop'))
     }
   }
 

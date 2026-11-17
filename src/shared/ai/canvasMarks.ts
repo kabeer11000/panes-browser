@@ -49,6 +49,8 @@ export interface CanvasMark {
   group?: string
   /** A text label the person resized: it wraps at its width (else it is as wide as its longest line). */
   wrap?: boolean
+  /** The section it belongs to (its middle was let go inside it): it moves with that section, kept where it was put. */
+  frame?: string
 }
 
 export const MARK_COLORS = 8
@@ -582,6 +584,8 @@ export function sanitizeMarks(v: unknown): CanvasMark[] {
     if (o.wrap === true && kind === 'text') mark.wrap = true
     if (typeof o.group === 'string' && o.group.length > 0 && o.group.length <= 20)
       mark.group = o.group
+    if (typeof o.frame === 'string' && o.frame.length > 0 && o.frame.length <= 40)
+      mark.frame = o.frame
     out.push(mark)
   }
   return out

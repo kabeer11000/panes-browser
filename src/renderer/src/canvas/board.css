@@ -1,0 +1,139 @@
+/* ---- the board's motion: held things, leavers, a space switch (behaviour only; the looks are canvas.css and
+   surfaces.css). The moving itself is lift.ts and useViewport on compositor-only properties. ---- */
+
+/* What was moved last stays over what it overlaps (a card dropped on a table is not hidden under it), until something
+   else is moved (lift.ts front). */
+.cv-card[data-front],
+.cv-note[data-front],
+.cv-frame[data-front],
+.cv-fhead-at[data-front] {
+  z-index: 3;
+}
+.cv-marks[data-front] {
+  z-index: 4;
+}
+
+/* Held, and while it settles: over everything on the board (cards, notes, sections, the drawings' and tables' layer,
+   the connectors). The board layer is one stacking context, and its own bars (z-index 9 and up) hide during a drag.
+   After the front rules: a held thing that was also moved last must still be over everything. */
+.cv-card[data-lift],
+.cv-note[data-lift],
+.cv-frame[data-lift],
+.cv-fhead-at[data-lift],
+.cv-splitbox[data-lift] {
+  z-index: 40;
+  transition: none;
+}
+.cv-marks[data-holding] {
+  z-index: 40;
+}
+/* the lift's shadow: wider and softer than at rest, on a layer of its own that only fades (no repaint per frame) */
+.cv-card[data-lift]::after,
+.cv-note[data-lift]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 6px 12px rgb(0 0 0 / 0.16),
+    0 22px 46px rgb(0 0 0 / 0.3);
+  opacity: 0;
+  transition: opacity var(--spring-smooth-dur) var(--spring-smooth);
+}
+.cv-card[data-lift][data-up]::after,
+.cv-note[data-lift][data-up]::after {
+  opacity: 1;
+  transition: opacity var(--spring-follow-dur) var(--spring-follow);
+}
+[data-fx='low'] .cv-card[data-lift]::after,
+[data-fx='low'] .cv-note[data-lift]::after {
+  box-shadow: 0 14px 26px rgb(0 0 0 / 0.3);
+}
+
+/* a new card grows into place, a little bouncy */
+.cv-card.fresh {
+  animation:
+    cv-grow var(--spring-bouncy-dur) var(--spring-bouncy) both,
+    cv-fade 0.16s ease-out both;
+}
+@keyframes cv-grow {
+  from {
+    scale: 0.85;
+  }
+}
+
+/* a card or note on its way out (Canvas leaveGone): seen, never hit */
+.cv-gone {
+  pointer-events: none;
+}
+
+/* a space switch: the board slides (Canvas swapBoards) instead of its cards rising */
+.cv.entering.swap .cv-board,
+.cv.entering.swap .cv-card,
+.cv.entering.swap .cv-frame {
+  animation: none;
+}
+/* the board that is leaving, held over the new one until it is ready, then sliding away */
+.cv-swapout {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* the right-click menu grows from where it was asked for (ContextMenu, spring snappy) and fades on its way out */
+.cv-ctx {
+  animation: none;
+}
+.cv-ctx-wrap.out {
+  pointer-events: none;
+}
+.cv-ctx-wrap.out .cv-ctx {
+  pointer-events: none;
+}
+
+/* cards and notes turn and scale about their own middle (Cards/Widgets set --ox/--oy: the transform puts the box on
+   the board, so the origin is in the board's coordinates) */
+.cv-card,
+.cv-note {
+  transform-origin: var(--ox, 50%) var(--oy, 50%);
+}
+
+/* a note or widget under the pointer rises a hair */
+/* (with canvas.css's own: a note grows to its text smoothly) */
+.cv-note:not([data-lift], .cv-gone) {
+  transition:
+    height 0.18s var(--ease),
+    width 0.18s var(--ease),
+    box-shadow var(--dur-fast),
+    translate var(--spring-snappy-dur) var(--spring-snappy);
+}
+.cv-note:not([data-lift], .cv-gone, :focus-within):hover {
+  translate: 0 -1px;
+}
+.cv.dragging .cv-note:not([data-lift]):hover,
+.cv.reduced .cv-note:hover {
+  translate: none;
+}
+
+/* the menu's highlight: one pill that glides to the row under the pointer (ContextMenu), behind the rows' text */
+.cv-ctx-pill {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 0;
+  z-index: -1;
+  border-radius: 6px;
+  background: var(--ctx-hover, color-mix(in srgb, var(--fg) 8%, transparent));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    translate var(--spring-snappy-dur) var(--spring-snappy),
+    height var(--spring-snappy-dur) var(--spring-snappy),
+    opacity 0.08s ease-out;
+}
+.cv-ctx.pill button[data-i]:not(.danger) {
+  background: transparent;
+}

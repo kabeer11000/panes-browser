@@ -29,6 +29,18 @@ import {
 const at = (x: number, y: number): React.CSSProperties => ({
   transform: `translate3d(${x}px, ${y}px, 0)`
 })
+/**
+ * Placed like `at`, turning and scaling about its own middle: the origin is on the board's coordinates (where the
+ * transform puts the box), so the lean of a drag (lift.ts, the `rotate` and `scale` properties) pivots on the card
+ * and not on the board's corner.
+ */
+const atMid = (x: number, y: number, w: number, h: number): React.CSSProperties =>
+  ({
+    ...at(x, y),
+    // board.css: transform-origin: var(--ox) var(--oy) (a group being dragged sets its own pivot over it)
+    '--ox': `${x + w / 2}px`,
+    '--oy': `${y + h / 2}px`
+  }) as React.CSSProperties
 
 interface CardProps {
   m: CardModel
@@ -365,7 +377,7 @@ export const CardView = memo(
         data-cid={m.id}
         style={
           {
-            ...at(x, y),
+            ...atMid(x, y, w, h),
             width: w,
             height: h,
             '--i': Math.min(rank, 16)
@@ -751,7 +763,7 @@ export const NoteView = memo(function NoteView({
       data-nid={note.id}
       // like a FigJam sticky: the text is large while it is short, and shrinks before the note grows
       style={{
-        ...at(note.x, note.y),
+        ...atMid(note.x, note.y, note.w, note.h),
         width: note.w,
         height: note.h,
         fontSize: noteFontSize(text)

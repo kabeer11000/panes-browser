@@ -1,4 +1,12 @@
-import { memo, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState
+} from 'react'
 import type { CanvasState } from '@shared/ai/canvas'
 import {
   anchorOn,
@@ -24,6 +32,7 @@ import {
   StraightIcon,
   TrashIcon
 } from './icons'
+import { onFollow } from './lift'
 
 export interface Draft {
   from: End
@@ -102,32 +111,86 @@ export const Connectors = memo(function Connectors({
   onDelete,
   ref
 }: Props): React.JSX.Element {
-  const [off, setOff] = useState<Offsets | null>(null)
+  // a drawing being dragged (marks): only whether one is, for the handles; where its lines go is written directly
+  const [off, setOff] = useState<boolean>(false)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [hover, setHover] = useState<End | null>(null)
   const svg = useRef<SVGSVGElement>(null)
   const stateRef = useRef(state)
+  /** The `d` each connector shows now (React's, or the last one written while something moved). */
+  const shown = useRef(new Map<string, string>())
+  /** Some line shows a route React did not render (something is moving). */
+  const dirty = useRef(false)
   useLayoutEffect(() => {
     stateRef.current = state
   })
+  /**
+   * Things are moving (a drag, its settle, a glide): the lines follow every frame, written straight into the paths of
+   * the connectors whose route changed, no render. Null: all still again, every line back to React's own route.
+   */
+  const follow = useCallback((o: Offsets | null): void => {
+    const s = stateRef.current
+    const root = svg.current
+    if (!root) return
+    // most motion touches no connector: nothing to route then
+    if (o && !movesLines(s, o)) o = null
+    if (!o && !dirty.current) return
+    const list = connectorsOf(s)
+    const all = routeAll(s, list, o ?? undefined)
+    const labels = root.parentElement
+    list.forEach((c, i) => {
+      const r = all[i]
+      if (!r || shown.current.get(c.id) === r.d) return
+      shown.current.set(c.id, r.d)
+      const g = root.querySelector(`g[data-kid="${c.id}"]`)
+      if (!g) return
+      const paths = g.children
+      // hit line, line, then the heads (the render's order)
+      ;(paths[0] as SVGPathElement | undefined)?.setAttribute('d', r.d)
+      ;(paths[1] as SVGPathElement | undefined)?.setAttribute('d', r.d)
+      r.heads.forEach((h, j) => (paths[2 + j] as SVGPathElement | undefined)?.setAttribute('d', h))
+      const lab = labels?.querySelector<HTMLElement>(`.cv-klabel[data-kid="${c.id}"]`)
+      if (lab) {
+        lab.style.left = `${r.mid.x}px`
+        lab.style.top = `${r.mid.y}px`
+      }
+    })
+    dirty.current = o !== null
+  }, [])
+  useEffect(() => onFollow(follow), [follow])
   useImperativeHandle(
     ref,
     () => ({
-      // A drag redraws the lines only when it moves one of their ends, or something an elbow goes around: most
-      // drags touch no connector, and routing them all on every pointer move is the most of a drag's script.
-      drag: (o) => setOff(o && movesLines(stateRef.current, o) ? o : null),
+      drag: (o) => {
+        setOff(o !== null)
+        follow(o)
+      },
       draft: (d) => setDraft(d),
       hover: (e) =>
         setHover((cur) =>
           cur === e || (cur && e && JSON.stringify(cur) === JSON.stringify(e)) ? cur : e
         )
     }),
-    []
+    [follow]
   )
   const list = connectorsOf(state)
   const sel = new Set(selected)
-  const all = routeAll(state, list, off ?? undefined)
+  const all = routeAll(state, list)
   const routes = list.map((c, i) => ({ c, r: all[i] }))
+  // what shows now, read back from the paths (a render writes only the props that changed, so a line written while
+  // something moved may still show that): a follow writes only what differs from it
+  useLayoutEffect(() => {
+    const m = shown.current
+    m.clear()
+    let differs = false
+    list.forEach((c, i) => {
+      const d = svg.current?.querySelector(`g[data-kid="${c.id}"] > .cv-kline`)?.getAttribute('d')
+      if (!d) return
+      m.set(c.id, d)
+      if (d !== all[i]?.d) differs = true
+    })
+    dirty.current = differs
+  })
   const one = selected.length === 1 ? routes.find((x) => x.c.id === selected[0]) : undefined
 
   // a new connector draws itself in along its length, then its arrowheads appear

@@ -1,7 +1,7 @@
 import { cosine, GROUP_THRESHOLD } from './cluster'
 import { fallbackName } from './grouping'
 import { keepItem, type CanvasItem } from './canvasItems'
-import { sanitizeMarks, type CanvasMark } from './canvasMarks'
+import { moveMarks, sanitizeMarks, type CanvasMark } from './canvasMarks'
 import { pruneConnectors, remapCards, sanitizeConnectors, type CanvasConnector } from './connectors'
 import { cleanWidget, newWidget, WIDGET_SIZE, type Widget, type WidgetKind } from '../widgets'
 
@@ -395,6 +395,10 @@ const members = (s: CanvasState, frameId: string): CanvasCard[] =>
 const memberNotes = (s: CanvasState, frameId: string): CanvasNote[] =>
   s.notes.filter((n) => n.frame === frameId)
 
+/** Tables, shapes and drawings that belong to a section. */
+const memberMarks = (s: CanvasState, frameId: string): CanvasMark[] =>
+  (s.marks ?? []).filter((m) => m.frame === frameId)
+
 /** Notes that sit on the board, not in a section. */
 const looseNotes = (s: CanvasState): CanvasNote[] => s.notes.filter((n) => !n.frame)
 
@@ -417,7 +421,18 @@ function translateFrame(s: CanvasState, id: string, dx: number, dy: number): Can
     ...s,
     frames: s.frames.map((f) => (f.id === id ? { ...f, x: f.x + dx, y: f.y + dy } : f)),
     cards: s.cards.map((c) => (c.frame === id ? { ...c, x: c.x + dx, y: c.y + dy } : c)),
-    notes: s.notes.map((n) => (n.frame === id ? { ...n, x: n.x + dx, y: n.y + dy } : n))
+    notes: s.notes.map((n) => (n.frame === id ? { ...n, x: n.x + dx, y: n.y + dy } : n)),
+    // its tables, shapes and drawings ride along (moveMarks carries a line's points)
+    ...(s.marks
+      ? {
+          marks: moveMarks(
+            s,
+            memberMarks(s, id).map((m) => m.id),
+            dx,
+            dy
+          ).marks
+        }
+      : {})
   }
 }
 
@@ -438,7 +453,11 @@ function shrinkFrame(s: CanvasState, id: string): CanvasState {
   // down to what is in it, plus its padding (a split view's outline needs more room when it is the last row)
   const cs = members(s, id)
   const ns = memberNotes(s, id)
-  const bottoms = [...cs.map((c) => c.y + (c.h ?? CARD_H)), ...ns.map((n) => n.y + n.h)]
+  const bottoms = [
+    ...cs.map((c) => c.y + (c.h ?? CARD_H)),
+    ...ns.map((n) => n.y + n.h),
+    ...memberMarks(s, id).map((m) => m.y + m.h)
+  ]
   if (!bottoms.length) return s
   const low = Math.max(...bottoms)
   const split = new Set(s.split ?? [])
@@ -452,7 +471,7 @@ const dropIfEmpty = (s: CanvasState, id: string | null): CanvasState => {
   if (!id) return s
   const f = s.frames.find((x) => x.id === id)
   if (!f) return s
-  const count = members(s, id).length + memberNotes(s, id).length
+  const count = members(s, id).length + memberNotes(s, id).length + memberMarks(s, id).length
   if (count === 0 && !f.pinned && f.kind !== 'user') {
     return { ...s, frames: s.frames.filter((x) => x.id !== id) }
   }
@@ -1437,7 +1456,10 @@ export function deleteFrame(s: CanvasState, id: string): CanvasState {
     ...s,
     frames: s.frames.filter((f) => f.id !== id),
     cards: s.cards.map((c) => (c.frame === id ? { ...c, frame: null, manual: false } : c)),
-    notes: s.notes.map((n) => (n.frame === id ? { ...n, frame: null } : n))
+    notes: s.notes.map((n) => (n.frame === id ? { ...n, frame: null } : n)),
+    ...(s.marks
+      ? { marks: s.marks.map((m) => (m.frame === id ? { ...m, frame: undefined } : m)) }
+      : {})
   }
 }
 
@@ -1532,6 +1554,48 @@ export function dropNote(s: CanvasState, id: string, dx: number, dy: number): Ca
   }
   if (target) next = seatNote(next, id, target.id, to)
   if (from && from !== target?.id) next = dropIfEmpty(next, from)
+  return next
+}
+
+/**
+ * Drop marks (tables, shapes, drawings) moved by (dx, dy). Each one whose middle lands inside a section (not Private)
+ * becomes that section's and stays where it was let go, the section growing round it; elsewhere it is loose. A
+ * section a mark left closes up. Locked marks do not move or change section.
+ */
+export function dropMarks(
+  s: CanvasState,
+  ids: readonly string[],
+  dx: number,
+  dy: number
+): CanvasState {
+  let next = moveMarks(s, ids, dx, dy)
+  const open = { ...next, frames: next.frames.filter((f) => f.kind !== 'private') }
+  const left = new Set<string>()
+  const joined = new Set<string>()
+  next = {
+    ...next,
+    marks: (next.marks ?? []).map((m) => {
+      if (!ids.includes(m.id) || m.locked) return m
+      const to = frameAt(open, m.x + m.w / 2, m.y + m.h / 2)?.id
+      if (m.frame && m.frame !== to) left.add(m.frame)
+      if (to) joined.add(to)
+      if (to === m.frame) return m
+      const out = { ...m }
+      if (to) out.frame = to
+      else delete out.frame
+      return out
+    })
+  }
+  for (const id of joined) {
+    const f = next.frames.find((x) => x.id === id)!
+    const ms = memberMarks(next, id)
+    const right = Math.max(f.x + f.w, ...ms.map((m) => m.x + m.w + PAD))
+    const bottom = Math.max(f.y + f.h, ...ms.map((m) => m.y + m.h + PAD))
+    if (right > f.x + f.w || bottom > f.y + f.h)
+      next = withFrame(next, { ...f, w: right - f.x, h: bottom - f.y, sized: true })
+    next = settleFrame(next, id)
+  }
+  for (const id of left) if (!joined.has(id)) next = dropIfEmpty(next, id)
   return next
 }
 

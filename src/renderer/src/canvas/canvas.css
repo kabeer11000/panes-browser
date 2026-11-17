@@ -273,17 +273,7 @@
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
-.cv-card.fresh {
-  animation: cv-pop 0.46s var(--ease) both;
-}
-.cv-card.lifted,
-.cv-frame.lifted {
-  z-index: 6;
-  transition: none;
-}
-.cv-card.lifted {
-  filter: drop-shadow(0 18px 28px rgb(0 0 0 / 0.38));
-}
+/* .fresh and .lifted (a new card, a held one): board.css */
 .cv-card > .cv-doc,
 .cv-card > .cv-snap,
 .cv-card > .cv-video,

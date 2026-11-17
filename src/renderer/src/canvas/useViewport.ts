@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { Viewport } from '@shared/ai/canvas'
 import { boardMoved, onBoardMotion } from './boardMotion'
 import { dotAlpha, placeGrid } from '@shared/gridDots'
+import { Camera } from '@shared/boardPhysics'
+import { SPRINGS, type SpringParams } from '@shared/spring'
+import { reducedMotion } from '@renderer/motion'
 
 /**
  * The elements whose styles read the zoom in canvas.css. --vk (the zoom itself): the bars over a selection, which keep
@@ -57,12 +60,29 @@ function rootZoom(root: HTMLElement, k: number): void {
 export const MIN_K = 0.08
 export const MAX_K = 2.5
 const clampK = (k: number): number => Math.min(MAX_K, Math.max(MIN_K, k))
-const ease = (t: number): number => 1 - Math.pow(1 - t, 3)
+
+/** A wheel notch's pan, smoothed: quick and critically damped, so it glides without feeling late. */
+const WHEEL_PAN: SpringParams = { response: 0.13, damping: 1 }
+/** A mouse wheel's zoom notch: a short glide to the next step. */
+const NOTCH_ZOOM: SpringParams = { response: 0.2, damping: 1 }
+/** A pinch: barely behind the fingers, only the jitter of the reports smoothed away. */
+const PINCH_ZOOM: SpringParams = { response: 0.1, damping: 1 }
+/** A zoom input's end: no report for this long. */
+const ZOOM_END_MS = 120
+/** After a pinch the zoom carries on a little (Park's halves every ~230 ms): its last speed times this, in s. */
+const PINCH_CARRY_S = 0.12
+
+/** Efficient mode (Settings): shorter motion, nothing optional. */
+const lowFx = (): boolean => document.documentElement.dataset.fx === 'low'
 
 /**
  * The board's pan and zoom. The view lives in a ref and is written straight to the DOM (one transform on the board
  * layer, the dots' position on the grid element, and the label scale on the root when the zoom changes), so a pan never
  * re-renders React. `onMove` is told after every change, throttled to one call per frame.
+ *
+ * Every movement is one Camera (shared/boardPhysics) stepped once a frame: a wheel's zoom chases its target on a spring
+ * about the cursor and gives a little past its limits, a wheel notch's pan glides, a fling coasts, and a glide
+ * (animateTo) springs x, y and the log of the zoom together. Input arriving mid-motion retargets it, keeping its speed.
  */
 export function useViewport(
   initial: Viewport,
@@ -76,6 +96,10 @@ export function useViewport(
   set: (v: Viewport) => void
   panBy: (dx: number, dy: number) => void
   zoomAt: (factor: number, cx: number, cy: number) => void
+  /** A wheel's pan (screen px): a notch (`smooth`) glides there, a touchpad's fine steps move at once. */
+  wheelPan: (dx: number, dy: number, smooth: boolean) => void
+  /** A wheel's zoom by `dl` (log units) about a screen point; `pinch`: a touchpad's fine steps, with a short carry. */
+  wheelZoom: (dl: number, cx: number, cy: number, pinch: boolean) => void
   animateTo: (v: Viewport, ms?: number) => void
   /** Carry on at (vx, vy) px/ms, slowing with time constant `tau` ms (0: not at all). */
   fling: (vx: number, vy: number, tau?: number) => void
@@ -90,8 +114,10 @@ export function useViewport(
   /** The fine dots' spacing as last painted (the grid layer is scaled from it to the true one, see gridDots). */
   const painted = useRef(NaN)
   const view = useRef<Viewport>(initial)
+  const cam = useRef<Camera | null>(null)
+  const camera = (): Camera => (cam.current ??= new Camera(initial, MIN_K, MAX_K))
   const raf = useRef(0)
-  const anim = useRef(0)
+  const lastFrame = useRef(0)
   const moved = useRef(onMove)
   useEffect(() => {
     moved.current = onMove
@@ -167,23 +193,67 @@ export function useViewport(
     }
   }, [warm, placeDots])
 
+  /** The camera's view, written to the page. */
+  const show = useCallback((): void => {
+    view.current = (cam.current ??= new Camera(initial, MIN_K, MAX_K)).view
+    paint()
+    // the initial view is only read once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paint])
+
+  // one frame loop for every motion of the camera; it ends itself once the camera is still
+  const frame = useRef<FrameRequestCallback>(() => undefined)
+  useEffect(() => {
+    frame.current = (now) => {
+      const c = cam.current
+      if (!c) return
+      // a dropped frame or a hidden window: never more than 1/20 s in one step (exact, but keep it visible)
+      const dt = Math.min(0.05, lastFrame.current ? (now - lastFrame.current) / 1000 : 1 / 60)
+      lastFrame.current = now
+      c.step(dt)
+      show()
+      if (c.moving) raf.current = requestAnimationFrame(frame.current)
+      else {
+        raf.current = 0
+        lastFrame.current = 0
+      }
+    }
+  }, [show])
+  const run = useCallback((): void => {
+    if (raf.current) return
+    lastFrame.current = 0
+    raf.current = requestAnimationFrame((t) => frame.current(t))
+  }, [])
+
+  const zoomEnd = useRef(0)
+  /** The last pinch reports (time, log zoom asked so far), for the carry after it. */
+  const pinchTrail = useRef<Array<{ t: number; l: number }>>([])
+
   const stop = useCallback((): void => {
-    cancelAnimationFrame(anim.current)
+    cam.current?.stop()
     cancelAnimationFrame(raf.current)
+    raf.current = 0
+    window.clearTimeout(zoomEnd.current)
   }, [])
 
   const set = useCallback(
     (v: Viewport): void => {
-      view.current = { x: v.x, y: v.y, k: clampK(v.k) }
-      paint()
+      stop()
+      camera().set({ x: v.x, y: v.y, k: clampK(v.k) })
+      show()
     },
-    [paint]
+    // camera() only reads refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [show, stop]
   )
 
   const panBy = useCallback(
-    (dx: number, dy: number): void =>
-      set({ ...view.current, x: view.current.x + dx, y: view.current.y + dy }),
-    [set]
+    (dx: number, dy: number): void => {
+      camera().panBy(dx, dy)
+      show()
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [show]
   )
 
   const zoomAt = useCallback(
@@ -196,51 +266,79 @@ export function useViewport(
     [set]
   )
 
-  const animateTo = useCallback(
-    (target: Viewport, ms = 360): void => {
-      stop()
-      const from = { ...view.current }
-      const to = { ...target, k: clampK(target.k) }
-      const t0 = performance.now()
-      const step = (now: number): void => {
-        const t = Math.min(1, (now - t0) / ms)
-        const e = ease(t)
-        // zoom along a log scale so a big zoom feels even
-        const k = from.k * Math.pow(to.k / from.k, e)
-        set({ k, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e })
-        if (t < 1) anim.current = requestAnimationFrame(step)
-      }
-      anim.current = requestAnimationFrame(step)
+  const wheelPan = useCallback(
+    (dx: number, dy: number, smooth: boolean): void => {
+      if (!smooth || reducedMotion()) return panBy(dx, dy)
+      camera().panSmooth(dx, dy, WHEEL_PAN)
+      run()
     },
-    [set, stop]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [panBy, run]
+  )
+
+  const wheelZoom = useCallback(
+    (dl: number, cx: number, cy: number, pinch: boolean): void => {
+      if (reducedMotion()) return zoomAt(Math.exp(dl), cx, cy)
+      const c = camera()
+      c.zoomBy(dl, cx, cy, pinch ? PINCH_ZOOM : NOTCH_ZOOM)
+      const now = performance.now()
+      const trail = pinchTrail.current
+      if (!pinch) trail.length = 0
+      else {
+        const last = trail[trail.length - 1]
+        trail.push({ t: now, l: (last?.l ?? 0) + dl })
+        while (trail.length > 2 && now - trail[0].t > 100) trail.shift()
+      }
+      window.clearTimeout(zoomEnd.current)
+      zoomEnd.current = window.setTimeout(() => {
+        // the fingers lifted: a short carry the way it was going (none in efficient mode), back inside the limits
+        let carry = 0
+        if (trail.length >= 2 && !lowFx()) {
+          const a = trail[0]
+          const b = trail[trail.length - 1]
+          const span = (b.t - a.t) / 1000
+          if (span > 0.02)
+            carry = Math.max(-0.25, Math.min(0.25, ((b.l - a.l) / span) * PINCH_CARRY_S))
+        }
+        trail.length = 0
+        c.release(carry)
+        run()
+      }, ZOOM_END_MS)
+      run()
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [run, zoomAt]
+  )
+
+  const animateTo = useCallback(
+    (target: Viewport, ms = 460): void => {
+      if (reducedMotion()) return set(target)
+      // the glide spring, quicker for the short moves that ask for it (a zoom button) and in efficient mode
+      const scale = Math.max(0.4, Math.min(1, ms / 460)) * (lowFx() ? 0.75 : 1)
+      camera().glideTo(target, {
+        response: SPRINGS.glide.response * scale,
+        damping: SPRINGS.glide.damping
+      })
+      run()
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [run, set]
   )
 
   /** Carry on moving after a drag let go, slowing down smoothly. Velocity in px per ms. */
   const fling = useCallback(
     (vx: number, vy: number, tau = 320): void => {
-      stop()
-      if (tau <= 0 || Math.hypot(vx, vy) < 0.08) return
-      let last = performance.now()
-      let x = vx
-      let y = vy
-      const step = (now: number): void => {
-        const dt = Math.min(48, now - last)
-        last = now
-        const decay = Math.exp(-dt / tau)
-        x *= decay
-        y *= decay
-        panBy(x * dt, y * dt)
-        if (Math.hypot(x, y) > 0.02) raf.current = requestAnimationFrame(step)
-      }
-      raf.current = requestAnimationFrame(step)
+      camera().coast(vx * 1000, vy * 1000, tau / 1000)
+      run()
     },
-    [panBy, stop]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [run]
   )
 
   useEffect(() => {
-    paint()
+    show()
     return stop
-  }, [paint, stop])
+  }, [show, stop])
 
   return useMemo(
     () => ({
@@ -251,11 +349,13 @@ export function useViewport(
       set,
       panBy,
       zoomAt,
+      wheelPan,
+      wheelZoom,
       animateTo,
       fling,
       stop,
       warm
     }),
-    [set, panBy, zoomAt, animateTo, fling, stop, warm]
+    [set, panBy, zoomAt, wheelPan, wheelZoom, animateTo, fling, stop, warm]
   )
 }

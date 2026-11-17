@@ -10,6 +10,8 @@ import {
   type Placed,
   type Rect
 } from '@shared/menu'
+import { SPRINGS, springCurve } from '@shared/spring'
+import { reducedMotion } from '@renderer/motion'
 
 export type { MenuEntry }
 
@@ -32,6 +34,11 @@ const rel = (r: DOMRect, o: DOMRect): Rect => ({
  */
 /** How long the pointer may rest on another row, on its way into a submenu, before that row takes over. */
 const REST_MS = 260
+/** Opening: Park's ~120 ms pop from the pointer (the snappy spring, squeezed); closing quicker still. */
+const IN_MS = 150
+const OUT_MS = 100
+const snappy = springCurve(SPRINGS.snappy)
+const exit = springCurve(SPRINGS.exit)
 
 export function ContextMenu({
   x,
@@ -205,6 +212,32 @@ export function ContextMenu({
     return () => el?.removeEventListener('wheel', stop)
   }, [])
   useEffect(() => () => window.clearTimeout(pending.current?.timer), [])
+  // closing: the menu stays a moment where it was, fading and shrinking a little toward where it came from (it is
+  // put back after React takes it out; nothing can hit or focus it meanwhile)
+  useLayoutEffect(() => {
+    const el = wrap.current
+    const parent = el?.parentElement
+    return () => {
+      if (!el || !parent || reducedMotion()) return
+      queueMicrotask(() => {
+        if (el.isConnected || !parent.isConnected) return
+        el.classList.add('out')
+        el.inert = true
+        parent.appendChild(el)
+        const all = [...el.querySelectorAll<HTMLElement>('.cv-ctx')].map((m) =>
+          m.animate(
+            [
+              { opacity: 1, scale: '1' },
+              { opacity: 0, scale: '0.97' }
+            ],
+            { duration: OUT_MS, easing: exit.easing, fill: 'forwards' }
+          )
+        )
+        const done = (): void => el.remove()
+        Promise.all(all.map((a) => a.finished)).then(done, done)
+      })
+    }
+  }, [])
 
   /** The pointer is over row i of level d: it takes focus, and opens or closes submenus, unless it is only passing
    * through on its way into an open submenu. No time limit on the way: a slow hand gets there too. The triangle
@@ -371,6 +404,55 @@ function Level({
     // placed once per opening; the menu closes on resize
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  // opening: the menu grows from the pointer (scale and fade); a submenu slides out from its row's side
+  const shown = useRef(false)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!at || !el || shown.current || reducedMotion()) return
+    shown.current = true
+    if (depth === 0) {
+      el.style.transformOrigin = `${anchor - at.x}px ${anchorY - at.y}px`
+      el.animate([{ scale: '0.96' }, { scale: '1' }], {
+        duration: IN_MS,
+        easing: snappy.easing
+      })
+    } else {
+      const parent = levelAt(depth - 1)
+      const fromLeft = !parent || at.x >= parent.offsetLeft
+      el.animate([{ translate: `${fromLeft ? -6 : 6}px 0` }, { translate: '0 0' }], {
+        duration: IN_MS,
+        easing: snappy.easing
+      })
+    }
+    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 90, easing: 'ease-out' })
+    // once, as it is first placed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [at])
+  // the highlight is one pill gliding to the row under the pointer (or the keys), as on the toolbar
+  const pill = useRef<HTMLDivElement>(null)
+  const lit = useRef(false)
+  const onFocus = (e: React.FocusEvent): void => {
+    const p = pill.current
+    const row = (e.target as HTMLElement).closest<HTMLElement>('[data-i]')
+    if (!p) return
+    if (!row || row.classList.contains('danger') || row.getAttribute('aria-disabled')) {
+      p.style.opacity = '0'
+      lit.current = false
+      return
+    }
+    // the first row lit appears in place; after that the pill glides between rows
+    p.style.transition = lit.current ? '' : 'none'
+    p.style.translate = `0 ${row.offsetTop}px`
+    p.style.height = `${row.offsetHeight}px`
+    p.style.opacity = '1'
+    lit.current = true
+  }
+  const onBlur = (e: React.FocusEvent): void => {
+    if (box.current?.contains(e.relatedTarget as Node | null) && e.relatedTarget !== box.current)
+      return
+    if (pill.current) pill.current.style.opacity = '0'
+    lit.current = false
+  }
   // a column for the check mark, kept for every row of a level that has choices, so labels line up
   const lead = list.some((e) => e !== 'sep' && e.checked !== undefined)
   const pt = (e: React.PointerEvent): Pt => {
@@ -379,7 +461,7 @@ function Level({
   }
   return (
     <div
-      className={'cv-ctx' + (depth ? ' sub' : '')}
+      className={'cv-ctx pill' + (depth ? ' sub' : '')}
       ref={(el) => {
         box.current = el
         register(depth, el)
@@ -395,7 +477,10 @@ function Level({
         // never painted at 0,0: the layout effect places it before the first paint (and it stays focusable)
         maxHeight: at?.maxH
       }}
+      onFocus={onFocus}
+      onBlur={onBlur}
     >
+      <div className="cv-ctx-pill" ref={pill} aria-hidden="true" />
       {title && (
         <div className="cv-ctx-title" aria-hidden="true">
           {title}

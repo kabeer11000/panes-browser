@@ -28,9 +28,13 @@ import {
  * when a timer runs out or a reminder is due, whether the board is open or not.
  */
 
-const at = (x: number, y: number): React.CSSProperties => ({
-  transform: `translate3d(${x}px, ${y}px, 0)`
-})
+/** Placed on the board, turning about its own middle when held (board.css reads --ox/--oy). */
+const atMid = (x: number, y: number, w: number, h: number): React.CSSProperties =>
+  ({
+    transform: `translate3d(${x}px, ${y}px, 0)`,
+    '--ox': `${x + w / 2}px`,
+    '--oy': `${y + h / 2}px`
+  }) as React.CSSProperties
 
 /** The time now, re-read every `ms` while `on` (and once more when it turns off). */
 function useNow(on: boolean, ms: number): number {
@@ -80,7 +84,7 @@ export const WidgetView = memo(function WidgetView({
       data-nid={note.id}
       role="group"
       aria-label={note.text || WIDGET_LABEL[w.kind]}
-      style={{ ...at(note.x, note.y), width: note.w, height: note.h }}
+      style={{ ...atMid(note.x, note.y, note.w, note.h), width: note.w, height: note.h }}
     >
       <input
         key={note.text}
