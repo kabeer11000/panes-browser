@@ -109,3 +109,22 @@ export function wheelDelta(delta: number, mode: number): number {
   const px = mode === 1 ? delta * 40 : mode === 2 ? delta * 800 : delta
   return -px
 }
+
+/** How long after the last input a page draws at the display's full rate. */
+export const ACTIVE_MS = 1500
+/** Frames a second for a page nobody is using (its animations, a ticker): half of a 60 Hz display. */
+export const IDLE_FPS = 30
+
+/**
+ * Frames a second for an offscreen page: the display's rate while it is being used (input within ACTIVE_MS) or plays
+ * media, IDLE_FPS otherwise. Every frame is a whole texture drawn again in the window, so a page that animates while
+ * nobody is using it (Wikipedia redraws about 38 times a second at rest) costs half as much this way.
+ */
+export function osrFrameRate(o: {
+  displayHz: number
+  sinceInputMs: number
+  media: boolean
+}): number {
+  const hz = o.displayHz > 0 ? Math.round(o.displayHz) : 60
+  return o.media || o.sinceInputMs < ACTIVE_MS ? hz : Math.min(hz, IDLE_FPS)
+}

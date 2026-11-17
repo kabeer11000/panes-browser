@@ -7,7 +7,7 @@ import {
   type WebContents,
   type WebPreferences
 } from 'electron'
-import { parseOsrInput, type OsrPlace } from '@shared/offscreen'
+import { ACTIVE_MS, osrFrameRate, parseOsrInput, type OsrPlace } from '@shared/offscreen'
 
 /**
  * A tab's page drawn off screen (Chromium's offscreen rendering, GPU shared textures) instead of in a native view:
@@ -21,7 +21,7 @@ import { parseOsrInput, type OsrPlace } from '@shared/offscreen'
  *
  * The page lives in a hidden offscreen window, which is what sizes it (a WebContentsView made offscreen keeps the size
  * of the window it is in). Drawing stops while it is hidden (`setVisible(false)` stops painting; nothing is drawn for
- * a page nobody sees) and its frame rate can be lowered (setFrameRate) when the computer strains.
+ * a page nobody sees), and it draws fewer frames while nobody is using it (osrFrameRate).
  */
 export class OffscreenPage {
   readonly isOffscreen = true
@@ -36,12 +36,19 @@ export class OffscreenPage {
   /** Frames on their way to the window's page: at most two, older ones dropped (the newest is the one worth drawing). */
   private inflight = 0
   private placeQueued = false
+  /** The display's refresh rate, the most it draws; see osrFrameRate for when it draws less. */
+  private displayHz = 60
+  private lastInput = 0
+  private media = false
+  private fps = 0
+  private idleTimer: NodeJS.Timeout | undefined
 
   constructor(
     private readonly target: BrowserWindow,
     webPreferences: WebPreferences
   ) {
-    const scale = screen.getDisplayMatching(target.getBounds()).scaleFactor
+    const display = screen.getDisplayMatching(target.getBounds())
+    const scale = display.scaleFactor
     this.host = new BrowserWindow({
       show: false,
       frame: false,
@@ -57,6 +64,18 @@ export class OffscreenPage {
     this.webContents = this.host.webContents
     pages.set(this.webContents.id, this)
     this.webContents.stopPainting() // until it is shown
+    // up to as many frames as the display shows (Chromium's offscreen default is 60, which would halve 120 Hz), and
+    // fewer while nobody is using it (see osrFrameRate)
+    this.displayHz = display.displayFrequency > 0 ? display.displayFrequency : 60
+    this.pace()
+    this.webContents.on('media-started-playing', () => {
+      this.media = true
+      this.pace()
+    })
+    this.webContents.on('media-paused', () => {
+      this.media = false
+      this.pace()
+    })
     this.webContents.on('paint', (e) => this.frame(e.texture))
     // An offscreen page has no native popup for a <select> (it never opens). Chromium's customizable select draws its
     // list inside the page instead, so it opens and is drawn like the rest of the page.
@@ -120,10 +139,27 @@ export class OffscreenPage {
     this.place()
   }
 
-  /** Frames a second (the strain lowers it); Chromium allows 1 to 240 with shared textures. */
-  setFrameRate(fps: number): void {
-    if (!this.webContents.isDestroyed())
-      this.webContents.setFrameRate(Math.max(1, Math.min(240, Math.round(fps))))
+  /** Frames a second; Chromium allows 1 to 240 with shared textures. */
+  private setFrameRate(fps: number): void {
+    const f = Math.max(1, Math.min(240, Math.round(fps)))
+    if (f === this.fps || this.webContents.isDestroyed()) return
+    this.fps = f
+    this.webContents.setFrameRate(f)
+  }
+
+  /** Someone is using the page (input on its canvas): full rate now, back to the idle rate once they stop. */
+  touch(): void {
+    this.lastInput = performance.now()
+    this.pace()
+  }
+
+  private pace(): void {
+    const since = performance.now() - this.lastInput
+    this.setFrameRate(
+      osrFrameRate({ displayHz: this.displayHz, sinceInputMs: since, media: this.media })
+    )
+    clearTimeout(this.idleTimer)
+    if (since < ACTIVE_MS) this.idleTimer = setTimeout(() => this.pace(), ACTIVE_MS - since + 10)
   }
 
   /** Where it is, sent once per task however many changes it took (a layout pass sets bounds and visibility both). */
@@ -194,6 +230,8 @@ export function registerOffscreenInput(win: BrowserWindow): void {
     const page = pages.get(id)
     const ev = parseOsrInput(raw)
     if (!page || !ev || page.webContents.isDestroyed()) return
+    if (ev.type !== 'mouseMove' && ev.type !== 'mouseEnter' && ev.type !== 'mouseLeave')
+      page.touch()
     page.webContents.sendInputEvent(
       ev as Electron.MouseInputEvent | Electron.MouseWheelInputEvent | Electron.KeyboardInputEvent
     )

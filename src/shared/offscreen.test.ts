@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseOsrInput, toPagePoint, wheelDelta } from './offscreen'
+import { ACTIVE_MS, osrFrameRate, parseOsrInput, toPagePoint, wheelDelta } from './offscreen'
 
 describe('parseOsrInput', () => {
   test('mouse events keep only what is allowed', () => {
@@ -74,5 +74,17 @@ describe('wheelDelta', () => {
     expect(wheelDelta(100, 0)).toBe(-100)
     expect(wheelDelta(3, 1)).toBe(-120)
     expect(wheelDelta(-1, 2)).toBe(800)
+  })
+})
+
+describe('osrFrameRate', () => {
+  test('full rate while used or playing, 30 at rest', () => {
+    expect(osrFrameRate({ displayHz: 120, sinceInputMs: 0, media: false })).toBe(120)
+    expect(osrFrameRate({ displayHz: 120, sinceInputMs: ACTIVE_MS, media: false })).toBe(30)
+    expect(osrFrameRate({ displayHz: 120, sinceInputMs: 1e9, media: true })).toBe(120)
+  })
+  test('never above the display, and a sane default', () => {
+    expect(osrFrameRate({ displayHz: 24, sinceInputMs: 1e9, media: false })).toBe(24)
+    expect(osrFrameRate({ displayHz: 0, sinceInputMs: 0, media: false })).toBe(60)
   })
 })
