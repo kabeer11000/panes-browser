@@ -67,3 +67,12 @@ body {
     animation: none;
   }
 }
+
+/* redesign: the hover card of a tab, an island card that springs out of the tab */
+.tc-root {
+  animation: tc-in var(--dur) var(--ease-snappy) both;
+}
+.tc-card {
+  border-radius: var(--r-menu);
+  box-shadow: var(--shadow-2), var(--rim);
+}

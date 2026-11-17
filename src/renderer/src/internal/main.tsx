@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client'
 import { Shell } from './Shell'
 import { Reader } from './pages/Reader'
 import { Recover } from '@renderer/Recover'
+import { installSpringTokens } from '@renderer/motion'
 
 // Before the first paint: the tokens default to dark, so without this a light page would flash dark
 // while its settings load. prefers-color-scheme already matches the active space (see SpaceStore).
@@ -19,6 +20,7 @@ document.documentElement.dataset.scheme = matchMedia('(prefers-color-scheme: dar
 // background shows instead of a flash of the default colours.
 document.documentElement.style.setProperty('--stage-bg', 'transparent')
 
+installSpringTokens() // the shared spring as CSS tokens, as in the main window
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* panes://reader shares this entry (and its preload API) but not the settings shell around it */}

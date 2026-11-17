@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { APPEARANCE_LIMITS } from '@shared/settings'
 import { ChevronDownIcon } from '@renderer/components/icons'
 import type { SliderSpec } from './sliders'
+import { useGlider } from '@renderer/hooks/useGlider'
+import { Presence } from '@renderer/components/Presence'
 
 /** Inset rounded list with a small title above and an optional footnote below. */
 export function Group({
@@ -87,8 +89,13 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void
   label: string
 }): React.JSX.Element {
+  // the chosen option is one accent pill that glides to the next choice
+  const box = useRef<HTMLDivElement>(null)
+  const pill = useRef<HTMLSpanElement>(null)
+  useGlider(box, pill, 'button.on', String(value))
   return (
-    <div className="seg" role="radiogroup" aria-label={label}>
+    <div className="seg glides" role="radiogroup" aria-label={label} ref={box}>
+      <span className="seg-pill" ref={pill} aria-hidden="true" />
       {options.map((o) => (
         <button
           key={o.value}
@@ -174,26 +181,28 @@ export function Select<T extends string | number>({
         <span>{options[selected]?.label}</span>
         <ChevronDownIcon />
       </button>
-      {open && (
-        <ul className={'sel-list' + (up ? ' up' : '')} role="listbox" aria-label={label}>
-          {options.map((o, i) => (
-            <li
-              key={o.value}
-              role="option"
-              aria-selected={i === selected}
-              className={(i === active ? 'active ' : '') + (i === selected ? 'chosen' : '')}
-              // mousedown, not click: the button's blur would close the list first.
-              onMouseDown={(e) => {
-                e.preventDefault()
-                pick(i)
-              }}
-              onMouseEnter={() => setActive(i)}
-            >
-              {o.label}
-            </li>
-          ))}
-        </ul>
-      )}
+      <Presence>
+        {open && (
+          <ul className={'sel-list' + (up ? ' up' : '')} role="listbox" aria-label={label}>
+            {options.map((o, i) => (
+              <li
+                key={o.value}
+                role="option"
+                aria-selected={i === selected}
+                className={(i === active ? 'active ' : '') + (i === selected ? 'chosen' : '')}
+                // mousedown, not click: the button's blur would close the list first.
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  pick(i)
+                }}
+                onMouseEnter={() => setActive(i)}
+              >
+                {o.label}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Presence>
     </div>
   )
 }

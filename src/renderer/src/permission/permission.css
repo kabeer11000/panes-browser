@@ -106,3 +106,21 @@ body {
     animation: none;
   }
 }
+
+/* redesign: an island card (opaque: a separate view cannot blur the page under it), springing in from its anchor */
+.perm-root {
+  animation: perm-in var(--dur) var(--ease-snappy) both;
+}
+.perm-card {
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow-2), var(--rim);
+}
+.perm-actions button {
+  border-radius: var(--r-pill);
+  transition:
+    background-color var(--dur-fast),
+    scale var(--dur) var(--ease-snappy);
+}
+.perm-actions button:active {
+  scale: var(--press);
+}

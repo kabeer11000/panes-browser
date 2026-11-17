@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChatInfo, ChatModelOption } from '@shared/types'
 import { ChevronIcon } from '../icons'
+import { Presence } from '../Presence'
 
 /** The model chat uses: shown in the header, a menu of what is set up (and, disabled, what is not). */
 export function ModelPicker({ info }: { info: ChatInfo }): React.JSX.Element {
@@ -50,45 +51,47 @@ export function ModelPicker({ info }: { info: ChatInfo }): React.JSX.Element {
         <span className="chat-pick-label">{info.label || 'Choose a model'}</span>
         <ChevronIcon />
       </button>
-      {open && (
-        <div className="chat-menu" role="menu" aria-label="Model">
-          {groups.map((g) => (
-            <div key={g.name || 'auto'} role="group" aria-label={g.name || undefined}>
-              {g.name && <div className="chat-menu-group">{g.name}</div>}
-              {g.items.map((o) => (
-                <button
-                  key={o.id}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={o.current}
-                  aria-disabled={!o.available}
-                  className={
-                    'chat-menu-item' + (o.current ? ' on' : '') + (o.available ? '' : ' off')
-                  }
-                  onClick={() => pick(o)}
-                >
-                  <span className="chat-menu-check" aria-hidden="true" />
-                  <span className="chat-menu-name">{o.label}</span>
-                  {o.hint && <span className="chat-menu-hint">{o.hint}</span>}
-                </button>
-              ))}
-            </div>
-          ))}
-          <div className="chat-menu-sep" />
-          <button
-            type="button"
-            role="menuitem"
-            className="chat-menu-item"
-            onClick={() => {
-              setOpen(false)
-              window.api.chatAction('settings')
-            }}
-          >
-            <span className="chat-menu-check" aria-hidden="true" />
-            <span className="chat-menu-name">Manage models</span>
-          </button>
-        </div>
-      )}
+      <Presence>
+        {open && (
+          <div className="chat-menu" role="menu" aria-label="Model">
+            {groups.map((g) => (
+              <div key={g.name || 'auto'} role="group" aria-label={g.name || undefined}>
+                {g.name && <div className="chat-menu-group">{g.name}</div>}
+                {g.items.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={o.current}
+                    aria-disabled={!o.available}
+                    className={
+                      'chat-menu-item' + (o.current ? ' on' : '') + (o.available ? '' : ' off')
+                    }
+                    onClick={() => pick(o)}
+                  >
+                    <span className="chat-menu-check" aria-hidden="true" />
+                    <span className="chat-menu-name">{o.label}</span>
+                    {o.hint && <span className="chat-menu-hint">{o.hint}</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+            <div className="chat-menu-sep" />
+            <button
+              type="button"
+              role="menuitem"
+              className="chat-menu-item"
+              onClick={() => {
+                setOpen(false)
+                window.api.chatAction('settings')
+              }}
+            >
+              <span className="chat-menu-check" aria-hidden="true" />
+              <span className="chat-menu-name">Manage models</span>
+            </button>
+          </div>
+        )}
+      </Presence>
     </div>
   )
 }

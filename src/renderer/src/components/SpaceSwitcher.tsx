@@ -7,6 +7,7 @@ import { PlusIcon, SpeakerIcon } from './icons'
 import { SpaceAvatar } from './SpaceAvatar'
 import { holdOverlay, releaseOverlay } from '@renderer/overlay'
 import { SpacePopover } from './SpacePopover'
+import { Presence } from './Presence'
 
 interface Props {
   spaces: Space[]
@@ -51,15 +52,17 @@ export function SpaceSwitcher({
 
   return (
     <div className={'space-switcher ' + placement}>
-      {editing && (
-        <SpacePopover
-          key={editing.id}
-          space={editing}
-          canDelete={spaces.length > 1}
-          placement={placement}
-          onClose={() => setEditingSpace(null)}
-        />
-      )}
+      <Presence>
+        {editing && (
+          <SpacePopover
+            key={editing.id}
+            space={editing}
+            canDelete={spaces.length > 1}
+            placement={placement}
+            onClose={() => setEditingSpace(null)}
+          />
+        )}
+      </Presence>
       <LayoutGroup id={groupId}>
         <div className="space-row" role="tablist" aria-label="Spaces">
           {spaces.map((s, i) => {

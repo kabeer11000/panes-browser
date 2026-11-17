@@ -241,7 +241,11 @@ export function Panes({
         <div
           key={`${d.path.join('.')}:${d.index}`}
           className={'divider ' + d.dir}
-          style={{ left: d.frame.x, top: d.frame.y, width: d.frame.w, height: d.frame.h }}
+          style={{
+            transform: `translate(${d.frame.x}px, ${d.frame.y}px)`,
+            width: d.frame.w,
+            height: d.frame.h
+          }}
           onPointerDown={(e) => startResize(e, d)}
           onPointerMove={resize}
           onPointerUp={endResize}
@@ -291,10 +295,21 @@ function Pane({
     <motion.div
       className={'pane' + (header && focused ? ' focused' : '') + (dragging ? ' dragging' : '')}
       data-tab-id={tab.id}
-      style={{ left: frame.x, top: frame.y, width: frame.w, height: frame.h }}
-      initial={{ opacity: 0 }}
+      // placed by a transform, so a pane moving to a new frame is composited, not laid out (only a size change is)
+      style={{
+        transform: `translate(${frame.x}px, ${frame.y}px)`,
+        width: frame.w,
+        height: frame.h
+      }}
+      // A tab switch swaps the one pane at once: no cross-fade of pictures under the page (main swaps the views
+      // only once the incoming page has painted). Panes of a split still fade in and out as they join or leave.
+      initial={header ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      exit={
+        header
+          ? { opacity: 0, transition: { duration: 0.2 } }
+          : { opacity: 0, transition: { duration: 0 } }
+      }
       transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
     >
       {header && (

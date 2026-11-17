@@ -1,3 +1,5 @@
+import { Spring } from './motion'
+
 /**
  * How far the page area is shifted right while the hover sidebar is out, in pixels (and down while the top bar the
  * pointer brought out is). The sidebar or bar slides in by the same amount, and the main process moves the page
@@ -33,3 +35,23 @@ export function setSlideY(px: number, full = 1): void {
   )
   window.api.setSlide(current, v)
 }
+
+// ---- on a spring: interruptible (a reversal keeps its speed), one value per frame, only transforms move ----
+const springX = new Spring(0, 'smooth', (v) => setSlide(v, fullX), 0.5)
+const springY = new Spring(0, 'smooth', (v) => setSlideY(v, fullY), 0.5)
+let fullX = 1
+let fullY = 1
+
+/** Slide the hover sidebar (x) out to `px` or back to 0. Resolves once it rests there. */
+export function slideTo(px: number, full: number): Promise<void> {
+  fullX = full
+  return springX.to(px, { spring: px > 0 ? 'smooth' : 'exit' })
+}
+
+/** Slide the pointer's top bar (y) out to `px` or back to 0. */
+export function slideYTo(px: number, full: number): Promise<void> {
+  fullY = full
+  return springY.to(px, { spring: px > 0 ? 'smooth' : 'exit' })
+}
+
+export const sliding = (): boolean => springX.moving || springY.moving

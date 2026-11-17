@@ -8,6 +8,7 @@ import {
   type SearchResult
 } from '@shared/search'
 import type { Settings, TabInfo } from '@shared/types'
+import { useGlider } from '@renderer/hooks/useGlider'
 import {
   BookmarkIcon,
   CanvasIcon,
@@ -276,6 +277,13 @@ export function SearchPalette({
   }, [completion, typed])
 
   const current = Math.min(sel, Math.max(0, results.length - 1))
+  const gliderRef = useRef<HTMLSpanElement>(null)
+  useGlider(
+    listRef,
+    gliderRef,
+    '.pal-row.selected',
+    `${current}|${results.length}|${results[current]?.kind}|${results[current]?.title}`
+  )
 
   useEffect(() => {
     listRef.current
@@ -393,10 +401,21 @@ export function SearchPalette({
         style={panelStyle}
         role="dialog"
         aria-label="Search or enter address"
-        initial={{ opacity: 0, y: popover ? -4 : -10, scale: popover ? 0.99 : 0.985 }}
+        // grows from the bar it hangs off (or drops in, centred), on a quick spring; leaves faster than it came
+        initial={{ opacity: 0, y: popover ? -6 : -12, scale: popover ? 0.97 : 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -4 }}
-        transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
+        exit={{
+          opacity: 0,
+          y: -4,
+          scale: 0.98,
+          transition: { duration: 0.1, ease: [0.3, 0, 0.2, 1] }
+        }}
+        transition={{
+          type: 'spring',
+          visualDuration: 0.22,
+          bounce: 0.18,
+          opacity: { duration: 0.1 }
+        }}
       >
         <div className="pal-input" style={popover ? { height: anchor.height } : undefined}>
           <SearchIcon />
@@ -447,6 +466,7 @@ export function SearchPalette({
           </div>
         )}
         <div className="pal-list" id="pal-list" role="listbox" ref={listRef}>
+          <span className="pal-glider" ref={gliderRef} aria-hidden="true" />
           {results.map((r, i) => (
             <div
               key={r.id}

@@ -161,3 +161,13 @@
     animation: none;
   }
 }
+
+/* redesign: the page behind is blurred a touch, not dimmed hard; the dialog is an island card */
+.share-scrim {
+  background: rgb(0 0 0 / 0.22);
+}
+.share-dialog {
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow-3), var(--rim);
+  animation: perm-in var(--dur) var(--ease-snappy) both;
+}

@@ -5,6 +5,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { parseSpaceTheme } from '@shared/errors'
 import { ErrorPage } from './ErrorPage'
+import { installSpringTokens } from '@renderer/motion'
 
 // Before the first paint, so a light page never flashes dark. prefers-color-scheme already matches the space.
 document.documentElement.dataset.scheme = matchMedia('(prefers-color-scheme: dark)').matches
@@ -18,6 +19,7 @@ if (theme) {
   document.documentElement.style.setProperty('--tint', `${Math.round(theme.tint * 100)}%`)
 }
 
+installSpringTokens() // the shared spring as CSS tokens, as in the main window
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorPage />

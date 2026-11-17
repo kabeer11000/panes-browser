@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState, type PointerEvent, type WheelEvent } from 'react'
+import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import { leaves, type LayoutNode } from '@shared/layout'
 import type { TabGroup } from '@shared/tabgroups'
 import type { LoginEdits, PasswordPrompt, Settings, Space, TabInfo, TabsState } from '@shared/types'
@@ -33,6 +33,7 @@ import { SpaceSwitcher } from './SpaceSwitcher'
 import { TabGroupHeader } from './TabGroupHeader'
 import { TabFavicon } from './TabFavicon'
 import { WindowControls } from './WindowControls'
+import { useGlider } from '@renderer/hooks/useGlider'
 
 interface Props {
   tabs: TabInfo[]
@@ -127,6 +128,17 @@ export function Sidebar({
     .map((t) => t.id)
   const pairHasActive = group.includes(activeId ?? -1)
   const countOf = (id: number): number => tabs.filter((t) => t.groupId === id).length
+  // the tab you are on is a card that glides from row to row (not each row lighting up on its own)
+  const listRef = useRef<HTMLDivElement>(null)
+  const gliderRef = useRef<HTMLSpanElement>(null)
+  const glides = !(pairHasActive || dragId === activeId)
+  useGlider(
+    listRef,
+    gliderRef,
+    '.tab-row.active',
+    `${activeSpaceId}|${activeId}|${tabs.map((t) => t.id).join(',')}|${rowH}`,
+    !glides
+  )
 
   const headerFor = (g: TabGroup): React.JSX.Element => (
     <TabGroupHeader
@@ -229,13 +241,21 @@ export function Sidebar({
       )}
 
       <motion.div
-        className="tab-list"
+        ref={listRef}
+        className={'tab-list' + (glides ? ' glides' : '')}
         key={activeSpaceId}
-        // slide in from the side the new space sits on, so switching feels like moving along a row
-        initial={{ opacity: 0, x: 28 * dir }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+        // slides in from the side the new space sits on (up or down the row of spaces), landing with a hair of
+        // overshoot: the shared 'space' spring (0.30 s, damping 0.8)
+        initial={{ opacity: 0, y: 22 * dir }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          type: 'spring',
+          visualDuration: 0.3,
+          bounce: 0.2,
+          opacity: { duration: 0.14 }
+        }}
       >
+        <span className="tab-glider" ref={gliderRef} aria-hidden="true" />
         <AnimatePresence initial={false}>
           {tabs.flatMap((t, i) => {
             const tg = t.groupId === null ? undefined : groupById.get(t.groupId)

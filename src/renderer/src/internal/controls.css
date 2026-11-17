@@ -216,3 +216,85 @@
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ---- redesign: calm grouped cards, the chosen option a solid accent pill that glides, springy switches ---- */
+.u-section > h2 {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  color: var(--fg-faint);
+}
+.u-group {
+  border-radius: var(--r-5);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.u-row + .u-row::before {
+  background: var(--hairline);
+}
+.u-label {
+  font-weight: var(--fw-medium);
+}
+.toggle span {
+  transition:
+    transform var(--spring-bouncy-dur, 0.3s) var(--spring-bouncy, cubic-bezier(0.34, 1.4, 0.64, 1)),
+    width var(--dur) var(--ease-snappy);
+}
+.toggle {
+  transition: background-color var(--dur) var(--ease);
+}
+.seg {
+  position: relative;
+  border-radius: var(--r-pill);
+  background: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.seg button {
+  position: relative;
+  border-radius: var(--r-pill);
+  transition:
+    color var(--dur-fast),
+    scale var(--dur) var(--ease-snappy);
+}
+.seg button:active {
+  scale: var(--press);
+}
+.seg button.on {
+  color: var(--accent-fg);
+  background: var(--accent);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.seg.glides button.on {
+  background: transparent;
+  box-shadow: none;
+}
+.seg-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--accent) 45%, transparent);
+  pointer-events: none;
+  will-change: transform;
+}
+.sel-list {
+  --leave-y: -4px;
+  border-radius: var(--r-menu);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-3), var(--rim);
+  animation: sel-in var(--dur) var(--ease-snappy) both;
+}
+.sel-list.up {
+  --leave-y: 4px;
+}
+[data-fx='low'] .sel-list {
+  background: var(--popover-bg);
+}
+@keyframes sel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.95);
+  }
+}

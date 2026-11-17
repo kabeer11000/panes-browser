@@ -51,8 +51,8 @@ export function DropIndicator({ drag }: { drag: DragState }): React.JSX.Element 
     <div
       className={'drop-indicator' + (active ? ' active' : '')}
       style={{
-        left: drag.box.x - stage.left,
-        top: drag.box.y - stage.top,
+        // moved by a transform (composited); only a change of size lays it out
+        transform: `translate(${drag.box.x - stage.left}px, ${drag.box.y - stage.top}px)`,
         width: drag.box.w,
         height: drag.box.h
       }}

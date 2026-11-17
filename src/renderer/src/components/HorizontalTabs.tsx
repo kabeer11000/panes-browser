@@ -10,6 +10,7 @@ import { SpaceSwitcher } from './SpaceSwitcher'
 import { GroupAudio } from './TabGroupHeader'
 import { TabFavicon } from './TabFavicon'
 import { WindowControls } from './WindowControls'
+import { useGlider } from '@renderer/hooks/useGlider'
 
 interface Props {
   tabs: TabInfo[]
@@ -158,6 +159,15 @@ export function HorizontalTabs({
   const joins = (a: TabInfo | undefined, b: TabInfo | undefined): boolean =>
     !!a && !!b && split.includes(a.id) && split.includes(b.id) && a.groupId === b.groupId
   const pairHasActive = split.includes(activeId ?? -1)
+  // the tab you are on is one raised card that glides along the row
+  const glider = useRef<HTMLSpanElement>(null)
+  useGlider(
+    list,
+    glider,
+    '.htab.active',
+    `${activeSpaceId}|${activeId}|${tabs.map((t) => t.id).join(',')}`,
+    pairHasActive
+  )
 
   return (
     <div className="tabbar drag">
@@ -170,7 +180,13 @@ export function HorizontalTabs({
         size={22}
       />
       <span className="tabbar-sep" aria-hidden="true" />
-      <div className="htab-list no-drag" ref={list} onWheel={onWheel} role="tablist">
+      <div
+        className={'htab-list no-drag' + (pairHasActive ? '' : ' glides')}
+        ref={list}
+        onWheel={onWheel}
+        role="tablist"
+      >
+        <span className="htab-glider" ref={glider} aria-hidden="true" />
         {tabs.flatMap((t, i) => {
           const tg = t.groupId === null ? undefined : groupById.get(t.groupId)
           const first = !!tg && tabs[i - 1]?.groupId !== t.groupId

@@ -794,3 +794,10 @@ body,
     transition: none;
   }
 }
+
+/* redesign: the site panel is an island card on the shared spring */
+.pn {
+  border-radius: var(--r-pop);
+  box-shadow: var(--shadow-2), var(--rim);
+  animation: pn-in var(--dur) var(--ease-snappy) both;
+}

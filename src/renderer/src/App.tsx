@@ -35,7 +35,7 @@ import { SpaceSwitcher } from './components/SpaceSwitcher'
 import { WindowControls } from './components/WindowControls'
 import { useSpaceDir } from './hooks/useSpaceDir'
 import { holdOverlay, releaseOverlay } from './overlay'
-import { getSlide, getSlideY, setSlide, setSlideY } from './slide'
+import { getSlide, getSlideY, slideTo, slideYTo } from './slide'
 import { useScheme } from './useScheme'
 import { useSwipe } from './hooks/useSwipe'
 import { useTabDrag, type ClickMods } from './hooks/useTabDrag'
@@ -619,27 +619,24 @@ function App(): React.JSX.Element {
   const [hoverShown, setHoverShown] = useState(false)
   useEffect(() => {
     const target = openedByHover && showSidebar ? effective.sidebarWidth : 0
-    const from = getSlide()
-    if (from === target) return
-    const start = performance.now()
-    const duration = target > 0 ? 190 : 160
-    let raf = 0
-    const step = (now: number): void => {
-      const t = Math.min(1, (now - start) / duration)
-      if (target > 0) setHoverShown(true)
-      setSlide(from + (target - from) * (1 - Math.pow(1 - t, 3)), effective.sidebarWidth)
-      if (t < 1) raf = requestAnimationFrame(step)
-      else if (target === 0) {
-        // Leaving hover mode hands the sidebar back to the ordinary rules, whose width transition would run from
-        // the hover width down to nothing and shove the page along with it: switch transitions off across the change.
-        const root = document.documentElement.classList
-        root.add('no-anim')
-        setHoverShown(false)
-        requestAnimationFrame(() => requestAnimationFrame(() => root.remove('no-anim')))
-      }
+    if (getSlide() === target) return
+    // shown from the first frame of the slide (the spring moves it on that frame too)
+    const shown = target > 0 ? requestAnimationFrame(() => setHoverShown(true)) : 0
+    let current = true
+    // on a spring: a sidebar the pointer leaves on its way in turns back with the speed it has, never a jolt
+    void slideTo(target, effective.sidebarWidth).then(() => {
+      if (!current || target !== 0) return
+      // Leaving hover mode hands the sidebar back to the ordinary rules, whose width transition would run from
+      // the hover width down to nothing and shove the page along with it: switch transitions off across the change.
+      const root = document.documentElement.classList
+      root.add('no-anim')
+      setHoverShown(false)
+      requestAnimationFrame(() => requestAnimationFrame(() => root.remove('no-anim')))
+    })
+    return () => {
+      current = false
+      cancelAnimationFrame(shown)
     }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
   }, [openedByHover, showSidebar, effective.sidebarWidth])
   const barAutoHidden = !pushed && !horizontal && !board && settings.autoHideTopBar
   // the sidebar and the top bar are never both brought out by the pointer: whichever came first keeps the stage
@@ -665,26 +662,22 @@ function App(): React.JSX.Element {
   const stripHidden = pushed || (barAutoHidden && !peeking && !barHeld && !barShown)
   const barTarget = barAutoHidden && (peeking || barHeld) ? barPx : 0
   useEffect(() => {
-    const from = getSlideY()
-    if (from === barTarget) return
-    const start = performance.now()
-    const duration = barTarget > 0 ? 170 : 150
-    let raf = 0
-    const step = (now: number): void => {
-      const t = Math.min(1, (now - start) / duration)
-      if (barTarget > 0) setBarShown(true)
-      setSlideY(from + (barTarget - from) * (1 - Math.pow(1 - t, 3)), barPx)
-      if (t < 1) raf = requestAnimationFrame(step)
-      else if (barTarget === 0) {
-        // the bar goes back into the ordinary rules, whose transitions must not run across the change
-        const root = document.documentElement.classList
-        root.add('no-anim')
-        setBarShown(false)
-        requestAnimationFrame(() => requestAnimationFrame(() => root.remove('no-anim')))
-      }
+    if (getSlideY() === barTarget) return
+    // shown from the first frame of the slide (the spring moves it on that frame too)
+    const shown = barTarget > 0 ? requestAnimationFrame(() => setBarShown(true)) : 0
+    let current = true
+    void slideYTo(barTarget, barPx).then(() => {
+      if (!current || barTarget !== 0) return
+      // the bar goes back into the ordinary rules, whose transitions must not run across the change
+      const root = document.documentElement.classList
+      root.add('no-anim')
+      setBarShown(false)
+      requestAnimationFrame(() => requestAnimationFrame(() => root.remove('no-anim')))
+    })
+    return () => {
+      current = false
+      cancelAnimationFrame(shown)
     }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
   }, [barTarget, barPx])
   useEffect(() => {
     window.api.watchTopBar(barAutoHidden, barPx)

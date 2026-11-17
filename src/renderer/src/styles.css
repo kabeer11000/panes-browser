@@ -1,20 +1,34 @@
-/* ---- design tokens: the one scale every surface draws from (see tasks/design-tokens.md) ---- */
+/* ---- design system ----
+   One calm canvas, white (or raised dark) cards on it, frosted islands for floating controls. Depth comes from soft,
+   wide, faint shadows and a 1px light rim, never hard borders; from blur, never dark dimming. Radii step from controls
+   (8) to tiles (10), the page card (12, matching the native view's corners), popovers (20). Motion is the shared spring
+   (shared/spring.ts, installed as --spring-<name> by motion.ts): things scale and fade from where they come from,
+   leave faster than they arrive, and the chosen state glides. Dark is the same system with raised greys. */
 :root {
-  /* radius: controls 6-8, cards and menus 12, panels and dialogs 16, hero 20, pill */
+  /* radius */
   --r-1: 4px;
   --r-2: 6px;
   --r-3: 8px;
-  --r-4: 12px;
-  --r-5: 16px;
+  --r-4: 10px;
+  --r-5: 12px;
   --r-6: 20px;
   --r-pill: 999px;
-  /* type */
+  --r-card: 8px;
+  --r-tile: 10px;
+  --r-page: 12px; /* = VIEW_RADIUS in main/tabs.ts: the page view's own corners */
+  --r-menu: 14px;
+  --r-pop: 20px;
+  /* type: one clean sans, tight steps, tabular numbers wherever digits line up */
   --fs-xs: 11px;
   --fs-s: 12px;
   --fs-m: 13px;
   --fs-l: 14px;
   --fs-xl: 16px;
   --fs-2xl: 20px;
+  --fs-3xl: 28px;
+  --fw-medium: 500;
+  --fw-semi: 600;
+  --track-tight: -0.011em;
   /* spacing, a 4px base */
   --sp-1: 4px;
   --sp-2: 8px;
@@ -22,28 +36,56 @@
   --sp-4: 16px;
   --sp-5: 24px;
   --sp-6: 32px;
-  /* shadow: 1 resting control, 2 menu or popover, 3 dialog or floating panel */
-  --shadow-1: 0 1px 3px rgb(0 0 0 / 0.28);
-  --shadow-2: 0 6px 18px rgb(0 0 0 / 0.3);
-  --shadow-3: 0 10px 34px rgb(0 0 0 / 0.36);
-  /* motion: fast for hover and press, base for most state changes, slow for layout and entrances */
-  --dur-fast: 0.14s;
-  --dur: 0.2s;
-  --dur-slow: 0.32s;
+  /* elevation (dark): 1 a raised control or the chosen tab, 2 a menu or popover, 3 a dialog or palette */
+  --rim: inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  --rim-strong: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  --hairline: rgb(255 255 255 / 0.07);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.32), 0 1px 1px rgb(0 0 0 / 0.16);
+  --shadow-2: 0 2px 8px rgb(0 0 0 / 0.24), 0 14px 36px -8px rgb(0 0 0 / 0.5);
+  --shadow-3: 0 4px 14px rgb(0 0 0 / 0.26), 0 30px 80px -16px rgb(0 0 0 / 0.66);
+  --shadow-page: 0 0 0 1px rgb(255 255 255 / 0.05), 0 8px 28px -10px rgb(0 0 0 / 0.55);
+  /* frosted islands: see-through with a blur, opaque enough to read without one (efficient mode drops the blur) */
+  --blur: blur(28px) saturate(1.7);
+  /* motion: the spring tokens, with plain fallbacks for a page that has not installed them */
+  --ease: var(--spring-smooth, cubic-bezier(0.22, 1, 0.36, 1));
+  --ease-snappy: var(--spring-snappy, cubic-bezier(0.3, 1.3, 0.5, 1));
+  --ease-exit: var(--spring-exit, cubic-bezier(0.3, 0, 0.2, 1));
+  --dur-fast: 0.12s;
+  --dur: var(--spring-snappy-dur, 0.22s);
+  --dur-slow: var(--spring-smooth-dur, 0.34s);
+  --dur-exit: var(--spring-exit-dur, 0.2s);
+  --press: 0.94; /* how far a pressed button squishes */
+  /* tooltips (tooltip.ts): a small dark chip in both schemes, the way Park's are */
+  --tip-bg: rgb(52 52 58 / 0.96);
+  --tip-fg: #f5f5f7;
   /* focus ring: keyboard only, thin, the accent at 80% */
   --ring: 1.5px solid color-mix(in srgb, var(--accent) 80%, transparent);
   --ring-offset: 2px;
 }
 [data-scheme='light'] {
-  --shadow-1: 0 1px 3px rgb(20 20 40 / 0.14);
-  --shadow-2: 0 6px 18px rgb(20 20 40 / 0.16);
-  --shadow-3: 0 10px 34px rgb(20 20 40 / 0.2);
+  --tip-bg: rgb(28 28 32 / 0.94);
+  --tip-fg: #ffffff;
+  --rim: inset 0 0 0 1px rgb(255 255 255 / 0.75);
+  --rim-strong: inset 0 0 0 1px rgb(255 255 255 / 0.9);
+  --hairline: rgb(15 20 30 / 0.07);
+  --shadow-1: 0 1px 2px rgb(16 22 34 / 0.07), 0 0 0 1px rgb(16 22 34 / 0.045);
+  --shadow-2:
+    0 2px 6px rgb(16 22 34 / 0.06), 0 14px 36px -8px rgb(16 22 34 / 0.18),
+    0 0 0 1px rgb(16 22 34 / 0.05);
+  --shadow-3:
+    0 4px 12px rgb(16 22 34 / 0.07), 0 30px 80px -16px rgb(16 22 34 / 0.28),
+    0 0 0 1px rgb(16 22 34 / 0.05);
+  --shadow-page:
+    0 0 0 1px rgb(16 22 34 / 0.06), 0 1px 3px rgb(16 22 34 / 0.05),
+    0 10px 30px -12px rgb(16 22 34 / 0.16);
 }
 @media (prefers-reduced-motion: reduce) {
   :root {
     --dur-fast: 0.01s;
     --dur: 0.01s;
     --dur-slow: 0.01s;
+    --dur-exit: 0.01s;
+    --press: 1;
   }
 }
 :focus-visible {
@@ -53,14 +95,23 @@
 
 /* ---- tokens ---- */
 :root {
-  --bg: rgb(20 20 26);
-  --surface: rgba(255, 255, 255, 0.07);
-  --surface-hover: rgba(255, 255, 255, 0.12);
-  --surface-active: rgba(255, 255, 255, 0.18);
-  --border: rgba(255, 255, 255, 0.12);
-  --fg: #f4f4f8;
-  --fg-dim: rgba(244, 244, 248, 0.74);
+  /* the calm canvas everything sits on, and what sits on it */
+  --bg: #151518;
+  --surface: rgb(255 255 255 / 0.055);
+  --surface-hover: rgb(255 255 255 / 0.085);
+  --surface-active: rgb(255 255 255 / 0.12);
+  --border: rgb(255 255 255 / 0.09);
+  --fg: #f2f2f4;
+  --fg-dim: rgb(242 242 244 / 0.64);
+  --fg-faint: rgb(242 242 244 / 0.4);
   --accent: #8b8bff;
+  --accent-fg: #fff;
+  /* a raised card on the canvas (the chosen tab, a field in focus), and a field at rest */
+  --card: color-mix(in srgb, var(--space) calc(var(--tint) * 0.12), #27272c);
+  --field: rgb(255 255 255 / 0.06);
+  --field-hover: rgb(255 255 255 / 0.09);
+  /* a frosted island: menus, popovers, the palette, the floating bars */
+  --glass: color-mix(in srgb, var(--space) calc(var(--tint) * 0.18), rgb(34 34 39 / 0.8));
   /* the page area leans toward the space's colour; keep the 0.28 in step with STAGE_SHARE in shared/color.ts */
   --stage-bg: color-mix(in srgb, var(--space, #121216) calc(var(--tint, 0%) * 0.28), #121216);
   /* surfaces lean toward the space's colour like the sidebar does, so a popover is not a different grey */
@@ -73,8 +124,7 @@
   --radius-s: var(--r-3);
   --radius-m: var(--r-4);
   --radius-l: var(--r-5);
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --font: 'Segoe UI Variable Text', 'SF Pro Text', Inter, system-ui, sans-serif;
+  --font: Inter, 'Inter Variable', 'Segoe UI Variable Text', 'SF Pro Text', system-ui, sans-serif;
   --s: 1; /* ui scale */
   --d: 1; /* density */
   --addr: 1; /* address bar size */
@@ -877,9 +927,10 @@ button {
   font-weight: 550;
   opacity: 0;
   pointer-events: none;
+  top: 0;
+  left: 0;
   transition:
-    left var(--dur) var(--ease),
-    top var(--dur) var(--ease),
+    transform var(--dur) var(--ease),
     width var(--dur) var(--ease),
     height var(--dur) var(--ease),
     opacity var(--dur-fast);
@@ -906,9 +957,10 @@ button {
 }
 .pane {
   position: absolute;
+  top: 0;
+  left: 0;
   transition:
-    left var(--dur-slow) var(--ease),
-    top var(--dur-slow) var(--ease),
+    transform var(--dur-slow) var(--ease),
     width var(--dur-slow) var(--ease),
     height var(--dur-slow) var(--ease),
     filter var(--dur);
@@ -922,9 +974,10 @@ button {
   place-items: center;
   touch-action: none;
   z-index: 2;
+  top: 0;
+  left: 0;
   transition:
-    left var(--dur-slow) var(--ease),
-    top var(--dur-slow) var(--ease),
+    transform var(--dur-slow) var(--ease),
     width var(--dur-slow) var(--ease),
     height var(--dur-slow) var(--ease);
 }
@@ -941,29 +994,32 @@ button {
   border-radius: var(--r-1);
   background: var(--surface-active);
   opacity: 0;
+  /* the grip grows by scale, not by size: nothing is laid out as it does */
   transition:
-    width var(--dur) var(--ease),
-    height var(--dur) var(--ease),
-    background var(--dur-fast);
+    scale var(--dur) var(--ease-snappy),
+    opacity var(--dur-fast),
+    background-color var(--dur-fast);
 }
 .divider.row span {
   width: 4px;
-  height: 36px;
+  height: 64px;
+  scale: 1 0.56;
 }
 .divider.col span {
-  width: 36px;
+  width: 64px;
   height: 4px;
+  scale: 0.56 1;
 }
 .divider.row:hover span,
 .panes.resizing .divider.row span {
   opacity: 1;
-  height: 64px;
+  scale: 1;
   background: var(--accent);
 }
 .divider.col:hover span,
 .panes.resizing .divider.col span {
   opacity: 1;
-  width: 64px;
+  scale: 1;
   background: var(--accent);
 }
 
@@ -2039,13 +2095,18 @@ button {
 
 /* ---- light mode: the same tokens, flipped. Applies to the root and to any element that sets data-scheme. ---- */
 [data-scheme='light'] {
-  --bg: rgb(238 238 244);
-  --surface: rgb(0 0 0 / 0.06);
-  --surface-hover: rgb(0 0 0 / 0.1);
-  --surface-active: rgb(0 0 0 / 0.15);
-  --border: rgb(0 0 0 / 0.14);
-  --fg: #101015;
-  --fg-dim: rgb(16 16 21 / 0.72);
+  --bg: #e4e5e8;
+  --surface: rgb(15 20 30 / 0.05);
+  --surface-hover: rgb(15 20 30 / 0.075);
+  --surface-active: rgb(15 20 30 / 0.1);
+  --border: rgb(15 20 30 / 0.1);
+  --fg: #17181b;
+  --fg-dim: rgb(23 24 27 / 0.62);
+  --fg-faint: rgb(23 24 27 / 0.4);
+  --card: #ffffff;
+  --field: rgb(255 255 255 / 0.55);
+  --field-hover: rgb(255 255 255 / 0.8);
+  --glass: color-mix(in srgb, var(--space) calc(var(--tint) * 0.08), rgb(250 250 251 / 0.82));
   --stage-bg: color-mix(in srgb, var(--space, #ffffff) calc(var(--tint, 0%) * 0.28), #ffffff);
   --overlay: color-mix(in srgb, var(--space) calc(var(--tint) * 0.16), rgb(244 244 248 / 0.97));
   --overlay-solid: color-mix(in srgb, var(--space) calc(var(--tint) * 0.16), rgb(244 244 248));
@@ -4875,4 +4936,546 @@ kbd {
   border-color: transparent;
   background: var(--accent);
   color: #fff;
+}
+
+/* ==================================================================================================================
+   ---- Chrome, redesigned: a calm canvas, the page a card on it, the chosen tab a raised card that glides ----
+   This layer sits last on purpose: it restyles the components above with the design system at the top of the file.
+   ================================================================================================================== */
+
+body {
+  font-feature-settings: 'cv11', 'ss01', 'calt';
+  letter-spacing: var(--track-tight);
+}
+/* digits that line up: counts, times, sizes, percentages */
+.group-count,
+.tab-count,
+.space-caption,
+time,
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* -- the page: a card inset on the canvas, soft shadow and a hairline instead of a border -- */
+.pane-body {
+  border-radius: var(--r-page);
+  box-shadow: var(--shadow-page);
+}
+.pane.focused .pane-body {
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--accent) 85%, transparent),
+    0 10px 30px -10px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+/* no plane behind the page and no tapered tab feet: the page is a card on the canvas like everything else */
+.stage-wrap.plane,
+.stage-wrap.plane-hover,
+.stage-wrap.hlayout {
+  background: transparent;
+  border-radius: 0;
+}
+.trow-foot {
+  display: none;
+}
+.hover-open .strip:not(.peeking) {
+  background: transparent;
+}
+
+/* -- buttons: quiet until touched; a press squishes, the release springs back with a hair of overshoot -- */
+.icon-btn,
+.tab-close,
+.tab-action,
+.pane-btn,
+.space-chip {
+  transition:
+    background-color var(--dur-fast),
+    color var(--dur-fast),
+    opacity var(--dur-fast),
+    scale var(--dur) var(--ease-snappy);
+}
+.icon-btn {
+  border-radius: var(--r-3);
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.icon-btn:active:not(:disabled),
+.tab-close:active,
+.tab-action:active,
+.pane-btn:active,
+.space-chip:active {
+  scale: var(--press);
+  transition-duration: var(--dur-fast), var(--dur-fast), var(--dur-fast), 0.08s;
+}
+.icon-btn.pin,
+.icon-btn.active {
+  color: var(--accent-fg);
+  background: var(--accent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.icon-btn.pin:hover,
+.icon-btn.active:hover:not(:disabled) {
+  color: var(--accent-fg);
+  background: color-mix(in srgb, var(--accent) 88%, var(--fg));
+}
+.nav-capsule {
+  background: transparent;
+  padding: 0;
+  gap: 0;
+}
+
+/* -- the address field: a soft white pill at rest, a raised card with the accent ring while typing -- */
+.address {
+  border-radius: var(--r-4);
+  background: var(--field);
+  box-shadow:
+    var(--rim),
+    0 0 0 1px var(--hairline);
+  color: var(--fg-dim);
+  transition:
+    background-color var(--dur-fast),
+    box-shadow var(--dur-fast),
+    scale var(--dur) var(--ease-snappy);
+}
+.address:hover {
+  background: var(--field-hover);
+  color: var(--fg);
+}
+.address.editing {
+  background: var(--card);
+  box-shadow:
+    0 0 0 1.5px var(--accent),
+    0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent),
+    var(--shadow-1);
+}
+.strip .address {
+  border-radius: var(--r-4);
+}
+.load-bar {
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+
+/* -- side tabs: text on the canvas; the tab you are on is a raised card, drawn once and gliding between rows -- */
+.tab-list {
+  position: relative;
+  gap: 1px;
+  margin-right: 0;
+  padding-right: 0;
+}
+.tab-row {
+  border-radius: var(--r-4);
+  gap: 9px;
+  padding: 0 6px 0 10px;
+  color: var(--fg-dim);
+  font-weight: var(--fw-medium);
+  transition:
+    background-color var(--dur-fast),
+    color var(--dur-fast),
+    translate var(--dur) var(--ease),
+    scale var(--dur) var(--ease-snappy);
+}
+.tab-row:hover {
+  background: var(--surface);
+  color: var(--fg);
+}
+.tab-row:active:not(:has(button:active)) {
+  scale: 0.985;
+}
+.tab-row.active,
+.tab-row.active:hover {
+  margin-right: 0;
+  padding-right: 6px;
+  border-radius: var(--r-4);
+  color: var(--fg);
+  background: var(--card);
+  box-shadow: var(--shadow-1), var(--rim);
+  overflow: hidden;
+}
+/* with the glider in the list, the chosen row itself stays clear: the card under it moves, the rows never do */
+.tab-list.glides .tab-row.active:not(.pair-active):not(.floating) {
+  background: transparent;
+  box-shadow: none;
+}
+.tab-glider {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-radius: var(--r-4);
+  background: var(--card);
+  box-shadow: var(--shadow-1), var(--rim);
+  pointer-events: none;
+  will-change: transform;
+}
+.tab-row.grouped {
+  border-left: 0;
+  margin-left: 10px;
+  padding-left: 10px;
+  border-radius: var(--r-4);
+}
+.tab-row.grouped::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: var(--r-pill);
+  background: var(--gc);
+}
+.tab-row.grouped.active::before {
+  left: 3px;
+}
+.tab-row.new {
+  color: var(--fg-faint);
+  font-weight: var(--fw-medium);
+}
+.tab-row.new:hover {
+  color: var(--fg);
+}
+.tab-close,
+.tab-action {
+  border-radius: var(--r-2);
+}
+.tab-close:hover,
+.tab-action:hover {
+  background: var(--surface-hover);
+}
+.tab-row.active .tab-close:hover {
+  background: var(--surface);
+}
+/* a split: its rows share one soft accent wash, the one you are on raised inside it */
+.tab-row.pair-active,
+.tab-row.pair-active.active {
+  margin-right: 0;
+  padding-right: 6px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: none;
+}
+.tab-row.pair-active.active {
+  background: var(--card);
+  box-shadow: var(--shadow-1), var(--rim);
+}
+.tab-row.pair-active.pair-first {
+  border-radius: var(--r-4) var(--r-4) var(--r-1) var(--r-1);
+}
+.tab-row.pair-active.pair-last {
+  border-radius: var(--r-1) var(--r-1) var(--r-4) var(--r-4);
+}
+.tab-row.pair-active.pair-first.pair-last {
+  border-radius: var(--r-4);
+}
+.tab-row.pair-active:not(.pair-first) {
+  box-shadow: none;
+}
+.tab-row.pair-active.active:not(.pair-first) {
+  box-shadow: var(--shadow-1), var(--rim);
+}
+.group-head {
+  border-radius: var(--r-3);
+  color: var(--fg-faint);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.group-dot {
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gc) 22%, transparent);
+}
+
+/* -- floating islands: menus, popovers and the command bar are frosted cards with a light rim and a wide soft
+   shadow. They grow from where they hang (transform-origin) and leave faster than they came. -- */
+.pal,
+.space-popover,
+.chat-menu,
+.pop-root .sp-card {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-3), var(--rim);
+}
+[data-fx='low'] .pal,
+[data-fx='low'] .space-popover,
+[data-fx='low'] .chat-menu {
+  background: var(--popover-bg);
+}
+.pal {
+  border-radius: var(--r-pop);
+}
+.pal.popover {
+  border-radius: var(--pal-r, 10px) var(--pal-r, 10px) var(--r-menu) var(--r-menu);
+  box-shadow: var(--shadow-3), var(--rim);
+  transform-origin: 50% 0;
+}
+/* the full command bar no longer darkens the page: it blurs it a touch, so you keep your place */
+.pal-backdrop:not(.popover) {
+  background: color-mix(in srgb, var(--bg) 18%, transparent);
+  -webkit-backdrop-filter: blur(6px) saturate(1.1);
+  backdrop-filter: blur(6px) saturate(1.1);
+}
+[data-fx='low'] .pal-backdrop:not(.popover) {
+  background: color-mix(in srgb, var(--bg) 40%, transparent);
+}
+.pal-list {
+  position: relative;
+  border-top: 1px solid var(--hairline);
+  padding: 6px;
+}
+.pal-row {
+  position: relative;
+  height: 40px;
+  border-radius: var(--r-4);
+  color: var(--fg-dim);
+  transition: color var(--dur-fast);
+}
+.pal-row.selected {
+  color: var(--fg);
+  background: transparent;
+}
+/* keyboard or pointer, the highlight is one card that glides to the row */
+.pal-glider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: var(--r-4);
+  background: var(--surface-active);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  pointer-events: none;
+  will-change: transform;
+}
+.pal-row > * {
+  position: relative;
+}
+.pal-name {
+  font-weight: var(--fw-medium);
+}
+.pal-kind {
+  font-size: var(--fs-xs);
+  color: var(--fg-faint);
+}
+.pal-recent-tab {
+  border-radius: var(--r-tile);
+  transition:
+    background-color var(--dur-fast),
+    translate var(--dur) var(--ease-snappy);
+}
+.pal-recent-tab:hover {
+  translate: 0 -2px;
+}
+.pal-recent-pic {
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-1);
+}
+.space-popover {
+  border-radius: var(--r-pop);
+  animation: pop-open var(--dur) var(--ease-snappy) both;
+}
+@keyframes pop-open {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+  }
+}
+.pop-root {
+  animation: pop-in var(--dur) var(--ease-snappy) both;
+}
+.pop-root .sp-card {
+  border-radius: var(--r-pop);
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.94);
+  }
+}
+.sp-divider {
+  background: var(--hairline);
+}
+kbd {
+  font-variant-numeric: tabular-nums;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 1px var(--hairline),
+    0 1px 0 var(--hairline);
+}
+
+/* -- leaving: whatever a <Presence> keeps for its exit fades and shrinks back toward where it came from, quicker
+   than it arrived, and takes no clicks on the way out -- */
+.presence {
+  display: contents;
+}
+.presence-leave > * {
+  pointer-events: none;
+  animation: presence-out var(--dur-exit) var(--ease-exit) forwards !important;
+}
+@keyframes presence-out {
+  to {
+    opacity: 0;
+    transform: translateY(var(--leave-y, 4px)) scale(0.95);
+  }
+}
+.space-popover.down,
+.chat-menu {
+  --leave-y: -4px;
+}
+.chat-menu {
+  transform-origin: top left;
+  border-radius: var(--r-menu);
+  animation: pop-in var(--dur) var(--ease-snappy) both;
+}
+
+/* -- tabs along the top: pills on the canvas, every tab the same width (a switch never moves the row), the tab you
+   are on a raised card gliding along it; the toolbar below is part of the canvas, the page a card under it -- */
+.tabbar {
+  background: transparent;
+}
+.strip.hstrip {
+  background: transparent;
+}
+.htab-list {
+  position: relative;
+  align-items: center;
+  align-self: center;
+  gap: 2px;
+}
+.htab,
+.htab.active,
+.htab.in-split.pair-active {
+  flex: 0 1 168px;
+  width: 168px;
+  max-width: 168px;
+  min-width: 42px;
+  height: calc(28px * var(--d));
+  border-radius: var(--r-3);
+  color: var(--fg-dim);
+  font-weight: var(--fw-medium);
+  box-shadow: none;
+  transition:
+    background-color var(--dur-fast),
+    color var(--dur-fast),
+    translate var(--dur) var(--ease),
+    scale var(--dur) var(--ease-snappy);
+}
+.htab:hover {
+  background: var(--surface);
+  color: var(--fg);
+}
+.htab:active:not(:has(button:active)) {
+  scale: 0.98;
+}
+.htab.active,
+.htab.active.grouped,
+.htab-list .htab.in-split.pair-active.active {
+  color: var(--fg);
+  background: var(--card);
+  box-shadow: var(--shadow-1), var(--rim);
+}
+.htab-list.glides .htab.active:not(.floating) {
+  background: transparent;
+  box-shadow: none;
+}
+.htab-list.glides .htab.active.grouped:not(.floating) {
+  box-shadow: inset 0 -2px 0 var(--gc);
+}
+.htab-glider {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  border-radius: var(--r-3);
+  background: var(--card);
+  box-shadow: var(--shadow-1), var(--rim);
+  pointer-events: none;
+  will-change: transform;
+}
+.htab-foot {
+  display: none;
+}
+.htab-list {
+  padding: 0 2px;
+}
+.tabbar .htab-plus {
+  margin-left: 2px;
+}
+.htab.in-split.pair-active:not(.active),
+.htab.in-split:not(.pair-active) {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.htab.in-split.split-first,
+.htab.in-split.split-last,
+.htab.in-split.split-first.split-last {
+  border-radius: var(--r-3);
+}
+.htab:has(+ .htab.active):hover,
+.htab.active + .htab:hover,
+.htab:has(+ .htab.foot-left):hover,
+.htab.foot-right + .htab:hover {
+  background: var(--surface);
+}
+.htab.pinned,
+.htab.pinned.active {
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+}
+.stage-wrap.with-strip.hlayout {
+  padding-top: max(var(--edge), 6px);
+}
+
+/* -- new tab: tiles are small white cards that lift toward the pointer and squish when pressed; they land
+   together, a few ms apart, when the page opens -- */
+.newtab-tile {
+  border-radius: var(--r-5);
+  background: var(--card);
+  box-shadow: var(--shadow-1), var(--rim);
+  transition:
+    background-color var(--dur-fast),
+    transform var(--dur) var(--ease-snappy),
+    box-shadow var(--dur) var(--ease);
+}
+.newtab-site:hover .newtab-tile {
+  background: var(--card);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-2), var(--rim);
+}
+.newtab-site:active .newtab-tile {
+  transform: translateY(-1px) scale(var(--press));
+  transition-duration: var(--dur-fast), 0.08s, var(--dur-fast);
+}
+.newtab-site {
+  animation: newtab-land var(--spring-bouncy-dur, 0.5s) var(--spring-bouncy, ease-out) both;
+}
+.newtab-site:nth-child(2) {
+  animation-delay: 25ms;
+}
+.newtab-site:nth-child(3) {
+  animation-delay: 50ms;
+}
+.newtab-site:nth-child(4) {
+  animation-delay: 75ms;
+}
+.newtab-site:nth-child(5) {
+  animation-delay: 100ms;
+}
+.newtab-site:nth-child(n + 6) {
+  animation-delay: 120ms;
+}
+@keyframes newtab-land {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+}
+.newtab-private button {
+  border-radius: var(--r-pill);
+  transition:
+    background-color var(--dur-fast),
+    scale var(--dur) var(--ease-snappy);
+}
+.newtab-private button:active {
+  scale: var(--press);
 }
