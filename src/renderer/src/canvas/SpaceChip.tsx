@@ -1,5 +1,6 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { Space } from '@shared/types'
+import { SpacePopover } from '@renderer/components/SpacePopover'
 import { useDismiss } from './useDismiss'
 
 const ago = (t: number): string => {
@@ -14,7 +15,8 @@ const STEPS_SHOWN = 8
 
 /**
  * The board's one control in its top-left corner: the space you are in (its colour and name), quiet until pointed
- * at. It opens a menu of your spaces to switch to, a new space, and the steps that can be taken back.
+ * at. It opens a menu of your spaces to switch to, this space's settings, a new space, and the steps that can be taken
+ * back.
  */
 export function SpaceChip({
   spaces,
@@ -37,6 +39,8 @@ export function SpaceChip({
 }): React.JSX.Element | null {
   const host = useRef<HTMLDivElement>(null)
   useDismiss(open, host, onClose)
+  // this space's settings (the same editor the sidebar opens), below the chip
+  const [editing, setEditing] = useState(false)
   const active = spaces.find((s) => s.id === activeId)
   if (!active) return null
   const pick = (run: () => void) => (): void => {
@@ -75,6 +79,22 @@ export function SpaceChip({
               <span>{sp.name}</span>
             </button>
           ))}
+          <button type="button" role="menuitem" onClick={pick(() => setEditing(true))}>
+            <i className="cv-space-gear" aria-hidden="true">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <circle cx="8" cy="8" r="2.2" />
+                <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" />
+              </svg>
+            </i>
+            <span>Space settings</span>
+          </button>
           <button
             type="button"
             role="menuitem"
@@ -103,6 +123,14 @@ export function SpaceChip({
             </>
           )}
         </div>
+      )}
+      {editing && (
+        <SpacePopover
+          space={active}
+          canDelete={spaces.length > 1}
+          placement="down"
+          onClose={() => setEditing(false)}
+        />
       )}
     </div>
   )

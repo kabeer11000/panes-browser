@@ -22,7 +22,6 @@ import type { ChatFile, Conversation } from './ai/chatConv'
 import type { ChatTarget } from './ai/policy'
 import type { ChatBlock } from './ai/chatState'
 import type { CanvasState, Group } from './ai/canvas'
-import type { Placement } from './ai/canvasItems'
 import type { CanvasFoundEvent } from './ai/canvasFind'
 import type { VideoRegion } from './ai/tabStream'
 import type { CanvasPageContent, CanvasReaderDoc } from './ai/canvasItems'
@@ -329,7 +328,6 @@ export interface PanesApi {
     /** Key points of a page for a note (a model's, else its first sentences); null for private or Tor. */
     summarize(req: { tab?: number; url?: string }): Promise<string | null>
     /** A model's call on how to place a page the rules could not place. */
-    placement(req: { url: string; title: string; text: string }): Promise<Placement | null>
     /** The bytes of a PDF or picture, from the web or from a finished download. */
     bytes(req: { url?: string; file?: string }): Promise<{ mime: string; data: Uint8Array } | null>
     /** Keep a copy of a file dropped or pasted onto the board; its path is then readable with `bytes`. */

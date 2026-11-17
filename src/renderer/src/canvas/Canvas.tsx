@@ -76,7 +76,7 @@ import {
 } from '@shared/ai/canvas'
 import { arrangeSplit, splitBox, splitEdge, splitMembers } from '@shared/ai/split'
 import { leaves, type LayoutNode } from '@shared/layout'
-import { suggestPlacement, placeItem, noteOf } from '@shared/ai/canvasPlace'
+import { placeItem, noteOf, pagesNotDocuments } from '@shared/ai/canvasPlace'
 import {
   arrangeLabel,
   boardMenu,
@@ -1188,7 +1188,7 @@ export function Canvas({
       bootRef.current = boot
       const tabsNow = lite()
       let s = saved?.state
-        ? reconcileSaved(liftSections(saved.state), tabsNow, boot)
+        ? reconcileSaved(pagesNotDocuments(liftSections(saved.state)), tabsNow, boot)
         : emptyState(boot)
       const had = s.frames.length > 0
       const synced = syncTabs(s, tabsNow)
@@ -3429,7 +3429,7 @@ export function Canvas({
     [edit, markFresh, toastNow]
   )
 
-  // a new card the prompt made gets the quiet chip for a while, and an unsure page may ask a model
+  // a new card the prompt made gets the quiet chip for a while
   useEffect(() => {
     const items = st?.items
     if (!items) return
@@ -3437,7 +3437,6 @@ export function Canvas({
       const id = Number(k)
       const key = `${it.placement ?? ''}|${it.kind}`
       if (!it.placement || seenPlacement.current.get(id) === key) continue
-      const first = !seenPlacement.current.has(id)
       seenPlacement.current.set(id, key)
       setChips((p) => new Set(p).add(id))
       window.setTimeout(
@@ -3449,21 +3448,8 @@ export function Canvas({
           }),
         9000
       )
-      if (
-        first &&
-        it.source === 'web' &&
-        it.kind === 'page' &&
-        !suggestPlacement({ kind: it.kind, url: it.url }).confident
-      ) {
-        void window.api.canvas
-          .placement({ url: it.url, title: it.title, text: it.text ?? '' })
-          .then((p) => {
-            if (p && p !== it.placement && stRef.current?.items[k]?.placement === it.placement)
-              void placeAs(id, p)
-          })
-      }
     }
-  }, [st?.items, placeAs])
+  }, [st?.items])
 
   // ---- opening a card to read it ----
   const showNow = (): void => {
@@ -4834,7 +4820,8 @@ export function Canvas({
           reader: m.reader,
           answer: m.kind === 'answer',
           note: m.kind === 'answer' && m.placement === 'note',
-          canDocument: !!item && (item.kind === 'page' || (item.kind === 'answer' && !!item.url)),
+          // a web page is never shown as its text (no reader): only an answer with a source can be a document
+          canDocument: !!item && item.kind === 'answer' && !!item.url,
           link: web,
           section: card?.frame ?? null,
           sections,

@@ -134,7 +134,6 @@ const api: PanesApi = {
     content: (tabId) => ipcRenderer.invoke('canvas:content', tabId),
     reader: (req) => ipcRenderer.invoke('canvas:reader', req),
     summarize: (req) => ipcRenderer.invoke('canvas:summarize', req),
-    placement: (req) => ipcRenderer.invoke('canvas:placement', req),
     bytes: (req) => ipcRenderer.invoke('canvas:bytes', req),
     store: async (f) => {
       const path = webUtils.getPathForFile(f)

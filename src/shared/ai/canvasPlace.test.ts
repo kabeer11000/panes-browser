@@ -2,59 +2,31 @@ import { describe, expect, test } from 'bun:test'
 import {
   answerShape,
   fallbackSummary,
-  parsePlacement,
   placeItem,
+  pagesNotDocuments,
   suggestPlacement
 } from './canvasPlace'
 import { itemFor } from './canvasItems'
 
 describe('suggestPlacement', () => {
-  test('answers are notes', () => {
-    expect(suggestPlacement({ kind: 'answer', url: '' })).toEqual({
-      placement: 'note',
-      confident: true
-    })
-  })
-  test('pdf, image and video are documents', () => {
+  test('answers are notes; pdf, image and video are themselves', () => {
+    expect(suggestPlacement({ kind: 'answer', url: '' })).toBe('note')
     for (const [kind, url] of [
       ['pdf', 'https://a.com/x.pdf'],
       ['image', 'https://a.com/x.png'],
       ['video', 'https://youtu.be/dQw4w9WgXcQ']
     ] as const)
-      expect(suggestPlacement({ kind, url })).toEqual({ placement: 'document', confident: true })
+      expect(suggestPlacement({ kind, url })).toBe('document')
   })
-  test('tools are live pages', () => {
+  test('every web page is the page, never its text as a reader', () => {
     for (const url of [
+      'https://en.wikipedia.org/wiki/Mars',
+      'https://blog.example.com/2026/post-title',
       'https://mail.google.com/mail/u/0/',
-      'https://docs.google.com/document/d/1/edit',
-      'https://app.example.com/x',
-      'https://example.com/dashboard/home',
-      'https://www.notion.so/team'
+      'https://example.com/',
+      'not a url'
     ])
-      expect(suggestPlacement({ kind: 'page', url })).toEqual({
-        placement: 'live',
-        confident: true
-      })
-  })
-  test('articles are documents', () => {
-    expect(suggestPlacement({ kind: 'page', url: 'https://en.wikipedia.org/wiki/Mars' })).toEqual({
-      placement: 'document',
-      confident: true
-    })
-    expect(
-      suggestPlacement({ kind: 'page', url: 'https://blog.example.com/2026/post-title' })
-    ).toEqual({ placement: 'document', confident: true })
-  })
-  test('unknown fronts and app-like pages are not confident', () => {
-    expect(suggestPlacement({ kind: 'page', url: 'https://example.com/' })).toEqual({
-      placement: 'document',
-      confident: false
-    })
-    expect(suggestPlacement({ kind: 'page', url: 'https://x.example/tool', app: true })).toEqual({
-      placement: 'live',
-      confident: false
-    })
-    expect(suggestPlacement({ kind: 'page', url: 'not a url' }).confident).toBe(false)
+      expect(suggestPlacement({ kind: 'page', url })).toBe('live')
   })
 })
 
@@ -64,12 +36,6 @@ describe('answers and models', () => {
     expect(answerShape('rust vs go')).toBe('comparison')
     expect(answerShape('how to bake bread')).toBe('howto')
     expect(answerShape('is it raining')).toBe('question')
-  })
-  test('parsePlacement', () => {
-    expect(parsePlacement('{"placement": "live"}')).toBe('live')
-    expect(parsePlacement('Note')).toBe('note')
-    expect(parsePlacement('banana')).toBe(null)
-    expect(parsePlacement(null)).toBe(null)
   })
 })
 
@@ -106,5 +72,25 @@ describe('placeItem', () => {
       '- This is a long enough first sentence here.\n- And this is a second long sentence too.'
     )
     expect(fallbackSummary('short')).toBe('short')
+  })
+})
+
+describe('pagesNotDocuments', () => {
+  test('a web page saved as a document is the page again; a PDF stays a document', () => {
+    const page = {
+      ...itemFor('https://en.wikipedia.org/wiki/Mars', 'Mars'),
+      placement: 'document' as const
+    }
+    const pdf = {
+      ...itemFor('https://a.com/x.pdf', 'X', { kind: 'pdf' }),
+      placement: 'document' as const
+    }
+    const s = pagesNotDocuments({ items: { '1': page, '2': pdf } })
+    expect(s.items['1'].placement).toBe('live')
+    expect(s.items['2'].placement).toBe('document')
+  })
+  test('a board with nothing to change comes back as it was', () => {
+    const s = { items: { '1': { ...itemFor('https://a.com/', 'A'), placement: 'live' as const } } }
+    expect(pagesNotDocuments(s)).toBe(s)
   })
 })

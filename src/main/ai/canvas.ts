@@ -31,7 +31,7 @@ import {
 } from '@shared/ai/grouping'
 import type { AiContext } from '@shared/ai/types'
 import { cleanTitle } from '@shared/ai/titles'
-import { fallbackSummary, parsePlacement, type Placement } from '@shared/ai/canvasPlace'
+import { fallbackSummary } from '@shared/ai/canvasPlace'
 import { normalizeUrl } from '@shared/ai/urls'
 import type { DownloadManager } from '../downloads'
 import type { HistoryStore } from '../history'
@@ -293,19 +293,6 @@ export class CanvasService {
     })
     const t = raw?.trim()
     return t ? t.slice(0, 1200) : null
-  }
-
-  /** A model's call on a page the rules could not place; null when it cannot say. */
-  async placement(url: string, title: string, text: string): Promise<Placement | null> {
-    const raw = await this.deps.router.generate({
-      task: 'chat',
-      ctx: NORMAL,
-      system:
-        'Decide how a web page should sit on a canvas. Answer with JSON: {"placement": "document"} for an article or reference to read, {"placement": "live"} for an app or tool that needs interaction (mail, editor, dashboard), {"placement": "note"} for a short fact or answer.',
-      prompt: `${url}\n${title}\n${text}`,
-      field: 'placement'
-    })
-    return parsePlacement(raw)
   }
 
   /** The frame (of those given, by their tab ids) a tab is closest to in meaning, or null: it goes to Other. */
@@ -588,15 +575,6 @@ export function registerCanvas(d: {
     if (!text) return null
     const raw = await svc.summarize(doc.title, text)
     return raw ?? fallbackSummary(text)
-  })
-  ipcMain.handle('canvas:placement', async (e, req: unknown) => {
-    const r = (req ?? {}) as { url?: unknown; title?: unknown; text?: unknown }
-    if (!mine(e) || d.tabs.boardKind() !== 'normal' || typeof r.url !== 'string') return null
-    return svc.placement(
-      r.url.slice(0, 300),
-      String(r.title ?? '').slice(0, 160),
-      String(r.text ?? '').slice(0, 500)
-    )
   })
   ipcMain.on('canvas:reopen', (e, n: unknown) => {
     if (!mine(e)) return

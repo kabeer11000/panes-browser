@@ -5,8 +5,7 @@ export type { Placement }
 
 /**
  * How a thing put on the board should be placed: as a note (text), as a document (its content shown inline, no tab),
- * or as a live page (a real tab, only once it is opened live). Deterministic first; a model only settles the few
- * pages the rules cannot call.
+ * or as a live page (a real tab, only once it is opened live).
  */
 export const PLACEMENTS: readonly Placement[] = ['note', 'document', 'live']
 
@@ -16,15 +15,6 @@ export const PLACEMENT_LABEL: Record<Placement, string> = {
   live: 'live page'
 }
 
-/** Sites that are tools, not articles: mail, editors, dashboards, chat. They need the real page. */
-const LIVE_HOSTS =
-  /^(?:mail\.google\.com|outlook\.(?:live|office)\.com|calendar\.google\.com|web\.whatsapp\.com|app\.slack\.com|(?:[\w-]+\.)?slack\.com|notion\.so|www\.notion\.so|figma\.com|www\.figma\.com|linear\.app|trello\.com|asana\.com|app\.[\w.-]+|console\.[\w.-]+|dashboard\.[\w.-]+|admin\.[\w.-]+|(?:[\w-]+\.)?atlassian\.net|miro\.com|canva\.com|www\.canva\.com)$/i
-const LIVE_PATH =
-  /^\/(?:dashboard|inbox|admin|console|app|editor|workspace|settings|account|login|signin)(?:\/|$)/i
-const EDITOR_PATH = /^https:\/\/docs\.google\.com\/(?:document|spreadsheets|presentation|forms)\//i
-const KNOWN_ARTICLE_HOSTS =
-  /(?:wikipedia\.org|medium\.com|substack\.com|github\.io|bbc\.com|nytimes\.com|theguardian\.com|reuters\.com|arxiv\.org|stackoverflow\.com|developer\.mozilla\.org|docs\.rs|dev\.to|hackernoon\.com)$/i
-
 export interface PlaceInput {
   kind: ItemKind
   url: string
@@ -32,12 +22,6 @@ export interface PlaceInput {
   query?: string
   /** The page reads like an app (few paragraphs). */
   app?: boolean
-}
-
-export interface PlaceGuess {
-  placement: Placement
-  /** The rules settle it; when false, a model may be asked. */
-  confident: boolean
 }
 
 /** What kind of answer a question asks for (all of them are notes: this only names it). */
@@ -49,32 +33,15 @@ export function answerShape(q: string): 'definition' | 'comparison' | 'howto' | 
   return 'question'
 }
 
-export function suggestPlacement(i: PlaceInput): PlaceGuess {
-  if (i.kind === 'answer') return { placement: 'note', confident: true }
-  if (i.kind === 'pdf' || i.kind === 'image' || i.kind === 'video')
-    return { placement: 'document', confident: true }
-  let u: URL
-  try {
-    u = new URL(i.url)
-  } catch {
-    return { placement: 'document', confident: false }
-  }
-  const host = u.hostname
-  const path = u.pathname
-  if (EDITOR_PATH.test(i.url) || LIVE_HOSTS.test(host) || LIVE_PATH.test(path))
-    return { placement: 'live', confident: true }
-  if (KNOWN_ARTICLE_HOSTS.test(host)) return { placement: 'document', confident: true }
-  // an ordinary page with a real path is an article; a bare front page or an app-like page is a question mark
-  if (i.app) return { placement: 'live', confident: false }
-  const deep = path.split('/').filter(Boolean).length >= 2
-  return { placement: 'document', confident: deep }
-}
-
-/** A model's choice ({"placement": "note"} or the bare word), or null when unusable. */
-export function parsePlacement(raw: string | null | undefined): Placement | null {
-  if (!raw) return null
-  const m = /\b(note|document|live)\b/i.exec(raw)
-  return m ? (m[1].toLowerCase() as Placement) : null
+/**
+ * How a thing goes on the board: an answer as a note; a PDF, picture or video as itself; a web page as the page (its
+ * picture, live once opened). Pages used to be split into "documents" (their text inline, a reader) and live pages;
+ * with the reader off, a document page read as a reader mode nobody asked for.
+ */
+export function suggestPlacement(i: PlaceInput): Placement {
+  if (i.kind === 'answer') return 'note'
+  if (i.kind === 'pdf' || i.kind === 'image' || i.kind === 'video') return 'document'
+  return 'live'
 }
 
 /** The bullets of a page shown as a note when no model could summarise it: its first sentences. */
@@ -169,4 +136,19 @@ export function exampleAsks(titles: readonly string[]): string[] {
   if (t.length >= 3) out.push(`What do ${t[1]} and ${t[2]} have in common?`)
   out.push('Find a PDF about this topic', 'Find what I read about this last week')
   return [...new Set(out)].slice(0, 3)
+}
+
+/**
+ * A board saved when web pages could be "documents" (their text inline, as a reader): those pages are the page
+ * again. PDFs, pictures and videos keep showing as themselves.
+ */
+export function pagesNotDocuments<S extends { items: Record<string, CanvasItem> }>(s: S): S {
+  let changed = false
+  const items: Record<string, CanvasItem> = {}
+  for (const [k, it] of Object.entries(s.items)) {
+    const doc = it.kind === 'page' && it.placement === 'document'
+    if (doc) changed = true
+    items[k] = doc ? { ...it, placement: 'live' } : it
+  }
+  return changed ? { ...s, items } : s
 }

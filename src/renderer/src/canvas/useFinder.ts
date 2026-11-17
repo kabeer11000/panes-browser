@@ -61,7 +61,7 @@ const itemFromHit = (h: Hit): CanvasItem => {
     mime: h.mime
   })
   // how it is placed is suggested at once, by rules; the board may ask a model about an unsure page
-  return { ...item, placement: suggestPlacement({ kind: item.kind, url: item.url }).placement }
+  return { ...item, placement: suggestPlacement({ kind: item.kind, url: item.url }) }
 }
 
 /**
