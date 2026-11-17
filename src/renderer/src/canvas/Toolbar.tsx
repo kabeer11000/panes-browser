@@ -1,6 +1,7 @@
 import { arrangeLabel } from '@shared/ai/canvasMenu'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useDismiss } from './useDismiss'
+import './surfaces.css'
 import { SHAPE_KINDS, type BlockKind, type ShapeKind } from '@shared/ai/canvasMarks'
 import {
   ConnectorIcon,

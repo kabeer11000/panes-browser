@@ -1,0 +1,409 @@
+/* The board's things, as objects: sections, notes, tables, checklists, code, and the menus, toasts and bars that float
+   over them. One surface language (a soft layered shadow, a hairline rim, generous radii) and one motion language
+   (the shared springs in motion.ts). Scoped under .cv so it wins over the older rules in canvas.css by specificity,
+   whatever order the stylesheets load in. Movement while dragging belongs to the board (board.css); this is the look. */
+.cv {
+  --rim: color-mix(in srgb, var(--fg) 9%, transparent);
+  --rim-strong: color-mix(in srgb, var(--fg) 16%, transparent);
+  --lift-0: 0 0 0 0.5px var(--rim), 0 1px 2px rgb(0 0 0 / 0.1);
+  --lift-1: 0 0 0 0.5px var(--rim), 0 1px 2px rgb(0 0 0 / 0.1), 0 6px 18px -6px rgb(0 0 0 / 0.28);
+  --lift-2:
+    0 0 0 0.5px var(--rim-strong), 0 2px 4px rgb(0 0 0 / 0.12), 0 16px 36px -10px rgb(0 0 0 / 0.42);
+  --float-shadow:
+    0 0 0 0.5px var(--rim-strong), 0 2px 6px rgb(0 0 0 / 0.12), 0 18px 40px -12px rgb(0 0 0 / 0.45);
+  --hover-tint: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+[data-scheme='light'] .cv {
+  --lift-0: 0 0 0 0.5px var(--rim), 0 1px 2px rgb(16 22 34 / 0.06);
+  --lift-1:
+    0 0 0 0.5px var(--rim), 0 1px 2px rgb(16 22 34 / 0.06), 0 8px 20px -8px rgb(16 22 34 / 0.18);
+  --lift-2:
+    0 0 0 0.5px var(--rim-strong), 0 2px 4px rgb(16 22 34 / 0.08),
+    0 18px 40px -12px rgb(16 22 34 / 0.26);
+  --float-shadow:
+    0 0 0 0.5px rgb(16 22 34 / 0.1), 0 2px 6px rgb(16 22 34 / 0.06),
+    0 18px 40px -12px rgb(16 22 34 / 0.22);
+}
+
+/* ---- sections: a quiet tinted floor with a hairline edge, named by a solid chip ---- */
+.cv .cv-frame {
+  --fill: color-mix(in srgb, var(--fg) 3.5%, var(--board));
+  --line: color-mix(in srgb, var(--fg) 9%, transparent);
+  border-radius: 22px;
+  background: var(--fill);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition:
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+.cv .cv-frame[class*=' fc'] {
+  --fill: color-mix(in srgb, var(--fc) 10%, var(--board));
+  --line: color-mix(in srgb, var(--fc) 30%, transparent);
+}
+[data-scheme='light'] .cv .cv-frame {
+  --fill: color-mix(in srgb, #000 2.5%, var(--board));
+  --line: rgb(16 22 34 / 0.08);
+}
+[data-scheme='light'] .cv .cv-frame[class*=' fc'] {
+  --fill: color-mix(in srgb, var(--fc) 9%, #fff);
+  --line: color-mix(in srgb, var(--fc) 28%, transparent);
+}
+.cv .cv-frame.hov:not(.sel) {
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 0 0 calc(1.5px * var(--hs, 1)) color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.cv .cv-frame.sel,
+.cv .cv-frame.hov.sel {
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    0 0 0 calc(2px * var(--hs, 1)) var(--accent),
+    0 0 0 calc(6px * var(--hs, 1)) color-mix(in srgb, var(--accent) 14%, transparent);
+}
+/* a card held over a section: the section opens up to take it */
+.cv .cv-frame.drop {
+  background: color-mix(in srgb, var(--accent) 9%, var(--fill));
+  box-shadow:
+    inset 0 0 0 calc(2px * var(--hs, 1)) var(--accent),
+    0 0 0 calc(8px * var(--hs, 1)) color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.cv .cv-frame-head {
+  gap: 6px;
+  padding-bottom: 8px;
+}
+/* the name: a solid chip in the section's colour (neutral when it has none), the count tucked beside it */
+.cv .cv-frame-name {
+  padding: 4px 10px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 10%, var(--board));
+  box-shadow: inset 0 0 0 0.5px var(--rim);
+  transition:
+    background-color 0.15s ease,
+    scale var(--spring-snappy-dur) var(--spring-snappy);
+}
+.cv .cv-frame[class*=' fc'] .cv-frame-name {
+  color: color-mix(in srgb, var(--fc) 35%, #fff);
+  background: color-mix(in srgb, var(--fc) 30%, var(--board));
+}
+[data-scheme='light'] .cv .cv-frame[class*=' fc'] .cv-frame-name {
+  color: color-mix(in srgb, var(--fc) 60%, #000);
+  background: color-mix(in srgb, var(--fc) 22%, #fff);
+}
+.cv .cv-frame-head:hover .cv-frame-name {
+  background: color-mix(in srgb, var(--fg) 15%, var(--board));
+}
+.cv .cv-frame-head:active .cv-frame-name {
+  scale: 0.97;
+}
+.cv .cv-frame.sel .cv-frame-name {
+  color: var(--accent-fg, #fff);
+  background: var(--accent);
+}
+.cv .cv-frame-count {
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-dim);
+  background: none;
+  opacity: 0.85;
+}
+.cv .cv-frame-input {
+  height: 30px;
+  padding: 0 10px;
+  margin-left: 0;
+  border-radius: 9px;
+  font-size: 13.5px;
+  box-shadow:
+    inset 0 0 0 1.5px var(--accent),
+    0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ---- sticky notes: paper, lit from above, lifting at the corner ---- */
+.cv .cv-note {
+  border-radius: 4px 4px 18px 4px;
+  color: #26221a;
+  background:
+    linear-gradient(170deg, rgb(255 255 255 / 0.28), transparent 38%),
+    linear-gradient(to top left, rgb(0 0 0 / 0.06), transparent 30%), var(--n);
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--n) 60%, #000),
+    0 1px 1px rgb(0 0 0 / 0.08),
+    0 8px 18px -8px rgb(0 0 0 / 0.35),
+    14px 16px 22px -18px rgb(0 0 0 / 0.5);
+  font-weight: 500;
+  line-height: 1.32;
+  letter-spacing: -0.01em;
+  transition:
+    box-shadow 0.22s ease,
+    scale var(--spring-snappy-dur) var(--spring-snappy),
+    height 0.18s var(--ease),
+    width 0.18s var(--ease);
+}
+.cv .cv-note:hover:not(.sel) {
+  scale: 1.012;
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--n) 60%, #000),
+    0 2px 3px rgb(0 0 0 / 0.08),
+    0 14px 26px -10px rgb(0 0 0 / 0.4),
+    16px 20px 26px -18px rgb(0 0 0 / 0.55);
+}
+.cv .cv-note.sel {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 6px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 10px 22px -10px rgb(0 0 0 / 0.4);
+}
+.cv.dragging .cv-note,
+.cv.resizing .cv-note {
+  transition: box-shadow 0.22s ease;
+}
+
+/* the empty note's prompt: quiet, so a fresh note reads as blank paper */
+.cv .cv-note-empty,
+.cv .cv-note textarea::placeholder {
+  color: rgb(38 34 26 / 0.38);
+  font-weight: 450;
+}
+
+/* ---- blocks: tables, checklists, code — sheets of paper on the board ---- */
+.cv .cv-block {
+  border-radius: 14px;
+  background: var(--card-bg);
+  box-shadow: var(--lift-1);
+  transition: box-shadow 0.22s ease;
+}
+.cv .cv-marks :hover > .cv-block {
+  box-shadow: var(--lift-2);
+}
+.cv .cv-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.cv .cv-table th,
+.cv .cv-table td {
+  border: 0;
+  border-right: 1px solid var(--rim);
+  border-bottom: 1px solid var(--rim);
+  padding: 0 0.75em;
+}
+.cv .cv-table tr > :last-child {
+  border-right: 0;
+}
+.cv .cv-table tr:last-child > * {
+  border-bottom: 0;
+}
+.cv .cv-table th {
+  font-weight: 600;
+  font-size: 0.92em;
+  letter-spacing: 0.005em;
+  color: color-mix(in srgb, var(--mc) 40%, var(--fg));
+  background: color-mix(in srgb, var(--mc) 12%, transparent);
+}
+.cv .cv-table td {
+  color: color-mix(in srgb, var(--fg) 88%, transparent);
+  transition: background-color 0.12s ease;
+}
+.cv .cv-table tr:hover > td {
+  background: color-mix(in srgb, var(--fg) 3.5%, transparent);
+}
+.cv .cv-check {
+  padding: 14px 16px;
+}
+.cv .cv-check li {
+  gap: 0.7em;
+}
+/* the box: round, filling with the block's colour on a spring when ticked, the tick drawing itself */
+.cv .cv-check button {
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--fg) 35%, transparent);
+  transition:
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    scale var(--spring-bouncy-dur) var(--spring-bouncy);
+}
+.cv .cv-check button:hover {
+  box-shadow: inset 0 0 0 1.5px var(--mc);
+  scale: 1.08;
+}
+.cv .cv-check button:active {
+  scale: 0.85;
+  transition-duration: 0.06s;
+}
+.cv .cv-check li.done button {
+  background-color: var(--mc);
+  box-shadow: none;
+  animation: cv-tick var(--spring-bouncy-dur) var(--spring-bouncy) both;
+}
+@keyframes cv-tick {
+  from {
+    scale: 0.6;
+  }
+}
+/* ticked: the line runs through the words from the left, and they fade back */
+.cv .cv-check li span {
+  background: linear-gradient(currentColor, currentColor) 0 55% / 0% 1.5px no-repeat;
+  transition:
+    background-size 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.2s ease;
+}
+.cv .cv-check li.done span {
+  text-decoration: none;
+  color: var(--fg-dim);
+  background-size: 100% 1.5px;
+}
+.cv .cv-code {
+  border-radius: 14px;
+  font-size: 0.95em;
+  background: color-mix(in srgb, var(--fg) 4%, var(--card-bg));
+}
+
+/* ---- menus and dropdowns (the bar's, the board's right-click menu): one floating surface ---- */
+.cv .cv-menu,
+.cv .cv-ctx {
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--popover-bg);
+  box-shadow: var(--float-shadow);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+.cv .cv-ctx {
+  min-width: 220px;
+  font-size: 13px;
+  line-height: 1.35; /* room for descenders: the labels clip their overflow */
+  transform-origin: var(--ctx-ox, 0) var(--ctx-oy, 0);
+  animation: cv-surface-in var(--spring-snappy-dur) var(--spring-snappy) both;
+}
+@keyframes cv-surface-in {
+  from {
+    opacity: 0;
+    scale: 0.95;
+  }
+}
+.cv .cv-ctx-title {
+  padding: 8px 10px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.cv .cv-ctx button[role='menuitem'],
+.cv .cv-ctx button[role='menuitemcheckbox'],
+.cv .cv-menu button {
+  min-height: 32px;
+  height: auto;
+  padding: 6px 10px;
+  gap: 10px;
+  border-radius: 8px;
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease;
+}
+.cv .cv-ctx-lead,
+.cv .cv-menu.rows button > svg {
+  color: var(--fg-dim);
+  transition: color 0.1s ease;
+}
+.cv
+  .cv-ctx
+  button:is([role='menuitem'], [role='menuitemcheckbox']):is(:hover, :focus-visible, .open),
+.cv .cv-menu button:is(:hover, :focus-visible) {
+  background: var(--hover-tint);
+  color: var(--fg);
+}
+.cv
+  .cv-ctx
+  button:is([role='menuitem'], [role='menuitemcheckbox']):is(:hover, :focus-visible, .open)
+  .cv-ctx-lead,
+.cv .cv-menu.rows button:is(:hover, :focus-visible) > svg {
+  color: var(--accent);
+}
+.cv .cv-ctx button:is([role='menuitem'], [role='menuitemcheckbox']):active,
+.cv .cv-menu button:active {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+/* checked items: the accent tick, not just a colour change */
+.cv .cv-menu.rows button[aria-checked='true'] {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.cv .cv-menu.rows button[aria-checked='true'] > svg {
+  color: var(--accent);
+}
+.cv .cv-ctx kbd,
+.cv .cv-menu kbd {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  opacity: 1;
+}
+.cv .cv-ctx-sep,
+.cv .cv-menu-sep {
+  height: 1px;
+  margin: 5px 10px;
+  background: var(--rim);
+}
+.cv .cv-ctx button.danger:is(:hover, :focus-visible) {
+  color: var(--danger, #e5484d);
+  background: color-mix(in srgb, var(--danger, #e5484d) 14%, transparent);
+}
+.cv .cv-ctx button.danger:is(:hover, :focus-visible) .cv-ctx-lead {
+  color: inherit;
+}
+
+/* ---- toasts and selection bars: the same floating surface ---- */
+.cv .cv-toast {
+  border-radius: 14px;
+  background: var(--popover-bg);
+  box-shadow: var(--float-shadow);
+  backdrop-filter: blur(20px) saturate(1.4);
+  animation: cv-toast-in var(--spring-bouncy-dur) var(--spring-bouncy) both;
+}
+@keyframes cv-toast-in {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+    scale: 0.96;
+  }
+}
+.cv .cv-toast button {
+  border-radius: 8px;
+  transition:
+    background-color 0.1s ease,
+    scale var(--spring-snappy-dur) var(--spring-snappy);
+}
+.cv .cv-toast button:active {
+  scale: 0.95;
+}
+.cv .cv-kbar,
+.cv .cv-fbar {
+  border-radius: 12px;
+  background: var(--popover-bg);
+  box-shadow: var(--float-shadow);
+}
+
+/* efficient mode: no frosted glass */
+[data-fx='low'] .cv .cv-menu,
+[data-fx='low'] .cv .cv-ctx,
+[data-fx='low'] .cv .cv-toast {
+  backdrop-filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv .cv-ctx,
+  .cv .cv-toast,
+  .cv .cv-check li.done button {
+    animation: none;
+  }
+}

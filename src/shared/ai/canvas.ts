@@ -44,7 +44,8 @@ export const SPLIT_TOP_EXTRA = SPLIT_LIP + SPLIT_CLEAR - HEAD
 /** How much wider a section holding a split is on each side (and lower, when the split is its last row): none. */
 export const SPLIT_SIDE = SPLIT_INSET + SPLIT_CLEAR - PAD
 export const NOTE_W = 240
-export const NOTE_H = 120
+/** A sticky note is square, as paper ones are: it never shrinks below this, and grows only for long text. */
+export const NOTE_H = 240
 export const NOTE_MIN_W = 160
 export const NOTE_MAX_W = 520
 export const NOTE_MIN_H = 72
@@ -1448,7 +1449,8 @@ export function addNote(
 ): { state: CanvasState; id: string } {
   const id = `n${s.seq + 1}`
   const size = o.size ?? { w: NOTE_W, h: NOTE_H }
-  const extra = o.widget ? { widget: o.widget } : {}
+  // a plain new note keeps its square however little it says (its height is a minimum, see noteHeight)
+  const extra = o.widget ? { widget: o.widget } : o.size ? {} : { minH: NOTE_H }
   const inside = frameAt(s, at.x + size.w / 2, at.y + size.h / 2)
   if (inside && inside.kind !== 'private') {
     const made: CanvasState = {

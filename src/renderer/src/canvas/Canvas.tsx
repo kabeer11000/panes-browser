@@ -36,7 +36,9 @@ import {
   nearestCard,
   NOTE_COLORS,
   NOTE_MAX_W,
+  NOTE_H,
   NOTE_MIN_H,
+  NOTE_W,
   NOTE_MIN_W,
   OTHER_ID,
   dropNote,
@@ -2042,7 +2044,7 @@ export function Canvas({
     const note =
       (t: string, q: { x: number; y: number }): Put =>
       (s0) => {
-        const n = addNote(s0, { x: q.x - 92, y: q.y - 66 }, s0.notes.length)
+        const n = addNote(s0, { x: q.x - NOTE_W / 2, y: q.y - NOTE_H / 2 }, s0.notes.length)
         return { state: patchNote(n.state, n.id, { text: t.slice(0, 600) }), key: `n:${n.id}` }
       }
     const fileUrl = (path: string): string => `file:///${encodeURI(path.replace(/\\/g, '/'))}`
@@ -2697,7 +2699,7 @@ export function Canvas({
       root.current!.setPointerCapture(e.pointerId)
     } else if (toolRef.current === 'note') {
       e.preventDefault() // the click must not move focus off the note about to be written
-      const r = addNote(stRef.current!, { x: w.x - 92, y: w.y - 66 }, stRef.current!.notes.length)
+      const r = addNote(stRef.current!, { x: w.x - NOTE_W / 2, y: w.y - NOTE_H / 2 }, stRef.current!.notes.length)
       edit(() => r.state, { undo: 'Added a note' })
       setSel(new Set([`n:${r.id}`]))
       setEditing(r.id)
@@ -4978,7 +4980,7 @@ export function Canvas({
         else if (act === 'note') {
           const made = addNote(
             stRef.current!,
-            { x: w.x - 92, y: w.y - 66 },
+            { x: w.x - NOTE_W / 2, y: w.y - NOTE_H / 2 },
             stRef.current!.notes.length
           )
           edit(() => made.state, { undo: 'Added a note' })
@@ -5053,7 +5055,7 @@ export function Canvas({
         run: () => {
           const r = addNote(
             stRef.current!,
-            { x: mid.x - 92, y: mid.y - 66 },
+            { x: mid.x - NOTE_W / 2, y: mid.y - NOTE_H / 2 },
             stRef.current!.notes.length
           )
           edit(() => r.state, { undo: 'Added a note' })
