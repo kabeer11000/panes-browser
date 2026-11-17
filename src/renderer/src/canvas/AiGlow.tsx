@@ -19,9 +19,15 @@ export function AiGlow({ level }: { level: 0 | 1 | 2 }): React.JSX.Element | nul
         if (level === 0 && e.target === e.currentTarget) setShown(false)
       }}
     >
-      <i />
-      <i />
-      <i />
+      <i>
+        <b />
+      </i>
+      <i>
+        <b />
+      </i>
+      <i>
+        <b />
+      </i>
     </div>
   )
 }
