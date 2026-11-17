@@ -7,6 +7,7 @@ import {
   multipartFile,
   scalePts,
   SHAKE_MS,
+  SHAKE_TURNS,
   ShakeWatch
 } from './circle'
 
@@ -79,6 +80,16 @@ describe('mouse shake', () => {
   test('a fast wave of long strokes is a shake', () => {
     expect(wave(new ShakeWatch(), 7, 80)).toBe(true)
   })
+  test('a real hand: eased strokes with a pixel of jitter', () => {
+    // a sine wave sampled every 8 ms (a 125 Hz mouse), ~5 strokes a second, x jittering by a pixel
+    const w = new ShakeWatch()
+    let hit = false
+    for (let t = 0; t < 1200; t += 8) {
+      const x = 500 + 70 * Math.sin((t / 200) * Math.PI) + (t % 24 === 0 ? -1 : 1)
+      hit = w.move(Math.round(x), t) || hit
+    }
+    expect(hit).toBe(true)
+  })
   test('small wobbles are not', () => {
     expect(wave(new ShakeWatch(), 12, 15)).toBe(false)
   })
@@ -95,7 +106,7 @@ describe('mouse shake', () => {
   })
   test('after a shake it starts over', () => {
     const w = new ShakeWatch()
-    expect(wave(w, 7, 80)).toBe(true)
+    expect(wave(w, SHAKE_TURNS + 1, 80)).toBe(true)
     expect(wave(w, 2, 80, 4, 1000)).toBe(false)
   })
 })

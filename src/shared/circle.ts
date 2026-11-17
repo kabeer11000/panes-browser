@@ -69,33 +69,43 @@ export function inPolygon(p: Pt, poly: readonly Pt[]): boolean {
  * A shake is SHAKE_TURNS changes of horizontal direction within SHAKE_MS, each leg at least SHAKE_LEG_PX long:
  * reading or scrolling never moves the mouse like that.
  */
-export const SHAKE_MS = 700
-export const SHAKE_TURNS = 5
+export const SHAKE_MS = 1000
+export const SHAKE_TURNS = 4
 export const SHAKE_LEG_PX = 40
+/** A step back smaller than this is hand or sensor jitter, not a turn. */
+export const SHAKE_JITTER_PX = 6
 
 export class ShakeWatch {
   private turns: number[] = []
   private dir = 0
-  private leg = 0
-  private lastX: number | null = null
+  /** where the current leg started, and the farthest x it has reached */
+  private from: number | null = null
+  private far = 0
 
   /** One mouse position (x, at time t in ms); true when it completes a shake (and the watch starts over). */
   move(x: number, t: number): boolean {
-    const dx = this.lastX === null ? 0 : x - this.lastX
-    this.lastX = x
-    if (dx === 0) return false
-    const d = Math.sign(dx)
-    if (d === this.dir) {
-      this.leg += Math.abs(dx)
+    if (this.from === null) {
+      this.from = this.far = x
       return false
     }
-    // a turn ends a leg: a long one counts towards a shake, a short wobble starts the count over
-    if (this.dir !== 0) {
-      if (this.leg >= SHAKE_LEG_PX) this.turns.push(t)
-      else this.turns = []
+    if (this.dir === 0) {
+      if (Math.abs(x - this.from) >= SHAKE_JITTER_PX) {
+        this.dir = Math.sign(x - this.from)
+        this.far = x
+      }
+      return false
     }
-    this.dir = d
-    this.leg = Math.abs(dx)
+    if ((x - this.far) * this.dir >= 0) {
+      this.far = x
+      return false
+    }
+    if (Math.abs(x - this.far) < SHAKE_JITTER_PX) return false
+    // a turn ends a leg: a long one counts towards a shake, a short wobble starts the count over
+    if (Math.abs(this.far - this.from) >= SHAKE_LEG_PX) this.turns.push(t)
+    else this.turns = []
+    this.from = this.far
+    this.far = x
+    this.dir = -this.dir
     this.turns = this.turns.filter((at) => t - at <= SHAKE_MS)
     if (this.turns.length < SHAKE_TURNS) return false
     this.reset()
@@ -105,8 +115,8 @@ export class ShakeWatch {
   reset(): void {
     this.turns = []
     this.dir = 0
-    this.leg = 0
-    this.lastX = null
+    this.from = null
+    this.far = 0
   }
 }
 

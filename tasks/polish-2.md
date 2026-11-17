@@ -62,6 +62,13 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
       screenshots it finds mostly "text label" boxes with masks: useful for "select this object" (mask) in circle to
       search, weak for understanding web UI. Needle 3 is a tool-call model, too small to write page code: llama.cpp
       stays for chat. Whistle (speech, 16.9 MB, CPU) is a candidate for voice input.
+- [x] Needle 3 (Cactus tool-call model, 35 MB) vs Qwen3-1.7B, 2026-11-17, bench `E:/tmp/toolbench/bench.ts`: 25 real
+      requests on Panes's own local tool sets (18 browser, 7 board), 4 threads, same system prompt with the tab list
+      / board ids. Qwen 17/25 (19/25 counting the two calls it wrote as text that `leakedCall` recovers), median
+      2.4 s. Needle 8/25, median 0.58 s, 80 MB RAM. Needle picks the right tool often but cannot use context: it
+      never maps "spotify tab" or "the react card" to an id from the list (gives 1, 7, "react"), suppresses most
+      board calls as low confidence, and puts the tab list in the prompt makes it worse. Decision: keep Qwen. Needle
+      only fits context-free intents (open a site, search a site, scroll), not worth a second runtime for that.
 - [ ] Page edits ("make YouTube's home mine", "sort this", "nyan cat in the corner", "latest Jira cards"): the model
       writes CSS/JS that Panes injects into that page, saved per site and re-applied, with an undo and a list to remove.
 - [ ] Outside AI (asked 2026-11-16): use the user's own Claude Code CLI / claude.ai / ChatGPT from Panes, sending page
