@@ -58,6 +58,12 @@ export class OffscreenPage {
     pages.set(this.webContents.id, this)
     this.webContents.stopPainting() // until it is shown
     this.webContents.on('paint', (e) => this.frame(e.texture))
+    // An offscreen page has no native popup for a <select> (it never opens). Chromium's customizable select draws its
+    // list inside the page instead, so it opens and is drawn like the rest of the page.
+    this.webContents.on('dom-ready', () => {
+      if (!this.webContents.isDestroyed())
+        void this.webContents.insertCSS(SELECT_IN_PAGE).catch(() => undefined)
+    })
     this.webContents.on('cursor-changed', (_e, type) => {
       if (!this.target.isDestroyed())
         this.target.webContents.send('osr:cursor', this.webContents.id, type)
@@ -170,6 +176,9 @@ export class OffscreenPage {
 }
 
 const pages = new Map<number, OffscreenPage>()
+
+/** See the dom-ready handler: selects open inside the page. */
+const SELECT_IN_PAGE = 'select, ::picker(select) { appearance: base-select !important; }'
 
 /** Whether this view is drawn off screen (OffscreenPage) rather than being a native view. */
 export const isOffscreen = (v: unknown): v is OffscreenPage =>

@@ -127,7 +127,8 @@ function wire(c: HTMLCanvasElement, first: Surface): void {
     if (!s) return
     const p = at(s, e)
     if (type === 'mouseDown') {
-      c.focus({ preventScroll: true })
+      e.preventDefault() // the keyboard goes to the typing box (takeKeys), not to the canvas
+      takeKeys(surface, e.clientX, e.clientY)
       ipcRenderer.send('osr:focus', s.id)
     }
     send(s, {
@@ -162,9 +163,35 @@ function wire(c: HTMLCanvasElement, first: Surface): void {
     },
     { passive: false }
   )
-  c.addEventListener('keydown', (e) => {
-    const s = surface()
-    if (!s) return
+  // reached with Tab: the keyboard goes to the typing box all the same
+  c.addEventListener('focus', () => {
+    const r = c.getBoundingClientRect()
+    takeKeys(surface, r.left + 8, r.top + 8)
+  })
+}
+
+/**
+ * The keyboard of the page clicked last goes through one hidden text box, so an input method (IME) can compose in it as
+ * in any text field: plain keys are sent as they are, composed text is typed into the page once it is committed. The
+ * box sits where the page was clicked, so the IME's candidate list opens there.
+ */
+let ime: HTMLTextAreaElement | null = null
+let keysTo: (() => Surface | null) | null = null
+
+function typingBox(): HTMLTextAreaElement {
+  if (ime && ime.isConnected) return ime
+  const t = document.createElement('textarea')
+  t.setAttribute('aria-hidden', 'true')
+  t.tabIndex = -1
+  t.style.cssText =
+    'position:absolute;left:0;top:0;width:2px;height:1.2em;opacity:0;pointer-events:none;resize:none;border:0;padding:0;font-size:16px'
+  const to = (): Surface | null => keysTo?.() ?? null
+  const send = (s: Surface, ev: Record<string, unknown>): void =>
+    ipcRenderer.send('osr:input', s.id, ev)
+  t.addEventListener('keydown', (e) => {
+    const s = to()
+    // an IME at work: its keys are its own until it commits (compositionend)
+    if (!s || e.isComposing || e.key === 'Process' || e.keyCode === 229) return
     e.preventDefault()
     e.stopPropagation()
     send(s, { type: 'keyDown', keyCode: e.key, modifiers: mods(e) })
@@ -172,12 +199,30 @@ function wire(c: HTMLCanvasElement, first: Surface): void {
     if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey)
       send(s, { type: 'char', keyCode: e.key, modifiers: mods(e) })
   })
-  c.addEventListener('keyup', (e) => {
-    const s = surface()
-    if (!s) return
+  t.addEventListener('keyup', (e) => {
+    const s = to()
+    if (!s || e.isComposing) return
     e.preventDefault()
     send(s, { type: 'keyUp', keyCode: e.key, modifiers: mods(e) })
   })
+  t.addEventListener('compositionend', (e) => {
+    const s = to()
+    if (s) for (const ch of e.data ?? '') send(s, { type: 'char', keyCode: ch })
+    t.value = ''
+  })
+  t.addEventListener('input', (e) => {
+    if (!(e as InputEvent).isComposing) t.value = ''
+  })
+  ensureLayer().appendChild(t)
+  ime = t
+  return t
+}
+
+function takeKeys(get: () => Surface | null, x: number, y: number): void {
+  keysTo = get
+  const t = typingBox()
+  t.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+  t.focus({ preventScroll: true })
 }
 
 function cursorFor(type: string): string {
