@@ -882,8 +882,12 @@ export class TabManager {
     }
     // Drawn off screen into the window's canvases (experimental, see OffscreenPage): only with the graphics hardware
     // compositing, as the frames are GPU textures.
-    // (known before the GPU reports in, unlike liveCardsAllowed: the first tabs are made at startup)
-    const offscreen = this.deps.settings.get().offscreenPages && app.isHardwareAccelerationEnabled()
+    // (known before the GPU reports in, unlike liveCardsAllowed: the first tabs are made at startup). Never with a
+    // screen reader on: an offscreen page has no accessibility tree for it to read.
+    const offscreen =
+      this.deps.settings.get().offscreenPages &&
+      app.isHardwareAccelerationEnabled() &&
+      !app.isAccessibilitySupportEnabled()
     const view: TabView = offscreen
       ? new OffscreenPage(this.win, webPreferences)
       : new WebContentsView({ webPreferences })

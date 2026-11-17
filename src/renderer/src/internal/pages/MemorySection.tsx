@@ -192,7 +192,7 @@ export function MemorySection({ s, update }: Props): React.JSX.Element {
       </Row>
       <Row
         label="Draw pages inside the window (experimental)"
-        hint="Pages are drawn straight into Panes on the graphics card instead of in separate native views, so the board can move and scale them live. Applies to pages as they load. Typing with an input method editor, dragging files into pages and picture in picture do not work yet."
+        hint="Pages are drawn straight into Panes on the graphics card instead of in separate native views, so the board can move and scale them live. Applies to pages as they load. With a screen reader running, pages stay in native views so it can read them."
       >
         <Toggle
           label="Draw pages inside the window"
