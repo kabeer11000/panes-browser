@@ -5820,7 +5820,6 @@ export function Canvas({
         ai={aiAvailable}
         onSettings={() => window.api.openInternal('settings')}
         onFit={fitAll}
-        onZoom={stepZoom}
       />
     </div>
   )

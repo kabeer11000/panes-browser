@@ -46,11 +46,6 @@ export const TidyIcon = (): React.JSX.Element => (
     <path d="M11.6 9.4l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6Z" />
   </Svg>
 )
-export const ChevronIcon = (): React.JSX.Element => (
-  <Svg>
-    <path d="M4.5 6.5 8 10l3.5-3.5" />
-  </Svg>
-)
 export const ExpandIcon = (): React.JSX.Element => (
   <Svg>
     <path d="M9.4 2.8h3.8v3.8M6.6 13.2H2.8V9.4M13.2 2.8 9 7M2.8 13.2 7 9" />

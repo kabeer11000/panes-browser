@@ -953,15 +953,6 @@
     0 12px 32px rgb(0 0 0 / 0.3);
   backdrop-filter: blur(14px);
 }
-.cv.entering .cv-bar {
-  animation: cv-bar 0.4s var(--ease) 0.12s both;
-}
-@keyframes cv-bar {
-  from {
-    opacity: 0;
-    translate: -50% 10px;
-  }
-}
 .cv-tool,
 .cv-zoom {
   height: 32px;
@@ -4688,4 +4679,101 @@
   top: 0;
   height: 0;
   pointer-events: none;
+}
+
+/* ---- the toolbar's motion, after FigJam's: the chosen tool's highlight glides between tools, a tool lifts on a
+   spring under the pointer and squishes when pressed, menus pop up from the bar, the bar springs in ---- */
+.cv-bar {
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.cv-bar-pill {
+  position: absolute;
+  left: 0;
+  top: 5px;
+  height: 32px;
+  width: var(--pill-w, 0);
+  translate: var(--pill-x, 0) 0;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  opacity: 0;
+  transition:
+    translate 0.38s var(--spring),
+    width 0.38s var(--spring),
+    opacity 0.2s ease;
+  pointer-events: none;
+}
+.cv-bar.has-pill .cv-bar-pill {
+  opacity: 1;
+}
+.cv-bar .cv-tool,
+.cv-bar .cv-zoom {
+  position: relative;
+}
+.cv-bar .cv-tool.on {
+  background: none; /* the pill is its background */
+}
+.cv-bar .cv-tool > svg,
+.cv-bar .cv-tool > span {
+  transition:
+    translate 0.32s var(--spring),
+    scale 0.32s var(--spring);
+}
+.cv-bar .cv-tool:hover:not(:disabled) > svg {
+  translate: 0 -2px;
+  scale: 1.1;
+}
+.cv-bar .cv-tool:active:not(:disabled) > svg {
+  translate: 0 0;
+  scale: 0.88;
+  transition-duration: 0.08s;
+}
+.cv-bar .cv-tool:disabled {
+  cursor: default;
+}
+/* a tool with a menu: a small mark in its corner (click it again, or right-click, for the menu) */
+.cv-tool.has-menu::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-bottom: 4px solid currentColor;
+  opacity: 0.55;
+}
+.cv-bar .cv-menu {
+  transform-origin: 20px 100%;
+  animation: cv-menu-pop 0.26s var(--spring) both;
+}
+@keyframes cv-menu-pop {
+  from {
+    opacity: 0;
+    scale: 0.92;
+    translate: 0 6px;
+  }
+}
+.cv.entering .cv-bar {
+  animation: cv-bar-spring 0.6s var(--spring) 0.1s both;
+}
+@keyframes cv-bar-spring {
+  from {
+    opacity: 0;
+    translate: -50% 28px;
+    scale: 0.94;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-bar-pill,
+  .cv-bar .cv-tool > svg {
+    transition: none;
+  }
+  .cv-bar .cv-menu,
+  .cv.entering .cv-bar {
+    animation: none;
+  }
+}
+/* a menu open from the bar goes over the toasts and banners that sit just above the bar */
+.cv-bar:has(.cv-menu) {
+  z-index: 14;
 }

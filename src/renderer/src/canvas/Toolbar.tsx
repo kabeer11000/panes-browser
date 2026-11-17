@@ -1,10 +1,9 @@
 import { arrangeLabel } from '@shared/ai/canvasMenu'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useDismiss } from './useDismiss'
 import { SHAPE_KINDS, type BlockKind, type ShapeKind } from '@shared/ai/canvasMarks'
 import {
   BlockIcon,
-  ChevronIcon,
   ConnectorIcon,
   FrameIcon,
   HandIcon,
@@ -94,7 +93,6 @@ interface Props {
   onTidy: () => void
   onSettings: () => void
   onFit: () => void
-  onZoom: (factor: number) => void
 }
 
 /** The floating bar at the bottom of the board. Quiet: it is a row of small buttons, nothing more. */
@@ -117,8 +115,7 @@ export function Toolbar({
   onTool,
   onTidy,
   onSettings,
-  onFit,
-  onZoom
+  onFit
 }: Props): React.JSX.Element {
   const [shapes, setShapes] = useState(false)
   const [blocks, setBlocks] = useState(false)
@@ -145,31 +142,60 @@ export function Toolbar({
     blocksBox,
     useCallback(() => setBlocks(false), [])
   )
+  // the chosen tool's highlight glides from tool to tool (as in FigJam) instead of jumping
+  useLayoutEffect(() => {
+    const bar = box.current
+    if (!bar) return
+    const place = (): void => {
+      const on = bar.querySelector<HTMLElement>('.cv-tool.on')
+      // its place in the bar: a tool with a menu sits in its own positioned box, so add up the offsets to the bar
+      let x = 0
+      for (
+        let el: HTMLElement | null = on;
+        el && el !== bar;
+        el = el.offsetParent as HTMLElement | null
+      )
+        x += el.offsetLeft
+      bar.style.setProperty('--pill-x', `${x}px`)
+      bar.style.setProperty('--pill-w', `${on ? on.offsetWidth : 0}px`)
+      bar.classList.toggle('has-pill', !!on)
+    }
+    place()
+    const ro = new ResizeObserver(place)
+    ro.observe(bar)
+    return () => ro.disconnect()
+  }, [tool, showPrompt])
+  /** A tool with a menu: a click picks it, a click on it once picked (or a right-click) opens its menu. */
+  const menuTool = (
+    picked: boolean,
+    pick: () => void,
+    toggle: (f: (m: boolean) => boolean) => void
+  ): Pick<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onClick' | 'onContextMenu'> => ({
+    onClick: () => (picked ? toggle((m) => !m) : pick()),
+    onContextMenu: (e) => {
+      e.preventDefault()
+      pick()
+      toggle(() => true)
+    }
+  })
   return (
     <div className="cv-bar" role="toolbar" aria-label="Canvas tools" ref={box}>
+      <i className="cv-bar-pill" aria-hidden="true" />
       {NAV.map(toolButton)}
       <span className="cv-sep" aria-hidden="true" />
       {PUT.map(toolButton)}
       <div className="cv-split" ref={shapesBox}>
         <button
           type="button"
-          className={'cv-tool' + (tool === 'shape' ? ' on' : '')}
+          className={'cv-tool has-menu' + (tool === 'shape' ? ' on' : '')}
           aria-pressed={tool === 'shape'}
-          aria-label={`Shape: ${SHAPE_LABEL[shapeKind]}`}
-          title={`Shape: ${SHAPE_LABEL[shapeKind]} (R, X to change)`}
-          onClick={() => onTool('shape')}
-        >
-          <ShapeIcon />
-        </button>
-        <button
-          type="button"
-          className="cv-tool cv-more"
-          aria-label="Choose a shape"
           aria-haspopup="menu"
           aria-expanded={shapes}
-          onClick={() => setShapes((m) => !m)}
+          aria-label={`Shape: ${SHAPE_LABEL[shapeKind]}`}
+          title={`Shape: ${SHAPE_LABEL[shapeKind]} (R; click again for more shapes)`}
+          {...menuTool(tool === 'shape', () => onTool('shape'), setShapes)}
         >
-          <ChevronIcon />
+          <ShapeIcon />
         </button>
         {shapes && (
           <div className="cv-menu" role="menu">
@@ -192,16 +218,17 @@ export function Toolbar({
         )}
       </div>
       <div className="cv-split" ref={drawsBox}>
-        {toolButton(draw)}
         <button
           type="button"
-          className="cv-tool cv-more"
-          aria-label="Choose a drawing tool"
+          className={'cv-tool has-menu' + (tool === draw.id ? ' on' : '')}
+          aria-pressed={tool === draw.id}
           aria-haspopup="menu"
           aria-expanded={draws}
-          onClick={() => setDraws((m) => !m)}
+          aria-label={draw.label}
+          title={`${draw.label} (${draw.key}; click again for other pens)`}
+          {...menuTool(tool === draw.id, () => onTool(draw.id), setDraws)}
         >
-          <ChevronIcon />
+          {draw.icon}
         </button>
         {draws && (
           <div className="cv-menu rows" role="menu">
@@ -331,29 +358,14 @@ export function Toolbar({
       >
         <TidyIcon />
       </button>
-      <span className="cv-sep" aria-hidden="true" />
       <button
         type="button"
-        className="cv-tool narrow"
-        aria-label="Zoom out"
-        title="Zoom out (-)"
-        onClick={() => onZoom(0.8)}
+        className="cv-zoom"
+        title="Fit everything (Shift+1); zoom with + and - or Ctrl and the wheel"
+        onClick={onFit}
       >
-        <span aria-hidden="true">-</span>
-      </button>
-      <button type="button" className="cv-zoom" title="Fit everything (Shift+1)" onClick={onFit}>
         <span ref={zoomRef}>{zoom}%</span>
       </button>
-      <button
-        type="button"
-        className="cv-tool narrow"
-        aria-label="Zoom in"
-        title="Zoom in (+)"
-        onClick={() => onZoom(1.25)}
-      >
-        <span aria-hidden="true">+</span>
-      </button>
-      <span className="cv-sep" aria-hidden="true" />
       <button
         type="button"
         className="cv-tool"
