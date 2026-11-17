@@ -536,3 +536,98 @@
     animation: none;
   }
 }
+
+/* ---- handles: one language for every grip on the board (cards, sections, notes, drawings, tables). A corner is a
+   white square with a soft round, an accent ring and a little shadow; a section's sides are pills. They grow under the
+   pointer and give a little when pressed, on the snappy spring. White in both themes, so they read on any surface. ---- */
+.cv {
+  --grip-ring: 0 0 0 1.5px var(--accent);
+  --grip-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+.cv .cv-crz.nw,
+.cv .cv-crz.ne,
+.cv .cv-crz.sw,
+.cv .cv-crz.se,
+.cv .cv-rz,
+.cv .cv-nrz.se {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: var(--grip-ring), var(--grip-shadow);
+  transition:
+    opacity var(--dur-fast),
+    scale var(--dur-snappy) var(--ease-snappy);
+}
+.cv .cv-crz.nw,
+.cv .cv-crz.ne,
+.cv .cv-crz.sw,
+.cv .cv-crz.se,
+.cv .cv-rz {
+  margin: -5px;
+}
+/* a section's sides: pills along the edge, so its corners read as corners */
+.cv .cv-rz.n,
+.cv .cv-rz.s {
+  width: 20px;
+  height: 7px;
+  margin: -3.5px -10px;
+}
+.cv .cv-rz.e,
+.cv .cv-rz.w {
+  width: 7px;
+  height: 20px;
+  margin: -10px -3.5px;
+}
+.cv .cv-crz:is(.nw, .ne, .sw, .se):hover,
+.cv .cv-rz:hover,
+.cv .cv-nrz.se:hover {
+  scale: calc(var(--hs, 1) * 1.3);
+}
+.cv .cv-crz:is(.nw, .ne, .sw, .se):active,
+.cv .cv-rz:active,
+.cv .cv-nrz.se:active {
+  scale: calc(var(--hs, 1) * 1.12);
+}
+
+/* drawings, shapes and tables: the same grips, kept their size on screen; a solid outline like a selected card's */
+.cv .cv-mark-handles .outline {
+  stroke-dasharray: none;
+  stroke-width: 1.5;
+}
+.cv .cv-mark-handles .grip {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.3));
+  transform-box: fill-box;
+  transform-origin: center;
+  scale: var(--hs, 1);
+  transition: scale var(--dur-snappy) var(--ease-snappy);
+  animation: cv-grip-in var(--dur-snappy) var(--ease-snappy) both;
+}
+.cv .cv-mark-handles .grip:hover {
+  scale: calc(var(--hs, 1) * 1.3);
+}
+.cv .cv-mark-handles .grip:active {
+  scale: calc(var(--hs, 1) * 1.12);
+}
+/* arrow ends: a white dot with the accent ring, like the grips */
+.cv .cv-handle {
+  fill: #fff;
+  filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.3));
+}
+.cv .cv-handle:hover {
+  fill: var(--accent);
+}
+@keyframes cv-grip-in {
+  from {
+    opacity: 0;
+    scale: calc(var(--hs, 1) * 0.4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv .cv-mark-handles .grip {
+    animation: none;
+  }
+}

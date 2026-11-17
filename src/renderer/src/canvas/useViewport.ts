@@ -21,6 +21,7 @@ const HS_READERS = [
   '.cv-guides',
   '.cv-handle',
   '.cv-kend',
+  '.cv-mark-handles',
   '.cv-nrz',
   '.cv-rz',
   '.cv-splithead'
