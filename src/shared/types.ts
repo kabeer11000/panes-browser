@@ -178,6 +178,8 @@ export type UiCommand =
   | 'toggle-chat'
 
 export interface PanesApi {
+  /** Whether a tab's page is drawn off screen into this window (Settings, Draw pages inside the window). */
+  isOffscreenTab?(tabId: number): boolean
   getState(): Promise<InitialData>
   onState(cb: (state: TabsState) => void): () => void
   onThumb(cb: (id: number, dataUrl: string) => void): () => void

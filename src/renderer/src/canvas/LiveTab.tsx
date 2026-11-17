@@ -27,9 +27,12 @@ function stop(s: MediaStream): void {
 }
 
 /** The frame on screen in `v`, cut to what the card shows of it (`f`: fitRegion's answer), as a small JPEG. */
-function grabStill(v: HTMLVideoElement, f: ReturnType<typeof fitRegion>): string | null {
-  const vw = v.videoWidth
-  const vh = v.videoHeight
+function grabStill(
+  v: HTMLVideoElement | HTMLCanvasElement,
+  f: ReturnType<typeof fitRegion>
+): string | null {
+  const vw = v instanceof HTMLVideoElement ? v.videoWidth : v.width
+  const vh = v instanceof HTMLVideoElement ? v.videoHeight : v.height
   if (!vw || !vh || f.video.w <= 0 || f.video.h <= 0) return null
   const sx = Math.max(0, (-f.video.x / f.video.w) * vw)
   const sy = Math.max(0, (-f.video.y / f.video.h) * vh)
@@ -75,6 +78,11 @@ export function LiveTab({
   whole?: boolean
 }): React.JSX.Element | null {
   const video = useRef<HTMLVideoElement>(null)
+  // A tab drawn off screen (Settings, Draw pages inside the window) needs no capture: its own frames are drawn into a
+  // canvas here (preload/osr.ts), the same GPU textures it is drawn with anywhere else, without a copy
+  const [osr] = useState(() => !!window.api.isOffscreenTab?.(id))
+  // a state, not a ref: the canvas is only there once the video's place is known, and the effect below waits for it
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null)
   // while the board moves the video holds its frame (the stream keeps running, so it carries on at once), and the
   // capture is not resized, restarted or started: that waits for the board to settle (boardMoving)
   const moving = useRef(false)
@@ -84,13 +92,13 @@ export function LiveTab({
       onBoardMotion((m) => {
         moving.current = m
         const v = video.current
-        if (v?.srcObject) {
+        if (v?.srcObject && !osr) {
           if (m) v.pause()
           else void v.play().catch(() => undefined)
         }
         setBoardMoving(m)
       }),
-    []
+    [osr]
   )
   const [region, setRegion] = useState<VideoRegion | null>(whole ? WHOLE_PAGE : null)
   const [streamAspect, setStreamAspect] = useState<number | null>(null)
@@ -197,9 +205,32 @@ export function LiveTab({
     if (Number.isFinite(ar) && ar > 0.25 && ar < 4) onAspect(id, ar)
   }, [id, region, pageAr, onAspect])
   const height = width ? Math.max(180, Math.round(width / pageAr / 2) * 2) : 0
+  // drawn off screen: shown once the first frame is in its canvas (the preload marks it)
+  useEffect(() => {
+    const c = canvas
+    if (!osr || !c) return
+    const seen = (): void => {
+      if (!c.hasAttribute('data-osr-drawn')) return
+      startedAt.current = Math.min(startedAt.current, performance.now())
+      setStreamAspect(c.width && c.height ? c.width / c.height : null)
+      setHasFrame(true)
+      askNow.current()
+    }
+    startedAt.current = performance.now()
+    const mo = new MutationObserver(seen)
+    mo.observe(c, { attributes: true, attributeFilter: ['data-osr-drawn'] })
+    seen()
+    return () => {
+      mo.disconnect()
+      const f = fitRef.current
+      const still = f && c.width ? grabStill(c, f) : null
+      if (still) onStillRef.current?.(id, still)
+      setHasFrame(false)
+    }
+  }, [id, osr, canvas])
   useEffect(() => {
     const v = video.current
-    if (!width || !height || !fps || !v) return
+    if (osr || !width || !height || !fps || !v) return
     let dead = false
     let stream: MediaStream | null = null
     void (async () => {
@@ -239,7 +270,7 @@ export function LiveTab({
       startedAt.current = Infinity
       setHasFrame(false)
     }
-  }, [id, width, height, fps, whole])
+  }, [id, width, height, fps, whole, osr])
 
   const f = region
     ? fitRegion(
@@ -258,8 +289,22 @@ export function LiveTab({
   return (
     <div className={'cv-live' + (on ? ' on' : '')} aria-hidden="true">
       <div className="cv-live-clip" style={{ width: `${f.clip.w}%`, height: `${f.clip.h}%` }}>
+        {osr && (
+          <canvas
+            ref={setCanvas}
+            data-osr-tab={id}
+            data-osr-passive=""
+            style={{
+              left: `${f.video.x}%`,
+              top: `${f.video.y}%`,
+              width: `${f.video.w}%`,
+              height: `${f.video.h}%`
+            }}
+          />
+        )}
         <video
           ref={video}
+          hidden={osr}
           muted
           playsInline
           disablePictureInPicture

@@ -3808,7 +3808,8 @@
   position: relative;
   overflow: hidden;
 }
-.cv-live video {
+.cv-live video,
+.cv-live canvas {
   position: absolute;
   max-width: none;
 }

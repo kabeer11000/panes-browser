@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import { startOffscreenPages } from './osr'
+import { isOffscreenTab, startOffscreenPages } from './osr'
 import type { UpdateState } from '@shared/update'
 import type { KeyLike } from '@shared/tour'
 import type { CanvasFoundEvent } from '@shared/ai/canvasFind'
@@ -201,7 +201,8 @@ const api: PanesApi = {
   installUpdate: () => ipcRenderer.send('update:install'),
   revealPendingPassword: () => ipcRenderer.invoke('pw:reveal-pending') as Promise<string | null>,
   setPromptAnchor: (anchor) => ipcRenderer.send('pw:anchor', anchor),
-  platform: process.platform
+  platform: process.platform,
+  isOffscreenTab: (tabId) => typeof tabId === 'number' && isOffscreenTab(tabId)
 }
 
 contextBridge.exposeInMainWorld('api', api)

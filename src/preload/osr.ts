@@ -55,7 +55,8 @@ function retarget(s: Surface): void {
   if (into !== s.into) {
     s.into = into
     s.ctx = null
-    if (board) wire(board, s)
+    // a live card's canvas only shows the page (data-osr-passive): clicks on it are the board's
+    if (board && !board.hasAttribute('data-osr-passive')) wire(board, s)
     if (s.last) s.pending ??= s.last.clone()
   }
   const ownShown = !board && s.visible
@@ -86,6 +87,8 @@ function draw(): void {
     }
     s.ctx ??= c.getContext('2d', { alpha: false, desynchronized: true })
     s.ctx?.drawImage(f, 0, 0)
+    // the board shows its canvas once something is drawn in it (a live card fades in on its first frame)
+    if (c !== s.own && !c.hasAttribute('data-osr-drawn')) c.setAttribute('data-osr-drawn', '')
     s.last?.close()
     s.last = f
   }
@@ -281,6 +284,12 @@ function cursorFor(type: string): string {
     default:
       return 'default'
   }
+}
+
+/** Whether a tab's page is drawn off screen here (its live card then draws its frames instead of capturing it). */
+export function isOffscreenTab(tab: number): boolean {
+  for (const s of surfaces.values()) if (s.tab === tab) return true
+  return false
 }
 
 export function startOffscreenPages(): void {
