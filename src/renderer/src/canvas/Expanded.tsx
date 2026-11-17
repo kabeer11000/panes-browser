@@ -79,8 +79,14 @@ interface Props extends ExpandSource {
   page?: TabInfo
   /** Where it sits among its section's cards, for the "2 / 5" in the header, and the cards either side. */
   place?: { at: number; of: number; prev?: string; next?: string }
-  /** The tabs used last (not this one), to switch the preview to in one click. */
+  /** The preview's recent tabs, this one among them, in an order kept while the preview is open. */
   recent?: CardModel[]
+  /** Put another card in this preview, in place (one of `recent`). */
+  onSwitch?: (id: number) => void
+  /** It replaced another card's preview in place: no opening flight, the page fades in where the last one was. */
+  swapped?: boolean
+  /** The card it replaced, where the recent tabs' highlight slides from. */
+  swapFrom?: number
   /** What waits in the tabs (messages, calls), one entry per site or account, for the header's bell. */
   waiting?: Grouped<TabInfo>[]
   /** Open another tab in the preview (picked from the bell). */
@@ -641,6 +647,9 @@ export function Expanded({
   onText,
   onStep,
   recent,
+  onSwitch,
+  swapped = false,
+  swapFrom,
   place,
   page,
   startLive = false,
@@ -726,8 +735,42 @@ export function Expanded({
   const left = 0
   const fromTf = `translate(${from.x - left}px, ${from.y - top}px) scale(${from.w / w}, ${from.h / h})`
 
+  // the recent tabs' highlight: under this card's tab, sliding there from the tab it replaced
+  const strip = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    if (reduced || !panel.current) return
+    const row = strip.current
+    if (!row) return
+    const put = (id: number | undefined): boolean => {
+      const b = id === undefined ? null : row.querySelector<HTMLElement>(`[data-rid="${id}"]`)
+      if (!b) return false
+      row.style.setProperty('--rx', `${b.offsetLeft}px`)
+      row.style.setProperty('--rw', `${b.offsetWidth}px`)
+      return true
+    }
+    row.classList.add('still')
+    const from = !reduced && put(swapFrom)
+    if (!from) put(m.id)
+    void row.offsetWidth // the start is laid out before the glide begins
+    row.classList.remove('still')
+    if (from) put(m.id)
+    // once, on mount: the row is fixed while the preview is open
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!panel.current) return
+    if (swapped) {
+      // in place of the last card's preview: nothing flies, the new page fades in where the last one was
+      openDone.current = Promise.resolve()
+      nearlyOpen.current = Promise.resolve()
+      onCover?.(true)
+      const bCtrl =
+        body.current && !reduced
+          ? animate(body.current, { opacity: [0, 1] }, { duration: 0.24, ease: [0.32, 0.72, 0, 1] })
+          : null
+      return () => bCtrl?.stop()
+    }
+    if (reduced) return
     panel.current.style.transformOrigin = '0 0'
     // the live page is a native view and cannot grow with the panel: it waits for this (see goLive)
     const ctrl = animate(
@@ -1273,16 +1316,22 @@ export function Expanded({
                 </button>
               </div>
             ) : null}
-            {recent && recent.length > 0 && onOpenTab && (
-              <div className="cv-recent" role="group" aria-label="Recent tabs">
+            {recent && recent.length > 1 && onSwitch && (
+              <div className="cv-recent" role="tablist" aria-label="Recent tabs" ref={strip}>
+                <i className="cv-recent-pill" aria-hidden="true" />
                 {recent.map((r) => (
                   <button
                     type="button"
+                    role="tab"
                     key={r.id}
+                    data-rid={r.id}
+                    aria-selected={r.id === m.id}
+                    className={r.id === m.id ? 'on' : ''}
                     title={`${r.title}${r.site ? ` - ${r.site}` : ''}`}
                     onClick={() => {
+                      if (r.id === m.id) return
                       hideLive()
-                      onOpenTab(r.id)
+                      onSwitch(r.id)
                     }}
                   >
                     <Favicon m={r} />

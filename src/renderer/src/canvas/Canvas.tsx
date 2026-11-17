@@ -500,9 +500,14 @@ export function Canvas({
     id: number
     from: ExpandSource['from']
     live?: boolean
+    /** It replaced this card's preview in place (no opening flight): the card it came from. */
+    swap?: number
   } | null>(null)
   const expandedRef = useRef(false)
   const expandRef = useRef<(id: number, live?: boolean) => void>(() => undefined)
+  // the preview's recent tabs: set when it opens (that card first, then the three tabs used last) and kept in that
+  // order while it stays open, so switching between them never reshuffles the row under the pointer
+  const [strip, setStrip] = useState<number[]>([])
   const [stage, setStage] = useState({ w: 0, h: 0 })
   const [contents, setContents] = useState<Record<number, CanvasPageContent>>({})
   const asked = useRef(new Map<number, string>())
@@ -656,6 +661,7 @@ export function Canvas({
   const openWaiting = (id: number): void => {
     const c = stRef.current?.cards.find((x) => x.id === id)
     if (!c) return
+    if (expandedRef.current) return switchPreview(id, true)
     reveal(cardBox(c))
     expandRef.current(id, true)
   }
@@ -4506,21 +4512,29 @@ export function Canvas({
       n === undefined ? undefined : modelFor({ id: n })?.title || undefined
     return { at: at + 1, of: list.length, prev: name(list[at - 1]), next: name(list[at + 1]) }
   }
-  const stepExpanded = (dir: -1 | 1): void => {
+  /**
+   * Another card into the open preview, in place: the page changes inside the preview, which neither closes nor flies
+   * out of the new card. The board glides to that card behind it, where the preview will shrink back to on close.
+   */
+  const stripWant = expanded
+    ? strip.includes(expanded.id)
+      ? strip
+      : [
+          expanded.id,
+          ...recentOthers(tabs, expanded.id, (id) => !!st?.cards.some((c) => c.id === id))
+        ]
+    : []
+  if (stripWant.join(',') !== strip.join(',')) setStrip(stripWant)
+  const switchPreview = (next: number, live?: boolean): void => {
     const cur = expandedRef.current ? expandedNow.current : null
-    if (cur === null) return
-    const list = neighbours(stRef.current, cur, modelForRef.current)
-    const at = list.indexOf(cur)
-    const next = list[at + dir]
-    if (next === undefined) return
-    const s0 = stRef.current
-    const card = s0?.cards.find((x) => x.id === next)
-    if (!card) return
-    reveal(cardBox(card))
-    const v = vp.get()
+    const card = stRef.current?.cards.find((x) => x.id === next)
+    if (!card || next === cur) return
+    const v = reveal(cardBox(card))
     setSel(new Set([`c:${next}`]))
     setExpanded({
       id: next,
+      live,
+      swap: cur ?? undefined,
       from: {
         x: card.x * v.k + v.x,
         y: card.y * v.k + v.y,
@@ -4528,6 +4542,13 @@ export function Canvas({
         h: (card.h ?? CARD_H) * v.k
       }
     })
+  }
+  const stepExpanded = (dir: -1 | 1): void => {
+    const cur = expandedRef.current ? expandedNow.current : null
+    if (cur === null) return
+    const list = neighbours(stRef.current, cur, modelForRef.current)
+    const next = list[list.indexOf(cur) + dir]
+    if (next !== undefined) switchPreview(next)
   }
 
   // ---- split view: the tabs side by side are one joined card on the board ----
@@ -5660,6 +5681,7 @@ export function Canvas({
       {expanded && (
         <Expanded
           key={expanded.id}
+          swapped={expanded.swap !== undefined}
           startLive={expanded.live}
           onLive={onPreviewLive}
           onAsk={aiAvailable ? askInDock : undefined}
@@ -5702,11 +5724,9 @@ export function Canvas({
           }}
           onStep={(dir) => stepExpanded(dir)}
           place={placeOf(expanded.id)}
-          recent={recentOthers(
-            tabs,
-            expanded.id,
-            (id) => !!st?.cards.some((c) => c.id === id)
-          ).flatMap((id) => modelFor({ id }) ?? [])}
+          recent={strip.flatMap((id) => modelFor({ id }) ?? [])}
+          swapFrom={expanded.swap}
+          onSwitch={(id) => switchPreview(id, true)}
           waiting={waiting}
           onOpenTab={openWaiting}
           swipe={previewSwipe}
