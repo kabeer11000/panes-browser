@@ -1,0 +1,156 @@
+/* The AI-working light (AiGlow.tsx), after Apple Intelligence's Siri edge: one ring of light hugging the window's
+   rounded edge, in three depths (a crisp line, a glow, a wide haze), each a conic wash of colour turning at its own
+   pace so the colours flow round the edge. It comes on at every edge at once, gliding in from just outside the
+   window on a spring, and leaves the same way. Each depth is a big turning square (a compositor transform) under a
+   fixed ring mask, so the board never repaints. */
+.cv-glow {
+  --glow-r: var(--radius-m, 12px);
+  --glow-ink: conic-gradient(
+    from 0deg,
+    #8d9fff,
+    #bc82f3,
+    #f5b9ea,
+    #ff6778,
+    #ffba71,
+    #c686ff,
+    #6fb6ff,
+    #8d9fff
+  );
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+  border-radius: var(--glow-r);
+  overflow: hidden;
+  animation: cv-glow-in var(--spring-smooth-dur, 0.6s) var(--spring-smooth, ease-out) both;
+}
+.cv-glow > i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  /* each depth arrives from just beyond the edge, all four sides together */
+  animation: cv-glow-close var(--spring-bouncy-dur, 0.7s) var(--spring-bouncy, ease-out) both;
+}
+/* the colour: a square big enough to cover the window at any turn, turning round its centre */
+.cv-glow > i::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 150vmax;
+  height: 150vmax;
+  margin: -75vmax 0 0 -75vmax;
+  background: var(--glow-ink);
+  will-change: rotate;
+  animation: cv-glow-turn 7s linear infinite;
+}
+/* the line: a crisp 2px ring right at the edge */
+.cv-glow > i:nth-child(1) {
+  padding: 2px;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+/* the glow: fades in over 26px from the edge */
+.cv-glow > i:nth-child(2) {
+  --w: 26px;
+  opacity: 0.9;
+  animation-delay: 0.02s;
+}
+.cv-glow > i:nth-child(2)::before {
+  animation-duration: 9s;
+  animation-direction: reverse;
+}
+/* the haze: a wide soft wash 110px deep, the colours under it turning slowest */
+.cv-glow > i:nth-child(3) {
+  --w: 110px;
+  opacity: 0.42;
+  animation-delay: 0.04s;
+}
+.cv-glow > i:nth-child(3)::before {
+  animation-duration: 13s;
+}
+.cv-glow > i:nth-child(2),
+.cv-glow > i:nth-child(3) {
+  mask:
+    linear-gradient(to right, #000, transparent var(--w), transparent calc(100% - var(--w)), #000),
+    linear-gradient(to bottom, #000, transparent var(--w), transparent calc(100% - var(--w)), #000);
+}
+/* while the model is still naming what it made: the same light, quieter and slower */
+.cv-glow.calm > i:nth-child(2) {
+  opacity: 0.5;
+}
+.cv-glow.calm > i:nth-child(3) {
+  opacity: 0.2;
+}
+.cv-glow.calm > i::before {
+  animation-duration: 14s;
+}
+/* a living light: the glow swells and eases back, out of step with the turn */
+.cv-glow:not(.out):not(.calm) > i:nth-child(2) {
+  animation:
+    cv-glow-close var(--spring-bouncy-dur, 0.7s) var(--spring-bouncy, ease-out) 0.02s both,
+    cv-glow-breathe 2.4s ease-in-out 0.8s infinite alternate;
+}
+.cv-glow.out {
+  animation: cv-glow-fade var(--spring-exit-dur, 0.3s) var(--spring-exit, ease-out) both;
+}
+.cv-glow.out > i {
+  animation: cv-glow-open var(--spring-exit-dur, 0.3s) var(--spring-exit, ease-out) both;
+}
+@keyframes cv-glow-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes cv-glow-fade {
+  to {
+    opacity: 0;
+  }
+}
+/* "from just beyond the edge": the ring starts scaled out past the window and closes in on every side at once */
+@keyframes cv-glow-close {
+  from {
+    scale: 1.06;
+  }
+}
+@keyframes cv-glow-open {
+  to {
+    scale: 1.05;
+  }
+}
+@keyframes cv-glow-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes cv-glow-breathe {
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 0.55;
+  }
+}
+/* on a dark board the colour adds light, as Siri's does; on a light one it sits on top, or it would wash out */
+:root[data-scheme='dark'] .cv-glow {
+  mix-blend-mode: plus-lighter;
+}
+/* efficient mode: the line and the glow, no haze, and the colour holds still */
+[data-fx='low'] .cv-glow > i:nth-child(3) {
+  display: none;
+}
+[data-fx='low'] .cv-glow > i::before {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-glow,
+  .cv-glow > i,
+  .cv-glow > i::before {
+    animation: none !important;
+  }
+  .cv-glow.out {
+    display: none;
+  }
+}

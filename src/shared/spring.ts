@@ -14,12 +14,19 @@ export interface SpringParams {
 }
 
 export const SPRINGS = {
+  // Tuned to Park's measured motion (60 fps frame-by-frame of its clips).
   /** Small UI: buttons, pills, menus popping. Quick, a hair of overshoot. */
   snappy: { response: 0.28, damping: 0.82 },
-  /** Things that grow or fly (a card opening, a panel): quick and clean, no wobble. */
-  smooth: { response: 0.4, damping: 0.94 },
-  /** Fun moments: a dropped card settling, a stack fanning out, a section snapping in. */
+  /** A page growing into focus (card to preview): Park's ~0.38 s critically damped glide, no wobble. */
+  smooth: { response: 0.38, damping: 1 },
+  /** Leaving: about 1.5x quicker than arriving, so going back never waits. */
+  exit: { response: 0.26, damping: 1 },
+  /** Fun moments: a section snapping in, a stack fanning out, a new card arriving. */
   bouncy: { response: 0.44, damping: 0.68 },
+  /** Whole-board moves (a space switch): quick with a 1-1.5% overshoot. */
+  space: { response: 0.3, damping: 0.8 },
+  /** A held thing let go: Park's drop wobble, ~3.7 Hz, settled in ~400 ms. Use on rotation. */
+  wobble: { response: 0.27, damping: 0.3 },
   /** Large camera moves: fit, fly to a card. Unhurried, no overshoot. */
   glide: { response: 0.6, damping: 1 },
   /** Following the pointer (drag tilt, lift): very quick, settles without a ring. */
