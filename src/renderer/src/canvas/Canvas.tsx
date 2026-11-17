@@ -1380,6 +1380,17 @@ export function Canvas({
     window.addEventListener('panes:canvas-exit', off)
     return () => window.removeEventListener('panes:canvas-exit', off)
   }, [])
+  // a tab picked while on the board (sidebar, Ctrl+Tab, the command bar): its card opens in the preview
+  useEffect(() => {
+    const show = (e: Event): void => {
+      const id = (e as CustomEvent<{ id?: number }>).detail?.id
+      if (typeof id !== 'number') return
+      showTab.current = { id, at: Date.now() }
+      showNowRef.current()
+    }
+    window.addEventListener('panes:canvas-show', show)
+    return () => window.removeEventListener('panes:canvas-show', show)
+  }, [])
 
   // ---- keep up with the tabs ----
   const sig =

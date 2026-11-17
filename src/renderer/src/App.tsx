@@ -124,12 +124,9 @@ function App(): React.JSX.Element {
   }, [])
   // Canvas is immersive: the chat panel and the sidebar fold away and the top bar goes (none of them is mounted on
   // the board), and leaving the canvas puts every one of them back as it was.
-  // Any switch to a tab while canvas is shown (sidebar, Ctrl+Tab, Ctrl+1..9, the command bar, a link) leaves canvas
-  // for that tab with the exit transition.
+  // Any switch to a tab while canvas is shown (sidebar, Ctrl+Tab, Ctrl+1..9, the command bar) opens that tab in the
+  // board's preview: the board stays, and the preview's recent tabs switch between them.
   const canvasTab = useRef<number | null>(null)
-  // in a space browsed with the canvas the board is the window: a tab change there (a card closed, Ctrl+Tab) is not
-  // a pick, only Pop out leaves it
-  const browseRef = useRef<'tabs' | 'canvas'>('tabs')
   // switching space while on the board shows that space's board: the tab change that comes with it is not a pick
   const spaceSwitchAt = useRef(0)
   const lastSpace = useRef(activeSpaceId)
@@ -142,7 +139,7 @@ function App(): React.JSX.Element {
       canvasTab.current = null
       return
     }
-    if (canvasTab.current === null || browseRef.current === 'canvas') canvasTab.current = activeId
+    if (canvasTab.current === null) canvasTab.current = activeId
     else if (activeId !== null && performance.now() - spaceSwitchAt.current < 1500)
       canvasTab.current = activeId
     else if (activeId !== null && activeId !== canvasTab.current) {
@@ -150,7 +147,7 @@ function App(): React.JSX.Element {
       const closed = !tabs.some((t) => t.id === canvasTab.current)
       canvasTab.current = activeId
       if (!closed)
-        window.dispatchEvent(new CustomEvent('panes:canvas-exit', { detail: { pick: activeId } }))
+        window.dispatchEvent(new CustomEvent('panes:canvas-show', { detail: { id: activeId } }))
     }
   }, [mode, activeId, tabs])
   useEffect(() => {
@@ -560,7 +557,6 @@ function App(): React.JSX.Element {
   const browseSeen = useRef<BrowseSeen | null>(null)
   const spaceKnown = activeSpace !== null
   useEffect(() => {
-    browseRef.current = browse
     if (!settingsReady || !spaceKnown) return // the defaults before the real settings and spaces are not a choice
     // the first-run tour (and the tour after it) come first: a board picked there opens once they are done
     if (!settings.onboarded || tourOpen) return
