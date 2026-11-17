@@ -1,5 +1,4 @@
-import { Favicon, Img } from './Img'
-import { animate } from 'motion'
+import { Img } from './Img'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
@@ -26,9 +25,99 @@ import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
 import { PreviewInbox } from './PreviewInbox'
 import { EdgeSwipe, SWIPE_ZONES } from '@shared/edgeSwipe'
+import { Spring, reducedMotion } from '@renderer/motion'
+import './preview.css'
 
-/** Opening and closing move alike: one smooth ease, no spring overshoot (the card it grows from must line up). */
-const MORPH = { duration: 0.32, ease: [0.32, 0.72, 0, 1] } as const
+/**
+ * The flight between a card and its preview, in the panel's own (untransformed) units: at 0 the panel is scaled by
+ * `s` (uniformly: nothing in it stretches) and moved by (tx, ty), clipped by the insets t/r/b/l to just the card's
+ * picture; at 1 it is at rest. `r0`: the card's corner radius on screen; `fade`: how far in it is fully opaque.
+ */
+interface Flight {
+  s: number
+  tx: number
+  ty: number
+  t: number
+  r: number
+  b: number
+  l: number
+  pw: number
+  ph: number
+  r0: number
+  fade: number
+}
+
+/**
+ * The card on the board now, relative to the preview's root (screen px, so the board's zoom is in it): its face (the
+ * flight's start and end, with its corner radius) and its picture inside, if it shows one (what the flight's page
+ * picture is lined up with).
+ */
+function cardTarget(
+  id: number,
+  root: HTMLElement
+): {
+  box: { x: number; y: number; w: number; h: number }
+  radius: number
+  img: HTMLImageElement | null
+  imgBox: { w: number; h: number } | null
+} | null {
+  const card = document.querySelector<HTMLElement>(`.cv-card[data-cid="${id}"]`)
+  if (!card) return null
+  const face =
+    card.querySelector<HTMLElement>(
+      ':scope > :is(.cv-snap, .cv-video, .cv-image, .cv-doc, .cv-answer, .cv-pdf)'
+    ) ?? card
+  const b = face.getBoundingClientRect()
+  if (b.width < 4 || b.height < 4) return null
+  const img = face.querySelector<HTMLImageElement>(':scope > img, .cv-image-in > img')
+  const ib = img?.getBoundingClientRect()
+  const rr = root.getBoundingClientRect()
+  const zoom = face.offsetWidth ? b.width / face.offsetWidth : 1
+  const radius = (parseFloat(getComputedStyle(face).borderTopLeftRadius) || 14) * zoom
+  return {
+    box: { x: b.x - rr.x, y: b.y - rr.y, w: b.width, h: b.height },
+    radius,
+    img: ib && ib.width > 4 ? img! : null,
+    imgBox: ib && ib.width > 4 ? { w: ib.width, h: ib.height } : null
+  }
+}
+
+/**
+ * A site's icon in the header, decoded with the frame it first shows in: the header is made anew when another card
+ * takes the preview's place, and an icon decoded a frame late would blink.
+ */
+function HeadIcon({ m }: { m: Pick<CardModel, 'favicon' | 'site' | 'title'> }): React.JSX.Element {
+  const [bad, setBad] = useState<string | null>(null)
+  const letter = <span>{(m.site || m.title || '?').charAt(0).toUpperCase()}</span>
+  if (!m.favicon || bad === m.favicon) return letter
+  const src = m.favicon
+  return <img src={src} alt="" decoding="sync" draggable={false} onError={() => setBad(src)} />
+}
+
+/** Hide or show a card under the preview straight away, ahead of the board's own state (see Expanded's close). */
+function coverCard(id: number, hidden: boolean): void {
+  document.querySelector(`.cv-card[data-cid="${id}"]`)?.classList.toggle('away', hidden)
+}
+
+/** A promise with its resolve, and whether it has. */
+function deferred(): { promise: Promise<void>; resolve: () => void; done: boolean } {
+  let resolve = (): void => undefined
+  const promise = new Promise<void>((r) => (resolve = r))
+  return { promise, resolve, done: false }
+}
+
+// Another card's preview put in place of this one (Canvas mounts a new one): the page live in it stays on screen
+// until the next one's page is ready to take its place, so the hide waits a tick for the next preview to take over.
+let hideTimer = 0
+function hideLiveSoon(): void {
+  window.clearTimeout(hideTimer)
+  hideTimer = window.setTimeout(() => window.api.canvas.liveHide(), 0)
+}
+function keepLive(): void {
+  window.clearTimeout(hideTimer)
+}
+/** The recent tabs' pill of the preview just replaced, as it was gliding: the next one carries on from there. */
+let pillNow: { x: number; v: number; t: number } | null = null
 /** Room kept under the panel for the canvas toolbar, which stays above it. */
 /** PDF pages stop growing here: wider than this they read worse, and Ctrl+wheel zooms past it. */
 const PDF_W = 940
@@ -655,11 +744,23 @@ export function Expanded({
   onOpenTab,
   swipe = 'edge'
 }: Props): React.JSX.Element {
+  const root = useRef<HTMLDivElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const scrim = useRef<HTMLDivElement>(null)
+  const edge = useRef<HTMLDivElement>(null)
+  const head = useRef<HTMLElement>(null)
   const body = useRef<HTMLDivElement>(null)
   const slot = useRef<HTMLDivElement>(null)
   const closing = useRef(false)
+  /** Ends the close (once): set as it starts. */
+  const finishClose = useRef<() => void>(() => undefined)
+  /** At rest after the flight: the live page goes over its picture (it was readied out of sight meanwhile). */
+  const afterRest = useRef<() => void>(() => undefined)
+  const goLiveRef = useRef<(to?: number) => Promise<void>>(async () => undefined)
+  const placeCompanionsRef = useRef<() => void>(() => undefined)
+  const hideLive = useCallback((): void => {
+    window.api.canvas.liveHide()
+  }, [])
   // a card that opens live is live from its first frame (its header, its page's picture), never the reader first
   const [live, setLiveState] = useState<'off' | 'loading' | 'on'>(() =>
     startLive ||
@@ -693,19 +794,31 @@ export function Expanded({
   // find in the live page: the browser's own find box, in the header (the page view would cover anything below)
   const [findKey, setFindKey] = useState<number | null>(null)
   const findKeyRef = useRef(findKey)
-  // the live page as it was last seen: always under the native view, so whenever the view is away (moving, loading,
-  // a popover over it, closing) the page is still there in picture, never an empty slot
+  // The live page as it was last seen: always under the native view, so whenever the view is away (a popover over
+  // it, closing) the page is still there in picture, never an empty slot. Kept fresh while the page is live (see
+  // below), so closing never waits for a capture: it moves on the frame of the key, with the last picture.
   const [shot, setShot] = useState<string | null>(null)
-  const takeShot = async (): Promise<boolean> => {
+  const shotReq = useRef(0)
+  const lastGrab = useRef(0)
+  const grabShot = useCallback((thumb = false): void => {
     const id = tabRef.current
-    if (liveRef.current !== 'on' || id === null) return false
-    const pic = await Promise.race([
-      window.api.canvas.liveShot?.(id) ?? Promise.resolve(null),
-      new Promise<null>((r) => setTimeout(() => r(null), 400))
-    ]).catch(() => null)
-    if (pic) flushSync(() => setShot(pic))
-    return !!pic
-  }
+    if (id === null || liveRef.current !== 'on' || !window.api.canvas.liveShot) return
+    lastGrab.current = performance.now()
+    const want = ++shotReq.current
+    void window.api.canvas
+      .liveShot(id, { thumb })
+      .then(async (pic) => {
+        if (!pic) return
+        // decoded off the main thread first: the slot's picture then changes without a frame spent decoding it (in
+        // the middle of a close, that would be a dropped frame)
+        const img = new Image()
+        img.src = pic
+        await img.decode().catch(() => undefined)
+        // a later picture (or another page) won: this one is out of date
+        if (want === shotReq.current && tabRef.current === id) setShot(pic)
+      })
+      .catch(() => undefined)
+  }, [])
   // the address the page is at now (it moves on as the person browses in it), else the card's. A tab waking up
   // passes through about:blank for a moment on its way back: the card's address stands in, so the header holds still.
   const href = (page?.url && page.url !== 'about:blank' ? page.url : '') || url
@@ -728,133 +841,301 @@ export function Expanded({
   const top = 0
   const h = Math.max(320, stage.h)
   const left = 0
-  const fromTf = `translate(${from.x - left}px, ${from.y - top}px) scale(${from.w / w}, ${from.h / h})`
 
-  // the recent tabs' highlight: under this card's tab, sliding there from the tab it replaced
+  // ---- the recent tabs' highlight: under this card's tab, gliding there from the tab it replaced ----
   const strip = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const row = strip.current
-    if (!row) return
-    const put = (id: number | undefined): boolean => {
-      const b = id === undefined ? null : row.querySelector<HTMLElement>(`[data-rid="${id}"]`)
-      if (!b) return false
-      row.style.setProperty('--rx', `${b.offsetLeft}px`)
-      row.style.setProperty('--rw', `${b.offsetWidth}px`)
-      return true
+    const pill = row?.querySelector<HTMLElement>('.cv-recent-pill')
+    if (!row || !pill) return
+    const at = (id: number | undefined): HTMLElement | null =>
+      id === undefined ? null : row.querySelector<HTMLElement>(`[data-rid="${id}"]`)
+    const b = at(m.id)
+    if (!b) return
+    pill.style.width = `${b.offsetWidth}px`
+    const to = b.offsetLeft
+    // where the last preview's pill was this moment (it may still have been gliding): it carries on from there
+    const prev = pillNow && performance.now() - pillNow.t < 600 ? pillNow : null
+    const a = at(swapFrom)
+    const from = reduced || !swapped ? to : (prev?.x ?? (a ? a.offsetLeft : to))
+    pill.style.transform = `translateX(${from}px)`
+    if (from === to) {
+      pillNow = null
+      return
     }
-    row.classList.add('still')
-    const from = !reduced && put(swapFrom)
-    if (!from) put(m.id)
-    void row.offsetWidth // the start is laid out before the glide begins
-    row.classList.remove('still')
-    if (from) put(m.id)
+    const s = new Spring(
+      from,
+      'snappy',
+      (x, sp) => {
+        pill.style.transform = `translateX(${x}px)`
+        pillNow = { x, v: sp.velocity, t: performance.now() }
+      },
+      0.25
+    )
+    void s.to(to, { velocity: prev?.v ?? 0 }).then(() => (pillNow = null))
+    return () => s.stop()
     // once, on mount: the row is fixed while the preview is open
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // ---- the flight: the card's picture grows into the page, and shrinks back into it ----
+  /** 0: the card's picture, where it is on the board; 1: the page at rest, edge to edge. */
+  const prog = useRef<Spring | null>(null)
+  const flight = useRef<Flight | null>(null)
+  const restRadius = useRef(12)
+  const covered = useRef(false)
+  const rest = useRef(deferred())
+  const still = (): boolean => reduced || reducedMotion()
+  /** Where the flight starts (and ends, closing): the card's picture as it is on the board now. */
+  const measure = (): Flight | null => {
+    const r = root.current
+    const b = body.current
+    const p = panel.current
+    if (!r || !b || !p) return null
+    restRadius.current = parseFloat(getComputedStyle(p).borderTopLeftRadius) || 12
+    const card = cardTarget(m.id, r)
+    const box = card?.box ?? (cardBox?.() || from)
+    if (!box || box.w < 4 || box.h < 4) return null
+    // the page's area in the panel (layout, so any transform on it now does not count)
+    const bx = b.offsetLeft
+    const by = b.offsetTop
+    const bw = b.offsetWidth
+    const bh = b.offsetHeight
+    if (bw < 4 || bh < 4) return null
+    // the picture in the slot and the one on the card are the same picture, each covering its box from the top left:
+    // scaled so that one lies exactly on the other, the flight starts on the card's very pixels
+    const slotImg = b.querySelector<HTMLImageElement>('.cv-live-slot > img')
+    const cardImg = card?.img ?? null
+    let s = Math.max(box.w / bw, box.h / bh)
+    let matched = false
+    const ib = card?.imgBox
+    if (slotImg && cardImg && ib && slotImg.naturalWidth > 0 && cardImg.naturalWidth > 0) {
+      const own = (iw: number, ih: number, cw: number, ch: number): number =>
+        iw * Math.max(cw / iw, ch / ih)
+      const k =
+        own(cardImg.naturalWidth, cardImg.naturalHeight, ib.w, ib.h) /
+        own(slotImg.naturalWidth, slotImg.naturalHeight, bw, bh)
+      if (Number.isFinite(k) && k > 0 && box.w / k <= bw + 1 && ib.h / k <= bh + 1) {
+        s = k
+        matched = true
+      }
+    }
+    const rw = Math.min(bw, box.w / s)
+    const rh = Math.min(bh, box.h / s)
+    return {
+      s,
+      tx: box.x - s * bx,
+      ty: box.y - s * by,
+      t: by,
+      l: bx,
+      r: Math.max(0, p.offsetWidth - bx - rw),
+      b: Math.max(0, p.offsetHeight - by - rh),
+      pw: p.offsetWidth,
+      ph: p.offsetHeight,
+      r0: card?.radius ?? 14,
+      // the same pixels: shown from the first frame (a short fade only hides the card's frame around them); other
+      // content than the card's (a note, the reader) fades in over the first part of the flight
+      fade: matched ? 0.1 : 0.24
+    }
+  }
+  /** Draw the flight at `p` (transform, clip and opacity only: nothing is laid out again). */
+  const draw = (p: number): void => {
+    const el = panel.current
+    const f = flight.current
+    const sc = scrim.current
+    if (sc) sc.style.opacity = String(Math.max(0, Math.min(1, p)) ** 2.2)
+    const hd = head.current
+    if (hd) hd.style.opacity = p >= 1 ? '' : String(Math.max(0, Math.min(1, (p - 0.9) / 0.08)))
+    if (!el) return
+    if (p >= 1 || !f) {
+      // at rest: no transform at all (crisp text, the native page lines up with it exactly)
+      el.style.transform = ''
+      el.style.clipPath = ''
+      el.style.opacity = ''
+      if (edge.current) edge.current.style.opacity = '0'
+      return
+    }
+    const q = 1 - p
+    const s = f.s + (1 - f.s) * p
+    const tx = f.tx * q
+    const ty = f.ty * q
+    const it = f.t * q
+    const ir = f.r * q
+    const ib = f.b * q
+    const il = f.l * q
+    // the corners keep their size on screen as it grows (the clip is in the panel's own, scaled, units)
+    const rad = f.r0 + (restRadius.current - f.r0) * p
+    const op = Math.max(0, Math.min(1, p / f.fade))
+    el.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`
+    el.style.clipPath = `inset(${it}px ${ir}px ${ib}px ${il}px round ${rad / s}px)`
+    el.style.opacity = String(op)
+    const ed = edge.current
+    if (ed) {
+      const { pw, ph } = f
+      ed.style.transform = `translate(${tx + s * il}px, ${ty + s * it}px)`
+      ed.style.width = `${s * (pw - il - ir)}px`
+      ed.style.height = `${s * (ph - it - ib)}px`
+      ed.style.borderRadius = `${rad}px`
+      // the shadow and rim are for the flight: at rest the page meets the board's own edges
+      ed.style.opacity = String(op * Math.min(1, q * 6))
+    }
+  }
+  const drawRef = useRef(draw)
   useLayoutEffect(() => {
-    if (!panel.current) return
-    if (swapped) {
-      // in place of the last card's preview: nothing flies, the new page fades in where the last one was
-      openDone.current = Promise.resolve()
-      nearlyOpen.current = Promise.resolve()
-      onCover?.(true)
-      const bCtrl =
-        body.current && !reduced
-          ? animate(body.current, { opacity: [0, 1] }, { duration: 0.24, ease: [0.32, 0.72, 0, 1] })
-          : null
-      return () => bCtrl?.stop()
-    }
-    if (reduced) return
-    panel.current.style.transformOrigin = '0 0'
-    // the live page is a native view and cannot grow with the panel: it waits for this (see goLive)
-    const ctrl = animate(
-      panel.current,
-      {
-        transform: [fromTf, 'translate(0px, 0px) scale(1, 1)'],
-        opacity: [0, 1, 1]
+    drawRef.current = draw
+  })
+  /** The spring that drives it, made once its distances are known (it rests within half a pixel). */
+  const spring = (): Spring => {
+    if (prog.current) return prog.current
+    const f = flight.current
+    const travel = f
+      ? Math.max(Math.abs(f.tx), Math.abs(f.ty), (1 - f.s) * Math.max(w, h), f.t, f.b, f.l, f.r, 1)
+      : 1
+    prog.current = new Spring(
+      0,
+      'smooth',
+      (v) => {
+        drawRef.current(v)
+        // closing: done once it is all but there (the panel is invisible by then); the board is the person's again
+        if (closing.current && v <= 0.004) finishClose.current()
       },
-      { ...MORPH, opacity: { duration: MORPH.duration, times: [0, 0.35, 1] } }
+      Math.min(0.002, 0.75 / travel)
     )
-    openDone.current = Promise.race([
-      ctrl.finished.then(
-        () => undefined,
-        () => undefined
-      ),
-      new Promise<void>((r) => setTimeout(r, 450))
-    ])
-    // the panel is 99% of the way there at three quarters of its time (the ease is mostly done early): the live page
-    // comes in then, at its exact final place (slotBox ignores the transform), not after the last pixels of the glide
-    nearlyOpen.current = Promise.race([
-      openDone.current,
-      new Promise<void>((r) => setTimeout(r, MORPH.duration * 750))
-    ])
-    void openDone.current.then(() => onCover?.(true))
-    const sCtrl = scrim.current
-      ? animate(scrim.current, { opacity: [0, 1] }, { duration: 0.22 })
-      : null
-    const bCtrl = body.current
-      ? animate(body.current, { opacity: [0, 1] }, { duration: 0.2, delay: 0.12 })
-      : null
-    return () => {
-      ctrl.stop()
-      sCtrl?.stop()
-      bCtrl?.stop()
+    return prog.current
+  }
+  const fxLow = (): boolean => document.documentElement.dataset['fx'] === 'low'
+  const settle = (): void => {
+    if (closing.current) return
+    drawRef.current(1)
+    rest.current.done = true
+    rest.current.resolve()
+    afterRest.current()
+    // the card under it is hidden only now (the board draws again for that: never in flight, where it would cost
+    // frames); back from a turned-around close, it is hidden again by hand (see uncoverCard)
+    if (!covered.current) {
+      covered.current = true
+      coverCard(m.id, true)
+      onCover?.(true)
     }
+  }
+  const open = (velocity?: number): void => {
+    const s = spring()
+    void s.to(1, { spring: fxLow() ? 'exit' : 'smooth', velocity }).then(() => {
+      if (!closing.current && s.value >= 1) settle()
+    })
+  }
+  useLayoutEffect(() => {
+    if (swapped || still() || !panel.current) {
+      // in place of the last card's preview (or no motion): at rest from its first frame, nothing flies or fades
+      drawRef.current(1)
+      covered.current = true
+      onCover?.(true)
+      rest.current.done = true
+      rest.current.resolve()
+      return
+    }
+    flight.current = measure()
+    drawRef.current(0)
+    open()
+    return () => prog.current?.stop()
     // runs once, on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const openDone = useRef<Promise<void>>(Promise.resolve())
-  const nearlyOpen = useRef<Promise<void>>(Promise.resolve())
-  // a card that opens live: its page gets ready while the panel grows, so it shows the moment the panel is in place
+  // the outgoing preview's page stays on screen until this one's is ready (see hideLiveSoon): taken over here. A card
+  // that shows no page hides it once its own body has been drawn.
   useEffect(() => {
-    if (live !== 'off' && tab !== undefined) window.api.canvas.livePrepare?.(tab)
+    if (!swapped) return
+    keepLive()
+    if (liveRef.current !== 'off') return
+    const r = requestAnimationFrame(() => hideLive())
+    return () => cancelAnimationFrame(r)
     // once, on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const hideLive = useCallback((): void => {
-    window.api.canvas.liveHide()
-  }, [])
-  useEffect(() => () => hideLive(), [hideLive])
+
+  useEffect(() => () => hideLiveSoon(), [])
   // main sends page shortcuts (Ctrl+F, Ctrl+L, Ctrl+D, zoom, back) to this card's page while it is open
   useEffect(() => {
     window.api.canvas.preview?.(true, tab ?? null)
   }, [tab])
   useEffect(() => () => window.api.canvas.preview?.(false, null), [])
-  /** Put the live page over the slot as it is now (unless something has it stepped aside). */
+  /** Put the live page over the slot as it is now (unless something has it stepped aside, or it is in flight). */
   const placeLive = useCallback((): void => {
     const r = slotBox(slot.current)
     const id = tabRef.current
-    if (!r || id === null || liveRef.current !== 'on' || asideRef.current || closing.current) return
+    if (
+      !r ||
+      id === null ||
+      liveRef.current !== 'on' ||
+      asideRef.current ||
+      closing.current ||
+      !rest.current.done
+    )
+      return
     window.api.canvas.liveMove(id, r)
   }, [])
 
-  const close = useCallback(async (): Promise<void> => {
+  const close = useCallback((): void => {
     if (closing.current) return
     closing.current = true
-    // a fresh picture stands in for the page while the panel shrinks back into its card
-    if (live !== 'off') await takeShot()
+    liveReq.current++ // a page still on its way in stays out
+    rest.current = deferred()
+    // the page steps out this very frame: its last picture is under it already, the same pixels
     hideLive()
-    if (!reduced && panel.current) {
-      if (body.current && live === 'off')
-        void animate(body.current, { opacity: 0 }, { duration: 0.1 })
-      if (scrim.current) void animate(scrim.current, { opacity: 0 }, { duration: 0.2 })
-      const to = cardBox?.() ?? from
-      const toTf = `translate(${to.x - left}px, ${to.y - top}px) scale(${to.w / w}, ${to.h / h})`
-      onCover?.(false)
-      await animate(
-        panel.current,
-        { transform: ['translate(0px, 0px) scale(1, 1)', toTf], opacity: [1, 1, 0] },
-        { ...MORPH, opacity: { duration: MORPH.duration, times: [0, 0.55, 1] } }
-      ).finished
-    } else onCover?.(false)
-    onClose()
+    // (no capture now: one in flight costs frames. The picture under it is kept fresh while the page is used, and
+    // main makes the last one the card's once the flight is over)
+    root.current?.classList.add('closing') // clicks go to the board again (a card clicked now opens it back up)
+    // the card shows again under the panel as it lands, at once and without the board drawing again mid-flight (its
+    // own state follows when the preview is gone)
+    covered.current = false
+    coverCard(m.id, false)
+    let done = false
+    finishClose.current = () => {
+      if (done || !closing.current) return
+      done = true
+      prog.current?.stop()
+      onClose()
+    }
+    if (still() || !panel.current) {
+      finishClose.current()
+      return
+    }
+    // from rest: back to where the card is now (the board may have moved under it). Mid-flight: the same card,
+    // turned around, its speed kept
+    const s = spring()
+    if (s.value >= 0.999 || !flight.current) {
+      const f = measure()
+      if (!f) {
+        finishClose.current()
+        return
+      }
+      flight.current = f
+    }
+    void s.to(0, { spring: 'exit' }).then(() => finishClose.current())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hideLive, reduced, onClose, from, cardBox, w, h, live])
+  }, [hideLive, reduced, onClose, cardBox, from, grabShot])
   const closeRef = useRef(close)
   useLayoutEffect(() => {
     closeRef.current = close
+  })
+  // the card clicked again while it closes (Canvas gives it a new `from`): it turns around and grows back, its speed
+  // kept, the live page coming back once it is at rest
+  const firstFrom = useRef(from)
+  useEffect(() => {
+    if (from === firstFrom.current || !closing.current) return
+    closing.current = false
+    finishClose.current = () => undefined
+    root.current?.classList.remove('closing')
+    open()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from])
+  useLayoutEffect(() => {
+    afterRest.current = () => {
+      if (liveRef.current === 'on') {
+        placeLive()
+        placeCompanionsRef.current()
+      } else if (liveRef.current === 'loading' && autoLive.current) void goLiveRef.current()
+    }
   })
   const openFind = (): void => {
     if (liveRef.current === 'on') setFindKey((k) => (k ?? 0) + 1)
@@ -876,7 +1157,7 @@ export function Expanded({
     const g = new EdgeSwipe()
     g.zone = SWIPE_ZONES[swipe]
     return window.api.canvas.onTouchpad((dx, dy, fingers, y) => {
-      if (g.touch({ dx, dy, fingers, y })) void closeRef.current()
+      if (g.touch({ dx, dy, fingers, y })) closeRef.current()
     })
   }, [swipe])
   // the keys main routes here: pressed in the live page (which holds the keyboard) or caught before the board
@@ -891,7 +1172,7 @@ export function Expanded({
           // Esc in the page with find open: find goes first
           window.api.stopFind()
           setFindKey(null)
-        } else void closeRef.current()
+        } else closeRef.current()
       }),
     [readZoom]
   )
@@ -913,20 +1194,19 @@ export function Expanded({
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()
-        void close()
+        close()
         return
       }
       if (!typing && onStep && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.altKey) {
         e.preventDefault()
         e.stopPropagation()
-        hideLive()
+        // the page stays on screen until the next card's is ready (no hide here: see hideLiveSoon)
         onStep(e.key === 'ArrowLeft' ? -1 : 1)
       }
     }
     window.addEventListener('keydown', key, true)
     return () => window.removeEventListener('keydown', key, true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [close, onStep, canEditUrl])
+  }, [close, onStep])
 
   const [copied, setCopied] = useState(false)
   const copy = (): void => {
@@ -943,39 +1223,49 @@ export function Expanded({
   // shown only in the page itself: a video, and a PDF while Panes' own reader is off
   const liveOnly =
     m.kind === 'video' || (m.kind === 'page' && !READER) || (m.kind === 'pdf' && !OWN_PDF_VIEWER)
-  /** Show the live page. `to`: a tab just made for this card, not yet in its props. */
+  // the first page this preview shows, when it took another's place: that one stays up until this one is ready
+  const firstLive = useRef(true)
+  /**
+   * Show the live page. It is readied at once, out of sight at the slot's size, while the panel grows (its picture
+   * in the slot meanwhile), and goes over the picture once the panel is at rest and the page has painted: the same
+   * pixels at the same place, so the change cannot be seen. `to`: a tab just made for this card, not yet in props.
+   */
   const goLive = async (to?: number): Promise<void> => {
     autoLive.current = true
     if (liveRef.current === 'on' && to === undefined) return
     const req = ++liveReq.current
-    liveRef.current = 'loading'
-    flushSync(() => setLive('loading'))
-    await Promise.race([nearlyOpen.current, new Promise<void>((r) => setTimeout(r, 450))])
-    if (req !== liveReq.current || closing.current) return
-    await new Promise((r) => requestAnimationFrame(() => r(null))) // the slot is in place
-    if (req !== liveReq.current || closing.current) return
+    if (liveRef.current !== 'on') {
+      liveRef.current = 'loading'
+      flushSync(() => setLive('loading'))
+    }
     const r = slotBox(slot.current)
     if (!r) {
       liveRef.current = 'off'
       setLive('off')
+      if (swapped) hideLive()
       return
     }
+    const hold = swapped && firstLive.current ? (m.snap ? 450 : 2500) : 0
+    firstLive.current = false
     const id = await window.api.canvas.liveOpen({
       tab: to ?? tabRef.current ?? tab,
       url: to === undefined ? url : undefined,
-      rect: { x: r.x, y: r.y, width: r.width, height: r.height }
+      rect: { x: r.x, y: r.y, width: r.width, height: r.height },
+      defer: true,
+      hold
     })
-    if (req !== liveReq.current || closing.current) {
-      hideLive()
-      return
-    }
+    if (req !== liveReq.current || closing.current) return
     if (id === null) {
       liveRef.current = 'off'
       setLive('off')
+      hideLive() // (a page kept up for the swap goes too)
       return
     }
     tabRef.current = id
     if (tab === undefined && to === undefined) onTab(id)
+    // ready: shown once the panel is at rest (now, unless it is still growing)
+    await rest.current.promise
+    if (req !== liveReq.current || closing.current) return
     liveRef.current = 'on'
     setLive('on')
     const rNow = slotBox(slot.current)
@@ -988,16 +1278,16 @@ export function Expanded({
     if (asking.current || !titleEl.current) return
     asking.current = true
     // the live page is a native view over the board and would hide the popover: it steps aside for its picture
-    // while the popover is up (still live, not the reader), and comes back where it was
-    await takeShot()
+    // (kept fresh, so there is no wait) while the popover is up, and comes back where it was
+    grabShot()
     flushSync(() => setAddressOpen(true))
     const text = await askSearch(anchorOver(titleEl.current), href ?? '')
     asking.current = false
     setAddressOpen(false)
     if (text) void submitUrl(text)
   }
-  const openBell = async (): Promise<void> => {
-    await takeShot() // the page stands in as a picture while the list covers it
+  const openBell = (): void => {
+    grabShot() // the page stands in as a picture while the list covers it
     setBellOpen(true)
   }
   // the bell lists the other sites: one whose tab is in front of the person is being looked at
@@ -1016,16 +1306,14 @@ export function Expanded({
   useLayoutEffect(() => {
     editRef.current = () => void editAddress()
   })
-  // opened for the person by the assistant, or a video (it only plays in the page): once the panel has grown into
-  // place, show the page itself
-  const goLiveRef = useRef(goLive)
+  // opened for the person by the assistant, or a video (it only plays in the page): its page is readied from the
+  // first frame, while the panel grows, and shown once it is at rest
   useLayoutEffect(() => {
     goLiveRef.current = goLive
   })
   useEffect(() => {
     if (autoLive.current || (!startLive && !(liveOnly && canLive))) return
-    // at once (goLive itself waits for the panel to be in place); marked done only when it runs, so a change
-    // meanwhile (the card's details settling) re-arms it rather than cancels it
+    // marked done only when it runs, so a change meanwhile (the card's details settling) re-arms it
     const t = window.setTimeout(() => {
       if (autoLive.current) return
       autoLive.current = true
@@ -1039,6 +1327,37 @@ export function Expanded({
     autoLive.current = true
     void goLiveRef.current()
   }, [articleEmpty, live, canLive])
+  // the page's picture is kept up to date while it is live (closing and popovers use it at once, never waiting):
+  // soon after it shows, every few seconds, and when the pointer comes up to the header (on its way to close)
+  useEffect(() => {
+    if (live !== 'on' || aside) return
+    const grab = (): void => {
+      if (!document.hidden && !closing.current) grabShot()
+    }
+    const first = window.setTimeout(grab, 500)
+    // for what moves on its own (a video, an animation); a page that is used or loads sends a fresh one by itself
+    const every = window.setInterval(grab, 4000)
+    const off = window.api.canvas.onLivePic?.((id, pic) => {
+      if (id !== tabRef.current || closing.current) return
+      ++shotReq.current
+      const img = new Image()
+      img.src = pic
+      void img
+        .decode()
+        .catch(() => undefined)
+        .then(() => {
+          if (id === tabRef.current && !closing.current) setShot(pic)
+        })
+    })
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(every)
+      off?.()
+    }
+  }, [live, aside, grabShot])
+  const onHeadEnter = (): void => {
+    if (liveRef.current === 'on' && performance.now() - lastGrab.current > 400) grabShot()
+  }
   const panes =
     split && split.length > 1 && tab !== undefined && split.some((p) => p.tab === tab)
       ? split
@@ -1075,7 +1394,8 @@ export function Expanded({
   // ---- a split view: the other panes, live beside this card's page ----
   const paneEls = useRef(new Map<number, HTMLDivElement>())
   const placeCompanions = useCallback((): void => {
-    if (liveRef.current !== 'on' || asideRef.current || closing.current) return
+    if (liveRef.current !== 'on' || asideRef.current || closing.current || !rest.current.done)
+      return
     const list: Array<{ id: number; rect: Rect }> = []
     for (const [id, el] of paneEls.current) {
       const r = slotBox(el)
@@ -1083,6 +1403,9 @@ export function Expanded({
     }
     window.api.canvas.liveCompanions?.(list)
   }, [])
+  useLayoutEffect(() => {
+    placeCompanionsRef.current = placeCompanions
+  })
   useEffect(() => {
     if (live !== 'on' || aside || !splitKey) return
     placeCompanions()
@@ -1108,7 +1431,7 @@ export function Expanded({
     else if (what === 'site') openSite()
     else if (what === 'reader') toReader()
     else if (what === 'live') void goLive()
-    else if (what === 'close') void close()
+    else if (what === 'close') close()
   }
   const pageMenu = (x: number, y: number): void => {
     const id = tabRef.current
@@ -1187,13 +1510,15 @@ export function Expanded({
   )
 
   return (
-    <div className="cv-expand" role="dialog" aria-modal="false" aria-label={m.title}>
-      <div className="cv-scrim" ref={scrim} onPointerDown={() => void close()} />
+    <div className="cv-expand" ref={root} role="dialog" aria-modal="false" aria-label={m.title}>
+      <div className="cv-scrim" ref={scrim} onPointerDown={() => close()} />
       <div className="cv-panel" ref={panel} style={{ left, top, width: w, height: h }}>
         {/* three zones: the page (nav, address) on the left, how to see it in the middle, what to do on the right.
             The rest (bookmark, copy link, find, zoom, pop out) is in More and on a right-click of the bar. */}
         <header
           className="cv-panel-head"
+          ref={head}
+          onPointerEnter={onHeadEnter}
           onContextMenu={(e) => {
             // the board's own menu would sit under the live page: the page's menu is a native one, over it
             e.preventDefault()
@@ -1254,11 +1579,11 @@ export function Expanded({
                   title="Site settings: permissions, blocker, data"
                   onClick={openSite}
                 >
-                  <Favicon m={m} />
+                  <HeadIcon m={m} />
                 </button>
               ) : (
                 <span className="cv-panel-icon" aria-hidden="true">
-                  <Favicon m={m} />
+                  <HeadIcon m={m} />
                 </span>
               )}
               <strong
@@ -1295,12 +1620,11 @@ export function Expanded({
                     className={r.id === m.id ? 'on' : ''}
                     title={`${r.title}${r.site ? ` - ${r.site}` : ''}`}
                     onClick={() => {
-                      if (r.id === m.id) return
-                      hideLive()
-                      onSwitch(r.id)
+                      // the page stays on screen until the next one is ready to take its place
+                      if (r.id !== m.id) onSwitch(r.id)
                     }}
                   >
-                    <Favicon m={r} />
+                    <HeadIcon m={r} />
                     <span>{r.title || r.site}</span>
                   </button>
                 ))}
@@ -1377,11 +1701,10 @@ export function Expanded({
               <PreviewInbox
                 tabs={others}
                 open={bellOpen}
-                onOpen={() => void openBell()}
+                onOpen={openBell}
                 onClose={() => setBellOpen(false)}
                 onPick={(id) => {
                   setBellOpen(false)
-                  hideLive()
                   onOpenTab(id)
                 }}
               />
@@ -1433,7 +1756,7 @@ export function Expanded({
               className="cv-hbtn"
               aria-label="Back to the board"
               title="Back to the board (Esc)"
-              onClick={() => void close()}
+              onClick={() => close()}
             >
               <ChevronDownIcon />
             </button>
@@ -1450,17 +1773,18 @@ export function Expanded({
             : (() => {
                 const own = (
                   <div className="cv-live-slot" ref={slot} key={tab ?? 'own'}>
-                    {/* always under the native view: whenever it is away (moving, a popover over it, closing), the
-                      page is still there in picture, never an empty slot */}
-                    {live === 'on' && (shot ?? m.snap) && (
-                      <img src={shot ?? m.snap} alt="" draggable={false} />
+                    {/* always under the native view: whenever it is away (in flight, a popover over it, closing),
+                      the page is still there in picture, never an empty slot. Decoded with the frame (sync): a
+                      picture that came a frame late would be a blank frame */}
+                    {((live === 'on' && shot) || m.snap) && (
+                      <img
+                        src={(live === 'on' && shot) || m.snap}
+                        alt=""
+                        decoding="sync"
+                        draggable={false}
+                      />
                     )}
-                    {live === 'loading' && (
-                      <>
-                        {m.snap && <img src={m.snap} alt="" draggable={false} />}
-                        <span className="cv-live-bar" />
-                      </>
-                    )}
+                    {live === 'loading' && <span className="cv-live-bar" />}
                   </div>
                 )
                 if (!panes) return own
@@ -1471,7 +1795,7 @@ export function Expanded({
                         own
                       ) : (
                         <div className="cv-live-slot" key={p.tab} ref={paneRef(p.tab)}>
-                          {p.snap && <img src={p.snap} alt="" draggable={false} />}
+                          {p.snap && <img src={p.snap} alt="" decoding="sync" draggable={false} />}
                         </div>
                       )
                     )}
@@ -1480,6 +1804,8 @@ export function Expanded({
               })()}
         </div>
       </div>
+      {/* the flight's soft shadow and light rim, over the panel's clipped edge (see draw) */}
+      <div className="cv-fly-edge" ref={edge} aria-hidden="true" />
     </div>
   )
 }

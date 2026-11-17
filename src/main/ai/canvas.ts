@@ -462,9 +462,18 @@ export function registerCanvas(d: {
   })
   // Bumped by every open and hide: an open still waiting for its page shows it only if nothing came after it.
   let liveGen = 0
-  // The one live page: made if it is a new address, waited for until it has loaded, then shown exactly at the rect.
+  // The one live page: made if it is a new address, readied out of sight at the rect's size (painting there, so its
+  // first frame on screen is a finished one), then shown exactly at the rect, or (`defer`) left for the preview to
+  // show with live-move once its panel is at rest. A page already live stays on screen meanwhile (a swap in place:
+  // never an empty slot), for `hold` ms at most if the new one is slow; then its picture stands in.
   ipcMain.handle('canvas:live-open', async (e, req: unknown) => {
-    const r = (req ?? {}) as { tab?: unknown; url?: unknown; rect?: unknown }
+    const r = (req ?? {}) as {
+      tab?: unknown
+      url?: unknown
+      rect?: unknown
+      defer?: unknown
+      hold?: unknown
+    }
     const rect = rectOf(r.rect)
     if (!mine(e) || !rect) return null
     let id = typeof r.tab === 'number' ? r.tab : null
@@ -473,8 +482,25 @@ export function registerCanvas(d: {
     }
     if (id === null) return null
     const gen = ++liveGen
-    d.tabs.setLive(null)
-    d.tabs.prepareLive(id, rect) // an unloaded tab starts loading now, not after the wait below
+    const hold = typeof r.hold === 'number' ? Math.max(0, Math.min(3000, r.hold)) : 0
+    const other = d.tabs.liveTab()
+    let holdTimer: NodeJS.Timeout | undefined
+    if (other !== null && other !== id) {
+      if (hold > 0)
+        holdTimer = setTimeout(() => {
+          if (gen !== liveGen || d.tabs.liveTab() !== other) return
+          d.tabs.setLive(null)
+          watchLive(null)
+          keepAsThumb(other)
+          d.tabs.prepareLive(id, rect)
+        }, hold)
+      else {
+        d.tabs.setLive(null)
+        watchLive(null)
+        keepAsThumb(other)
+      }
+    }
+    d.tabs.prepareLive(id, rect) // an unloaded tab starts loading now, and paints out of sight at the slot's size
     // shown as Chrome shows a page: from its first paint, the rest loading in view (not behind the picture until the
     // whole page has loaded, unclickable for seconds)
     const until = Date.now() + 7000
@@ -487,8 +513,13 @@ export function registerCanvas(d: {
     // never later than the page's load, as before: a page that cannot paint yet (frozen, hidden) does not hold it
     if (gen === liveGen)
       await Promise.race([d.tabs.painted(id, until - Date.now()), poll(() => d.tabs.liveReady(id))])
+    clearTimeout(holdTimer)
     // closed (or another page asked for) while this one loaded: showing it now would leave a page over the board
-    if (gen === liveGen) d.tabs.setLive(id, rect)
+    if (gen !== liveGen) return id
+    if (r.defer !== true) {
+      d.tabs.setLive(id, rect)
+      watchLive(id)
+    }
     return id
   })
   // The preview is opening onto this tab: it loads (or wakes) now, while the panel grows, not after
@@ -504,7 +535,12 @@ export function registerCanvas(d: {
   })
   ipcMain.on('canvas:live-move', (e, id: unknown, rect: unknown) => {
     const r = rectOf(rect)
-    if (mine(e) && typeof id === 'number' && r) d.tabs.setLive(id, r)
+    if (mine(e) && typeof id === 'number' && r) {
+      const was = d.tabs.liveTab()
+      d.tabs.setLive(id, r)
+      if (was !== null && was !== id) keepAsThumb(was)
+      watchLive(id)
+    }
   })
   ipcMain.on('canvas:live-nav', (e, id: unknown, what: unknown) => {
     if (
@@ -517,7 +553,10 @@ export function registerCanvas(d: {
   ipcMain.on('canvas:live-hide', (e) => {
     if (!mine(e)) return
     liveGen++
+    const was = d.tabs.liveTab()
     d.tabs.setLive(null)
+    watchLive(null)
+    keepAsThumb(was)
     d.tabs.setCompanions([])
   })
   // the other panes of a split shown in the preview, beside the live page
@@ -537,25 +576,89 @@ export function registerCanvas(d: {
   ipcMain.on('canvas:preview', (e, open: unknown, tab: unknown) => {
     if (mine(e)) d.tabs.setPreview(open === true, typeof tab === 'number' ? tab : null)
   })
-  ipcMain.handle('canvas:live-shot', async (e, tabId: unknown) => {
-    const wc = mine(e) && typeof tabId === 'number' ? d.tabs.contentsOf(tabId) : null
-    const page = typeof tabId === 'number' ? d.tabs.pageFor(tabId) : null
+  // The live page's latest picture, taken while the preview is open (see live-shot). It becomes the card's picture
+  // once the preview has let the page go, after the flight back: the board drawing again mid-flight would cost frames.
+  let kept: { id: number; img: Electron.NativeImage } | null = null
+  const keepAsThumb = (id: number | null): void => {
+    const k = kept
+    if (!k || k.id !== id) return
+    kept = null
+    setTimeout(() => {
+      const small = k.img.getSize().width > 960 ? k.img.resize({ width: 960 }) : k.img
+      d.tabs.takeThumb(k.id, 'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64'))
+    }, 450)
+  }
+  const capture = async (tabId: number): Promise<Electron.NativeImage | null> => {
+    const wc = d.tabs.contentsOf(tabId)
+    const page = d.tabs.pageFor(tabId)
     // never a picture of a private or Tor page, whichever tab is active
     if (!wc || d.tabs.boardKind() !== 'normal' || !page || page.private || page.tor) return null
     try {
       const img = await wc.capturePage()
-      if (img.isEmpty()) return null
-      // the page as it is now is also its card's picture from now on (or the card would show it as it was before)
-      const small = img.getSize().width > 960 ? img.resize({ width: 960 }) : img
-      d.tabs.takeThumb(
-        tabId as number,
-        'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64')
-      )
-      return 'data:image/jpeg;base64,' + img.toJPEG(82).toString('base64')
+      return img.isEmpty() ? null : img
     } catch {
       return null
     }
+  }
+  // `thumb`: the picture is also its card's from now on; false for the pictures kept ready while it is open (the
+  // card gets the last of those once the preview closes, see keepAsThumb)
+  ipcMain.handle('canvas:live-shot', async (e, tabId: unknown, thumb: unknown) => {
+    if (!mine(e) || typeof tabId !== 'number') return null
+    const img = await capture(tabId)
+    if (!img) return null
+    if (thumb !== false) {
+      const small = img.getSize().width > 960 ? img.resize({ width: 960 }) : img
+      d.tabs.takeThumb(tabId, 'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64'))
+    } else kept = { id: tabId, img }
+    return 'data:image/jpeg;base64,' + img.toJPEG(82).toString('base64')
   })
+  // The live page used (scrolled, typed in, clicked) or loaded: a fresh picture once it has been still a moment,
+  // pushed to the preview, so closing it shows the page as it is, without waiting for a capture.
+  /** The page still this long after it was used before its picture is taken; the picture at most this wide. */
+  const PIC_QUIET_MS = 700
+  const PIC_MAX_W = 1600
+  let watched: { id: number; wc: Electron.WebContents; off: () => void } | null = null
+  const watchLive = (id: number | null): void => {
+    if (watched?.id === id) return
+    watched?.off()
+    watched = null
+    const wc = id !== null ? d.tabs.contentsOf(id) : null
+    if (id === null || !wc) return
+    let timer: NodeJS.Timeout | undefined
+    const soon = (): void => {
+      clearTimeout(timer)
+      timer = setTimeout(async () => {
+        if (d.tabs.liveTab() !== id) return
+        const full = await capture(id)
+        if (!full || d.tabs.liveTab() !== id || d.win.isDestroyed()) return
+        // no wider than the preview ever shows it: a full-size picture of a large window took ~16 ms of main to encode
+        const img = full.getSize().width > PIC_MAX_W ? full.resize({ width: PIC_MAX_W }) : full
+        kept = { id, img }
+        d.win.webContents.send(
+          'canvas:live-pic',
+          id,
+          'data:image/jpeg;base64,' + img.toJPEG(82).toString('base64')
+        )
+      }, PIC_QUIET_MS)
+    }
+    const onInput = (_e: unknown, i: { type: string }): void => {
+      if (!/^mouse(Move|Enter|Leave)$/.test(i.type)) soon()
+    }
+    wc.on('input-event', onInput)
+    wc.on('did-stop-loading', soon)
+    wc.on('did-navigate-in-page', soon)
+    watched = {
+      id,
+      wc,
+      off: () => {
+        clearTimeout(timer)
+        if (wc.isDestroyed()) return
+        wc.off('input-event', onInput)
+        wc.off('did-stop-loading', soon)
+        wc.off('did-navigate-in-page', soon)
+      }
+    }
+  }
   // A page as a note: key points from the model, or its first sentences when no model can say. Refused for private
   // and Tor (the reader never reads them, and nothing is asked of a model in such a window).
   ipcMain.handle('canvas:summarize', async (e, req: unknown) => {

@@ -169,6 +169,7 @@ const MEMORY_SWEEP_MS = 30_000
 /** A tab out of sight this long paints out of sight before it is shown again (see warm), at most this long. */
 const WARM_AFTER_MS = 3000
 const WARM_MAX_MS = 350
+const HOLD_MAX_MS = 450
 /** Pre-loading after a restart waits this long after the start, and this long between tabs (see preloadRecent). */
 const PRELOAD_START_MS = 5000
 const PRELOAD_GAP_MS = 1500
@@ -415,6 +416,13 @@ export class TabManager {
   private layouts = new Map<number, LayoutNode | null>()
   private lastActive = new Map<number, number | null>()
   private rects: Record<number, Rect> = {}
+  /** The tab whose page is on screen alone in the tab view (see hold). */
+  private onView: number | null = null
+  /**
+   * Switching tabs, the page that was on screen stays until the incoming one can be shown in its place (painted, and
+   * placed by the window), so the switch never shows an empty frame or a picture in between. At most HOLD_MAX_MS.
+   */
+  private hold: { id: number; rect: Rect; timer: NodeJS.Timeout } | null = null
   private overlay = false
   /** Canvas mode is open: every page view is hidden for real (not just parked), so none paints or composites. */
   private canvasMode = false
@@ -2499,8 +2507,15 @@ export class TabManager {
     if (nx === this.slideX && ny === this.slideY) return
     this.slideX = nx
     this.slideY = ny
-    this.applyVisibility()
+    // Every frame of a slide: only the views that ride it move, to where the last full pass put them plus the slide
+    // (nothing else changes during one). A pass that has not run yet does all of it.
+    if (this.slid.size === 0) return this.applyVisibility()
+    for (const [view, r] of this.slid) {
+      if (!view.webContents.isDestroyed()) view.setBounds({ ...r, x: r.x + nx, y: r.y + ny })
+    }
   }
+  /** The views on screen that follow the slide, at their place without it (see setSlide). */
+  private slid = new Map<WebContentsView, Rect>()
 
   /** The normal session (cookies and cache of ordinary tabs), for fetches the canvas makes for the person. */
   normalSession(): Session {
@@ -2637,6 +2652,11 @@ export class TabManager {
     }
     this.companions = next
     this.applyVisibility()
+  }
+
+  /** The tab whose page the canvas preview shows now (null: none). */
+  liveTab(): number | null {
+    return this.liveId
   }
 
   /** Start loading a tab that is about to go live (an unloaded one would otherwise only start once shown). */
@@ -2908,6 +2928,52 @@ export class TabManager {
   }
 
   /**
+   * Decide the hold for this pass (see hold): started when the single page on screen changes to another tab, ended as
+   * soon as the incoming page is ready to show (it has painted, and the window has placed it), or after HOLD_MAX_MS.
+   */
+  private holdFor(single: number | null): { id: number; rect: Rect } | null {
+    const drop = (): null => {
+      if (this.hold) clearTimeout(this.hold.timer)
+      this.hold = null
+      return null
+    }
+    if (single === null) {
+      this.onView = null
+      return drop()
+    }
+    const prev = this.onView
+    const prevTab = prev !== null ? this.tabs.get(prev) : undefined
+    if (
+      prev !== null &&
+      prev !== single &&
+      !this.hold &&
+      prevTab &&
+      !prevTab.unloaded &&
+      !prevTab.awaiting &&
+      !this.isBlank(prevTab) &&
+      this.rects[prev]
+    ) {
+      const timer = setTimeout(() => {
+        if (this.hold?.timer !== timer) return
+        this.hold = null
+        this.onView = null // not held again: the incoming page shows when it can, its picture standing in meanwhile
+        this.applyVisibility()
+      }, HOLD_MAX_MS)
+      this.hold = { id: prev, rect: this.rects[prev], timer }
+    }
+    const t = this.tabs.get(single)
+    const ready =
+      !t ||
+      ((!!this.rects[single] || !this.isBlank(t)) &&
+        !t.warming &&
+        (!t.awaiting || !!t.copy?.ready || t.unloaded))
+    if (this.hold && (this.hold.id === single || !this.tabs.has(this.hold.id))) drop()
+    if (!ready && this.hold) return this.hold
+    this.onView = single
+    return drop()
+  }
+
+  /**
    * Position the visible tabs' views. While a UI overlay is open they are parked off-screen at full
    * size instead of hidden: a hidden view drops its picture and flashes black when it returns, a
    * parked one keeps it. Blank tabs show renderer UI instead of a view.
@@ -2916,9 +2982,28 @@ export class TabManager {
     if (this.win.isDestroyed()) return
     const shown = this.visibleIds()
     const [w, h] = this.win.getContentSize()
+    const single =
+      !this.canvasMode && !this.overlay && this.fullscreenId === null && shown.length === 1
+        ? shown[0]
+        : null
+    const hold = this.holdFor(single)
+    this.slid.clear()
     for (const [id, tab] of this.tabs) {
       if (id === this.pip.tabId) continue // its page is in the floating window
-      const normal = shown.includes(id) ? (this.rects[id] ?? null) : null
+      if (hold && id === hold.id) {
+        // the page being left, kept in place until the incoming one is ready (see hold)
+        tab.view.setBounds({
+          ...hold.rect,
+          x: hold.rect.x + this.slideX,
+          y: hold.rect.y + this.slideY
+        })
+        tab.view.setVisible(true)
+        this.slid.set(tab.view, hold.rect)
+        continue
+      }
+      const normal = shown.includes(id)
+        ? (this.rects[id] ?? (id === single && hold ? hold.rect : null))
+        : null
       // HTML5 fullscreen (video etc.) takes the whole window for that tab only.
       const placed =
         this.fullscreenId !== null
@@ -2939,6 +3024,8 @@ export class TabManager {
       const pageRect = streamed ? (this.rects[id] ?? this.activeRect()) : null
       // the live rect is the slot at rest: it rides the hover sidebar's and top bar's slide like any page view
       const liveAt = companion ?? (id === this.liveId ? this.liveRect : null)
+      const slides =
+        (live && liveAt) || (!streamed && placed && !this.overlay && this.fullscreenId === null)
       const rect =
         live && liveAt
           ? { ...liveAt, x: liveAt.x + this.slideX, y: liveAt.y + this.slideY }
@@ -2966,6 +3053,12 @@ export class TabManager {
         const on = wanted && tab.awaiting && tab.copy.ready && rect !== null
         if (on) tab.copy.view.setBounds(rect)
         tab.copy.view.setVisible(on)
+        if (on && slides && rect)
+          this.slid.set(tab.copy.view, {
+            ...rect,
+            x: rect.x - this.slideX,
+            y: rect.y - this.slideY
+          })
       }
       // A full-screen page has no window edge to be rounded against.
       const flat = this.fullscreenId === id
@@ -2992,6 +3085,8 @@ export class TabManager {
       }
       if (show) tab.view.setBounds(rect)
       tab.view.setVisible(show)
+      if (show && slides && rect)
+        this.slid.set(tab.view, { ...rect, x: rect.x - this.slideX, y: rect.y - this.slideY })
     }
   }
 

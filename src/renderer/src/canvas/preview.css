@@ -1,0 +1,82 @@
+/* The card preview (Expanded.tsx): its flight, the board behind it, the recent tabs' pill.
+   Every motion here is driven from one spring in Expanded.tsx (transform, clip-path and opacity only); these rules
+   only set the resting look and what must never animate on its own (no CSS transitions fighting the spring). */
+
+/* The board behind blurs for depth rather than going dark. The blur is constant: only the scrim's opacity moves
+   (Expanded draws it from the spring), which composites cheaply instead of re-blurring at each radius. */
+.cv-expand > .cv-scrim {
+  opacity: 0;
+  background: color-mix(in srgb, var(--board, var(--overlay-solid)) 24%, transparent);
+  backdrop-filter: blur(18px) saturate(1.08);
+  will-change: opacity;
+}
+[data-fx='low'] .cv-expand > .cv-scrim {
+  backdrop-filter: none;
+  background: color-mix(in srgb, var(--board, var(--overlay-solid)) 70%, transparent);
+}
+
+/* the panel scales from its top-left corner (Expanded's flight is computed for that origin) */
+.cv-expand > .cv-panel {
+  transform-origin: 0 0;
+  will-change: transform, opacity;
+}
+.cv-expand > .cv-panel > .cv-panel-head {
+  will-change: opacity;
+}
+
+/* In flight only: a soft, wide shadow and a 1px light rim on the clipped edge (clip-path would cut a shadow off the
+   panel itself). Outside its box the shadow, inside it the rim: nothing covers the page. */
+.cv-fly-edge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.09),
+    0 0 0 0.5px rgb(0 0 0 / 0.18),
+    0 10px 24px rgb(0 0 0 / 0.16),
+    0 30px 80px -10px rgb(0 0 0 / 0.34);
+  contain: strict;
+}
+[data-scheme='light'] .cv-fly-edge {
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.5),
+    0 0 0 0.5px rgb(0 0 0 / 0.1),
+    0 10px 24px rgb(0 0 0 / 0.1),
+    0 30px 80px -10px rgb(0 0 0 / 0.22);
+}
+
+/* closing: the board takes clicks again at once (a card clicked now opens it back up, mid-flight) */
+.cv-expand.closing,
+.cv-expand.closing * {
+  pointer-events: none !important;
+}
+
+/* the page's picture under the native view: never faded, never late */
+.cv-expand .cv-live-slot > img {
+  transition: none;
+}
+/* the loading bar shows only for a page that is slow to come (not on every open, in flight) */
+.cv-expand .cv-live-bar {
+  opacity: 0;
+  animation:
+    cv-bar-slide 1.1s ease-in-out infinite,
+    cv-live-bar-show 0.2s ease 0.9s forwards;
+}
+@keyframes cv-live-bar-show {
+  to {
+    opacity: 1;
+  }
+}
+
+/* The recent tabs' pill: one fixed size (the tabs are equal slots), moved by transform alone, on a spring
+   (Expanded.tsx). No CSS transition, no width animation, no reflow. */
+.cv-expand .cv-recent-pill {
+  translate: none;
+  transition: none;
+  will-change: transform;
+}

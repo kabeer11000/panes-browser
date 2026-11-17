@@ -345,14 +345,24 @@ export interface PanesApi {
     find(queryId: string, query: string, spaceId: number, classify: boolean): void
     cancelFind(queryId: string): void
     onFound(cb: (e: CanvasFoundEvent) => void): () => void
-    /** Show one tab's real page at a rect (window coordinates); returns its tab id. */
-    liveOpen(req: { tab?: number; url?: string; rect: Rect }): Promise<number | null>
+    /**
+     * Show one tab's real page at a rect (window coordinates); returns its tab id once it has painted there.
+     * `defer`: get it ready (painting out of sight at the rect's size) but leave showing it to a later liveMove.
+     * `hold`: the page live now stays on screen this many ms at most while the new one gets ready (a swap in place).
+     */
+    liveOpen(req: {
+      tab?: number
+      url?: string
+      rect: Rect
+      defer?: boolean
+      hold?: number
+    }): Promise<number | null>
     liveMove(tabId: number, rect: Rect): void
     liveHide(): void
     /** The other panes of a split, live beside the preview's page; [] takes them away. */
     liveCompanions(list: Array<{ id: number; rect: Rect }>): void
     /** A picture of a tab's live page as it is now (stands in for it while it steps aside); null when it has none. */
-    liveShot(tabId: number): Promise<string | null>
+    liveShot(tabId: number, opts?: { thumb?: boolean }): Promise<string | null>
     /** The preview is about to show this tab live: load or wake it now, while the panel grows. */
     livePrepare(tabId: number): void
     /** Back, forward or reload in the live page of the preview. */
@@ -361,6 +371,8 @@ export interface PanesApi {
     preview(open: boolean, tab: number | null): void
     /** A page shortcut meant for the open preview (pressed in its live page, or anywhere while it is open). */
     onPreviewKey(cb: (key: PreviewKey) => void): () => void
+    /** A fresh picture of the preview's live page, taken once it was still after being used or loaded. */
+    onLivePic(cb: (tabId: number, pic: string) => void): () => void
     /** Load an address or search in a card's tab (null: a new background tab); the tab's id, or null. */
     navigate(tab: number | null, input: string): Promise<number | null>
     /** The assistant asks the board to do something; answer with `toolResult`. */
