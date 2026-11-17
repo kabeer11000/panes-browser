@@ -64,6 +64,7 @@ import { registerTouchpad } from './touchpad'
 import { NavGestures } from './gestures'
 import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
+import { registerOffscreenInput } from './offscreenPage'
 
 mark('modules') // every import above has run
 applyPerformance() // Chromium's switches only count before the app is ready
@@ -696,6 +697,7 @@ function createWindow(): void {
     if (e.sender === win.webContents) dock.setHidden(hide === true)
   })
   const tabCard = registerTabCard(win, (id) => tabs.cardInfo(id))
+  registerOffscreenInput(win) // input for pages drawn off screen (OffscreenPage)
   // helper views unused a while give back their renderer processes when memory is short (releaseHelper)
   setInterval(() => {
     const roomy = memoryRoomy(freemem() / 1024 ** 2, totalmem() / 1024 ** 2)

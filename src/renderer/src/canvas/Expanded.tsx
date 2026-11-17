@@ -1784,6 +1784,10 @@ export function Expanded({
                         draggable={false}
                       />
                     )}
+                    {/* a page drawn off screen (Settings, Draw pages inside the window) is drawn here itself, over its
+                      picture, from the first frame of the flight: it moves with the panel instead of standing in
+                      as a picture until the panel is at rest (preload/osr.ts finds it by its tab) */}
+                    {tab !== null && <canvas className="cv-live-osr" data-osr-tab={tab} />}
                     {live === 'loading' && <span className="cv-live-bar" />}
                   </div>
                 )

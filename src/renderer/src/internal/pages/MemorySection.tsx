@@ -190,6 +190,16 @@ export function MemorySection({ s, update }: Props): React.JSX.Element {
           {freed === null ? 'Free memory now' : `Unloaded ${freed}`}
         </button>
       </Row>
+      <Row
+        label="Draw pages inside the window (experimental)"
+        hint="Pages are drawn straight into Panes on the graphics card instead of in separate native views, so the board can move and scale them live. Applies to pages as they load. Typing with an input method editor, dragging files into pages and picture in picture do not work yet."
+      >
+        <Toggle
+          label="Draw pages inside the window"
+          on={s.offscreenPages}
+          onChange={(v) => void update({ offscreenPages: v })}
+        />
+      </Row>
     </Group>
   )
 }

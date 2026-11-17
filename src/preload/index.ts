@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { startOffscreenPages } from './osr'
 import type { UpdateState } from '@shared/update'
 import type { KeyLike } from '@shared/tour'
 import type { CanvasFoundEvent } from '@shared/ai/canvasFind'
@@ -204,3 +205,5 @@ const api: PanesApi = {
 }
 
 contextBridge.exposeInMainWorld('api', api)
+// pages drawn off screen (main/offscreenPage.ts) are drawn into this window's canvases
+startOffscreenPages()

@@ -552,6 +552,11 @@ export interface Settings {
   performanceMode: PerformanceMode
   /** Unload background tabs to free memory. They reload when you open them. */
   memorySaver: boolean
+  /**
+   * Experimental: pages are drawn off screen into the window itself (GPU textures, no copy) instead of in native views,
+   * so the board can move and scale them like anything else. Applies to pages as they load.
+   */
+  offscreenPages: boolean
   /** Minutes a background tab can sit unused before it is unloaded. */
   unloadIdleMin: number
   /** Most tabs kept loaded at once; 0 means no limit. */

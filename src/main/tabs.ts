@@ -70,6 +70,7 @@ import { ZAP_PREFIX, ZAP_SCRIPT } from '@shared/zap'
 import { errorPageUrl } from '@shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
 import { freemem, totalmem } from 'os'
+import { isOffscreen, OffscreenPage } from './offscreenPage'
 import { VIDEO_RECT_SCRIPT, videoRegion, type VideoRegion } from '@shared/ai/tabStream'
 import { applyIdentity, followIdentity } from './identity'
 import { wantsChromeIdentity } from '@shared/identity'
@@ -186,8 +187,12 @@ const TOR_IDLE_MS = 5 * 60_000
 /** How long a message about something that just happened stays in the window. */
 const NOTICE_MS = 4000
 
+/** How a tab's page is shown: a native view, or drawn off screen into the window (OffscreenPage). */
+type TabView = WebContentsView | OffscreenPage
+
 interface Tab {
-  view: WebContentsView
+  /** A native view, or (offscreenPages) a page drawn off screen into the window's own canvases. */
+  view: TabView
   favicon: string | null
   thumb: string | null
   /** When `thumb` was captured (ms since epoch); 0 before the first capture. */
@@ -854,16 +859,21 @@ export class TabManager {
     return tab.tor ? this.deps.torSession : tab.private ? this.privateSession : this.session
   }
 
-  private makeView(isPrivate = false, isTor = false): WebContentsView {
-    const view = new WebContentsView({
-      webPreferences: {
-        session: this.sessionFor({ private: isPrivate, tor: isTor }),
-        sandbox: true,
-        // like Chrome: a page may not start playing sound until you have interacted with it
-        autoplayPolicy: 'document-user-activation-required',
-        preload: join(__dirname, '../preload/internal.js')
-      }
-    })
+  private makeView(isPrivate = false, isTor = false): TabView {
+    const webPreferences = {
+      session: this.sessionFor({ private: isPrivate, tor: isTor }),
+      sandbox: true,
+      // like Chrome: a page may not start playing sound until you have interacted with it
+      autoplayPolicy: 'document-user-activation-required' as const,
+      preload: join(__dirname, '../preload/internal.js')
+    }
+    // Drawn off screen into the window's canvases (experimental, see OffscreenPage): only with the graphics hardware
+    // compositing, as the frames are GPU textures.
+    // (known before the GPU reports in, unlike liveCardsAllowed: the first tabs are made at startup)
+    const offscreen = this.deps.settings.get().offscreenPages && app.isHardwareAccelerationEnabled()
+    const view: TabView = offscreen
+      ? new OffscreenPage(this.win, webPreferences)
+      : new WebContentsView({ webPreferences })
     view.setBorderRadius(VIEW_RADIUS)
     view.setBackgroundColor('#ffffff')
     // a page loaded out of sight (pre-loading) lays out at its real size, not 0x0: no second layout when shown
@@ -871,9 +881,20 @@ export class TabManager {
     if (at) view.setBounds(at)
     view.setVisible(false)
     this.wakeForCalls(view.webContents)
-    this.win.contentView.addChildView(view)
-    this.onViewAdded?.()
+    if (!isOffscreen(view)) {
+      this.win.contentView.addChildView(view)
+      this.onViewAdded?.()
+    }
     return view
+  }
+
+  /** DevTools for a tab's page: docked beside a native view; in a window of its own for a page drawn off screen. */
+  private toggleDevTools(tab: Tab | null | undefined): void {
+    const wc = tab?.view.webContents
+    if (!wc || wc.isDestroyed()) return
+    if (!isOffscreen(tab.view)) return wc.toggleDevTools()
+    if (wc.isDevToolsOpened()) wc.closeDevTools()
+    else wc.openDevTools({ mode: 'detach' })
   }
 
   /**
@@ -972,7 +993,7 @@ export class TabManager {
   /** Drop a tab's page. The shared inert view is never closed. */
   private destroyView(tab: Tab): void {
     if (tab.unloaded) return
-    this.win.contentView.removeChildView(tab.view)
+    if (!isOffscreen(tab.view)) this.win.contentView.removeChildView(tab.view)
     tab.view.webContents.close()
   }
 
@@ -1697,7 +1718,9 @@ export class TabManager {
   togglePip(): void {
     if (this.pip.tabId !== null) return this.pip.stop()
     const tab = this.current()
-    if (tab && this.activeId !== null) void this.pip.start({ id: this.activeId, view: tab.view })
+    // a page drawn off screen has no native view to move into the floating window (not yet)
+    if (tab && this.activeId !== null && !isOffscreen(tab.view))
+      void this.pip.start({ id: this.activeId, view: tab.view })
   }
 
   exitPip(): void {
@@ -2031,7 +2054,7 @@ export class TabManager {
       'save-page': () => void this.savePage(),
       'open-file': () => void this.openFile(),
       'view-source': () => this.viewSource(),
-      devtools: () => tab?.view.webContents.toggleDevTools(),
+      devtools: () => this.toggleDevTools(tab),
       'ai-setup': settings('ai'),
       passwords: page('passwords'),
       privacy: page('privacy'),
@@ -2515,7 +2538,7 @@ export class TabManager {
     }
   }
   /** The views on screen that follow the slide, at their place without it (see setSlide). */
-  private slid = new Map<WebContentsView, Rect>()
+  private slid = new Map<TabView, Rect>()
 
   /** The normal session (cookies and cache of ordinary tabs), for fetches the canvas makes for the person. */
   normalSession(): Session {
@@ -2601,7 +2624,7 @@ export class TabManager {
       this.ensureLoaded(id, t)
       t.awaiting = false
       if (changed && !t.unloaded && !this.win.isDestroyed()) {
-        this.win.contentView.addChildView(t.view)
+        if (!isOffscreen(t.view)) this.win.contentView.addChildView(t.view)
         this.onViewAdded?.()
       }
       const wc = liveContents(t)
@@ -2643,7 +2666,8 @@ export class TabManager {
       t.awaiting = false
       if (!t.unloaded && isNew && !this.win.isDestroyed()) {
         t.view.setBounds(rect)
-        this.win.contentView.addChildView(t.view) // over the board, like the live page
+        // over the board, like the live page
+        if (!isOffscreen(t.view)) this.win.contentView.addChildView(t.view)
         this.onViewAdded?.()
       }
       if (isNew) this.hookPreviewEsc(t)
@@ -3093,6 +3117,7 @@ export class TabManager {
   // ---- events ----
 
   private wire(id: number, tab: Tab): void {
+    if (isOffscreen(tab.view)) tab.view.tabId = id // the board finds the page's canvas by its tab
     const wc = tab.view.webContents
     const refresh = (): void => this.refresh()
     wc.on('did-navigate', (_e, url) => {
@@ -3475,7 +3500,7 @@ export class TabManager {
       else if (k === 'n') this.newPrivateTab()
       else if (k === 'delete') this.openInternal('settings', 'clear-data')
       else if (k === 'b') this.openInternal('bookmarks')
-      else if (k === 'j' || k === 'c') this.current()?.view.webContents.toggleDevTools()
+      else if (k === 'j' || k === 'c') this.toggleDevTools(this.current())
       else if (k === 'pagedown') this.moveActive(1)
       else if (k === 'pageup') this.moveActive(-1)
       else if (k === 'tab') this.send('ui:stack-wheel', -STACK_STEP)
@@ -3489,7 +3514,7 @@ export class TabManager {
       else if (k === 't') this.reopenClosed()
       else if (k === 'o') this.openInternal('bookmarks')
       else if (k === 'd') this.dumpTabs()
-      else if (k === 'i') this.current()?.view.webContents.toggleDevTools()
+      else if (k === 'i') this.toggleDevTools(this.current())
       else if (k === '+') this.zoom(ZOOM_STEP)
       else handled = false
     } else if (input.alt && input.shift && !mod) {
@@ -3516,7 +3541,7 @@ export class TabManager {
     } else if (k === 'f11' && !mod) {
       this.win.setFullScreen(!this.win.isFullScreen())
     } else if (k === 'f12' && !mod) {
-      this.current()?.view.webContents.toggleDevTools()
+      this.toggleDevTools(this.current())
     } else if (k === 'escape' && this.fullscreenId !== null) {
       this.setFullscreen(null)
     } else {
