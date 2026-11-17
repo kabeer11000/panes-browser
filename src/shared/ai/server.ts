@@ -45,14 +45,15 @@ export const CACHE_RAM_MB = 768
 
 /**
  * Threads for a server on `cpus` logical CPUs. On every one (what llama.cpp does by default) a background job, such as
- * naming a board's sections, held a 4-core laptop at 100% and froze it. Writing tokens is bound by memory, not
- * compute, so a few threads lose little; reading a prompt is compute, so it gets all but two logical CPUs. The
- * server also runs at below-normal priority (runtime.ts), so what the person is doing comes first.
+ * naming a board's sections, held a 4-core laptop at 100% and froze it. Reading a prompt is compute: it gets half the
+ * logical CPUs (about the physical cores). All but two held an 8-core, 16-thread desktop at 87% busy for the 20 s a
+ * page took, and everything lagged; half kept it at 52% for 23% more time. Writing tokens is bound by memory, so a
+ * quarter loses next to nothing. The server also runs at below-normal priority (runtime.ts).
  */
 export function aiThreads(cpus: number): { generate: number; read: number } {
   return {
-    generate: Math.max(1, Math.floor(cpus / 2) - 1),
-    read: Math.max(1, cpus - 2)
+    generate: Math.max(1, Math.floor(cpus / 4)),
+    read: Math.max(1, Math.floor(cpus / 2))
   }
 }
 

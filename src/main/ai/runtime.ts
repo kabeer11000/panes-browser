@@ -16,6 +16,7 @@ import { availableParallelism, constants, setPriority, totalmem } from 'os'
 import { basename, dirname, join, resolve } from 'path'
 import {
   cpuOnlyHolds,
+  nextGpuFails,
   MODELS,
   RUNTIME_BUILDS,
   runtimeBuildsFor,
@@ -174,20 +175,35 @@ export class LocalRuntime {
 
   // ---- what is on disk ----
 
-  private cpuOnly(): boolean {
+  /** The GPU build failed to start in this launch: the CPU one is used until Panes starts again. */
+  private gpuFailedNow = false
+
+  private readState(): unknown {
     try {
-      return cpuOnlyHolds(JSON.parse(readFileSync(this.stateFile, 'utf8')), Date.now())
+      return JSON.parse(readFileSync(this.stateFile, 'utf8'))
     } catch {
-      return false
+      return null
     }
   }
 
+  private cpuOnly(): boolean {
+    return this.gpuFailedNow || cpuOnlyHolds(this.readState(), Date.now())
+  }
+
+  /** The GPU build failed (counted once a launch: the next launch tries it again, see cpuOnlyHolds), or a retry. */
   private setCpuOnly(on: boolean): void {
+    if (on && this.gpuFailedNow) return
+    this.gpuFailedNow = on
     try {
       mkdirSync(aiRoot(), { recursive: true })
+      const now = Date.now()
       writeFileSync(
         this.stateFile,
-        JSON.stringify(on ? { cpuOnly: true, at: Date.now() } : { cpuOnly: false })
+        JSON.stringify(
+          on
+            ? { cpuOnly: true, at: now, fails: nextGpuFails(this.readState(), now) }
+            : { cpuOnly: false }
+        )
       )
     } catch (err) {
       this.warnOnce('state', err)

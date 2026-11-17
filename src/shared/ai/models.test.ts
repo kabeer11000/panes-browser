@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   cpuOnlyHolds,
+  nextGpuFails,
   CPU_ONLY_DAYS,
   MODELS,
   RUNTIME_BUILDS,
@@ -43,13 +44,26 @@ describe('pinned downloads', () => {
 describe('cpuOnlyHolds', () => {
   const now = 1_800_000_000_000
   const day = 86_400_000
-  test('a recent GPU failure holds, an old one or one with no time does not', () => {
-    expect(cpuOnlyHolds({ cpuOnly: true, at: now - day }, now)).toBe(true)
-    expect(cpuOnlyHolds({ cpuOnly: true, at: now - CPU_ONLY_DAYS * day }, now)).toBe(false)
-    expect(cpuOnlyHolds({ cpuOnly: true }, now)).toBe(false)
+  test('GPU failures on two launches hold; an old record or one with no time does not', () => {
+    expect(cpuOnlyHolds({ cpuOnly: true, at: now - day, fails: 2 }, now)).toBe(true)
+    expect(cpuOnlyHolds({ cpuOnly: true, at: now - CPU_ONLY_DAYS * day, fails: 2 }, now)).toBe(
+      false
+    )
+    expect(cpuOnlyHolds({ cpuOnly: true, fails: 2 }, now)).toBe(false)
     expect(cpuOnlyHolds({ cpuOnly: false, at: now }, now)).toBe(false)
     expect(cpuOnlyHolds(null, now)).toBe(false)
-    expect(cpuOnlyHolds({ cpuOnly: true, at: now + day }, now)).toBe(false) // a clock set back
+    expect(cpuOnlyHolds({ cpuOnly: true, at: now + day, fails: 2 }, now)).toBe(false) // a clock set back
+  })
+  test('one failed GPU start is not enough: the next launch tries the GPU again', () => {
+    // a first start can fail on a slow first shader compile; this pinned a GTX 1070 to the CPU for a week (8x slower)
+    expect(cpuOnlyHolds({ cpuOnly: true, at: now - day, fails: 1 }, now)).toBe(false)
+    expect(cpuOnlyHolds({ cpuOnly: true, at: now - day }, now)).toBe(false) // older records counted one failure
+  })
+  test('failures add up within the hold, and start over after it', () => {
+    expect(nextGpuFails({ cpuOnly: true, at: now - day, fails: 1 }, now)).toBe(2)
+    expect(nextGpuFails({ cpuOnly: true, at: now - day }, now)).toBe(2)
+    expect(nextGpuFails({ cpuOnly: true, at: now - CPU_ONLY_DAYS * day, fails: 3 }, now)).toBe(1)
+    expect(nextGpuFails(null, now)).toBe(1)
   })
 })
 

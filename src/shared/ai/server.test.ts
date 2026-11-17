@@ -36,11 +36,12 @@ describe('serverArgs', () => {
 
   test('threads leave CPUs free for the person; the prompt cache in RAM is bounded', () => {
     const c = serverArgs({ ...base, role: 'chat', gpu: false, cpus: 8 })
-    expect(after(c, '-t')).toBe('3')
-    expect(after(c, '-tb')).toBe('6')
+    expect(after(c, '-t')).toBe('2')
+    expect(after(c, '-tb')).toBe('4')
     expect(aiThreads(4)).toEqual({ generate: 1, read: 2 })
     expect(aiThreads(2)).toEqual({ generate: 1, read: 1 })
-    expect(aiThreads(16)).toEqual({ generate: 7, read: 14 })
+    // half the machine at most: on 16 logical CPUs, 14 held it at 87% busy and the whole PC lagged
+    expect(aiThreads(16)).toEqual({ generate: 4, read: 8 })
     expect(Number(after(c, '--cache-ram'))).toBeLessThanOrEqual(1024)
     expect(after(serverArgs({ ...base, role: 'embed', gpu: false }), '--cache-ram')).toBe('0')
     expect(serverArgs({ ...base, role: 'chat', gpu: false })).not.toContain('-tb')

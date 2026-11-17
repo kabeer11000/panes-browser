@@ -120,20 +120,34 @@ export const MODELS: Record<ModelRole, ModelSpec> = {
 
 /** How long "the GPU build did not start" holds before the GPU one is tried again (a driver can get fixed). */
 export const CPU_ONLY_DAYS = 7
+/** Launches on which the GPU build has to fail before Panes keeps to the CPU one: a single failure can be a fluke. */
+export const CPU_ONLY_FAILS = 2
+
+type GpuState = { cpuOnly?: unknown; at?: unknown; fails?: unknown } | null
+
+/** A record still within its hold (a clock set back does not count). */
+const recent = (s: GpuState, now: number): boolean =>
+  !!s &&
+  s.cpuOnly === true &&
+  typeof s.at === 'number' &&
+  now - s.at >= 0 &&
+  now - s.at < CPU_ONLY_DAYS * 86_400_000
+
+/** How many launches the GPU build has failed on, counting this one (a record from before counts was one). */
+export function nextGpuFails(state: unknown, now: number): number {
+  const s = state as GpuState
+  if (!recent(s, now)) return 1
+  return (typeof s!.fails === 'number' ? s!.fails : 1) + 1
+}
 
 /**
- * Whether to keep to the CPU build, from what state.json says. A record with no time (written before records had
- * one) or an older one has run out: the GPU build gets another try.
+ * Whether to keep to the CPU build, from what state.json says: the GPU build failed on CPU_ONLY_FAILS launches, the
+ * last one within CPU_ONLY_DAYS. A record with no time (written before records had one) or an older one has run out,
+ * and a record with no count was one failure: the GPU build gets another try.
  */
 export function cpuOnlyHolds(state: unknown, now: number): boolean {
-  const s = state as { cpuOnly?: unknown; at?: unknown } | null
-  return (
-    !!s &&
-    s.cpuOnly === true &&
-    typeof s.at === 'number' &&
-    now - s.at >= 0 &&
-    now - s.at < CPU_ONLY_DAYS * 86_400_000
-  )
+  const s = state as GpuState
+  return recent(s, now) && typeof s!.fails === 'number' && s!.fails >= CPU_ONLY_FAILS
 }
 
 /**
