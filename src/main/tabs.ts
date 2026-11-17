@@ -187,6 +187,19 @@ const TOR_IDLE_MS = 5 * 60_000
 /** How long a message about something that just happened stays in the window. */
 const NOTICE_MS = 4000
 
+/**
+ * Picture in picture for a page drawn off screen (see togglePip): closes the floating video if there is one, else floats
+ * the largest video that is playing (or, failing that, the largest one).
+ */
+const VIDEO_PIP_SCRIPT = `(() => {
+  if (document.pictureInPictureElement) return document.exitPictureInPicture().then(() => 'closed')
+  const vs = [...document.querySelectorAll('video')].filter((v) => v.readyState > 0 && !v.disablePictureInPicture)
+  const area = (v) => v.clientWidth * v.clientHeight
+  const playing = vs.filter((v) => !v.paused).sort((a, b) => area(b) - area(a))
+  const v = playing[0] ?? vs.sort((a, b) => area(b) - area(a))[0]
+  return v ? v.requestPictureInPicture().then(() => 'open') : 'none'
+})()`
+
 /** How a tab's page is shown: a native view, or drawn off screen into the window (OffscreenPage). */
 type TabView = WebContentsView | OffscreenPage
 
@@ -1718,9 +1731,14 @@ export class TabManager {
   togglePip(): void {
     if (this.pip.tabId !== null) return this.pip.stop()
     const tab = this.current()
-    // a page drawn off screen has no native view to move into the floating window (not yet)
-    if (tab && this.activeId !== null && !isOffscreen(tab.view))
-      void this.pip.start({ id: this.activeId, view: tab.view })
+    if (!tab || this.activeId === null) return
+    // a page drawn off screen has no native view to move into the floating window: Chromium's own picture in picture
+    // floats its video instead (it opens a window of its own, whatever draws the page)
+    if (isOffscreen(tab.view)) {
+      void tab.view.webContents.executeJavaScript(VIDEO_PIP_SCRIPT, true).catch(() => undefined)
+      return
+    }
+    void this.pip.start({ id: this.activeId, view: tab.view })
   }
 
   exitPip(): void {
