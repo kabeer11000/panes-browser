@@ -4829,13 +4829,13 @@
   z-index: 14;
 }
 
-/* The recent tabs, compact: the open tab with its name, the others by their icon (the name is on hover) */
-.cv-recent button:not(.on) {
-  padding: 0 7px;
+/* The recent tabs are icons in equal slots: the strip keeps one width and no tab ever moves; the open one is marked by
+   the pill alone (its name is already at the left of the header; every name is on hover) */
+.cv-recent button {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
 }
-.cv-recent button:not(.on) > span:last-child {
+.cv-recent button > span:last-child {
   display: none;
-}
-.cv-recent button.on {
-  max-width: 180px;
 }
