@@ -6,9 +6,11 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import { Recover } from './Recover'
 import { installSpringTokens } from './motion'
+import { installTooltips } from './tooltip'
 
 document.documentElement.dataset.platform = window.api.platform
 installSpringTokens()
+installTooltips()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

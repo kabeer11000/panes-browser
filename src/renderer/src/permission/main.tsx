@@ -1,3 +1,4 @@
+import { installTooltips } from '@renderer/tooltip'
 import '@renderer/styles.css'
 import './permission.css'
 import './share.css'
@@ -16,3 +17,5 @@ createRoot(document.getElementById('root')!).render(
     <Permission />
   </StrictMode>
 )
+
+installTooltips()

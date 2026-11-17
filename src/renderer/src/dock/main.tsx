@@ -1,3 +1,4 @@
+import { installTooltips } from '@renderer/tooltip'
 import '@renderer/styles.css'
 import './dock.css'
 
@@ -10,3 +11,5 @@ createRoot(document.getElementById('root')!).render(
     <Dock />
   </StrictMode>
 )
+
+installTooltips()

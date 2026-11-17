@@ -1,0 +1,88 @@
+/* Panes' tooltip (tooltip.ts): a small dark label with a soft shadow, springing up from what is hovered, sliding from
+   control to control along a bar. Dark in both schemes, as labels on macOS and in Figma are, so it reads over any page. */
+.px-tip {
+  --tip-bg: rgb(28 28 32 / 0.96);
+  --tip-fg: rgb(255 255 255 / 0.96);
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 5px 9px;
+  border-radius: 8px;
+  font:
+    500 12px/1.35 Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  letter-spacing: 0.005em;
+  color: var(--tip-fg);
+  background: var(--tip-bg);
+  box-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.08) inset,
+    0 0 0 0.5px rgb(0 0 0 / 0.3),
+    0 4px 14px -2px rgb(0 0 0 / 0.32);
+  pointer-events: none;
+  user-select: none;
+  white-space: normal;
+  text-wrap: pretty;
+  translate: var(--x) var(--y);
+  opacity: 0;
+  scale: 0.94;
+  transform: translateY(var(--from, 4px));
+  transition:
+    opacity 0.08s ease,
+    scale 0.08s ease,
+    transform 0.08s ease;
+}
+.px-tip.on {
+  opacity: 1;
+  scale: 1;
+  transform: none;
+  transition:
+    opacity 0.12s ease,
+    scale var(--spring-snappy-dur, 0.3s) var(--spring-snappy, ease-out),
+    transform var(--spring-snappy-dur, 0.3s) var(--spring-snappy, ease-out);
+}
+/* moving along a bar: the label slides to the next control instead of blinking */
+.px-tip.on.glide {
+  transition:
+    opacity 0.12s ease,
+    translate var(--spring-snappy-dur, 0.3s) var(--spring-snappy, ease-out);
+}
+.px-tip-keys {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: -3px;
+}
+.px-tip-keys[hidden] {
+  display: none;
+}
+.px-tip kbd {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.72);
+  background: rgb(255 255 255 / 0.12);
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.25);
+}
+@media (prefers-reduced-motion: reduce) {
+  .px-tip,
+  .px-tip.on,
+  .px-tip.on.glide {
+    transition: opacity 0.1s ease;
+    transform: none;
+    scale: 1;
+  }
+}

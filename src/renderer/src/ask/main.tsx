@@ -1,3 +1,4 @@
+import { installTooltips } from '@renderer/tooltip'
 import '@renderer/styles.css'
 import '@renderer/components/chat/chat.css'
 import './ask.css'
@@ -11,3 +12,5 @@ createRoot(document.getElementById('root')!).render(
     <Ask kind={new URLSearchParams(location.search).get('v') === 'card' ? 'card' : 'chip'} />
   </StrictMode>
 )
+
+installTooltips()

@@ -1,3 +1,4 @@
+import { installTooltips } from '@renderer/tooltip'
 import '@renderer/styles.css'
 import './controls.css'
 import './internal.css'
@@ -24,3 +25,5 @@ createRoot(document.getElementById('root')!).render(
     <Recover what="this page">{location.hostname === 'reader' ? <Reader /> : <Shell />}</Recover>
   </StrictMode>
 )
+
+installTooltips()

@@ -1,3 +1,4 @@
+import { installTooltips } from '@renderer/tooltip'
 import '@renderer/styles.css'
 import '@renderer/internal/internal.css'
 import '@renderer/internal/controls.css'
@@ -17,3 +18,5 @@ createRoot(document.getElementById('root')!).render(
     <Welcome />
   </StrictMode>
 )
+
+installTooltips()
