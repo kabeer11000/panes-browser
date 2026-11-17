@@ -115,6 +115,7 @@ import type { Settings, Space, TabInfo } from '@shared/types'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
+import { AiGlow } from './AiGlow'
 import { CardView, FrameBar, FrameView, NoteView } from './Cards'
 import { WidgetView } from './Widgets'
 import { WIDGET_LABEL, type Widget, type WidgetKind } from '@shared/widgets'
@@ -346,6 +347,9 @@ type Gesture =
     }
 
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+/** A whole-board rearrange: long and soft, quick to leave and slow to land, so everything settles as one motion. */
+const GLIDE = 'cubic-bezier(0.32, 0.72, 0, 1)'
+const TIDY_GLIDE_MS = 760
 const UNDO_MAX = 60
 const DRAG_PX = 4
 const MARGIN = 360
@@ -453,6 +457,8 @@ export function Canvas({
     key: number
   } | null>(null)
   const [busy, setBusy] = useState(false)
+  // the model naming sections the board just made (after a tidy): the edge light stays on, calmer
+  const [naming, setNaming] = useState(0)
   const spaceHeld = useRef(false)
   const [lod, setLod] = useState(false)
   const [ghostId, setGhostId] = useState<number | null>(activeId)
@@ -1027,8 +1033,8 @@ export function Canvas({
         const dy = from.y - to.y
         if (dx === 0 && dy === 0) return
         el.animate([{ translate: `${dx}px ${dy}px` }, { translate: '0px 0px' }], {
-          duration: p.stagger ? 380 : 300,
-          easing: EASE,
+          duration: p.stagger ? TIDY_GLIDE_MS - 120 : 300,
+          easing: p.stagger ? GLIDE : EASE,
           delay: delayOf(el),
           fill: 'backwards'
         })
@@ -1044,10 +1050,13 @@ export function Canvas({
       const todo = s.frames.filter((f) => ids.includes(f.id) && !f.pinned && f.kind === 'topic')
       if (todo.length === 0) return
       // one call names them all (a call per section kept the model busy for many seconds after a tidy)
-      const names = await window.api.canvas.names(
-        spaceId,
-        todo.map((f) => s.cards.filter((c) => c.frame === f.id).map((c) => c.id))
-      )
+      setNaming((n) => n + 1)
+      const names = await window.api.canvas
+        .names(
+          spaceId,
+          todo.map((f) => s.cards.filter((c) => c.frame === f.id).map((c) => c.id))
+        )
+        .finally(() => setNaming((n) => n - 1))
       const named = new Map(
         todo.flatMap((f, i) =>
           names[i] ? [[f.id, { was: f.name, name: names[i]! }] as const] : []
@@ -1067,10 +1076,14 @@ export function Canvas({
   )
 
   // ---- tidy up ----
+  const tidying = useRef(false)
   const runTidy = useCallback(
     async (rearrange = false): Promise<void> => {
-      if (!stRef.current) return
+      // a second press while it runs would cluster and move everything again
+      if (!stRef.current || tidying.current) return
+      tidying.current = true
       setBusy(true)
+      const t0 = performance.now()
       try {
         const res = await window.api.canvas.cluster(spaceId)
         const before = new Set(stRef.current.frames.map((f) => f.id))
@@ -1099,6 +1112,11 @@ export function Canvas({
           }
         }
       } finally {
+        // the light stays up for the whole glide, so the move and the light read as one gesture
+        await new Promise((r) =>
+          setTimeout(r, Math.max(0, TIDY_GLIDE_MS - (performance.now() - t0)))
+        )
+        tidying.current = false
         setBusy(false)
       }
     },
@@ -5706,6 +5724,7 @@ export function Canvas({
               ))}
         </div>
       )}
+      <AiGlow level={busy ? 2 : naming > 0 ? 1 : 0} />
       <Toolbar
         tool={tool}
         zoom={zoomPct}
