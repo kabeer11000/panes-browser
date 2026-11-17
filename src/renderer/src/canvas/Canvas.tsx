@@ -115,6 +115,7 @@ import type { Settings, Space, TabInfo } from '@shared/types'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
+import { recentOthers } from '@shared/ai/previewBar'
 import { AiGlow } from './AiGlow'
 import { CardView, FrameBar, FrameView, NoteView } from './Cards'
 import { WidgetView } from './Widgets'
@@ -4452,10 +4453,15 @@ export function Canvas({
       .sort((a, b) => a.y - b.y || a.x - b.x)
       .map((x) => x.id)
   }
-  const placeOf = (id: number): { at: number; of: number } | undefined => {
+  const placeOf = (
+    id: number
+  ): { at: number; of: number; prev?: string; next?: string } | undefined => {
     const list = neighbours(st, id, modelFor)
     const at = list.indexOf(id)
-    return at < 0 ? undefined : { at: at + 1, of: list.length }
+    if (at < 0) return undefined
+    const name = (n: number | undefined): string | undefined =>
+      n === undefined ? undefined : modelFor({ id: n })?.title || undefined
+    return { at: at + 1, of: list.length, prev: name(list[at - 1]), next: name(list[at + 1]) }
   }
   const stepExpanded = (dir: -1 | 1): void => {
     const cur = expandedRef.current ? expandedNow.current : null
@@ -5645,6 +5651,11 @@ export function Canvas({
           }}
           onStep={(dir) => stepExpanded(dir)}
           place={placeOf(expanded.id)}
+          recent={recentOthers(
+            tabs,
+            expanded.id,
+            (id) => !!st?.cards.some((c) => c.id === id)
+          ).flatMap((id) => modelFor({ id }) ?? [])}
           waiting={waiting}
           onOpenTab={openWaiting}
           swipe={previewSwipe}

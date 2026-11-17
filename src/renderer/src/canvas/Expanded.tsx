@@ -77,8 +77,10 @@ interface Props extends ExpandSource {
   split?: Array<{ tab: number; snap?: string }>
   /** The card's tab as the browser knows it (address, loading, history, bookmark, sound), when it has one. */
   page?: TabInfo
-  /** Where it sits among its section's cards, for the "2 / 5" in the header. */
-  place?: { at: number; of: number }
+  /** Where it sits among its section's cards, for the "2 / 5" in the header, and the cards either side. */
+  place?: { at: number; of: number; prev?: string; next?: string }
+  /** The tabs used last (not this one), to switch the preview to in one click. */
+  recent?: CardModel[]
   /** What waits in the tabs (messages, calls), one entry per site or account, for the header's bell. */
   waiting?: Grouped<TabInfo>[]
   /** Open another tab in the preview (picked from the bell). */
@@ -638,6 +640,7 @@ export function Expanded({
   onTab,
   onText,
   onStep,
+  recent,
   place,
   page,
   startLive = false,
@@ -1245,8 +1248,8 @@ export function Expanded({
               <div className="cv-step" role="group" aria-label="Cards in this section">
                 <button
                   type="button"
-                  aria-label="Previous card"
-                  title="Previous (Left arrow)"
+                  aria-label={place.prev ? `Previous: ${place.prev}` : 'Previous card'}
+                  title={place.prev ? `${place.prev} (Left arrow)` : 'Previous (Left arrow)'}
                   onClick={() => {
                     hideLive()
                     onStep(-1)
@@ -1259,8 +1262,8 @@ export function Expanded({
                 </span>
                 <button
                   type="button"
-                  aria-label="Next card"
-                  title="Next (Right arrow)"
+                  aria-label={place.next ? `Next: ${place.next}` : 'Next card'}
+                  title={place.next ? `${place.next} (Right arrow)` : 'Next (Right arrow)'}
                   onClick={() => {
                     hideLive()
                     onStep(1)
@@ -1270,6 +1273,24 @@ export function Expanded({
                 </button>
               </div>
             ) : null}
+            {recent && recent.length > 0 && onOpenTab && (
+              <div className="cv-recent" role="group" aria-label="Recent tabs">
+                {recent.map((r) => (
+                  <button
+                    type="button"
+                    key={r.id}
+                    title={`${r.title}${r.site ? ` - ${r.site}` : ''}`}
+                    onClick={() => {
+                      hideLive()
+                      onOpenTab(r.id)
+                    }}
+                  >
+                    <Favicon m={r} />
+                    <span>{r.title || r.site}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {/* with the reader off a page is only live: the pill is there just to bring a page back that did not open */}
             {canLive && m.kind === 'page' && !READER && live !== 'off' ? null : canLive &&
               ((m.kind === 'page' && READER) || m.kind === 'video') ? (

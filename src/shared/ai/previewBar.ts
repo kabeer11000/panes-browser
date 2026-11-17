@@ -39,3 +39,23 @@ export const sameRect = (a: Rect | null, b: Rect | null): boolean =>
 
 /** A Chromium zoom level (0 is 100%, each step 1.2 times) as the percentage people know. */
 export const zoomPercent = (level: number): number => Math.round(100 * Math.pow(1.2, level))
+
+/** How many recent tabs the preview's header offers to switch to. */
+export const RECENT_IN_PREVIEW = 3
+
+/**
+ * The tabs used last, other than the one open in the preview, for the preview's header: only those with a card on
+ * the board (the preview opens cards), most recently used first.
+ */
+export function recentOthers(
+  tabs: readonly { id: number; usedAt: number }[],
+  open: number,
+  onBoard: (id: number) => boolean,
+  n = RECENT_IN_PREVIEW
+): number[] {
+  return tabs
+    .filter((t) => t.id !== open && onBoard(t.id))
+    .sort((a, b) => b.usedAt - a.usedAt)
+    .slice(0, n)
+    .map((t) => t.id)
+}

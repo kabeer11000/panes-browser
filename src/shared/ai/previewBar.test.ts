@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { pageCaps, restRect, sameRect, zoomPercent } from './previewBar'
+import { pageCaps, recentOthers, restRect, sameRect, zoomPercent } from './previewBar'
 
 describe('pageCaps', () => {
   test('a web page gets everything', () => {
@@ -58,4 +58,23 @@ test('zoomPercent', () => {
   expect(zoomPercent(0)).toBe(100)
   expect(zoomPercent(1)).toBe(120)
   expect(zoomPercent(-1)).toBe(83)
+})
+
+describe('recentOthers', () => {
+  const tabs = [
+    { id: 1, usedAt: 10 },
+    { id: 2, usedAt: 50 },
+    { id: 3, usedAt: 30 },
+    { id: 4, usedAt: 40 },
+    { id: 5, usedAt: 20 }
+  ]
+  test('the last used first, without the open one, three at most', () => {
+    expect(recentOthers(tabs, 2, () => true)).toEqual([4, 3, 5])
+  })
+  test('only tabs with a card on the board', () => {
+    expect(recentOthers(tabs, 2, (id) => id !== 4)).toEqual([3, 5, 1])
+  })
+  test('fewer tabs than asked for', () => {
+    expect(recentOthers(tabs.slice(0, 2), 1, () => true)).toEqual([2])
+  })
 })
