@@ -15,6 +15,10 @@ interface Actions {
   print: () => void
   /** Null in a private or Tor tab: chat does not read those. */
   askAi: ((text: string | null) => void) | null
+  /** The Explain / Translate / Summarise chip beside the selection; null where it is off (AI off, private, Tor). */
+  explain: (() => void) | null
+  /** Circle to search on this page. */
+  circle: () => void
   searchUrl: (text: string) => string
   /** The page is on the canvas board (its preview): what opens becomes a card, so the words say so. */
   onBoard?: boolean
@@ -112,6 +116,7 @@ export function showContextMenu(
     items.push(
       { role: 'copy' },
       { label: `Search for "${short}"`, click: () => a.openTab(a.searchUrl(text)) },
+      ...(a.explain ? [{ label: 'Explain, translate or summarise', click: a.explain }] : []),
       ...(a.askAi
         ? [{ label: 'Ask AI about selection', click: () => a.askAi?.(text.slice(0, 2000)) }]
         : []),
@@ -132,6 +137,7 @@ export function showContextMenu(
       { label: 'Reload', click: () => wc.reload() },
       sep,
       { label: 'Print...', accelerator: 'CmdOrCtrl+P', click: a.print },
+      { label: 'Circle to search', accelerator: 'CmdOrCtrl+Shift+S', click: a.circle },
       ...(a.askAi ? [{ label: 'Ask AI about this page', click: () => a.askAi?.(null) }] : []),
       sep
     )

@@ -46,6 +46,8 @@ interface Props {
   active: TabInfo | null
   engineName: string
   variant: Settings['searchStyle']
+  /** AI is on: its actions (chat, ask about selection) are offered. */
+  ai?: boolean
   /** The address bar the popover grows out of (popover variant). */
   anchor: Anchor | null
   onClose: () => void
@@ -165,6 +167,7 @@ export function SearchPalette({
   active,
   engineName,
   variant,
+  ai = true,
   anchor,
   onClose,
   onAction,
@@ -236,9 +239,10 @@ export function SearchPalette({
         remote: effective ? remote : [],
         semantic: effective.length >= 3 ? similar : [],
         engineName,
-        now: openedAt
+        now: openedAt,
+        ai
       }),
-    [effective, tabs, active?.id, local, remote, similar, engineName, openedAt]
+    [effective, tabs, active?.id, local, remote, similar, engineName, openedAt, ai]
   )
   // before anything is typed: the tabs used last, as pictures, above the list (and not repeated in it)
   const recent = useMemo(

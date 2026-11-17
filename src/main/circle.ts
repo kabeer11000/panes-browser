@@ -43,6 +43,8 @@ interface Deps {
   open: (input: string) => void
   /** Open the chat panel with this in its box. */
   ask: (text: string) => void
+  /** AI is on (else the bar has no Ask). */
+  aiOn: () => boolean
 }
 
 type Offer = { action: 'copy' | 'search' | 'lens' | 'ask' } | { pts: Pt[] } | null
@@ -173,7 +175,7 @@ window.toast=(t)=>{$('bar').style.display='none';const s=$('toast');s.textConten
 </script>`
 
 /**
- * Circle to search (Ctrl+Shift+S, or shake the mouse over a page): a frozen picture of the page with a lasso over it.
+ * Circle to search (Ctrl+Shift+S, the command bar or the page menu): a frozen picture of the page with a lasso over it.
  * What is circled (or tapped) is read from the page's own text and offered: search it, copy it, ask the assistant
  * about it, or send the picture of it to Google Lens. Nothing leaves Panes until one of those is chosen.
  */
@@ -240,7 +242,7 @@ export class CircleSearch {
     view.webContents.focus()
 
     const zoom = t.wc.getZoomFactor() || 1
-    const normal = t.kind === 'normal'
+    const canAsk = t.kind === 'normal' && this.d.aiOn()
     let picked = await js<{ pts: Pt[] } | null>('lasso()')
     while (picked && this.running) {
       const pts = picked.pts
@@ -270,7 +272,7 @@ export class CircleSearch {
       }
       const text = found.text.trim()
       const offer = await js<Offer>(
-        `offer(${JSON.stringify(box)}, ${JSON.stringify(text.slice(0, 600))}, ${normal}, true, ${!!found.media || !text})`
+        `offer(${JSON.stringify(box)}, ${JSON.stringify(text.slice(0, 600))}, ${canAsk}, true, ${!!found.media || !text})`
       )
       if (!offer) return
       if ('pts' in offer) {

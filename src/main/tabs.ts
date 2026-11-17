@@ -355,7 +355,7 @@ export class TabManager {
 
   /** Ctrl+Shift+Y: show the ask chip for the page's current selection and put the keyboard on it. */
   onAskSelection: (() => void) | null = null
-  /** Ctrl+Shift+S, or a shake of the mouse over the page: circle to search (main/circle.ts). */
+  /** Ctrl+Shift+S or the page menu: circle to search (main/circle.ts). */
   onCircle: (() => void) | null = null
 
   /** The page circle to search works on (the canvas preview's while it is open): where its view sits, and its kind. */
@@ -3119,6 +3119,14 @@ export class TabManager {
           tab.private || tab.tor || !this.deps.settings.get().ai.enabled
             ? null
             : (text) => this.askAi(text),
+        explain:
+          tab.private ||
+          tab.tor ||
+          !this.deps.settings.get().ai.enabled ||
+          !this.deps.settings.get().ai.selectionAsk
+            ? null
+            : () => this.onAskSelection?.(),
+        circle: () => this.onCircle?.(),
         searchUrl: (t) => this.deps.settings.searchUrl() + encodeURIComponent(t)
       })
     )
@@ -3916,7 +3924,15 @@ export class TabManager {
         accelerator: 'CmdOrCtrl+Shift+K',
         click: () => this.command('toggle-canvas')
       },
-      { label: 'Chat', accelerator: 'CmdOrCtrl+Shift+L', click: () => this.command('toggle-chat') },
+      ...(this.deps.settings.get().ai.enabled
+        ? [
+            {
+              label: 'Chat',
+              accelerator: 'CmdOrCtrl+Shift+L',
+              click: () => this.command('toggle-chat')
+            }
+          ]
+        : []),
       { type: 'separator' },
       { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => this.openInternal('settings') },
       { label: 'AI settings', click: () => this.openInternal('settings', 'ai') },

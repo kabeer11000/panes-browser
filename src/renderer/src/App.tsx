@@ -114,8 +114,10 @@ function App(): React.JSX.Element {
   const [chatDraft, setChatDraft] = useState<ChatDraft | null>(null) // a selection to ask about, put in the box
   // the chat panel stays shut on the canvas board (it has its own Ask bar), whatever asks for it
   const inCanvasRef = useRef(false)
+  // with AI off nothing opens the chat: no button, shortcut, menu item or command shows or does it
+  const aiOnRef = useRef(true)
   const toggleChat = useCallback(() => {
-    if (inCanvasRef.current) return
+    if (inCanvasRef.current || !aiOnRef.current) return
     setChatOpen((o) => !o)
     setChatDraft(null)
     setChatFocus((k) => k + 1)
@@ -519,12 +521,18 @@ function App(): React.JSX.Element {
 
   // Global settings, overridden per space; everything visual hangs off CSS variables on the root.
   useEffect(() => {
-    const merge = (s: Settings): Settings => ({ ...DEFAULT_SETTINGS, ...s }) // older saved files lack newer keys
+    const apply = (raw: Settings): void => {
+      const s = { ...DEFAULT_SETTINGS, ...raw } // older saved files lack newer keys
+      setSettings(s)
+      // AI turned off: the chat goes, and does not come back by itself when AI is turned on again
+      aiOnRef.current = s.ai.enabled
+      if (!s.ai.enabled) setChatOpen(false)
+    }
     void window.api.getSettings().then((s) => {
-      setSettings(merge(s))
+      apply(s)
       setSettingsReady(true)
     })
-    return window.api.onSettings((s) => setSettings(merge(s)))
+    return window.api.onSettings(apply)
   }, [])
   const effective = { ...settings, ...activeSpace?.ui }
   // the tour: once, as the first-run tour ends (onboarding just done), and whenever "Take the tour" is picked
@@ -536,7 +544,7 @@ function App(): React.JSX.Element {
     else if (id === 'grid') void openOverlay('grid')
     else if (id === 'canvas') toggleCanvas()
     else if (id === 'tour') setTourOpen(true)
-    else if (id === 'chat' && !inCanvasRef.current) {
+    else if (id === 'chat' && !inCanvasRef.current && aiOnRef.current) {
       setChatOpen(true)
       setChatFocus((k) => k + 1)
     } else if (id === 'ai-settings') window.api.chatAction('settings')
@@ -919,7 +927,7 @@ function App(): React.JSX.Element {
             peeking={openedByHover}
             onToggle={toggleSidebar}
             onTaskView={GRID_VIEW ? toggleGrid : undefined}
-            onChat={toggleChat}
+            onChat={settings.ai.enabled ? toggleChat : undefined}
             chatOpen={chatOpen}
             onCanvas={toggleCanvas}
             canvasOpen={false}
@@ -1012,15 +1020,17 @@ function App(): React.JSX.Element {
                 >
                   <CanvasIcon />
                 </button>
-                <button
-                  className={'icon-btn no-drag' + (chatOpen ? ' active' : '')}
-                  onClick={toggleChat}
-                  title="Chat (Ctrl+Shift+L)"
-                  aria-label="Chat"
-                  aria-pressed={chatOpen}
-                >
-                  <ChatIcon />
-                </button>
+                {settings.ai.enabled && (
+                  <button
+                    className={'icon-btn no-drag' + (chatOpen ? ' active' : '')}
+                    onClick={toggleChat}
+                    title="Chat (Ctrl+Shift+L)"
+                    aria-label="Chat"
+                    aria-pressed={chatOpen}
+                  >
+                    <ChatIcon />
+                  </button>
+                )}
                 {GRID_VIEW && (
                   <button
                     className="icon-btn no-drag"
@@ -1160,6 +1170,7 @@ function App(): React.JSX.Element {
                   active={active}
                   engineName={SEARCH_ENGINES[settings.searchEngine].name}
                   variant={settings.searchStyle}
+                  ai={settings.ai.enabled}
                   anchor={anchor}
                   onClose={closeOverlay}
                   onAction={(id) => {
@@ -1192,6 +1203,7 @@ function App(): React.JSX.Element {
                   active={active}
                   engineName={SEARCH_ENGINES[settings.searchEngine].name}
                   variant="dropdown"
+                  ai={settings.ai.enabled}
                   anchor={cvSearch.anchor}
                   initial={cvSearch.initial}
                   thumbs={thumbs}

@@ -257,3 +257,13 @@ describe('command bar actions', () => {
     expect(matchActions('tab', 2)).toHaveLength(2)
   })
 })
+
+describe('actions with AI off', () => {
+  test('chat and ask about selection are left out; AI settings stay to turn it on', () => {
+    const off = (q: string): string[] => matchActions(q, 50, false).map((a) => a.id)
+    expect(off('chat')).not.toContain('chat')
+    expect(off('ask')).not.toContain('ask-selection')
+    expect(off('ai')).toContain('ai-settings')
+    expect(matchActions('chat', 50).map((a) => a.id)).toContain('chat')
+  })
+})

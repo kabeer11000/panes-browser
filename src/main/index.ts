@@ -625,13 +625,10 @@ function createWindow(): void {
     win,
     target: () => tabs.circleTarget(),
     open: (input) => tabs.create(input),
-    ask: (text) => tabs.askAi(text)
+    ask: (text) => tabs.askAi(text),
+    aiOn: () => settings.get().ai.enabled
   })
   tabs.onCircle = () => void circle.start()
-  // a shake of the mouse over the page on screen (preload/internal.ts), not over one behind it
-  ipcMain.on('circle:shake', (e) => {
-    if (e.sender === tabs.circleTarget()?.wc) void circle.start()
-  })
   const reader = new Reader({
     win,
     active: () => tabs.activeContents(),

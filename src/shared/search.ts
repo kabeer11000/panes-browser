@@ -246,11 +246,16 @@ export const ACTIONS: SearchAction[] = [
   { id: 'feedback', title: 'Send feedback', keywords: 'feedback bug report email' }
 ]
 
+/** Actions that talk to the AI: left out while AI is off (its settings and setup stay, to turn it on). */
+export const AI_ACTIONS: readonly string[] = ['chat', 'ask-selection']
+
 /** Actions whose title or keywords hold every typed word, the ones whose title starts with one first. */
-export function matchActions(query: string, limit: number): SearchAction[] {
+export function matchActions(query: string, limit: number, ai = true): SearchAction[] {
   const tokens = tokensOf(query)
   if (tokens.length === 0) return []
-  const hits = ACTIONS.filter((a) => hasAll(`${a.title} ${a.keywords}`, tokens))
+  const hits = ACTIONS.filter(
+    (a) => (ai || !AI_ACTIONS.includes(a.id)) && hasAll(`${a.title} ${a.keywords}`, tokens)
+  )
   const rank = (a: SearchAction): number =>
     a.title
       .toLowerCase()
@@ -446,6 +451,8 @@ interface BuildInput {
   maxLocal?: number
   /** For how recently each tab was used (tests pass a fixed one). */
   now?: number
+  /** AI is on: the actions that use it are offered. */
+  ai?: boolean
 }
 
 /**
@@ -462,7 +469,8 @@ export function buildResults({
   semantic = [],
   engineName,
   maxLocal = 5,
-  now = Date.now()
+  now = Date.now(),
+  ai = true
 }: BuildInput): SearchResult[] {
   const q = query.trim()
   const results: SearchResult[] = []
@@ -534,7 +542,7 @@ export function buildResults({
   }
 
   // actions sit above the web's suggestions: a command you typed the name of is not buried under ten searches
-  const actions = matchActions(q, MAX_ACTIONS)
+  const actions = matchActions(q, MAX_ACTIONS, ai)
   for (const a of actions) {
     results.push({
       id: `action:${a.id}`,

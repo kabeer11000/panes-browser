@@ -1,7 +1,5 @@
 import { ipcRenderer } from 'electron'
-import { ShakeWatch } from '@shared/circle'
 
-const SETTLE_MS = 350 // after the last change: a drag in progress, or Shift+arrows, is not "a selection" yet
 const MAX_TEXT = 2000
 
 const editable = (n: Node | null): boolean => {
@@ -17,13 +15,12 @@ const box = (r: DOMRect): { x: number; y: number; width: number; height: number 
 })
 
 /**
- * Tells main when text is selected on the page, and where, so a chip can be offered beside it (main/askSelection.ts).
+ * Tells main what text is selected on the page, and where, when main asks (Ctrl+Shift+Y or the page's right-click
+ * menu), so the Explain / Translate chip can sit beside it (main/askSelection.ts). Selecting alone opens nothing.
  * It runs in the preload's own world and adds nothing to the page: no element, no style. Never for a text field.
- * Main decides what to do with it, and drops it for private and Tor tabs.
+ * Main drops it for private and Tor tabs.
  */
 export function installSelectionWatch(): void {
-  let timer: ReturnType<typeof setTimeout> | null = null
-  let held = false // a mouse button is down: still selecting
   let shown = false
 
   const clear = (): void => {
@@ -33,8 +30,6 @@ export function installSelectionWatch(): void {
   }
 
   const report = (): void => {
-    timer = null
-    if (held) return
     const sel = getSelection()
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) return clear()
     if (editable(sel.anchorNode) || editable(sel.focusNode) || editable(document.activeElement))
@@ -50,49 +45,9 @@ export function installSelectionWatch(): void {
     })
   }
 
-  const soon = (): void => {
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(report, SETTLE_MS)
-  }
-
-  document.addEventListener('selectionchange', soon)
-  // main asks for the offer now (Ctrl+Shift+Y): answer at once, not after the settle time
-  ipcRenderer.on('sel:poll', () => {
-    held = false
-    report()
-  })
-  addEventListener(
-    'mousedown',
-    () => {
-      held = true
-      clear() // pressing anywhere ends the offer; a new selection brings a new one
-    },
-    true
-  )
-  addEventListener(
-    'mouseup',
-    () => {
-      held = false
-      soon()
-    },
-    true
-  )
+  ipcRenderer.on('sel:poll', report)
+  // pressing anywhere, scrolling or Esc ends the offer
+  addEventListener('mousedown', clear, true)
   addEventListener('scroll', clear, { capture: true, passive: true })
   addEventListener('keydown', (e) => e.key === 'Escape' && clear(), true)
-}
-
-/**
- * A fast wave of the mouse over the page (no button held) opens circle to search (main/circle.ts). Only positions are
- * looked at, in the preload's own world; the page sees nothing.
- */
-export function installShakeWatch(): void {
-  const watch = new ShakeWatch()
-  addEventListener(
-    'mousemove',
-    (e) => {
-      if (e.buttons !== 0) return watch.reset()
-      if (watch.move(e.screenX, e.timeStamp)) ipcRenderer.send('circle:shake')
-    },
-    { passive: true, capture: true }
-  )
 }
