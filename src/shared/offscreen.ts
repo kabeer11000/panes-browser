@@ -128,3 +128,32 @@ export function osrFrameRate(o: {
   const hz = o.displayHz > 0 ? Math.round(o.displayHz) : 60
   return o.media || o.sinceInputMs < ACTIVE_MS ? hz : Math.min(hz, IDLE_FPS)
 }
+
+/** Something dropped on an offscreen page: files (their paths) and the text or link that came with it. */
+export interface OsrDrop {
+  x: number
+  y: number
+  files: string[]
+  text: string | null
+  uri: string | null
+}
+
+/** Untrusted drop (from a renderer) to one safe to replay into the page, or null. At most 100 files. */
+export function parseOsrDrop(raw: unknown): OsrDrop | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const x = num(r.x)
+  const y = num(r.y)
+  if (x === null || y === null) return null
+  const files = Array.isArray(r.files)
+    ? r.files
+        .filter((f): f is string => typeof f === 'string' && f.length > 0 && f.length < 2048)
+        .slice(0, 100)
+    : []
+  const str = (v: unknown): string | null =>
+    typeof v === 'string' && v.length <= 100_000 ? v : null
+  const text = str(r.text)
+  const uri = str(r.uri)
+  if (files.length === 0 && !text && !uri) return null
+  return { x, y, files, text, uri }
+}

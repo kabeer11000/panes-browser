@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { ACTIVE_MS, osrFrameRate, parseOsrInput, toPagePoint, wheelDelta } from './offscreen'
+import {
+  ACTIVE_MS,
+  osrFrameRate,
+  parseOsrDrop,
+  parseOsrInput,
+  toPagePoint,
+  wheelDelta
+} from './offscreen'
 
 describe('parseOsrInput', () => {
   test('mouse events keep only what is allowed', () => {
@@ -86,5 +93,22 @@ describe('osrFrameRate', () => {
   test('never above the display, and a sane default', () => {
     expect(osrFrameRate({ displayHz: 24, sinceInputMs: 1e9, media: false })).toBe(24)
     expect(osrFrameRate({ displayHz: 0, sinceInputMs: 0, media: false })).toBe(60)
+  })
+})
+
+describe('parseOsrDrop', () => {
+  test('files and text', () => {
+    expect(parseOsrDrop({ x: 1, y: 2, files: ['C:/a.txt', 5, ''], text: 'hi' })).toEqual({
+      x: 1,
+      y: 2,
+      files: ['C:/a.txt'],
+      text: 'hi',
+      uri: null
+    })
+  })
+  test('nothing to drop, or a bad point', () => {
+    expect(parseOsrDrop({ x: 1, y: 2, files: [] })).toBeNull()
+    expect(parseOsrDrop({ x: 'a', y: 2, files: ['x'] })).toBeNull()
+    expect(parseOsrDrop(null)).toBeNull()
   })
 })

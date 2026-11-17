@@ -7,7 +7,14 @@ import {
   type WebContents,
   type WebPreferences
 } from 'electron'
-import { ACTIVE_MS, osrFrameRate, parseOsrInput, type OsrPlace } from '@shared/offscreen'
+import {
+  ACTIVE_MS,
+  osrFrameRate,
+  parseOsrDrop,
+  parseOsrInput,
+  type OsrDrop,
+  type OsrPlace
+} from '@shared/offscreen'
 
 /**
  * A tab's page drawn off screen (Chromium's offscreen rendering, GPU shared textures) instead of in a native view:
@@ -147,6 +154,29 @@ export class OffscreenPage {
     this.webContents.setFrameRate(f)
   }
 
+  /**
+   * Files (or a link, or text) dropped on the page's canvas, replayed into the page through the DevTools protocol, as
+   * an offscreen page gets no drags from the system: enter, over and drop at the point, with the files' paths.
+   */
+  async drop(d: OsrDrop): Promise<void> {
+    const wc = this.webContents
+    if (wc.isDestroyed()) return
+    try {
+      if (!wc.debugger.isAttached()) wc.debugger.attach('1.3')
+    } catch {
+      return // DevTools open on it: nothing can be replayed meanwhile
+    }
+    const items: Array<{ mimeType: string; data: string }> = []
+    if (d.uri) items.push({ mimeType: 'text/uri-list', data: d.uri })
+    if (d.text) items.push({ mimeType: 'text/plain', data: d.text })
+    const data = { items, files: d.files, dragOperationsMask: 1 | 2 | 16 }
+    for (const type of ['dragEnter', 'dragOver', 'drop'] as const)
+      await wc.debugger
+        .sendCommand('Input.dispatchDragEvent', { type, x: d.x, y: d.y, data })
+        .catch(() => undefined)
+    this.touch()
+  }
+
   /** Someone is using the page (input on its canvas): full rate now, back to the idle rate once they stop. */
   touch(): void {
     this.lastInput = performance.now()
@@ -235,6 +265,12 @@ export function registerOffscreenInput(win: BrowserWindow): void {
     page.webContents.sendInputEvent(
       ev as Electron.MouseInputEvent | Electron.MouseWheelInputEvent | Electron.KeyboardInputEvent
     )
+  })
+  ipcMain.on('osr:drop', (e, id: unknown, raw: unknown) => {
+    if (e.sender !== win.webContents || typeof id !== 'number') return
+    const page = pages.get(id)
+    const d = parseOsrDrop(raw)
+    if (page && d) void page.drop(d)
   })
   ipcMain.on('osr:focus', (e, id: unknown) => {
     if (e.sender !== win.webContents || typeof id !== 'number') return

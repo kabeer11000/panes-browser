@@ -1,4 +1,4 @@
-import { ipcRenderer, sharedTexture } from 'electron'
+import { ipcRenderer, sharedTexture, webUtils } from 'electron'
 import { toPagePoint, wheelDelta, type OsrModifier, type OsrPlace } from '@shared/offscreen'
 
 /**
@@ -163,6 +163,31 @@ function wire(c: HTMLCanvasElement, first: Surface): void {
     },
     { passive: false }
   )
+  // Files, links or text dragged from elsewhere: the page gets no drags from the system, so the drop is replayed into
+  // it at the point (main, OffscreenPage.drop), files by their paths
+  c.addEventListener('dragover', (e) => {
+    if (!surface()) return
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+  })
+  c.addEventListener('drop', (e) => {
+    const s = surface()
+    if (!s || !e.dataTransfer) return
+    e.preventDefault()
+    e.stopPropagation()
+    const files: string[] = []
+    for (const f of e.dataTransfer.files) {
+      const path = webUtils.getPathForFile(f)
+      if (path) files.push(path)
+    }
+    ipcRenderer.send('osr:drop', s.id, {
+      ...at(s, e),
+      files,
+      text: e.dataTransfer.getData('text/plain') || null,
+      uri: e.dataTransfer.getData('text/uri-list') || null
+    })
+  })
   // reached with Tab: the keyboard goes to the typing box all the same
   c.addEventListener('focus', () => {
     const r = c.getBoundingClientRect()
