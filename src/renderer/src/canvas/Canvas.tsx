@@ -1109,16 +1109,27 @@ export function Canvas({
     async (rearrange = false): Promise<void> => {
       // a second press while it runs would cluster and move everything again
       if (!stRef.current || tidying.current) return
-      if (layoutKey(stRef.current) === tidied.current) return
+      // nothing moved since the last tidy: say so, rather than pressing the button and seeing nothing happen
+      const already = (): void =>
+        setToast({ text: 'Already tidy', label: 'Undo', key: Date.now() })
+      if (layoutKey(stRef.current) === tidied.current) return already()
       tidying.current = true
       setBusy(true)
       const t0 = performance.now()
+      let moved = true
       try {
         const res = await window.api.canvas.cluster(spaceId)
         const s0 = stRef.current
         if (!s0) return
         const before = new Set(s0.frames.map((f) => f.id))
         let planned = tidy(s0, lite(), res.groups, rearrange)
+        // the plan is the board as it stands: it is already tidy
+        if (layoutKey(planned) === layoutKey(s0)) {
+          moved = false
+          tidied.current = layoutKey(s0)
+          already()
+          return
+        }
         const fresh = planned.frames
           .filter((f) => !before.has(f.id) && f.kind === 'topic')
           .map((f) => f.id)
@@ -1162,10 +1173,11 @@ export function Canvas({
             vp.animateTo(fitView(boundsOf(boxes), w, h - BAR_ROOM, 80, 1), TIDY_GLIDE_MS - 120)
         }
       } finally {
-        // the light stays up for the whole glide, so the move and the light read as one gesture
-        await new Promise((r) =>
-          setTimeout(r, Math.max(0, TIDY_GLIDE_MS - (performance.now() - t0)))
-        )
+        // the light stays up for the whole glide, so the move and the light read as one gesture (none if nothing moved)
+        if (moved)
+          await new Promise((r) =>
+            setTimeout(r, Math.max(0, TIDY_GLIDE_MS - (performance.now() - t0)))
+          )
         tidying.current = false
         setBusy(false)
       }
