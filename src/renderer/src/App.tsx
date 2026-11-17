@@ -400,6 +400,8 @@ function App(): React.JSX.Element {
     }
   }, [mode, booting])
 
+  // how the space on screen was last seen browsed (see the board effect below, boardStep)
+  const browseSeen = useRef<BrowseSeen | null>(null)
   const toggleCanvas = useCallback(() => {
     if (modeRef.current === 'canvas') window.dispatchEvent(new Event('panes:canvas-exit'))
     // from nothing, or from another overlay (the address popover a new tab opens, the overview): to the board
@@ -554,7 +556,6 @@ function App(): React.JSX.Element {
   }
   // Browse with tabs or the canvas: a canvas space opens straight into its board, and one switched to tabs leaves it
   const browse = browseWith(settings.browseWith, activeSpace)
-  const browseSeen = useRef<BrowseSeen | null>(null)
   const spaceKnown = activeSpace !== null
   useEffect(() => {
     if (!settingsReady || !spaceKnown) return // the defaults before the real settings and spaces are not a choice
@@ -567,6 +568,18 @@ function App(): React.JSX.Element {
     else if (step === 'close' && modeRef.current === 'canvas')
       window.dispatchEvent(new Event('panes:canvas-exit'))
   }, [settingsReady, spaceKnown, activeSpaceId, browse, openOverlay, settings.onboarded, tourOpen])
+  // The other way round: onto the board or off it by hand (the canvas button, Ctrl+Shift+K, Esc, a card popped out),
+  // and the space's "Browse with" follows, so its settings say what the person is doing and it opens that way next
+  // time. Marked as seen, so the effect above does not act on it again.
+  useEffect(() => {
+    if (!settingsReady || !spaceKnown || booting || (mode !== 'canvas' && mode !== null)) return
+    const now = mode === 'canvas' ? 'canvas' : 'tabs'
+    if (browse === now) return
+    browseSeen.current = { space: activeSpaceId, browse: now }
+    window.api.updateSpace(activeSpaceId, { browseWith: now })
+    // only a move on or off the board is a choice: a space switched to (or its setting changed) already agrees
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
   // Booting ends with the board up, or once everything is known and nothing is going to open it (main did not bring
   // the session back on the board, and this space is not browsed with it).
   const noBoard =

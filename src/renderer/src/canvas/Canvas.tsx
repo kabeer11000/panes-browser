@@ -2279,7 +2279,8 @@ export function Canvas({
     const el = root.current
     if (!el) return
     const wheel = (e: WheelEvent): void => {
-      if ((e.target as HTMLElement).closest('textarea,.cv-expand')) return
+      // what scrolls on its own: text boxes, the preview, the space editor and the board's menus
+      if ((e.target as HTMLElement).closest('textarea,.cv-expand,.space-popover,.cv-menu')) return
       e.preventDefault()
       e.stopPropagation() // App turns Ctrl + wheel into the tab stack
       if (phaseRef.current !== 'open') return
