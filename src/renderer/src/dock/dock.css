@@ -260,8 +260,27 @@ body {
   transition: opacity var(--dur-fast);
 }
 .dk-row:hover .dk-row-acts,
-.dk-row:focus-within .dk-row-acts {
+.dk-row:focus-within .dk-row-acts,
+.dk-row-acts.asking {
   opacity: 1;
+}
+/* while a clearer name is offered the row asks only that, Rename or keep, so the names stay readable (the file's
+   other actions are in panes://downloads); "Rename" is a word, the answer to "Rename to ...?" */
+.dk-row-acts.asking > :not(.dk-name-yes, .dk-name-no) {
+  display: none;
+}
+.dk-row-acts .dk-name-yes {
+  width: auto;
+  padding: 0 8px;
+  font-size: var(--fs-s);
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: var(--r-pill);
+}
+.dk-row-acts .dk-name-yes:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
 .dk-row-acts button {
   width: 24px;

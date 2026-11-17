@@ -37,6 +37,7 @@ const ACTIONS = [
   'retry',
   'remove',
   'accept-name',
+  'dismiss-name',
   'canvas'
 ]
 

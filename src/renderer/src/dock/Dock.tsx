@@ -502,7 +502,7 @@ function FanRow({
               </span>
             </span>
           </button>
-          <span className="dk-row-acts">
+          <span className={'dk-row-acts' + (better ? ' asking' : '')}>
             {(d.state === 'progressing' || d.state === 'paused') && (
               <button
                 type="button"
@@ -533,27 +533,39 @@ function FanRow({
                 <ReloadIcon />
               </button>
             )}
+            {/* the clearer name, asked in words and always in view (the other actions show on hover) */}
             {better && (
-              <button
-                type="button"
-                title={`Rename to ${better}`}
-                aria-label={`Rename ${d.filename} to ${better}`}
-                onClick={() => window.dock.act(d.id, 'accept-name')}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
+              <>
+                <button
+                  type="button"
+                  className="dk-name-yes"
+                  title={`Rename to ${better}`}
+                  aria-label={`Rename ${d.filename} to ${better}`}
+                  onClick={() => window.dock.act(d.id, 'accept-name')}
                 >
-                  <path d="M10.5 2.5l3 3L6 13H3v-3z" />
-                </svg>
-              </button>
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  className="dk-name-no"
+                  title={`Keep ${d.filename}`}
+                  aria-label={`Keep the name ${d.filename}`}
+                  onClick={() => window.dock.act(d.id, 'dismiss-name')}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 4l8 8M12 4l-8 8" />
+                  </svg>
+                </button>
+              </>
             )}
             {d.state === 'completed' && !d.missing && (
               <button
