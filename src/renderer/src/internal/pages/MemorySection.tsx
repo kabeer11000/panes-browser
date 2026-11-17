@@ -129,7 +129,10 @@ export function MemorySection({ s, update }: Props): React.JSX.Element {
               onChange={(p) => void update({ ...MEMORY_PRESETS[p] })}
             />
           </Row>
-          <Row label="Unload a tab after" hint="How long a background tab can go unused first.">
+          <Row
+            label="Unload a tab after"
+            hint="How long a background tab can go unused first. While the computer has plenty of free memory, idle tabs stay paused instead, so they open at once."
+          >
             <Select
               label="Unload a tab after"
               value={s.unloadIdleMin}

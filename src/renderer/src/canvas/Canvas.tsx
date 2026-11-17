@@ -123,7 +123,10 @@ import { AiGlow } from './AiGlow'
 import { CardView, FrameBar, FrameHead, FrameView, NoteView } from './Cards'
 import { WidgetView } from './Widgets'
 import { WIDGET_LABEL, type Widget, type WidgetKind } from '@shared/widgets'
-import { pickStreams, streamCap } from '@shared/ai/tabStream'
+import { pickStreams, streamCap, STREAM_FPS } from '@shared/ai/tabStream'
+import { liveBudget } from '@shared/strain'
+import { landingCard } from '@shared/landing'
+import { useBoardHidden, useStrain } from './strain'
 import { boardLabels } from '@shared/ai/canvasLabels'
 import { isCapturing } from '@shared/capture'
 import { attentionLabel, groupWaiting, NO_ATTENTION } from '@shared/attention'
@@ -546,10 +549,15 @@ export function Canvas({
   const reduced = !!useReducedMotion()
   const moveRef = useRef<(v: Viewport) => void>(() => undefined)
   const shutRef = useRef<() => void>(() => undefined)
-  const vp = useViewport({ x: 0, y: 0, k: 1 }, (v) => {
-    moveRef.current(v)
-    shutRef.current()
-  })
+  const headingRef = useRef<(v: Viewport) => void>(() => undefined)
+  const vp = useViewport(
+    { x: 0, y: 0, k: 1 },
+    (v) => {
+      moveRef.current(v)
+      shutRef.current()
+    },
+    (v) => headingRef.current(v)
+  )
   const { root, grid, layer } = vp
   // the board on screen; on its way out for another space's board, its layer stays over that one until it is ready
   useLayoutEffect(() => {
@@ -804,13 +812,17 @@ export function Canvas({
       if (onScreen.has(c.id)) m.set(c.id, (c.w ?? CARD_W) * (zoomPct / 100))
     return m
   }, [st, onScreen, zoomPct])
+  // what live cards may cost now: less as the computer strains, nothing while the window is hidden
+  const strain = useStrain()
+  const boardHidden = useBoardHidden()
+  const budget = liveBudget(strain, streamCap(navigator), STREAM_FPS, boardHidden)
   const streamKey = pickStreams({
     // a video playing without sound (muted, or quiet) plays live on its card too
     tabs: tabs.map((t) => ({ ...t, audible: t.audible || !!t.playing, call: calls.has(t.id) })),
     onScreen,
     open: openTab,
     zoomedOut: lod,
-    cap: streamCap(navigator),
+    cap: budget.cap,
     cardPx,
     screenW: stage.w
   }).join(',')
@@ -895,6 +907,25 @@ export function Canvas({
     if (rootRect.current.w === 0) measureRoot()
     return rootRect.current
   }
+
+  // A movement heading for a card that will fill the window: its page gets ready now (a paused one runs again, an
+  // unloaded one loads), so it is there when the board stops. Told once per card, per movement's heading.
+  const landedOn = useRef<number | null>(null)
+  const onHeading = (v: Viewport): void => {
+    const s = stRef.current
+    if (!s) return
+    const id = landingCard(
+      s.cards.map((c) => ({ id: c.id, box: cardBox(c) })),
+      v,
+      size()
+    )
+    if (id === landedOn.current) return
+    landedOn.current = id
+    if (id !== null && tabsRef.current.some((t) => t.id === id)) window.api.tabIntent(id)
+  }
+  useEffect(() => {
+    headingRef.current = onHeading
+  })
 
   // ---- visibility (only cards near the screen are mounted) ----
   /** Where the board was when the mounted cards were last worked out (see updateVisible). */
@@ -2463,6 +2494,8 @@ export function Canvas({
       }
       // the board takes its layer as two fingers land, before it starts moving
       if (fingers >= 2 && down < 2) vp.warm()
+      // the fingers came off: a pinch ends now, not after a pause in its steps
+      if (fingers < 2 && down >= 2) vp.pinchLift()
       down = fingers
       // main's time for the report, on this page's clock (both count from the epoch)
       fs.touch({ dx, dy, fingers, t: at - performance.timeOrigin })

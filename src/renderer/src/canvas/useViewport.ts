@@ -76,6 +76,9 @@ const PINCH_CARRY_S = 0.12
 /** Efficient mode (Settings): shorter motion, nothing optional. */
 const lowFx = (): boolean => document.documentElement.dataset.fx === 'low'
 
+/** How often a moving board says where it will come to rest (see onHeading). */
+const HEADING_MS = 90
+
 /**
  * The board's pan and zoom. The view lives in a ref and is written straight to the DOM (one transform on the board
  * layer, the dots' position on the grid element, and the label scale on the root when the zoom changes), so a pan never
@@ -87,7 +90,9 @@ const lowFx = (): boolean => document.documentElement.dataset.fx === 'low'
  */
 export function useViewport(
   initial: Viewport,
-  onMove: (v: Viewport) => void
+  onMove: (v: Viewport) => void,
+  /** Where the motion in flight will come to rest (Camera.restingView), told now and then while it moves. */
+  onHeading?: (rest: Viewport) => void
 ): {
   root: React.RefObject<HTMLDivElement | null>
   /** The dotted background: it alone gets the per-pan properties. */
@@ -104,6 +109,8 @@ export function useViewport(
   animateTo: (v: Viewport, ms?: number) => void
   /** Carry on at (vx, vy) px/ms, slowing with time constant `tau` ms (0: not at all). */
   fling: (vx: number, vy: number, tau?: number) => void
+  /** The fingers of a pinch lifted (the touchpad's raw contacts say so): end it now. */
+  pinchLift: () => void
   stop: () => void
   /** Put the board on its own layer now: a movement is about to start (fingers down on the touchpad). */
   warm: () => void
@@ -123,6 +130,12 @@ export function useViewport(
   useEffect(() => {
     moved.current = onMove
   }, [onMove])
+  const heading = useRef(onHeading)
+  useEffect(() => {
+    heading.current = onHeading
+  }, [onHeading])
+  /** When the resting place was last told (it is worked out at most every HEADING_MS). */
+  const headingAt = useRef(0)
   /**
    * The dots: they slide as one layer, by the pan modulo one coarse tile, so a pan never repaints them (moving a painted
    * background was a full-screen repaint a frame). A zoom scales that layer too, and repaints the dots only now and
@@ -213,6 +226,10 @@ export function useViewport(
       lastFrame.current = now
       c.step(dt)
       show()
+      if (c.moving && heading.current && now - headingAt.current >= HEADING_MS) {
+        headingAt.current = now
+        heading.current(c.restingView)
+      }
       if (c.moving) raf.current = requestAnimationFrame(frame.current)
       else {
         raf.current = 0
@@ -227,6 +244,8 @@ export function useViewport(
   }, [])
 
   const zoomEnd = useRef(0)
+  /** How the pinch in flight ends (its carry and release), for pinchLift to run at once. */
+  const pinchEnd = useRef<(() => void) | null>(null)
   /** The last pinch reports (time, log zoom asked so far), for the carry after it. */
   const pinchTrail = useRef<Array<{ t: number; l: number }>>([])
 
@@ -235,6 +254,7 @@ export function useViewport(
     cancelAnimationFrame(raf.current)
     raf.current = 0
     window.clearTimeout(zoomEnd.current)
+    pinchEnd.current = null
   }, [])
 
   const set = useCallback(
@@ -291,7 +311,9 @@ export function useViewport(
         while (trail.length > 2 && now - trail[0].t > 100) trail.shift()
       }
       window.clearTimeout(zoomEnd.current)
-      zoomEnd.current = window.setTimeout(() => {
+      const end = (): void => {
+        zoomEnd.current = 0
+        pinchEnd.current = null
         // the fingers lifted: a short carry the way it was going (none in efficient mode), back inside the limits
         let carry = 0
         if (trail.length >= 2 && !lowFx()) {
@@ -304,7 +326,10 @@ export function useViewport(
         trail.length = 0
         c.release(carry)
         run()
-      }, ZOOM_END_MS)
+      }
+      // the end is guessed from a pause in the steps, unless the touchpad says the fingers lifted first (pinchLift)
+      pinchEnd.current = pinch ? end : null
+      zoomEnd.current = window.setTimeout(end, ZOOM_END_MS)
       run()
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,6 +350,17 @@ export function useViewport(
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [run, set]
   )
+
+  /**
+   * The touchpad says the fingers lifted (raw contacts, see touchpad.ts): a pinch in flight ends now, with its carry,
+   * instead of after the pause in its steps that otherwise has to be waited for.
+   */
+  const pinchLift = useCallback((): void => {
+    const end = pinchEnd.current
+    if (!end) return
+    window.clearTimeout(zoomEnd.current)
+    end()
+  }, [])
 
   /** Carry on moving after a drag let go, slowing down smoothly. Velocity in px per ms. */
   const fling = useCallback(
@@ -354,9 +390,10 @@ export function useViewport(
       wheelZoom,
       animateTo,
       fling,
+      pinchLift,
       stop,
       warm
     }),
-    [set, panBy, zoomAt, wheelPan, wheelZoom, animateTo, fling, stop, warm]
+    [set, panBy, zoomAt, wheelPan, wheelZoom, animateTo, fling, pinchLift, stop, warm]
   )
 }

@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
   memoryNeedMb,
+  memoryRoomy,
+  releaseHelper,
+  HELPER_IDLE_MS,
   memoryShortMb,
   normalizeSites,
   normalizeZoom,
@@ -333,4 +336,40 @@ describe('pidsToTrim', () => {
   test('nothing just frozen: nothing trimmed (an earlier trim is not repeated)', () => {
     expect(pidsToTrim([rt(1, 10, 'frozen')], [])).toEqual([])
   })
+})
+
+describe('roomy memory', () => {
+  test('memoryRoomy: three times the short line and a quarter of the machine', () => {
+    expect(memoryRoomy(3000, 8192)).toBe(true)
+    expect(memoryRoomy(1900, 8192)).toBe(false)
+    expect(memoryRoomy(3500, 16384)).toBe(false)
+    expect(memoryRoomy(4096, 16384)).toBe(true)
+  })
+  test('idle tabs are not unloaded with roomy memory, the loaded-tab limit still holds', () => {
+    const policy = { enabled: true, idleMin: 1, maxLoaded: 2, otherSpaces: false, neverSites: [] }
+    const tab = (id: number): TabFacts => ({
+      id,
+      loaded: true,
+      visible: false,
+      busy: false,
+      host: 'a.com',
+      inActiveSpace: true,
+      lastShownAt: 0
+    })
+    const now = 10 * 60_000
+    expect(pickUnloads([tab(1), tab(2)], policy, now, false, 0, true)).toEqual([])
+    expect(pickUnloads([tab(1), tab(2)], policy, now, false, 0, false).sort()).toEqual([1, 2])
+    expect(pickUnloads([tab(1), tab(2), tab(3)], policy, now, false, 0, true)).toHaveLength(1)
+  })
+})
+
+describe('releaseHelper', () => {
+  const base = { exists: true, visible: false, lastUsedAt: 0, now: HELPER_IDLE_MS, roomy: false }
+  test('hidden, idle and memory not roomy: let go', () => expect(releaseHelper(base)).toBe(true))
+  test('kept while memory is roomy', () => expect(releaseHelper({ ...base, roomy: true })).toBe(false))
+  test('kept while shown or recently used', () => {
+    expect(releaseHelper({ ...base, visible: true })).toBe(false)
+    expect(releaseHelper({ ...base, lastUsedAt: 1 })).toBe(false)
+  })
+  test('nothing to let go', () => expect(releaseHelper({ ...base, exists: false })).toBe(false))
 })

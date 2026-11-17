@@ -9,6 +9,7 @@ import {
 import { join } from 'path'
 import type { Rect } from '@shared/types'
 import type { SiteSettings } from './sites'
+import { releaseHelper } from '@shared/memory'
 import { paintView } from './chromeTheme'
 
 const WIDTH = 352
@@ -30,6 +31,8 @@ interface Deps {
  */
 export class SitePanel {
   private view: WebContentsView | null = null
+  /** When it was last shown (see release). */
+  private lastUsedAt = 0
   private anchor: Rect | null = null
   private picking = false
   private blurredAt = 0
@@ -89,13 +92,42 @@ export class SitePanel {
     view.setVisible(true)
     view.webContents.focus()
     if (!view.webContents.isLoading()) view.webContents.send('panel:show')
+    this.lastUsedAt = Date.now()
   }
 
   hide(): void {
+    if (this.visible) this.lastUsedAt = Date.now()
     this.picking = false
     this.view?.setVisible(false)
     const wc = this.view?.webContents
     if (wc && !wc.isDestroyed() && !wc.isLoading()) wc.send('panel:hide')
+  }
+
+
+  /**
+   * Give back its renderer process if it is hidden and has gone unused a while and memory is short (releaseHelper);
+   * it is made again the next time it is needed. True when it was let go.
+   */
+  release(roomy: boolean): boolean {
+    const view = this.view
+    if (
+      !releaseHelper({
+        exists: !!view,
+        visible: !!view?.getVisible(),
+        lastUsedAt: this.lastUsedAt,
+        now: Date.now(),
+        roomy
+      })
+    )
+      return false
+    this.view = null
+    try {
+      this.d.win.contentView.removeChildView(view!)
+    } catch {
+      // not a child (never shown)
+    }
+    if (!view!.webContents.isDestroyed()) view!.webContents.close()
+    return true
   }
 
   private ensureView(): WebContentsView {

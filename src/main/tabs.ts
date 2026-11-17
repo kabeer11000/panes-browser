@@ -82,6 +82,7 @@ import {
   pickRests,
   pidsToTrim,
   memoryNeedMb,
+  memoryRoomy,
   pickUnloads,
   type MemoryPolicy,
   type Rest,
@@ -4138,8 +4139,11 @@ export class TabManager {
   sweepMemory(force = false): number {
     if (this.win.isDestroyed()) return 0
     const facts = this.memoryFacts()
-    const needMb = force ? 0 : memoryNeedMb(freemem() / 1024 ** 2, totalmem() / 1024 ** 2)
-    const ids = pickUnloads(facts, this.memoryPolicy(), Date.now(), force, needMb)
+    const freeMb = freemem() / 1024 ** 2
+    const totalMb = totalmem() / 1024 ** 2
+    const needMb = force ? 0 : memoryNeedMb(freeMb, totalMb)
+    const roomy = !force && memoryRoomy(freeMb, totalMb)
+    const ids = pickUnloads(facts, this.memoryPolicy(), Date.now(), force, needMb, roomy)
     for (const id of ids) this.unload(id)
     // saved pages of tabs that are gone go too (none before the tabs are restored: they would all look gone)
     if (this.tabs.size > 0) {

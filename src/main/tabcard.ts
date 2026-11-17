@@ -2,6 +2,7 @@ import { is } from '@electron-toolkit/utils'
 import { ipcMain, type BrowserWindow, WebContentsView, type WebContents } from 'electron'
 import { join } from 'path'
 import type { TabCardInfo, TabHoverAnchor } from '@shared/types'
+import { releaseHelper } from '@shared/memory'
 import { paintView } from './chromeTheme'
 
 const CARD_WIDTH = 264
@@ -28,6 +29,8 @@ function parseAnchor(raw: unknown): TabHoverAnchor | null {
  */
 class TabCard {
   private view: WebContentsView | null = null
+  /** When it was last shown (see release). */
+  private lastUsedAt = 0
   private info: TabCardInfo | null = null
   private anchor: TabHoverAnchor | null = null
   private height = 120
@@ -60,12 +63,14 @@ class TabCard {
     paintView(view.webContents)
     view.setVisible(true)
     if (!view.webContents.isLoading()) view.webContents.send('tabcard:state', info)
+    this.lastUsedAt = Date.now()
   }
 
   hide(): void {
     if (!this.info) return
     this.info = null
     this.anchor = null
+    this.lastUsedAt = Date.now()
     this.view?.setVisible(false)
     if (this.view && !this.view.webContents.isLoading()) {
       this.view.webContents.send('tabcard:state', null)
@@ -88,6 +93,33 @@ class TabCard {
     this.view.setBounds({ x, y, width, height })
   }
 
+
+  /**
+   * Give back its renderer process if it is hidden and has gone unused a while and memory is short (releaseHelper);
+   * it is made again the next time it is needed. True when it was let go.
+   */
+  release(roomy: boolean): boolean {
+    const view = this.view
+    if (
+      !releaseHelper({
+        exists: !!view,
+        visible: !!view?.getVisible(),
+        lastUsedAt: this.lastUsedAt,
+        now: Date.now(),
+        roomy
+      })
+    )
+      return false
+    this.view = null
+    try {
+      this.win.contentView.removeChildView(view!)
+    } catch {
+      // not a child (never shown)
+    }
+    if (!view!.webContents.isDestroyed()) view!.webContents.close()
+    return true
+  }
+
   private ensureView(): WebContentsView {
     if (this.view) return this.view
     const view = new WebContentsView({
@@ -106,7 +138,7 @@ class TabCard {
 export function registerTabCard(
   win: BrowserWindow,
   describe: (id: number) => TabCardInfo | null
-): void {
+): { release: (roomy: boolean) => boolean } {
   const card = new TabCard(win)
   ipcMain.on('tabs:hover', (e, id: unknown, raw: unknown) => {
     if (e.sender !== win.webContents) return
@@ -120,4 +152,5 @@ export function registerTabCard(
     if (e.sender === card.contents && typeof height === 'number') card.setHeight(height)
   })
   win.on('blur', () => card.hide())
+  return card
 }

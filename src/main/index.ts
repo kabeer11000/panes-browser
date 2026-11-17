@@ -62,6 +62,8 @@ import { showEditMenu } from './contextMenu'
 import { TabManager } from './tabs'
 import { registerTouchpad } from './touchpad'
 import { NavGestures } from './gestures'
+import { freemem, totalmem } from 'os'
+import { memoryRoomy } from '@shared/memory'
 
 mark('modules') // every import above has run
 applyPerformance() // Chromium's switches only count before the app is ready
@@ -225,7 +227,7 @@ function createWindow(): void {
   // a tab opened only to fetch a file closes once the download starts (tabs is made below; it is there by then)
   tabSession.on('will-download', (_e, _item, wc) => setImmediate(() => tabs.downloadStarted(wc)))
   const passwords = new PasswordStore()
-  registerPasswordIpc(win, passwords)
+  const passwordPopover = registerPasswordIpc(win, passwords)
   const adblock = new Adblock(tabSession)
   adblock.attach(privateSession)
   adblock.configure(settings.get())
@@ -693,7 +695,12 @@ function createWindow(): void {
   ipcMain.on('ui:dock-hide', (e, hide: unknown) => {
     if (e.sender === win.webContents) dock.setHidden(hide === true)
   })
-  registerTabCard(win, (id) => tabs.cardInfo(id))
+  const tabCard = registerTabCard(win, (id) => tabs.cardInfo(id))
+  // helper views unused a while give back their renderer processes when memory is short (releaseHelper)
+  setInterval(() => {
+    const roomy = memoryRoomy(freemem() / 1024 ** 2, totalmem() / 1024 ** 2)
+    for (const h of [tabCard, sitePanel, passwordPopover]) h.release(roomy)
+  }, 60_000).unref()
   // the screen-share picker opens with its list already there, not half a second to a second and a half later
   setTimeout(() => permissionManager.warm(), 6_000).unref()
   // the pointer rests on a tab or a card: it is likely to be opened next, so it gets ready now

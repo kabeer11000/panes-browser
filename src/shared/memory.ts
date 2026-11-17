@@ -111,6 +111,14 @@ export function memoryNeedMb(freeMb: number, totalMb: number): number {
   return freeMb < line ? Math.round(line * 1.5 - freeMb) : 0
 }
 
+/**
+ * Plenty of free memory (MB): three times the short line and a quarter of the machine. With this much free, an idle
+ * tab is not unloaded just for being idle: it stays frozen (see pickRests), which costs little (Windows compresses a
+ * page that is not running) and comes back at once, where an unloaded one has to load again.
+ */
+export const memoryRoomy = (freeMb: number, totalMb: number): boolean =>
+  freeMb >= Math.max(memoryShortMb(totalMb) * 3, totalMb / 4)
+
 /** Short of memory, a tab hidden at least this long may go (not one just switched away from). */
 export const SHORT_MIN_HIDDEN_MS = 60_000
 /** Over the loaded-tab limit, tabs not shown for this long go heaviest first; more recent ones only after them. */
@@ -121,14 +129,16 @@ export const HEAVY_FIRST_AFTER_MS = 5 * 60_000
  * every other loaded tab goes (the "free memory now" button); otherwise a tab goes once it has
  * been idle long enough, then more go until the loaded-tab limit holds, and then, when the computer
  * is short of memory (`needMb`, see memoryNeedMb), until that much is freed. Those last two take the
- * tabs not shown for a while heaviest first, then the least recently shown.
+ * tabs not shown for a while heaviest first, then the least recently shown. With memory `roomy` (memoryRoomy), being
+ * idle is no reason on its own: those tabs stay frozen instead, so they open at once.
  */
 export function pickUnloads(
   tabs: readonly TabFacts[],
   policy: MemoryPolicy,
   now: number,
   force = false,
-  needMb = 0
+  needMb = 0,
+  roomy = false
 ): number[] {
   if (!policy.enabled && !force) return []
   const eligible = tabs.filter(
@@ -139,7 +149,7 @@ export function pickUnloads(
   const mayGo = eligible.filter((t) => !t.messenger)
 
   const picked = new Set<number>()
-  for (const t of mayGo) {
+  for (const t of roomy ? [] : mayGo) {
     // other spaces rest early instead (pickRests): unloaded, switching back to a space reloaded every page in it
     if (now - t.lastShownAt >= policy.idleMin * 60_000) picked.add(t.id)
   }
@@ -175,8 +185,8 @@ export function pickUnloads(
 }
 
 /** A hidden tab gives back its caches after this long out of sight, and stops running after this long. */
-export const REST_PURGE_MS = 2 * 60_000
-export const REST_FREEZE_MS = 5 * 60_000
+export const REST_PURGE_MS = 60_000
+export const REST_FREEZE_MS = 3 * 60_000
 
 /** How far a loaded tab has been put to rest: nothing yet, caches given back, or frozen (no script runs). */
 export type Rest = 'awake' | 'purged' | 'frozen'
@@ -261,3 +271,18 @@ export function pidsToTrim(tabs: readonly RestFacts[], frozenNow: readonly numbe
   const pids = new Set(tabs.filter((t) => now.has(t.id)).flatMap(all))
   return [...pids].filter((pid) => ok.get(pid))
 }
+
+/** A helper view (tab card, password popover, site panel) unused this long may be let go when memory is not roomy. */
+export const HELPER_IDLE_MS = 10 * 60_000
+
+/**
+ * Whether a hidden helper view should give back its renderer process (some 25 MB each): only when memory is not
+ * roomy (memoryRoomy) and it has gone unused HELPER_IDLE_MS. With memory to spare it stays, so it opens at once.
+ */
+export const releaseHelper = (o: {
+  exists: boolean
+  visible: boolean
+  lastUsedAt: number
+  now: number
+  roomy: boolean
+}): boolean => o.exists && !o.visible && !o.roomy && o.now - o.lastUsedAt >= HELPER_IDLE_MS

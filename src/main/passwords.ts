@@ -215,7 +215,10 @@ function siteOf(e: IpcMainEvent | IpcMainInvokeEvent): string | null {
  * IPC between web pages (autofill script in each tab), the browser window (save bar) and the store.
  * The site is always taken from the sender, never from what the page claims.
  */
-export function registerPasswordIpc(win: BrowserWindow, store: PasswordStore): void {
+export function registerPasswordIpc(
+  win: BrowserWindow,
+  store: PasswordStore
+): { release: (roomy: boolean) => boolean } {
   let pending: (PasswordPrompt & { password: string }) | null = null
   // With the sidebar closed the prompt hangs under the address bar in a view of its own.
   const popover = new PromptPopover(win)
@@ -295,6 +298,7 @@ export function registerPasswordIpc(win: BrowserWindow, store: PasswordStore): v
     } else if (answer === 'never') store.addNever(origin)
     tell(null)
   })
+  return popover
 }
 
 export const newPassword = (): string => generatePassword((max) => randomInt(max))

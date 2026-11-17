@@ -3,6 +3,7 @@ import { type BrowserWindow, WebContentsView, type WebContents } from 'electron'
 import { join } from 'path'
 import type { PasswordPrompt, PopoverState, PromptAnchor } from '@shared/types'
 import { PROMPT_CARD_WIDTH, PROMPT_PAD } from '@shared/anchor'
+import { releaseHelper } from '@shared/memory'
 import { paintView } from './chromeTheme'
 
 const GAP = 4 // between the address bar and the card
@@ -16,6 +17,8 @@ const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFi
  */
 export class PromptPopover {
   private view: WebContentsView | null = null
+  /** When it was last shown (see release). */
+  private lastUsedAt = 0
   private prompt: PasswordPrompt | null = null
   private anchor: PromptAnchor | null = null
   private height = 200
@@ -49,6 +52,32 @@ export class PromptPopover {
     this.sync()
   }
 
+  /**
+   * Give back its renderer process if it is hidden and has gone unused a while and memory is short (releaseHelper);
+   * it is made again the next time it is needed. True when it was let go.
+   */
+  release(roomy: boolean): boolean {
+    const view = this.view
+    if (
+      !releaseHelper({
+        exists: !!view,
+        visible: !!view?.getVisible(),
+        lastUsedAt: this.lastUsedAt,
+        now: Date.now(),
+        roomy
+      })
+    )
+      return false
+    this.view = null
+    try {
+      this.win.contentView.removeChildView(view!)
+    } catch {
+      // not a child (never shown)
+    }
+    if (!view!.webContents.isDestroyed()) view!.webContents.close()
+    return true
+  }
+
   private ensureView(): WebContentsView {
     if (this.view) return this.view
     const view = new WebContentsView({
@@ -65,6 +94,7 @@ export class PromptPopover {
   private sync(): void {
     if (this.win.isDestroyed()) return
     if (!this.prompt || !this.anchor) {
+      if (this.view?.getVisible()) this.lastUsedAt = Date.now()
       this.view?.setVisible(false)
       return
     }
@@ -82,5 +112,6 @@ export class PromptPopover {
     paintView(view.webContents)
     view.setVisible(true)
     if (!view.webContents.isLoading()) view.webContents.send('popover:state', this.state())
+    this.lastUsedAt = Date.now()
   }
 }

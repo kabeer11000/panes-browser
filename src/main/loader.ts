@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { readFileSync } from 'fs'
 import ofs from 'original-fs'
+import nodeModule from 'module'
 import { join } from 'path'
 import {
   chooseLayer,
@@ -24,6 +25,14 @@ import {
 // The data folder an override names (tests, side-by-side copies) applies to everything, the layers included, and has to
 // be set before anything reads it.
 if (process.env['PANES_USERDATA']) app.setPath('userData', process.env['PANES_USERDATA'])
+
+// Compiled code is kept on disk (Node's compile cache), so the main bundle, a layer's included, is not parsed and
+// compiled again on every start. Keyed by each file's content: a new layer simply compiles once more.
+try {
+  nodeModule.enableCompileCache?.(join(app.getPath('userData'), 'code-cache'))
+} catch {
+  // an older Node, or the folder cannot be written: start as before
+}
 
 /** The build number the installed app was released as (0 for a development build). */
 function builtInBuild(): number {

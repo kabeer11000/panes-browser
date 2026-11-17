@@ -210,6 +210,23 @@ export class Camera {
     this.pan = { kind: 'spring', tx: v.x, ty: v.y, p }
     this.zoom = { raw: l, tl: l, p, anchor: null }
   }
+  /**
+   * Where the motion in flight comes to rest, as things stand: a spring's target, a coast's run-out (v * tau), a zoom's
+   * target about its point. A forecast, for getting ready ahead of time (a page about to be landed on).
+   */
+  get restingView(): View {
+    const pan = this.pan
+    let x = pan?.kind === 'spring' ? pan.tx : pan?.kind === 'coast' ? this.x + this.vx * pan.tau : this.x
+    let y = pan?.kind === 'spring' ? pan.ty : pan?.kind === 'coast' ? this.y + this.vy * pan.tau : this.y
+    const z = this.zoom
+    const l = z ? clamp(z.tl, this.lmin, this.lmax) : this.l
+    if (z?.anchor) {
+      const f = Math.exp(l - this.l)
+      x = z.anchor.x - (z.anchor.x - x) * f
+      y = z.anchor.y - (z.anchor.y - y) * f
+    }
+    return { x, y, k: Math.exp(l) }
+  }
   /** Advance `dt` seconds. */
   step(dt: number): void {
     if (dt <= 0) return
