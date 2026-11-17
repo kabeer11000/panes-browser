@@ -2,7 +2,10 @@
 :root {
   --glass: rgb(30 30 34 / 0.55);
   --glass-hover: rgb(70 70 78 / 0.7);
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* the shared spring (installed by main.ts), with plain fallbacks */
+  --ease: var(--spring-smooth, cubic-bezier(0.22, 1, 0.36, 1));
+  --ease-snappy: var(--spring-snappy, cubic-bezier(0.3, 1.3, 0.5, 1));
+  --dur-snappy: var(--spring-snappy-dur, 0.22s);
 }
 * {
   box-sizing: border-box;
@@ -16,7 +19,8 @@ body,
 }
 body {
   font:
-    12px/1 'Segoe UI Variable Text',
+    12px/1 Inter,
+    'Segoe UI Variable Text',
     'SF Pro Text',
     system-ui,
     sans-serif;
@@ -201,6 +205,60 @@ button {
   .corner,
   .transport,
   .bar {
+    transition: none;
+  }
+}
+
+/* ---- redesign: the chrome's language. Frosted round buttons with a light rim; a press squishes and the release
+   springs back with a hair of overshoot; the scrub track thickens under the pointer by scale, not by size. ---- */
+.round {
+  background: rgb(28 28 32 / 0.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.16),
+    0 4px 14px rgb(0 0 0 / 0.3);
+  transition:
+    opacity 0.2s var(--ease),
+    background-color 0.12s,
+    scale var(--dur-snappy) var(--ease-snappy);
+}
+.round:active {
+  scale: 0.9;
+  transition-duration: 0.2s, 0.12s, 0.08s;
+}
+.plain {
+  transition:
+    opacity 0.12s,
+    transform var(--dur-snappy) var(--ease-snappy);
+}
+.plain:hover {
+  transform: scale(1.08);
+}
+.plain:active {
+  transform: scale(0.9);
+  transition-duration: 0.12s, 0.08s;
+}
+.scrub {
+  transition: scale var(--dur-snappy) var(--ease-snappy);
+}
+.scrub:hover {
+  scale: 1 1.25;
+}
+.scrub::-webkit-slider-thumb {
+  transition:
+    opacity 0.12s,
+    scale var(--dur-snappy) var(--ease-snappy);
+  scale: 0.6;
+}
+.scrub:hover::-webkit-slider-thumb,
+.scrub:active::-webkit-slider-thumb {
+  scale: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .round,
+  .plain,
+  .scrub {
     transition: none;
   }
 }

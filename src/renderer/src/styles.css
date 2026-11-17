@@ -4681,19 +4681,19 @@ kbd {
 .tour-lit {
   position: absolute;
   border-radius: var(--r-4);
-  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.55);
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.5);
   outline: 2px solid var(--accent);
   outline-offset: 0;
+  top: 0;
+  left: 0;
   transition:
-    left var(--dur) var(--ease),
-    top var(--dur) var(--ease),
-    width var(--dur) var(--ease),
-    height var(--dur) var(--ease);
+    transform var(--spring-space-dur, 0.3s) var(--spring-space, ease),
+    width var(--spring-space-dur, 0.3s) var(--spring-space, ease),
+    height var(--spring-space-dur, 0.3s) var(--spring-space, ease);
   pointer-events: none;
 }
 .tour-lit.none {
-  left: 50%;
-  top: 50%;
+  transform: translate(50vw, 50vh);
   width: 0;
   height: 0;
   outline: none;
@@ -4705,13 +4705,11 @@ kbd {
   flex-direction: column;
   gap: 6px;
   padding: 16px 16px 12px;
-  border-radius: var(--r-5);
+  border-radius: var(--r-pop);
   background: var(--popover-bg, var(--card-bg));
   color: var(--fg);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 16px 40px rgb(0 0 0 / 0.35);
-  animation: tour-in var(--dur) var(--ease) both;
+  box-shadow: var(--shadow-3), var(--rim);
+  animation: tour-in var(--dur) var(--ease-snappy) both;
 }
 @keyframes tour-in {
   from {

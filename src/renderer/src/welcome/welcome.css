@@ -968,3 +968,72 @@ body {
   opacity: 0.6;
   cursor: default;
 }
+
+/* ---- redesign: the same language as the chrome. Cards are raised and rimmed, the chosen one lifts with a hair of
+   overshoot; buttons squish when pressed and spring back; every step lands on the shared spring. ---- */
+.wl-go,
+.wl-next {
+  color: var(--accent-fg);
+  transition:
+    transform var(--dur) var(--ease-snappy),
+    filter var(--dur-fast),
+    box-shadow var(--dur) var(--ease);
+}
+.wl-go:active,
+.wl-next:active,
+.wl-ghost:active,
+.wl-back:active {
+  transform: scale(var(--press));
+  transition-duration: 0.08s;
+}
+.wl-ghost,
+.wl-back {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  transition:
+    background-color var(--dur-fast),
+    transform var(--dur) var(--ease-snappy);
+}
+.wl-card {
+  border-radius: var(--r-pop);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  transition:
+    transform var(--dur) var(--ease-snappy),
+    box-shadow var(--dur) var(--ease),
+    background-color var(--dur-fast);
+}
+.wl-card:hover {
+  background: var(--surface-hover);
+  box-shadow:
+    inset 0 0 0 1px var(--hairline),
+    var(--shadow-2);
+}
+.wl-card:active {
+  transform: translateY(-1px) scale(0.98);
+}
+.wl-card.on {
+  transform: translateY(-2px);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    0 14px 34px -14px var(--accent);
+}
+.wl-swatch {
+  transition: transform var(--dur) var(--ease-snappy);
+}
+.wl-swatch:active {
+  transform: scale(0.92);
+}
+.wl-swatch.on {
+  transform: scale(1.06);
+}
+.wl-row + .wl-row {
+  border-top-color: var(--hairline);
+}
+.wl-skip {
+  border-radius: var(--r-pill);
+  transition:
+    background-color var(--dur-fast),
+    color var(--dur-fast);
+}

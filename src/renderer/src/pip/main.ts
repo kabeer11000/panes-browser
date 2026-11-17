@@ -1,4 +1,5 @@
 import './pip.css'
+import { installSpringTokens } from '@renderer/motion'
 import type { PipApi, PipState } from '@shared/types'
 
 declare global {
@@ -6,6 +7,8 @@ declare global {
     pip: PipApi
   }
 }
+
+installSpringTokens() // the shared spring as CSS tokens, as in the main window
 
 const DRAG_THRESHOLD = 4 // px before a press becomes a window drag instead of a click
 const SKIP_SECONDS = 10

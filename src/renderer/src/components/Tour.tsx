@@ -117,7 +117,12 @@ export function Tour({ onClose }: { onClose: () => void }): React.JSX.Element {
     <div className="tour" role="dialog" aria-modal="true" aria-label="Tour of Panes">
       <div
         className={'tour-lit' + (lit ? '' : ' none') + (done ? ' done' : '')}
-        style={lit ? { left: lit.x, top: lit.y, width: lit.w, height: lit.h } : undefined}
+        // moved by a transform on the spring (composited); only a change of size lays it out
+        style={
+          lit
+            ? { transform: `translate(${lit.x}px, ${lit.y}px)`, width: lit.w, height: lit.h }
+            : undefined
+        }
       >
         {done && (
           <svg className="tour-tick" viewBox="0 0 24 24" aria-hidden="true">

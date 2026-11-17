@@ -305,3 +305,34 @@ body {
   transform-origin: left;
   transition: transform var(--dur) var(--ease);
 }
+
+/* ---- redesign: the fanned rows are island cards with a light rim and a soft wide shadow (opaque: this view
+   cannot blur the page under it); buttons squish on the shared spring ---- */
+.dk-row {
+  border-radius: var(--r-menu);
+  box-shadow: var(--rim), var(--shadow-2);
+}
+.dk-row.all {
+  border-radius: var(--r-pill);
+}
+.dk-ghost {
+  border-radius: var(--r-card);
+  box-shadow: var(--rim), var(--shadow-2);
+}
+.dk-face {
+  border-radius: var(--r-card);
+  box-shadow: 0 0 0 1px var(--hairline);
+}
+.dk-row-acts button {
+  border-radius: var(--r-pill);
+  transition:
+    background-color var(--dur-fast),
+    color var(--dur-fast),
+    scale var(--dur) var(--ease-snappy);
+}
+.dk-row-acts button:active {
+  scale: var(--press);
+}
+.dk-row-bar {
+  border-radius: var(--r-pill);
+}
