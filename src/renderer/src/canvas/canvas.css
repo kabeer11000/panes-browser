@@ -1068,8 +1068,8 @@
 /* ---- what plays on the board: one pill, top right (clear of the conversation column) ---- */
 .cv-playing {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 8px;
+  right: 8px;
   z-index: 12;
   display: flex;
   flex-direction: column;
@@ -1085,7 +1085,7 @@
   animation: cv-fade 0.2s ease-out both;
 }
 .cv.docked .cv-playing {
-  right: calc(min(var(--dock-w, 380px), calc(100% - 120px)) + 14px);
+  right: calc(min(var(--dock-w, 380px), calc(100% - 120px)) + 8px);
 }
 /* one line each: the latest on top (with how many more), the rest below it when opened */
 .cv-playing-row,
@@ -2952,27 +2952,27 @@
   color: var(--fg-dim);
 }
 /* a new notification, out beside the bell for a few seconds; it covers the buttons left of it, not the page */
+/* a new message from another tab drops below the bell as a banner, never along the header over the recent tabs */
 .cv-bell-peek {
   position: absolute;
-  top: 50%;
-  right: calc(100% + 4px);
-  z-index: 2;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 31;
   display: flex;
   align-items: center;
   gap: 8px;
   width: max-content;
   max-width: 380px;
-  height: 30px;
-  padding: 0 12px 0 8px;
-  border-radius: 9px;
+  min-height: 40px;
+  padding: 7px 12px 7px 10px;
+  border-radius: 12px;
   font-size: 12px;
   text-align: left;
   background: var(--popover-bg);
   box-shadow:
     0 0 0 1px var(--border),
-    0 6px 18px rgb(0 0 0 / 0.22);
-  translate: 0 -50%;
-  animation: cv-peek-in var(--dur) var(--ease) both;
+    0 10px 28px rgb(0 0 0 / 0.3);
+  animation: cv-peek-in 0.36s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 .cv-bell-peek:hover {
   background: color-mix(in srgb, var(--popover-bg) 92%, var(--fg));
@@ -3005,7 +3005,8 @@
 @keyframes cv-peek-in {
   from {
     opacity: 0;
-    transform: translateX(10px);
+    translate: 0 -8px;
+    scale: 0.97;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -4077,9 +4078,10 @@
 }
 .cv-inbox {
   position: absolute;
-  top: 14px;
+  top: 8px;
   left: 50%;
   translate: -50% 0;
+  transition: left 0.34s var(--ease);
   z-index: 12;
   display: flex;
   align-items: center;
@@ -4091,6 +4093,9 @@
     0 0 0 1px var(--border),
     0 8px 24px rgb(0 0 0 / 0.25);
   animation: cv-attn-in var(--dur) var(--ease) both;
+}
+.cv.docked .cv-inbox {
+  left: calc((100% - min(var(--dock-w, 380px), calc(100% - 120px))) / 2);
 }
 .cv-inbox button {
   display: grid;
@@ -4822,4 +4827,15 @@
 /* a menu open from the bar goes over the toasts and banners that sit just above the bar */
 .cv-bar:has(.cv-menu) {
   z-index: 14;
+}
+
+/* The recent tabs, compact: the open tab with its name, the others by their icon (the name is on hover) */
+.cv-recent button:not(.on) {
+  padding: 0 7px;
+}
+.cv-recent button:not(.on) > span:last-child {
+  display: none;
+}
+.cv-recent button.on {
+  max-width: 180px;
 }
