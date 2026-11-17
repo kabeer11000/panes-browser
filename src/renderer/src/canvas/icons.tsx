@@ -193,3 +193,111 @@ export const GearIcon = (): React.JSX.Element => (
     <path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" />
   </Svg>
 )
+export const TableIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="2.4" y="3" width="11.2" height="10" rx="1.6" />
+    <path d="M2.4 6.6h11.2M2.4 9.8h11.2M6.2 6.6V13M9.8 6.6V13" />
+  </Svg>
+)
+export const DocIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="3.4" y="2" width="9.2" height="12" rx="1.6" />
+    <path d="M5.8 5.4h4.4M5.8 8h4.4M5.8 10.6h2.6" />
+  </Svg>
+)
+export const PlusIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M8 3.4v9.2M3.4 8h9.2" />
+  </Svg>
+)
+/** Shapes and connectors, as one cluster: a square, a circle, and an arrow bending between them. */
+export const ShapeClusterIcon = (): React.JSX.Element => (
+  <svg
+    width={30}
+    height={30}
+    viewBox="0 0 30 30"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="2.5" y="9.5" width="11" height="11" rx="1.5" />
+    <circle cx="22" cy="22.5" r="5.5" />
+    <path d="M17 13.5V8.5a3 3 0 0 1 3-3h6.5M24 3l2.5 2.5L24 8" />
+  </svg>
+)
+/** The pencil as an object, standing in the bar (it peeks up from the bar's floor). `tip` colours the lead. */
+export const PencilArt = ({ tip = '#2a2a2e' }: { tip?: string }): React.JSX.Element => (
+  <svg width={26} height={62} viewBox="0 0 26 62" aria-hidden="true">
+    <defs>
+      <linearGradient id="pa-body" x1="0" x2="1">
+        <stop offset="0" stopColor="#ffffff" />
+        <stop offset="0.55" stopColor="#f3f3f5" />
+        <stop offset="1" stopColor="#d9d9de" />
+      </linearGradient>
+      <linearGradient id="pa-cone" x1="0" x2="1">
+        <stop offset="0" stopColor="#fbfbfc" />
+        <stop offset="1" stopColor="#d6d6dc" />
+      </linearGradient>
+    </defs>
+    <path d="M4 24 13 4l9 20Z" fill="url(#pa-cone)" />
+    <path d="M10.2 10.3 13 4l2.8 6.3c-1.8.8-3.8.8-5.6 0Z" fill={tip} />
+    <rect x="4" y="24" width="18" height="40" rx="1.5" fill="url(#pa-body)" />
+    <path d="M4 24h18" stroke="rgb(0 0 0 / .08)" />
+    <rect x="4" y="24" width="18" height="40" rx="1.5" fill="none" stroke="rgb(0 0 0 / .1)" />
+  </svg>
+)
+/** The highlighter as an object: a chisel tip and a coloured cap band. */
+export const HighlighterArt = ({ ink = '#f7d23e' }: { ink?: string }): React.JSX.Element => (
+  <svg width={26} height={62} viewBox="0 0 26 62" aria-hidden="true">
+    <defs>
+      <linearGradient id="ha-body" x1="0" x2="1">
+        <stop offset="0" stopColor="#ffffff" />
+        <stop offset="0.55" stopColor="#f2f2f4" />
+        <stop offset="1" stopColor="#d7d7dc" />
+      </linearGradient>
+    </defs>
+    <path d="M8.5 5.5 17.5 3v9h-9Z" fill={ink} />
+    <path d="M6 12h14l2 8H4Z" fill="url(#ha-body)" />
+    <rect x="4" y="20" width="18" height="6" fill={ink} opacity="0.9" />
+    <rect x="4" y="26" width="18" height="38" rx="1.5" fill="url(#ha-body)" />
+    <rect x="4" y="20" width="18" height="44" rx="1.5" fill="none" stroke="rgb(0 0 0 / .1)" />
+  </svg>
+)
+/** A pad of sticky notes, the top one with its corner lifting. */
+export const StickyArt = ({ color = '#ffd966' }: { color?: string }): React.JSX.Element => (
+  <svg width={54} height={56} viewBox="0 0 54 56" aria-hidden="true">
+    <defs>
+      <linearGradient id="sa-top" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor={color} />
+        <stop offset="1" stopColor={`color-mix(in srgb, ${color} 82%, #b8860b)`} />
+      </linearGradient>
+      <linearGradient id="sa-curl" x1="1" y1="1" x2="0" y2="0">
+        <stop offset="0" stopColor="#fff6cf" />
+        <stop offset="1" stopColor={`color-mix(in srgb, ${color} 70%, #a87900)`} />
+      </linearGradient>
+    </defs>
+    <rect
+      x="9"
+      y="8"
+      width="38"
+      height="50"
+      rx="2"
+      transform="rotate(6 28 33)"
+      fill={`color-mix(in srgb, ${color} 80%, #c79a1e)`}
+    />
+    <rect
+      x="7"
+      y="7"
+      width="38"
+      height="50"
+      rx="2"
+      transform="rotate(-3 26 32)"
+      fill={`color-mix(in srgb, ${color} 90%, #d4a52a)`}
+    />
+    <path d="M7 6h38a2 2 0 0 1 2 2v48H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" fill="url(#sa-top)" />
+    <path d="M5 30c6 1 11 6 12 13-5-4-9-6-12-6Z" fill="url(#sa-curl)" opacity="0.9" />
+  </svg>
+)

@@ -210,10 +210,13 @@ export function chromeVars(
   defaultAccent: string
 ): Record<string, string> {
   const safe = Math.min(theme.tint, maxSafeTint(theme.color, theme.color2, dark))
+  const accent = accentFor(accentSetting, defaultAccent, theme.color, dark)
   return {
     '--space': theme.color,
     '--space2': theme.color2 ?? theme.color,
     '--tint': `${Math.round(safe * 100)}%`,
-    '--accent': accentFor(accentSetting, defaultAccent, theme.color, dark)
+    '--accent': accent,
+    // what reads on a solid accent surface (a chosen tool, a primary button): white or near-black, whichever is clearer
+    '--accent-fg': contrastRatio(accent, '#ffffff') >= contrastRatio(accent, '#16161a') ? '#ffffff' : '#16161a'
   }
 }

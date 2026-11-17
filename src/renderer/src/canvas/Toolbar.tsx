@@ -3,17 +3,23 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useDismiss } from './useDismiss'
 import { SHAPE_KINDS, type BlockKind, type ShapeKind } from '@shared/ai/canvasMarks'
 import {
-  BlockIcon,
   ConnectorIcon,
+  DocIcon,
   FrameIcon,
   HandIcon,
+  HighlighterArt,
   LineIcon,
   MarkerIcon,
   NoteIcon,
   PenIcon,
+  PencilArt,
+  PlusIcon,
   SearchGlyph,
   SelectIcon,
+  ShapeClusterIcon,
   ShapeIcon,
+  StickyArt,
+  TableIcon,
   TextIcon,
   TidyIcon,
   GearIcon
@@ -54,17 +60,20 @@ const NAV: ToolDef[] = [
   def('select', 'Select (Shift and drag inside a section to select in it)', 'V', <SelectIcon />),
   def('hand', 'Hand (or hold Space)', 'H', <HandIcon />)
 ]
-const PUT: ToolDef[] = [
-  def('note', 'Sticky note', 'S', <NoteIcon />),
-  def('text', 'Text', 'T', <TextIcon />)
-]
+const NOTE = def('note', 'Sticky note', 'S', <NoteIcon />)
+const TEXT = def('text', 'Text', 'T', <TextIcon />)
 const FRAME = def('frame', 'Section (or Alt and drag)', 'F', <FrameIcon />)
+/** The pencil's tools: it shows as the one last picked. */
 const DRAW: ToolDef[] = [
   def('pen', 'Pen', 'P', <PenIcon />),
-  def('marker', 'Highlighter', 'M', <MarkerIcon />),
+  def('marker', 'Highlighter', 'M', <MarkerIcon />)
+]
+/** Lines that join things live with the shapes, as in the cluster's icon. */
+const LINKS: ToolDef[] = [
   def('line', 'Line', 'L', <LineIcon />),
   def('connector', 'Connector (or drag a dot on an object)', 'C', <ConnectorIcon />)
 ]
+const SHAPEISH: Tool[] = ['shape', 'line', 'connector']
 
 interface Props {
   tool: Tool
@@ -95,7 +104,10 @@ interface Props {
   onFit: () => void
 }
 
-/** The floating bar at the bottom of the board. Quiet: it is a row of small buttons, nothing more. */
+/**
+ * The floating bar at the bottom of the board, after FigJam's: moving about, then the pencil and the sticky pad as
+ * objects standing in the bar (they rise when picked), shapes and lines as one cluster, then things to put down.
+ */
 export function Toolbar({
   tool,
   zoom,
@@ -147,7 +159,7 @@ export function Toolbar({
     const bar = box.current
     if (!bar) return
     const place = (): void => {
-      const on = bar.querySelector<HTMLElement>('.cv-tool.on')
+      const on = bar.querySelector<HTMLElement>('.cv-tool.on:not(.cv-phys)')
       // its place in the bar: a tool with a menu sits in its own positioned box, so add up the offsets to the bar
       let x = 0
       for (
@@ -183,52 +195,18 @@ export function Toolbar({
       <i className="cv-bar-pill" aria-hidden="true" />
       {NAV.map(toolButton)}
       <span className="cv-sep" aria-hidden="true" />
-      {PUT.map(toolButton)}
-      <div className="cv-split" ref={shapesBox}>
+      <div className="cv-split cv-phys-slot" ref={drawsBox}>
         <button
           type="button"
-          className={'cv-tool has-menu' + (tool === 'shape' ? ' on' : '')}
-          aria-pressed={tool === 'shape'}
-          aria-haspopup="menu"
-          aria-expanded={shapes}
-          aria-label={`Shape: ${SHAPE_LABEL[shapeKind]}`}
-          title={`Shape: ${SHAPE_LABEL[shapeKind]} (R; click again for more shapes)`}
-          {...menuTool(tool === 'shape', () => onTool('shape'), setShapes)}
-        >
-          <ShapeIcon />
-        </button>
-        {shapes && (
-          <div className="cv-menu" role="menu">
-            {SHAPE_KINDS.map((k) => (
-              <button
-                key={k}
-                type="button"
-                role="menuitemradio"
-                aria-checked={k === shapeKind}
-                onClick={() => {
-                  setShapes(false)
-                  onShapeKind(k)
-                  onTool('shape')
-                }}
-              >
-                {SHAPE_LABEL[k]}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="cv-split" ref={drawsBox}>
-        <button
-          type="button"
-          className={'cv-tool has-menu' + (tool === draw.id ? ' on' : '')}
+          className={'cv-tool cv-phys pencil' + (tool === draw.id ? ' on' : '')}
           aria-pressed={tool === draw.id}
           aria-haspopup="menu"
           aria-expanded={draws}
           aria-label={draw.label}
-          title={`${draw.label} (${draw.key}; click again for other pens)`}
+          title={`${draw.label} (${draw.key}; click again for the other pen)`}
           {...menuTool(tool === draw.id, () => onTool(draw.id), setDraws)}
         >
-          {draw.icon}
+          {draw.id === 'marker' ? <HighlighterArt /> : <PencilArt />}
         </button>
         {draws && (
           <div className="cv-menu rows" role="menu">
@@ -245,6 +223,68 @@ export function Toolbar({
                 }}
               >
                 {d.icon}
+                <span>{d.label}</span>
+                <kbd>{d.key}</kbd>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        className={'cv-tool cv-phys sticky' + (tool === 'note' ? ' on' : '')}
+        aria-pressed={tool === 'note'}
+        aria-label={NOTE.label}
+        title={`${NOTE.label} (${NOTE.key})`}
+        onClick={() => onTool('note')}
+      >
+        <StickyArt />
+      </button>
+      <span className="cv-sep" aria-hidden="true" />
+      <div className="cv-split" ref={shapesBox}>
+        <button
+          type="button"
+          className={'cv-tool cv-cluster' + (SHAPEISH.includes(tool) ? ' on' : '')}
+          aria-pressed={SHAPEISH.includes(tool)}
+          aria-haspopup="menu"
+          aria-expanded={shapes}
+          aria-label={`Shapes and lines: ${SHAPE_LABEL[shapeKind]}`}
+          title="Shapes and lines (R; click again for more)"
+          {...menuTool(SHAPEISH.includes(tool), () => onTool('shape'), setShapes)}
+        >
+          <ShapeClusterIcon />
+        </button>
+        {shapes && (
+          <div className="cv-menu rows" role="menu">
+            {SHAPE_KINDS.map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="menuitemradio"
+                aria-checked={tool === 'shape' && k === shapeKind}
+                onClick={() => {
+                  setShapes(false)
+                  onShapeKind(k)
+                  onTool('shape')
+                }}
+              >
+                <ShapeIcon />
+                <span>{SHAPE_LABEL[k]}</span>
+              </button>
+            ))}
+            <i className="cv-menu-sep" aria-hidden="true" />
+            {LINKS.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={tool === d.id}
+                onClick={() => {
+                  setShapes(false)
+                  onTool(d.id)
+                }}
+              >
+                {d.icon}
                 <span>{d.label.replace(/ \(.*\)$/, '')}</span>
                 <kbd>{d.key}</kbd>
               </button>
@@ -252,18 +292,38 @@ export function Toolbar({
           </div>
         )}
       </div>
+      <span className="cv-sep" aria-hidden="true" />
+      {toolButton(TEXT)}
       {toolButton(FRAME)}
+      <button
+        type="button"
+        className="cv-tool"
+        aria-label="Table"
+        title="Table"
+        onClick={() => onBlock('table')}
+      >
+        <TableIcon />
+      </button>
+      <button
+        type="button"
+        className="cv-tool"
+        aria-label="Checklist"
+        title="Checklist"
+        onClick={() => onBlock('checklist')}
+      >
+        <DocIcon />
+      </button>
       <div className="cv-split" ref={blocksBox}>
         <button
           type="button"
-          className="cv-tool"
-          aria-label="Add a block"
+          className={'cv-tool cv-plus' + (blocks ? ' open' : '')}
+          aria-label="More to add"
           title="Heading, text, table, checklist, code"
           aria-haspopup="menu"
           aria-expanded={blocks}
           onClick={() => setBlocks((m) => !m)}
         >
-          <BlockIcon />
+          <PlusIcon />
         </button>
         {blocks && (
           <div className="cv-menu" role="menu">

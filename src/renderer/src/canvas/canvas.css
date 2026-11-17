@@ -4717,29 +4717,65 @@
   pointer-events: none;
 }
 
-/* ---- the toolbar's motion, after FigJam's: the chosen tool's highlight glides between tools, a tool lifts on a
-   spring under the pointer and squishes when pressed, menus pop up from the bar, the bar springs in ---- */
+/* ---- the toolbar, after FigJam's: a roomy white bar; the chosen tool sits on a solid accent pill that springs from
+   tool to tool; the pencil and the sticky pad are objects standing in the bar, cut off by its floor, and rise when
+   hovered or picked; every motion here is one of the shared springs (motion.ts) ---- */
 .cv-bar {
-  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 18px;
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.08),
+    0 1px 2px rgb(0 0 0 / 0.06),
+    0 10px 30px -6px rgb(0 0 0 / 0.18);
+}
+.cv-bar .cv-sep {
+  height: 30px;
+  margin: 0 6px;
+  opacity: 0.8;
+}
+.cv-bar .cv-tool {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  color: var(--fg);
+}
+.cv-bar .cv-tool > svg {
+  width: 22px;
+  height: 22px;
+}
+.cv-bar .cv-tool:hover:not(:disabled):not(.on) {
+  background: var(--surface-hover);
+}
+.cv-bar .cv-zoom {
+  height: 40px;
+  border-radius: 11px;
 }
 .cv-bar-pill {
   position: absolute;
   left: 0;
-  top: 5px;
-  height: 32px;
+  top: 8px;
+  height: 40px;
   width: var(--pill-w, 0);
   translate: var(--pill-x, 0) 0;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 11px;
+  background: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 1px 3px rgb(0 0 0 / 0.18);
   opacity: 0;
+  scale: 0.6;
   transition:
-    translate 0.38s var(--spring),
-    width 0.38s var(--spring),
-    opacity 0.2s ease;
+    translate var(--spring-snappy-dur) var(--spring-snappy),
+    width var(--spring-snappy-dur) var(--spring-snappy),
+    scale var(--spring-bouncy-dur) var(--spring-bouncy),
+    opacity 0.16s ease;
   pointer-events: none;
 }
 .cv-bar.has-pill .cv-bar-pill {
   opacity: 1;
+  scale: 1;
 }
 .cv-bar .cv-tool,
 .cv-bar .cv-zoom {
@@ -4747,24 +4783,115 @@
 }
 .cv-bar .cv-tool.on {
   background: none; /* the pill is its background */
+  color: var(--accent-fg, #fff);
+  transition: color 0.12s ease;
 }
 .cv-bar .cv-tool > svg,
 .cv-bar .cv-tool > span {
   transition:
-    translate 0.32s var(--spring),
-    scale 0.32s var(--spring);
+    translate var(--spring-snappy-dur) var(--spring-snappy),
+    scale var(--spring-snappy-dur) var(--spring-snappy),
+    rotate var(--spring-bouncy-dur) var(--spring-bouncy);
 }
-.cv-bar .cv-tool:hover:not(:disabled) > svg {
-  translate: 0 -2px;
-  scale: 1.1;
+.cv-bar .cv-tool:hover:not(:disabled):not(.cv-phys) > svg {
+  scale: 1.08;
 }
 .cv-bar .cv-tool:active:not(:disabled) > svg {
-  translate: 0 0;
-  scale: 0.88;
-  transition-duration: 0.08s;
+  scale: 0.86;
+  transition-duration: 0.07s;
 }
 .cv-bar .cv-tool:disabled {
   cursor: default;
+}
+/* the shapes cluster is a bigger drawing: it gets its own room */
+.cv-bar .cv-cluster {
+  width: 48px;
+}
+.cv-bar .cv-cluster > svg {
+  width: 30px;
+  height: 30px;
+}
+.cv-bar .cv-cluster.on {
+  color: var(--fg);
+}
+.cv-bar .cv-cluster.on > svg {
+  color: var(--accent-fg, #fff);
+}
+/* the round plus at the end, its cross turning to an x while its menu is open */
+.cv-bar .cv-plus {
+  width: 34px;
+  height: 34px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+}
+.cv-bar .cv-plus > svg {
+  width: 18px;
+  height: 18px;
+}
+.cv-bar .cv-plus.open > svg {
+  rotate: 45deg;
+}
+/* the objects: they stand on the bar's floor and are cut off by it (the clip only bites at the bottom) */
+.cv-bar .cv-phys-slot {
+  align-self: stretch;
+}
+.cv-bar .cv-phys {
+  align-self: stretch;
+  height: auto;
+  margin: -8px 0;
+  border-radius: 0;
+  overflow: visible;
+  clip-path: inset(-40px -8px 0 -8px);
+  align-items: flex-start;
+}
+.cv-bar .cv-phys:hover:not(.on) {
+  background: none;
+}
+.cv-bar .cv-phys.pencil {
+  width: 36px;
+}
+.cv-bar .cv-phys.sticky {
+  width: 60px;
+}
+.cv-bar .cv-phys > svg {
+  width: auto;
+  height: auto;
+  flex: none;
+  filter: drop-shadow(0 1px 1.5px rgb(0 0 0 / 0.18));
+  translate: 0 16px;
+  transition:
+    translate var(--spring-bouncy-dur) var(--spring-bouncy),
+    rotate var(--spring-bouncy-dur) var(--spring-bouncy),
+    filter 0.2s ease;
+}
+.cv-bar .cv-phys.sticky > svg {
+  translate: 0 18px;
+  rotate: -4deg;
+}
+.cv-bar .cv-phys:hover > svg {
+  translate: 0 8px;
+}
+.cv-bar .cv-phys.pencil:hover > svg {
+  rotate: -5deg;
+}
+.cv-bar .cv-phys.sticky:hover > svg {
+  translate: 0 10px;
+  rotate: -1deg;
+}
+/* picked: it stands up out of the bar */
+.cv-bar .cv-phys.on > svg {
+  translate: 0 -6px;
+  rotate: 0deg;
+  filter: drop-shadow(0 6px 8px rgb(0 0 0 / 0.2));
+}
+.cv-bar .cv-phys.sticky.on > svg {
+  translate: 0 -2px;
+  rotate: 2deg;
+}
+.cv-bar .cv-phys:active > svg {
+  scale: 0.94;
+  transition-duration: 0.07s;
 }
 /* a tool with a menu: a small mark in its corner (click it again, or right-click, for the menu) */
 .cv-tool.has-menu::after {
@@ -4779,24 +4906,36 @@
   opacity: 0.55;
 }
 .cv-bar .cv-menu {
-  transform-origin: 20px 100%;
-  animation: cv-menu-pop 0.26s var(--spring) both;
+  bottom: calc(100% + 18px);
+  border-radius: 14px;
+  padding: 6px;
+  transform-origin: 24px 100%;
+  animation: cv-menu-pop var(--spring-snappy-dur) var(--spring-snappy) both;
+}
+.cv-bar .cv-phys-slot .cv-menu {
+  bottom: calc(100% + 26px);
+}
+.cv-menu-sep {
+  display: block;
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--border);
 }
 @keyframes cv-menu-pop {
   from {
     opacity: 0;
-    scale: 0.92;
-    translate: 0 6px;
+    scale: 0.9;
+    translate: 0 8px;
   }
 }
 .cv.entering .cv-bar {
-  animation: cv-bar-spring 0.6s var(--spring) 0.1s both;
+  animation: cv-bar-spring var(--spring-bouncy-dur) var(--spring-bouncy) 0.08s both;
 }
 @keyframes cv-bar-spring {
   from {
     opacity: 0;
-    translate: -50% 28px;
-    scale: 0.94;
+    translate: -50% 36px;
+    scale: 0.92;
   }
 }
 @media (prefers-reduced-motion: reduce) {
