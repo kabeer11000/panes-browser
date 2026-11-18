@@ -36,6 +36,8 @@ interface Surface {
   pending: VideoFrame | null
   /** The last frame drawn, so a canvas the board puts in place later shows the page at once. */
   last: VideoFrame | null
+  /** The page's cursor now: kept, so a canvas the page moves to (the board's, its own) shows it at once. */
+  cursor: string
 }
 
 const surfaces = new Map<number, Surface>()
@@ -68,13 +70,20 @@ function retarget(s: Surface): void {
     if (board && !board.hasAttribute('data-osr-passive')) wire(board, s)
     if (s.last) s.pending ??= s.last.clone()
   }
+  if (into.style.cursor !== s.cursor) into.style.cursor = s.cursor
   const ownShown = !board && s.visible
   s.own.style.display = ownShown ? 'block' : 'none'
   if (ownShown) {
     const r = s.rect
-    s.own.style.transform = `translate(${r.x}px, ${r.y}px)`
-    s.own.style.width = `${r.width}px`
-    s.own.style.height = `${r.height}px`
+    // on whole device pixels: a page drawn between them is smoothed over, all of it a little blurred
+    const dpr = window.devicePixelRatio || 1
+    const px = (v: number): number => Math.round(v * dpr) / dpr
+    s.own.style.transform = `translate(${px(r.x)}px, ${px(r.y)}px)`
+    // its size is the page's own pixels (draw), once a frame has come; the place's size until then
+    if (!s.last) {
+      s.own.style.width = `${r.width}px`
+      s.own.style.height = `${r.height}px`
+    }
     s.own.style.borderRadius = `${s.radius}px`
     s.own.style.background = s.background
   }
@@ -93,6 +102,13 @@ function draw(): void {
       c.width = f.displayWidth
       c.height = f.displayHeight
       s.ctx = null
+      // the page's canvas (its own, or the one in a preview) shows the page pixel for pixel, never stretched to a slot a fraction of a pixel
+      // off (a stretched page is a blurred one); a live card's is scaled to the card, as it must be
+      if (!c.hasAttribute('data-osr-passive')) {
+        const dpr = window.devicePixelRatio || 1
+        c.style.width = `${f.displayWidth / dpr}px`
+        c.style.height = `${f.displayHeight / dpr}px`
+      }
     }
     s.ctx ??= c.getContext('2d', { alpha: false, desynchronized: true })
     s.ctx?.drawImage(f, 0, 0)
@@ -450,7 +466,8 @@ export function startOffscreenPages(): void {
         into: own,
         ctx: null,
         pending: null,
-        last: null
+        last: null,
+        cursor: 'default'
       }
       surfaces.set(p.id, s)
       wire(own, s)
@@ -468,10 +485,11 @@ export function startOffscreenPages(): void {
     (_e, id: number, type: string, custom?: { url: string; x: number; y: number }) => {
       const s = surfaces.get(id)
       if (!s) return
-      s.into.style.cursor =
+      s.cursor =
         type === 'custom' && custom
           ? `url("${custom.url}") ${Math.round(custom.x)} ${Math.round(custom.y)}, default`
           : cssCursor(type)
+      s.into.style.cursor = s.cursor
     }
   )
   sharedTexture.setSharedTextureReceiver(async ({ importedSharedTexture }, meta) => {

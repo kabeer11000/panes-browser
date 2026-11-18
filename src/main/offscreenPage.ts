@@ -325,7 +325,7 @@ export class OffscreenPage {
 
   /**
    * The cursor over a frame of another site. Input sent to the frame directly does not change the cursor (Chromium
-   * tracks it from its own routing), so the frame is asked what is under the pointer, at most every 50 ms.
+   * tracks it from its own routing), so the frame is asked what is under the pointer, at most every 24 ms.
    */
   private cursorAsk: { session: string; x: number; y: number } | null = null
   private lastCursor = ''
@@ -350,7 +350,7 @@ export class OffscreenPage {
           this.target.webContents.send('osr:cursor', this.webContents.id, c)
         })
         .catch(() => undefined)
-    }, 50)
+    }, 24)
   }
 
   /**
