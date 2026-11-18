@@ -88,7 +88,8 @@ function cardTarget(
  */
 function HeadIcon({ m }: { m: Pick<CardModel, 'favicon' | 'site' | 'title'> }): React.JSX.Element {
   const [bad, setBad] = useState<string | null>(null)
-  const letter = <span>{(m.site || m.title || '?').charAt(0).toUpperCase()}</span>
+  // a page with no name yet (still loading, or only a download) shows an empty mark, not a question mark
+  const letter = <span>{(m.site || m.title).charAt(0).toUpperCase()}</span>
   if (!m.favicon || bad === m.favicon) return letter
   const src = m.favicon
   return <img src={src} alt="" decoding="sync" draggable={false} onError={() => setBad(src)} />

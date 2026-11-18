@@ -20,6 +20,7 @@ export function Favicon({
 }: {
   m: Pick<CardModel, 'favicon' | 'site' | 'title'>
 }): React.JSX.Element {
-  const letter = <span>{(m.site || m.title || '?').charAt(0).toUpperCase()}</span>
+  // a page with no name yet (still loading, or only a download) shows an empty mark, not a question mark
+  const letter = <span>{(m.site || m.title).charAt(0).toUpperCase()}</span>
   return m.favicon ? <Img src={m.favicon} fallback={letter} /> : letter
 }

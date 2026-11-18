@@ -4784,13 +4784,17 @@ export function Canvas({
    * Another card into the open preview, in place: the page changes inside the preview, which neither closes nor flies
    * out of the new card. The board glides to that card behind it, where the preview will shrink back to on close.
    */
+  // A tab that closed meanwhile leaves the row at once (the others keep their places): one that only downloaded a
+  // file and closed stayed there as an empty "?". Only tabs that are pages with a name are offered: a tab that never
+  // got past its first load (a download) has nothing to show.
+  const named = (id: number): boolean =>
+    tabs.some((t) => t.id === id && !!t.title.trim() && !!t.url && t.url !== 'about:blank') &&
+    !!st?.cards.some((c) => c.id === id)
+  const stripAlive = strip.filter((id) => tabs.some((t) => t.id === id))
   const stripWant = expanded
-    ? strip.includes(expanded.id)
-      ? strip
-      : [
-          expanded.id,
-          ...recentOthers(tabs, expanded.id, (id) => !!st?.cards.some((c) => c.id === id))
-        ]
+    ? stripAlive.includes(expanded.id)
+      ? stripAlive
+      : [expanded.id, ...recentOthers(tabs, expanded.id, named)]
     : []
   if (stripWant.join(',') !== strip.join(',')) setStrip(stripWant)
   const switchPreview = (next: number, live?: boolean): void => {
