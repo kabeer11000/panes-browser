@@ -371,8 +371,16 @@ export const CardView = memo(
   }: CardProps): React.JSX.Element {
     const label = `${m.title}${m.site ? `, ${m.site}` : ''}${m.kind === 'pdf' ? ', PDF' : m.kind === 'image' ? ', image' : m.kind === 'video' ? ', video' : m.kind === 'answer' ? ', answer' : ''}${m.current ? ', current tab' : ''}`
     const cardAspect = w / h
+    // Its eight resize handles exist only while it is under the pointer or selected: on every card they were 1200 on
+    // a board of 150, and hiding them all as the board zoomed far out or a drag began cost 25 to 35 ms of styles.
+    // Kept through a press (a resize drag can leave the card), so the handle being dragged is never taken away.
+    const [hot, setHot] = useState(false)
     return (
       <div
+        onPointerEnter={() => setHot(true)}
+        onPointerLeave={(e) => {
+          if (e.buttons === 0) setHot(false)
+        }}
         className={
           'cv-card k-' +
           m.kind +
@@ -411,15 +419,16 @@ export const CardView = memo(
         )}
         {m.kind !== 'pending' && (
           <>
-            {RZ.map((d) => (
-              <i
-                key={d}
-                className={'cv-crz ' + d}
-                data-crz={d}
-                data-crzc={m.id}
-                aria-hidden="true"
-              />
-            ))}
+            {(hot || selected) &&
+              RZ.map((d) => (
+                <i
+                  key={d}
+                  className={'cv-crz ' + d}
+                  data-crz={d}
+                  data-crzc={m.id}
+                  aria-hidden="true"
+                />
+              ))}
             <div className="cv-badges">
               <CallBadge call={m.ringing ? 'ringing' : null} />
               <CaptureBadge capture={{ camera: !!m.camera, mic: !!m.mic, screen: !!m.screen }} />

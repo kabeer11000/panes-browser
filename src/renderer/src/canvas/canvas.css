@@ -154,7 +154,9 @@
 .cv.lod .cv-badges:has(.capture-badge) {
   display: flex;
 }
-.cv.lod .cv-badges > :not(.capture-badge) {
+/* named, not :not(.capture-badge) alone: a rule ending in a bare :not() made every class change on the board's root
+   restyle all of the board (35 to 80 ms each time the far zoom was crossed) */
+.cv.lod .cv-badges > :is(.call-badge, .cv-attn, .cv-media, .card-current) {
   display: none;
 }
 
@@ -3837,9 +3839,22 @@
   z-index: 2;
   transition: opacity var(--dur-fast);
 }
+/* (a card has them only while it is under the pointer or selected: Cards.tsx) */
 .cv-card:hover .cv-crz,
 .cv-card.sel .cv-crz {
   pointer-events: auto;
+}
+.cv.lod .cv-crz,
+.cv.dragging .cv-crz,
+.cv.grabbing .cv-crz {
+  display: none;
+}
+/* they fade in as they appear, as before */
+@starting-style {
+  .cv-card.sel .cv-crz,
+  .cv-card:hover .cv-crz.se {
+    opacity: 0;
+  }
 }
 .cv-card.sel .cv-crz.nw,
 .cv-card.sel .cv-crz.ne,
@@ -3847,11 +3862,6 @@
 .cv-card.sel .cv-crz.se,
 .cv-card:hover .cv-crz.se {
   opacity: 1;
-}
-.cv.lod .cv-crz,
-.cv.dragging .cv-crz,
-.cv.grabbing .cv-crz {
-  display: none;
 }
 .cv-crz.n {
   left: 10px;
