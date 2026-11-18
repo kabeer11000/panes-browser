@@ -220,7 +220,8 @@ import { drop, glide, lift, moveHeld, owned, rebase, resetLift, settleMs } from 
 import { reducedMotion, springAnimate } from '@renderer/motion'
 import { SPRINGS, springCurve } from '@shared/spring'
 import { staggerDelay } from '@shared/boardPhysics'
-import { warmPics } from './pics'
+import { fullPic, warmPics } from './pics'
+import { sharpWidth } from '@shared/sharpPicture'
 
 interface Props {
   /** Chrome (the sidebar or the top bar) is out over the board: it blurs and dims. */
@@ -592,6 +593,10 @@ export function Canvas({
   })
   const phaseRef = useRef<Phase>('loading')
   const [vis, setVis] = useState<Set<number>>(new Set())
+  const thumbsRef = useRef(thumbs)
+  useEffect(() => {
+    thumbsRef.current = thumbs
+  }, [thumbs])
   // the instant find's words (null: closed) and which of its matches is picked
   const [quick, setQuick] = useState<string | null>(null)
   const [quickAt, setQuickAt] = useState(0)
@@ -990,6 +995,19 @@ export function Canvas({
           .map((c) => c.id)
       )
       window.api.canvas.inView?.(spaceIdRef.current, [...shown])
+      // cards zoomed in on, wider on screen than their pictures: sharper pictures of their pages (main takes them
+      // one at a time, out of sight)
+      const dpr = window.devicePixelRatio || 1
+      const sharpen: Array<{ id: number; width: number }> = []
+      for (const c of stRef.current?.cards ?? []) {
+        if (!shown.has(c.id)) continue
+        const src = thumbsRef.current[c.id]
+        const have = src ? (fullPic(src)?.naturalWidth ?? 0) : 0
+        // the picture sits inside the card's 8 px edge
+        const width = sharpWidth(((c.w ?? CARD_W) - 16) * v.k * dpr, have)
+        if (width) sharpen.push({ id: c.id, width })
+      }
+      if (sharpen.length) window.api.canvas.sharpen?.(sharpen.slice(0, 8))
       setOnScreen((prev) =>
         prev.size === shown.size && [...shown].every((i) => prev.has(i)) ? prev : shown
       )

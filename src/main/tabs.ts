@@ -3654,7 +3654,31 @@ export class TabManager {
     }
   }
 
-  async captureHidden(id: number): Promise<void> {
+  /**
+   * Sharper pictures for cards shown larger than their picture (the board zoomed in on them), at about the width they
+   * take on screen: one tab at a time (each is shown out of sight for a moment), the newest ask first.
+   */
+  sharpen(list: Array<{ id: number; width: number }>): void {
+    for (const { id, width } of list) this.sharpWant.set(id, width)
+    if (this.sharpening) return
+    this.sharpening = true
+    void (async () => {
+      try {
+        while (this.sharpWant.size > 0 && this.canvasMode) {
+          const [id, width] = [...this.sharpWant].pop()!
+          this.sharpWant.delete(id)
+          await this.captureHidden(id, width)
+        }
+      } finally {
+        this.sharpWant.clear()
+        this.sharpening = false
+      }
+    })()
+  }
+  private sharpWant = new Map<number, number>()
+  private sharpening = false
+
+  async captureHidden(id: number, width = CANVAS_THUMB_WIDTH): Promise<void> {
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
     if (!tab || !wc || tab.private || tab.tor || tab.unloaded || tab.failed || this.isBlank(tab)) {
@@ -3691,9 +3715,13 @@ export class TabManager {
         if (hidden && this.tabs.has(id)) this.applyVisibility()
       }
       if (!img || img.isEmpty() || !this.tabs.has(id)) return
-      const jpeg = img.resize({ width: CANVAS_THUMB_WIDTH, quality: 'good' }).toJPEG(70)
+      const full = img.getSize().width
+      const w = Math.min(full, Math.max(CANVAS_THUMB_WIDTH, Math.round(width)))
+      const jpeg = (w < full ? img.resize({ width: w, quality: 'good' }) : img).toJPEG(
+        w > CANVAS_THUMB_WIDTH ? 80 : 70
+      )
       tab.thumb = 'data:image/jpeg;base64,' + jpeg.toString('base64')
-      tab.thumbSharp = false
+      tab.thumbSharp = w >= full
       tab.thumbSize = { w: 0, h: 0 }
       tab.thumbAt = Date.now()
       this.send('tabs:thumb', id, tab.thumb)

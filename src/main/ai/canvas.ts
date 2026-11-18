@@ -49,7 +49,9 @@ import { aiRoot } from './runtime'
 
 const NORMAL: AiContext = { private: false, tor: false }
 const THUMB_STALE_MS = 2 * 60_000
-const THUMB_WIDTH = 480
+/** Pictures kept on disk are at most this wide: sharp on a card zoomed in to about twice its size, and 400 of them
+ * (about 90 KB each) stay well inside THUMB_BYTES_MAX. One taken smaller is kept as it is. */
+const THUMB_WIDTH = 960
 const THUMB_FILES_MAX = 400
 const THUMB_BYTES_MAX = 50 * 1024 * 1024
 
@@ -198,7 +200,9 @@ export class CanvasService {
         if (!file || !data) continue
         if (existsSync(file) && statSync(file).mtimeMs >= t.thumbAt) continue
         const image = nativeImage.createFromDataURL(data)
-        writeFileSync(file, image.resize({ width: THUMB_WIDTH, quality: 'good' }).toJPEG(70))
+        const w = image.getSize().width
+        const kept = w > THUMB_WIDTH ? image.resize({ width: THUMB_WIDTH, quality: 'good' }) : image
+        writeFileSync(file, kept.toJPEG(72))
       }
       const files = readdirSync(this.thumbDir).map((f) => {
         const s = statSync(join(this.thumbDir, f))
@@ -369,6 +373,22 @@ export function registerCanvas(d: {
   ipcMain.handle('canvas:stream-source', (e, tabId: unknown) =>
     mine(e) ? d.tabs.streamSource(num(tabId)) : null
   )
+  // cards zoomed in on, larger on screen than their pictures: sharper ones, at about their width (64 to 3840 px)
+  ipcMain.on('canvas:sharpen', (e, list: unknown) => {
+    if (!mine(e) || !Array.isArray(list)) return
+    const want = list
+      .slice(0, 8)
+      .filter(
+        (x): x is { id: number; width: number } =>
+          !!x &&
+          typeof x === 'object' &&
+          typeof (x as { id?: unknown }).id === 'number' &&
+          typeof (x as { width?: unknown }).width === 'number' &&
+          Number.isFinite((x as { width: number }).width)
+      )
+      .map((x) => ({ id: x.id, width: Math.max(64, Math.min(3840, x.width)) }))
+    if (want.length) d.tabs.sharpen(want)
+  })
   ipcMain.handle('canvas:video-region', (e, tabId: unknown) =>
     mine(e) ? d.tabs.videoRegion(num(tabId)) : null
   )

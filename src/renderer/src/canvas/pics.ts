@@ -115,3 +115,6 @@ export function warmPics(srcs: Iterable<string>): () => void {
     cancelIdleCallback(idle)
   }
 }
+
+/** The decoded picture for `src`, if it is kept (its size tells how sharp it is). */
+export const fullPic = (src: string): HTMLImageElement | undefined => full.peek(src)

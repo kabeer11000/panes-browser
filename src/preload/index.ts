@@ -127,6 +127,7 @@ const api: PanesApi = {
     onTouchpad: (cb) => subscribe<[number, number, number, number, number]>('canvas:touchpad', cb),
     streamSource: (tabId) => ipcRenderer.invoke('canvas:stream-source', tabId),
     videoRegion: (tabId) => ipcRenderer.invoke('canvas:video-region', tabId),
+    sharpen: (list) => ipcRenderer.send('canvas:sharpen', list),
     close: (spaceId) => ipcRenderer.send('canvas:close', spaceId),
     cluster: (spaceId) => ipcRenderer.invoke('canvas:cluster', spaceId),
     names: (spaceId, clusters) => ipcRenderer.invoke('canvas:names', spaceId, clusters),

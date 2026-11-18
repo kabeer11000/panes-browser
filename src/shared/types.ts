@@ -317,6 +317,8 @@ export interface PanesApi {
     streamSource(tabId: number): Promise<string | null>
     /** Where the playing video is in a tab's page; null when nothing plays there. */
     videoRegion(tabId: number): Promise<VideoRegion | null>
+    /** Sharper pictures of these tabs' pages, about `width` px wide (cards zoomed in on); optional for older preloads. */
+    sharpen?(list: Array<{ id: number; width: number }>): void
     cluster(spaceId: number): Promise<{ groups: Group[]; semantic: boolean }>
     /** Model names for clusters of tab ids, one per cluster in order (null where none). */
     names(spaceId: number, clusters: number[][]): Promise<(string | null)[]>
