@@ -1,0 +1,81 @@
+# Builds Panes for macOS (Apple Silicon and Intel) on GitHub's Mac runners, free for a public repository, and puts the
+# apps on the release: when a release is published (scripts/release.ts), or by hand for a release that exists.
+#
+# Not notarized: there is no Apple Developer account. The app is signed ad hoc (Apple Silicon runs nothing unsigned),
+# so macOS asks once, the first time it is opened: right-click it and choose Open (or System Settings > Privacy &
+# Security > Open Anyway). Updates on a Mac are a new download for now: the app layer updates are built for Windows.
+name: mac
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and attach to (empty: the latest release)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write # the release assets
+
+concurrency:
+  group: mac-${{ github.event.release.tag_name || inputs.tag || 'latest' }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14 # Apple Silicon
+            arch: arm64
+          - runner: macos-13 # Intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # no certificate: electron-builder must not look for one in the keychain
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Which release
+        id: rel
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          if [ -z "$tag" ]; then tag=$(gh release view --repo "${{ github.repository }}" --json tagName -q .tagName); fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Building $tag for ${{ matrix.arch }}"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.rel.outputs.tag }}
+
+      - uses: oven-sh/setup-bun@v2
+
+      # the ad blocker (adblock-rs) is built from its Rust sources as it installs
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bunx electron-vite build
+
+      - name: Package
+        run: |
+          build=$(date +%s)
+          bunx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never \
+            -c.mac.identity=- \
+            -c.extraMetadata.panesBuild=$build \
+            "-c.dmg.artifactName=Panes-\${version}-mac-\${arch}.\${ext}" \
+            "-c.mac.artifactName=Panes-\${version}-mac-\${arch}.\${ext}"
+          ls -la dist
+
+      - name: Attach to the release
+        run: |
+          shopt -s nullglob
+          files=(dist/Panes-*-mac-*.dmg dist/Panes-*-mac-*.zip)
+          if [ ${#files[@]} -eq 0 ]; then echo "nothing was built"; exit 1; fi
+          gh release upload "${{ steps.rel.outputs.tag }}" --repo "${{ github.repository }}" --clobber "${files[@]}"
