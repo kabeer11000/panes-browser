@@ -378,3 +378,12 @@ section { padding: clamp(96px, 12vw, 168px) 0 0; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; transition-duration: 0.01ms !important; }
   html { scroll-behavior: auto; }
 }
+
+/* ---------- Download buttons: one per platform, filled in from the newest release that has each installer ---------- */
+.dls { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn svg.os { fill: currentColor; stroke: none; width: 18px; height: 18px; }
+.btn.alt-btn { background: var(--card); color: var(--plum); box-shadow: 0 0 0 1px rgba(28, 21, 48, 0.14), 0 1px 2px rgba(28, 21, 48, 0.08), 0 10px 20px -14px rgba(28, 21, 48, 0.5); }
+.btn.alt-btn:hover { background: #fff; }
+.fine .alt { color: var(--plum-2); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-color: rgba(91, 63, 176, 0.35); white-space: nowrap; }
+.fine .alt:hover { text-decoration-color: var(--plum-2); }
+.panel .fine .alt { color: var(--plum); }

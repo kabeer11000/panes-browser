@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Panes, a new browser for Windows</title>
-<meta name="description" content="Panes is a calm, fast browser for Windows. Every tab can become a card on one canvas, with notes, split view, Spaces, a built-in ad blocker and an assistant that can run on your own computer." />
+<title>Panes, a new browser for Windows and Mac</title>
+<meta name="description" content="Panes is a calm, fast browser for Windows and Mac. Every tab can become a card on one canvas, with notes, split view, Spaces, a built-in ad blocker and an assistant that can run on your own computer." />
 <meta name="theme-color" content="#f4f1ec" />
 <meta property="og:title" content="Panes: browse like you think" />
-<meta property="og:description" content="A new browser for Windows, now in beta. Your tabs, on a canvas." />
+<meta property="og:description" content="A new browser for Windows and Mac, now in beta. Your tabs, on a canvas." />
 <meta property="og:image" content="clips/TabsToCanvas.jpg" />
 <link rel="icon" href="favicon.ico" />
 <link rel="apple-touch-icon" href="app-icon.png" />
@@ -57,14 +57,12 @@
   <section class="hero" id="hero">
     <div class="wrap">
       <div class="copy">
-        <p class="eyebrow rise" style="--d:.05s">A new browser for Windows, now in beta</p>
+        <p class="eyebrow rise" style="--d:.05s">A new browser for Windows and Mac, now in beta</p>
         <h1 class="display rise" style="--d:.12s">Browse like you <span class="hl">think.</span></h1>
         <p class="lede rise" style="--d:.24s">Thirty tabs in a strip, each one a sliver of a favicon. Panes keeps your tabs down the side, and one key lays every one of them out as a card on a canvas, where you can see, sort, scribble on and come back to all of&nbsp;them.</p>
         <div class="get rise" style="--d:.36s">
-          <a class="btn big" href="https://github.com/kabeer11000/panes-browser/releases/latest/download/Panes-setup.exe">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" /></svg>Download the beta
-          </a>
-          <p class="fine">For Windows 10 and 11. It's an early beta, so expect the odd bug.</p>
+          <a class="btn big" data-dl="primary" href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.95/Panes-setup.exe"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" /></svg><span>Download the beta</span></a>
+          <p class="fine">For Windows 10 and 11, and macOS 12 or later. <a class="alt" data-dl="other" href="https://github.com/kabeer11000/panes-browser/releases">Also for Mac</a></p>
         </div>
         <p class="aside-link rise" style="--d:.44s">Coming from Chrome or Edge? <a href="#moving">Bring everything over in one go.</a></p>
       </div>
@@ -237,7 +235,7 @@
           <button class="vtab" type="button" role="tab" id="t-ask" aria-controls="p-ask" aria-selected="false"><i style="--c:#2bb3a3"></i><span>The assistant</span><b class="count"></b></button>
           <button class="vtab" type="button" role="tab" id="t-private" aria-controls="p-private" aria-selected="false"><i style="--c:#d0a33a"></i><span>Private by design</span><b class="count"></b></button>
           <button class="vtab" type="button" role="tab" id="t-everyday" aria-controls="p-everyday" aria-selected="false"><i style="--c:#ff7ac8"></i><span>Everyday</span><b class="count"></b></button>
-          <button class="vtab" type="button" role="tab" id="t-windows" aria-controls="p-windows" aria-selected="false"><i style="--c:#7ab4ff"></i><span>Made for Windows</span><b class="count"></b></button>
+          <button class="vtab" type="button" role="tab" id="t-windows" aria-controls="p-windows" aria-selected="false"><i style="--c:#7ab4ff"></i><span>Fast and light</span><b class="count"></b></button>
         </div>
         <div class="panels">
           <div class="panel-list on" role="tabpanel" id="p-canvas" aria-labelledby="t-canvas" tabindex="0">
@@ -312,7 +310,7 @@
             </ul>
           </div>
           <div class="panel-list" role="tabpanel" id="p-windows" aria-labelledby="t-windows" tabindex="0">
-            <p class="blurb">Built and tuned on Windows, for the touchpads, screens and habits people really have.</p>
+            <p class="blurb">Built for the touchpads, screens and habits people really have, on Windows and on the Mac.</p>
             <ul class="ways">
               <li><h3>Touchpad gestures</h3><p>Swipe with two fingers to go back and forward, and pinch the canvas in and out.</p></li>
               <li><h3>Updates itself, in the background</h3><p>Most updates are a small download that's ready next time you open Panes. No installer to click through.</p></li>
@@ -340,13 +338,14 @@
       <div>
         <p class="eyebrow">Free, and it updates itself</p>
         <h2 class="display">Give your tabs some room.</h2>
-        <p class="lede">Panes for Windows 10 and 11. Download it, open it, and bring your old browser's things across on the welcome screen.</p>
+        <p class="lede">For Windows and Mac. Download it, open it, and bring your old browser's things across on the welcome screen. It updates itself to the newest version the first time it opens.</p>
       </div>
       <div class="get">
-        <a class="btn big" href="https://github.com/kabeer11000/panes-browser/releases/latest/download/Panes-setup.exe">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" /></svg>Download Panes
-        </a>
-        <p class="fine">macOS and Linux are on the way.</p>
+        <div class="dls">
+          <a class="btn big" data-dl="win" href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.95/Panes-setup.exe"><svg viewBox="0 0 20 20" aria-hidden="true" class="os"><path d="M3 4.6 8.7 3.8v5.6H3zm6.6-.9L17 2.7v6.7H9.6zM3 10.4h5.7V16L3 15.2zm6.6 0H17v6.9l-7.4-1z" /></svg>Windows</a>
+          <a class="btn big alt-btn" data-dl="mac" href="https://github.com/kabeer11000/panes-browser/releases"><svg viewBox="0 0 20 20" aria-hidden="true" class="os"><path d="M13.6 10.6c0-1.9 1.6-2.8 1.6-2.9-.9-1.3-2.2-1.4-2.7-1.5-1.1-.1-2.2.7-2.8.7s-1.5-.7-2.4-.6A3.6 3.6 0 0 0 4.2 8.1c-1.3 2.2-.3 5.5.9 7.3.6.9 1.3 1.9 2.3 1.8.9 0 1.3-.6 2.4-.6s1.4.6 2.4.6 1.6-.9 2.2-1.8c.7-1 1-2 1-2.1 0 0-1.8-.7-1.8-2.7zM11.9 5c.5-.6.8-1.4.7-2.2-.7 0-1.6.5-2.1 1.1-.5.5-.9 1.3-.8 2.1.8.1 1.6-.4 2.2-1z" /></svg>Mac</a>
+        </div>
+        <p class="fine"><span data-dl-note>Apple Silicon.</span> <a class="alt" data-dl="mac-x64" href="https://github.com/kabeer11000/panes-browser/releases">Intel Mac?</a> Linux is on the way.</p>
       </div>
     </div>
     <div class="patches" aria-hidden="true">
@@ -361,13 +360,14 @@
       <h3 class="display">It's a beta. A real one.</h3>
       <ul>
         <li>Things will break now and then. When they do, the feedback button in the menu goes straight to us.</li>
-        <li>The installer isn't code-signed yet, so Windows may stop to ask first. That's expected.</li>
+        <li>The apps aren't signed with a paid certificate yet, so Windows and macOS stop to ask the first time. That's expected.</li>
+        <li>The download may be a few versions behind. Panes fetches the newest the first time it opens, in a few seconds.</li>
         <li>Updates arrive often, sometimes more than once a day.</li>
       </ul>
     </div>
     <ol class="steps reveal">
-      <li><b>1</b><div><h3>Download</h3><p>Panes-setup.exe, about the size of any other browser.</p></div></li>
-      <li><b>2</b><div><h3>If SmartScreen steps in</h3><p>Choose <em>More info</em>, then <em>Run anyway</em>.</p></div></li>
+      <li><b>1</b><div><h3>Download</h3><p>The installer for Windows, or the disk image for Mac. Drag Panes into Applications.</p></div></li>
+      <li><b>2</b><div><h3>The first time it asks</h3><p>On Windows, if SmartScreen steps in, choose <em>More info</em>, then <em>Run anyway</em>. On a Mac, right-click Panes and choose <em>Open</em>.</p></div></li>
       <li><b>3</b><div><h3>Bring your things</h3><p>Pick your old browser on the welcome screen, and you're in.</p></div></li>
     </ol>
   </div>

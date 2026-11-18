@@ -245,3 +245,82 @@ tabs.forEach((t, i) => {
     choose(tabs[n], true)
   })
 })
+
+// ---------- Downloads ----------
+// Not every release carries the installers: most are only app layers (deltas) that an installed Panes updates
+// itself from. So each button points at the newest release that has its installer, found through GitHub's API.
+// The links in the HTML are the fallbacks (a known installer, or the releases page) if the API can't be reached.
+const REPO = 'kabeer11000/panes-browser'
+const isMac = /Mac/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent)
+const dlLinks = (k) => [...document.querySelectorAll(`[data-dl="${k}"]`)]
+
+async function findInstallers() {
+  const cached = (() => {
+    try {
+      const c = JSON.parse(sessionStorage.getItem('panes-dl'))
+      return c && Date.now() - c.at < 10 * 60 * 1000 ? c.found : null
+    } catch {
+      return null
+    }
+  })()
+  if (cached) return cached
+  const r = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=60`, { headers: { Accept: 'application/vnd.github+json' } })
+  if (!r.ok) throw new Error(String(r.status))
+  const found = {}
+  const want = { win: /^Panes-setup\.exe$/, 'mac-arm64': /-mac-arm64\.dmg$/, 'mac-x64': /-mac-x64\.dmg$/ }
+  for (const rel of await r.json()) {
+    if (rel.draft) continue
+    for (const a of rel.assets || []) {
+      for (const [k, re] of Object.entries(want)) {
+        if (!found[k] && re.test(a.name)) found[k] = { url: a.browser_download_url, tag: rel.tag_name }
+      }
+    }
+  }
+  try {
+    sessionStorage.setItem('panes-dl', JSON.stringify({ at: Date.now(), found }))
+  } catch {
+    /* fine */
+  }
+  return found
+}
+
+async function macArch() {
+  if (!isMac) return 'mac-arm64' // a PC's own chip says nothing about which Mac to offer
+  try {
+    const v = await navigator.userAgentData?.getHighEntropyValues?.(['architecture'])
+    if (v?.architecture) return v.architecture === 'x86' ? 'mac-x64' : 'mac-arm64'
+  } catch {
+    /* Safari and Firefox don't say; most Macs sold since 2020 are Apple Silicon */
+  }
+  return 'mac-arm64'
+}
+
+;(async () => {
+  const arch = await macArch()
+  const primary = isMac ? arch : 'win'
+  const label = { win: 'Download for Windows', 'mac-arm64': 'Download for Mac', 'mac-x64': 'Download for Mac (Intel)' }
+  for (const a of dlLinks('primary')) a.querySelector('span').textContent = label[primary]
+  for (const a of dlLinks('other')) a.textContent = isMac ? 'Also for Windows' : 'Also for Mac'
+  for (const n of document.querySelectorAll('[data-dl-note]')) n.textContent = arch === 'mac-x64' ? 'Intel Mac.' : 'Apple Silicon.'
+  // without the API, a Mac visitor gets the releases page rather than the Windows installer
+  if (isMac) for (const a of dlLinks('primary')) a.href = `https://github.com/${REPO}/releases`
+  let found = {}
+  try {
+    found = await findInstallers()
+  } catch {
+    return // keep the fallback links
+  }
+  const set = (links, k) => {
+    if (found[k]) for (const a of links) a.href = found[k].url
+  }
+  set(dlLinks('primary'), primary)
+  set(dlLinks('other'), isMac ? 'win' : arch)
+  set(dlLinks('win'), 'win')
+  set(dlLinks('mac'), arch)
+  // the small link offers the other kind of Mac
+  const otherMac = arch === 'mac-x64' ? 'mac-arm64' : 'mac-x64'
+  for (const a of dlLinks('mac-x64')) {
+    a.textContent = otherMac === 'mac-x64' ? 'Intel Mac?' : 'Apple Silicon?'
+    a.href = found[otherMac]?.url || a.href
+  }
+})()
