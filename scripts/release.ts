@@ -28,7 +28,7 @@ import { existsSync, readFileSync } from 'fs'
 import { parseArgs } from 'util'
 import { $ } from 'bun'
 import electronPackage from 'electron/package.json'
-import { MANIFEST_NAME, parseManifest, shellId } from '../src/shared/layers'
+import { MANIFEST_NAME, manifestName, parseManifest, shellId } from '../src/shared/layers'
 import { notesSinceLastTag } from './release-notes'
 
 const { values, positionals } = parseArgs({
@@ -137,8 +137,32 @@ const installer = ['Panes-setup.exe', 'Panes-setup.exe.blockmap', 'latest.yml'].
 const missing = installer.filter((f) => !existsSync(f))
 if (missing.length) fail(`electron-builder did not produce ${missing.join(', ')}`)
 
+/**
+ * The Mac layers, made here from the Windows build (scripts/mac-layer.ts), once the Mac shell has been built
+ * (.github/workflows/mac.yml keeps its native modules on the mac-shell release). Returns the platforms made.
+ */
+const MAC_ARCHES = ['arm64', 'x64'] as const
+async function macLayers(publish: boolean): Promise<string[]> {
+  const made: string[] = []
+  for (const arch of MAC_ARCHES) {
+    const asar = `dist/mac/app-darwin-${arch}.asar`
+    const built = await $`bun scripts/mac-layer.ts --arch ${arch} --out ${asar}`.nothrow()
+    if (built.exitCode !== 0) {
+      console.log(
+        `release: no Mac layer for ${arch} (no Mac shell build yet: gh workflow run mac.yml)`
+      )
+      continue
+    }
+    const out = `dist/layer-darwin-${arch}`
+    await $`bun scripts/release-layer.ts --asar ${asar} --target darwin-${arch} --out ${out} ${publish ? ['--publish'] : []}`
+    made.push(`darwin-${arch}`)
+  }
+  return made
+}
+
 if (dryRun) {
   await $`bun scripts/release-layer.ts`
+  await macLayers(false)
   console.log('release: dry run done, nothing was created or uploaded.')
   process.exit(0)
 }
@@ -153,6 +177,7 @@ if (state === 'new') {
 }
 await $`gh release upload ${tag} --clobber ${installer}`
 await $`bun scripts/release-layer.ts --publish`
+const macs = await macLayers(true)
 
 // A release without app-layer.json gives existing users no update at all: check before anyone can see it.
 const assets = (
@@ -164,6 +189,15 @@ const manifest = JSON.parse(readFileSync('dist/layer/app-layer.json', 'utf8')) a
 }
 const layerFiles = [manifest.full.file, ...manifest.deltas.map((d) => d.file)]
 const expected = [...installer.map((f) => f.slice('dist/'.length)), 'app-layer.json', ...layerFiles]
+// the Mac layers made above, each with its own manifest and files
+for (const target of macs) {
+  const [platform, arch] = target.split('-')
+  const name = manifestName(platform, arch)
+  const m = JSON.parse(readFileSync(`dist/layer-${target}/${name}`, 'utf8')) as typeof manifest
+  const files = [m.full.file, ...m.deltas.map((d) => d.file)]
+  layerFiles.push(...files)
+  expected.push(name, ...files)
+}
 const absent = expected.filter((name) => !assets.includes(name))
 if (absent.length) fail(`${tag} stays a draft: missing ${absent.join(', ')}.`)
 

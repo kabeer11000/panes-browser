@@ -20,6 +20,20 @@ export const shellId = (platform: string, arch: string, electron: string): strin
   `${platform}-${arch}-${electron}+${LOADER_VERSION}`
 
 export const MANIFEST_NAME = 'app-layer.json'
+
+/**
+ * The manifest a platform's Panes reads from a release: Windows x64's is `app-layer.json` (every Panes installed
+ * so far reads that one), every other platform has its own, e.g. `app-layer-darwin-arm64.json`.
+ */
+export const manifestName = (platform: string, arch: string): string =>
+  platform === 'win32' && arch === 'x64' ? MANIFEST_NAME : `app-layer-${platform}-${arch}.json`
+
+/**
+ * What a platform's layer files are called in a release: Windows x64's keep their names (`app-<build>.asar.gz`), the
+ * others carry their platform so they sit beside them, e.g. `app-<build>-darwin-arm64.asar.gz`.
+ */
+export const layerTag = (platform: string, arch: string): string =>
+  platform === 'win32' && arch === 'x64' ? '' : `-${platform}-${arch}`
 /** Where staged layers and their state live, inside the data folder. */
 export const LAYERS_FOLDER = 'app-layers'
 export const STATE_NAME = 'state.json'
@@ -240,18 +254,18 @@ export interface LayerFeed {
 }
 
 /** GitHub releases: the manifest of the latest release, and each file from its own release (tag `v<version>`). */
-export function githubFeed(owner: string, repo: string): LayerFeed {
+export function githubFeed(owner: string, repo: string, manifest = MANIFEST_NAME): LayerFeed {
   const root = `https://github.com/${owner}/${repo}/releases`
   return {
-    manifest: `${root}/latest/download/${MANIFEST_NAME}`,
+    manifest: `${root}/latest/download/${manifest}`,
     file: (version, name) => `${root}/download/v${version}/${name}`
   }
 }
 
 /** Every file in one folder (PANES_LAYER_FEED, for trying an update against a local server). */
-export function folderFeed(base: string): LayerFeed {
+export function folderFeed(base: string, manifest = MANIFEST_NAME): LayerFeed {
   const root = base.replace(/\/+$/, '')
-  return { manifest: `${root}/${MANIFEST_NAME}`, file: (_version, name) => `${root}/${name}` }
+  return { manifest: `${root}/${manifest}`, file: (_version, name) => `${root}/${name}` }
 }
 
 const NAME = /^[A-Za-z0-9_.-]+$/
@@ -260,7 +274,7 @@ const NAME = /^[A-Za-z0-9_.-]+$/
  * The release feed from the app-update.yml electron-builder writes next to the app (from the `publish` config): a
  * flat file of `key: value` lines. Only GitHub is understood; anything else means no layer updates.
  */
-export function feedFromUpdateConfig(text: string): LayerFeed | null {
+export function feedFromUpdateConfig(text: string, manifest = MANIFEST_NAME): LayerFeed | null {
   const fields = new Map<string, string>()
   for (const line of text.split(/\r?\n/)) {
     const m = /^([A-Za-z]+):\s*['"]?([^'"#\s]+)['"]?\s*$/.exec(line)
@@ -269,5 +283,5 @@ export function feedFromUpdateConfig(text: string): LayerFeed | null {
   const owner = fields.get('owner')
   const repo = fields.get('repo')
   if (fields.get('provider') !== 'github' || !owner || !repo) return null
-  return NAME.test(owner) && NAME.test(repo) ? githubFeed(owner, repo) : null
+  return NAME.test(owner) && NAME.test(repo) ? githubFeed(owner, repo, manifest) : null
 }

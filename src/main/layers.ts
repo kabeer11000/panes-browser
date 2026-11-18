@@ -7,6 +7,7 @@ import { promisify } from 'util'
 import zlib from 'zlib'
 import {
   feedFromUpdateConfig,
+  manifestName,
   folderFeed,
   layerFileName,
   layerFilesToKeep,
@@ -115,9 +116,14 @@ export const noteLayerHealthy = (): void => update((s) => noteHealthy(s, running
 /** Where releases are fetched from, or null when this build has no GitHub feed (then only the installer updates). */
 export function layerFeed(): LayerFeed | null {
   const override = process.env['PANES_LAYER_FEED']
-  if (override) return folderFeed(override)
+  // this platform's own manifest (a Mac reads app-layer-darwin-arm64.json, Windows x64 app-layer.json)
+  const manifest = manifestName(process.platform, process.arch)
+  if (override) return folderFeed(override, manifest)
   try {
-    return feedFromUpdateConfig(readFileSync(join(process.resourcesPath, 'app-update.yml'), 'utf8'))
+    return feedFromUpdateConfig(
+      readFileSync(join(process.resourcesPath, 'app-update.yml'), 'utf8'),
+      manifest
+    )
   } catch {
     return null
   }

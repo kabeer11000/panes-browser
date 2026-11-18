@@ -1,27 +1,24 @@
-# Builds Panes for macOS (Apple Silicon and Intel) on GitHub's Mac runners, free for a public repository, and puts the
-# apps on the release: when a release is published (scripts/release.ts), or by hand for a release that exists.
+# The Mac app itself (the shell), built on GitHub's Mac runners (free for a public repository): run by hand, once per
+# Electron version (or when adblock-rs changes). Everything after that is an app layer made on the release machine
+# (scripts/mac-layer.ts, scripts/release.ts): a Mac Panes updates itself from those like a Windows one.
 #
-# Not notarized: there is no Apple Developer account. The app is signed ad hoc (Apple Silicon runs nothing unsigned),
-# so macOS asks once, the first time it is opened: right-click it and choose Open (or System Settings > Privacy &
-# Security > Open Anyway). Updates on a Mac are a new download for now: the app layer updates are built for Windows.
+#   gh workflow run mac.yml [-f tag=v0.1.0-beta.96]
+#
+# Puts the apps (dmg, zip; Apple Silicon and Intel) on that release (default: the latest), and the Mac build of the
+# ad blocker's native module on the `mac-shell` release, where the release machine takes it from. Signed ad hoc, not
+# notarized (no Apple Developer account): macOS asks once, the first time it is opened (right-click > Open).
 name: mac
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to build and attach to (empty: the latest release)'
+        description: 'Release to build and attach to (empty: the latest)'
         required: false
         default: ''
 
 permissions:
-  contents: write # the release assets
-
-concurrency:
-  group: mac-${{ github.event.release.tag_name || inputs.tag || 'latest' }}
-  cancel-in-progress: true
+  contents: write # release assets
 
 jobs:
   build:
@@ -29,9 +26,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-14 # Apple Silicon
+          - runner: macos-latest # Apple Silicon
             arch: arm64
-          - runner: macos-13 # Intel
+          - runner: macos-15-intel # Intel
             arch: x64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -43,10 +40,13 @@ jobs:
       - name: Which release
         id: rel
         run: |
-          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          tag="${{ inputs.tag }}"
           if [ -z "$tag" ]; then tag=$(gh release view --repo "${{ github.repository }}" --json tagName -q .tagName); fi
+          # the shell carries its release's build number, so the updater compares it with that release's layers
+          build=$(gh release download "$tag" --repo "${{ github.repository }}" -p app-layer.json -O - | python3 -c 'import json,sys; print(json.load(sys.stdin)["build"])')
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Building $tag for ${{ matrix.arch }}"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "Building $tag (build $build) for ${{ matrix.arch }}"
 
       - uses: actions/checkout@v4
         with:
@@ -65,17 +65,25 @@ jobs:
 
       - name: Package
         run: |
-          build=$(date +%s)
           bunx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never \
             -c.mac.identity=- \
-            -c.extraMetadata.panesBuild=$build \
+            -c.extraMetadata.panesBuild=${{ steps.rel.outputs.build }} \
             "-c.dmg.artifactName=Panes-\${version}-mac-\${arch}.\${ext}" \
             "-c.mac.artifactName=Panes-\${version}-mac-\${arch}.\${ext}"
           ls -la dist
 
-      - name: Attach to the release
+      - name: Attach the app to the release
         run: |
           shopt -s nullglob
           files=(dist/Panes-*-mac-*.dmg dist/Panes-*-mac-*.zip)
           if [ ${#files[@]} -eq 0 ]; then echo "nothing was built"; exit 1; fi
           gh release upload "${{ steps.rel.outputs.tag }}" --repo "${{ github.repository }}" --clobber "${files[@]}"
+
+      - name: Keep the ad blocker's Mac build for the release machine
+        run: |
+          cp node_modules/adblock-rs/js/index.node "adblock-rs-darwin-${{ matrix.arch }}.node"
+          gh release view mac-shell --repo "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create mac-shell --repo "${{ github.repository }}" --prerelease --latest=false \
+              --title "Mac shell (native modules)" \
+              --notes "Native modules from the Mac shell build, for making Mac app layers on the release machine. Not a release of Panes."
+          gh release upload mac-shell --repo "${{ github.repository }}" --clobber "adblock-rs-darwin-${{ matrix.arch }}.node"

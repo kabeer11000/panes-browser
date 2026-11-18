@@ -3,6 +3,9 @@ import {
   chooseLayer,
   EMPTY_LAYER_STATE,
   feedFromUpdateConfig,
+  githubFeed,
+  layerTag,
+  manifestName,
   folderFeed,
   layerFilesToKeep,
   markBad,
@@ -264,5 +267,22 @@ describe('feeds', () => {
     const feed = folderFeed('http://127.0.0.1:8080/')
     expect(feed.manifest).toBe('http://127.0.0.1:8080/app-layer.json')
     expect(feed.file('1.0.0', 'x.zst')).toBe('http://127.0.0.1:8080/x.zst')
+  })
+})
+
+describe('a manifest per platform', () => {
+  test('Windows x64 keeps the name every installed Panes reads', () => {
+    expect(manifestName('win32', 'x64')).toBe('app-layer.json')
+    expect(layerTag('win32', 'x64')).toBe('')
+  })
+  test('other platforms have their own, beside it', () => {
+    expect(manifestName('darwin', 'arm64')).toBe('app-layer-darwin-arm64.json')
+    expect(layerTag('darwin', 'x64')).toBe('-darwin-x64')
+  })
+  test('the feed reads the platform manifest from the latest release', () => {
+    const feed = githubFeed('o', 'r', manifestName('darwin', 'arm64'))
+    expect(feed.manifest).toBe(
+      'https://github.com/o/r/releases/latest/download/app-layer-darwin-arm64.json'
+    )
   })
 })

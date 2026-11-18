@@ -22,7 +22,13 @@ import { join, resolve } from 'path'
 import { $, type ShellError } from 'bun'
 import { gunzipSync, gzipSync, constants, zstdCompressSync, zstdDecompressSync } from 'zlib'
 import electronPackage from 'electron/package.json'
-import { MANIFEST_NAME, parseManifest, shellId, type LayerManifest } from '../src/shared/layers'
+import {
+  layerTag,
+  manifestName,
+  parseManifest,
+  shellId,
+  type LayerManifest
+} from '../src/shared/layers'
 
 /** How many earlier layers get a delta: someone further behind downloads the whole layer (about 5 MB). */
 const DELTA_FROM_LAST = 3
@@ -39,6 +45,9 @@ const asarPath = resolve(option('--asar', 'dist/win-unpacked/resources/app.asar'
 const outDir = resolve(option('--out', 'dist/layer'))
 const localBases = all('--base').map((p) => resolve(p))
 const [targetPlatform, targetArch] = option('--target', 'win32-x64').split('-')
+/** This platform's manifest and file names (Windows x64's are the plain ones every installed Panes reads). */
+const MANIFEST = manifestName(targetPlatform ?? '', targetArch ?? '')
+const TAG = layerTag(targetPlatform ?? '', targetArch ?? '')
 
 const sha256 = (b: Buffer): string => createHash('sha256').update(b).digest('hex')
 const mb = (n: number): string => `${(n / 1024 / 1024).toFixed(2)} MB`
@@ -110,11 +119,11 @@ async function publishedBases(
     const dir = join(tmp, tag)
     rmSync(dir, { recursive: true, force: true })
     mkdirSync(dir, { recursive: true })
-    const got = await $`gh release download ${tag} --pattern ${MANIFEST_NAME} --dir ${dir}`
+    const got = await $`gh release download ${tag} --pattern ${MANIFEST} --dir ${dir}`
       .quiet()
       .nothrow()
     if (got.exitCode !== 0) continue // a release from before layers
-    const m = parseManifest(JSON.parse(readFileSync(join(dir, MANIFEST_NAME), 'utf8')))
+    const m = parseManifest(JSON.parse(readFileSync(join(dir, MANIFEST), 'utf8')))
     if (!m || m.shell !== shell) continue // another Electron: a Panes on it takes the installer, not a delta
     await gh('release', 'download', tag, '--pattern', m.full.file, '--dir', dir)
     const bytes = gunzipSync(readFileSync(join(dir, m.full.file)))
@@ -144,7 +153,7 @@ async function main(): Promise<void> {
   const shell = shellId(targetPlatform, targetArch, electronPackage.version)
 
   mkdirSync(outDir, { recursive: true })
-  const fullName = `app-${build}.asar.gz`
+  const fullName = `app-${build}${TAG}.asar.gz`
   const gz = gzipSync(layer, { level: 9 })
   writeFileSync(join(outDir, fullName), gz)
   const layerHash = sha256(layer)
@@ -161,7 +170,7 @@ async function main(): Promise<void> {
   for (const base of bases) {
     const from = sha256(base.bytes)
     if (from === layerHash || deltas.some((d) => d.from === from)) continue
-    const name = `app-${base.name}-${build}.delta.zst`
+    const name = `app-${base.name}-${build}${TAG}.delta.zst`
     const delta = makeDelta(base.bytes, layer)
     writeFileSync(join(outDir, name), delta)
     deltas.push({ from, file: name })
@@ -182,7 +191,7 @@ async function main(): Promise<void> {
     deltas
   }
   if (!parseManifest(manifest)) fail('the manifest would not pass the checks Panes makes')
-  writeFileSync(join(outDir, MANIFEST_NAME), JSON.stringify(manifest, null, 2))
+  writeFileSync(join(outDir, MANIFEST), JSON.stringify(manifest, null, 2))
   console.log(
     `layer ${version} (build ${build}, shell ${shell}): ${mb(layer.length)}, whole ${mb(
       gz.length
@@ -199,7 +208,7 @@ async function main(): Promise<void> {
     join(outDir, fullName),
     ...deltas.map((d) => join(outDir, d.file))
   )
-  await gh('release', 'upload', tag, '--clobber', join(outDir, MANIFEST_NAME)) // last: see the header
+  await gh('release', 'upload', tag, '--clobber', join(outDir, MANIFEST)) // last: see the header
   console.log(`uploaded to ${tag}`)
 }
 
