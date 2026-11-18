@@ -270,6 +270,11 @@ describe('attentionLabel and badgeText', () => {
     expect(badgeText(99)).toBe('99')
     expect(badgeText(100)).toBe('99+')
   })
+  test('a small badge holds one digit', () => {
+    expect(badgeText(9, 9)).toBe('9')
+    expect(badgeText(10, 9)).toBe('9+')
+    expect(badgeText(250, 9)).toBe('9+')
+  })
 })
 
 describe('windowAttention', () => {

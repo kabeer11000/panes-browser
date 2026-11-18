@@ -4011,6 +4011,7 @@
   background: var(--badge-bg, #e5484d);
 }
 .cv-attn b.count {
+  white-space: nowrap;
   display: grid;
   place-items: center;
   min-width: 18px;

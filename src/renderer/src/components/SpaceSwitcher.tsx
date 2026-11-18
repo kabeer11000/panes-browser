@@ -101,7 +101,7 @@ export function SpaceSwitcher({
                 )}
                 {waiting && !waiting.call && (
                   <span className="space-attn" aria-hidden="true">
-                    {badgeText(waiting.count)}
+                    {badgeText(waiting.count, 9)}
                   </span>
                 )}
                 {sounding && (

@@ -29,7 +29,7 @@ export function TabFavicon(props: { tab: TabInfo; noSpinner?: boolean }): React.
     <span className="fav-attn" title={said}>
       <KindIcon {...props} />
       <b role="img" aria-label={said} className={a.count > 0 ? 'count' : ''}>
-        {badgeText(a.count)}
+        {badgeText(a.count, 9)}
       </b>
     </span>
   )

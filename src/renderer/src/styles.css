@@ -4369,6 +4369,7 @@ kbd {
   pointer-events: none;
 }
 .fav-attn > b.count {
+  white-space: nowrap;
   top: -7px;
   right: -10px;
   width: auto;
@@ -4451,6 +4452,7 @@ kbd {
   pointer-events: none;
 }
 .space-attn:not(:empty) {
+  white-space: nowrap;
   top: -6px;
   right: -7px;
   height: 16px;

@@ -219,8 +219,12 @@ export function attentionLabel(a: Pick<TabAttention, 'count' | 'unseen' | 'call'
 }
 
 /** A count as a badge shows it: small numbers as they are, anything larger as 99+. */
-export function badgeText(count: number): string {
-  return count > 99 ? '99+' : count > 0 ? String(count) : ''
+/**
+ * A count as a badge shows it, at most `max` then "max+". On a small icon (a tab's favicon, a space) the badge is
+ * a dot that can hold one digit: 9+ there, 99+ where there is room (a card on the board).
+ */
+export function badgeText(count: number, max = 99): string {
+  return count > max ? `${max}+` : count > 0 ? String(count) : ''
 }
 
 /** The whole window summed up, for its taskbar button. */
