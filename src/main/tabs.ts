@@ -136,6 +136,8 @@ import { JsonStore } from './store'
 
 const THUMB_WIDTH = 800
 const CANVAS_THUMB_WIDTH = 480 // pictures taken for the canvas are small at once: about 30 KB each
+/** See the tab's dom-ready: no part of a web page can drag the window. */
+const NO_WINDOW_DRAG = '*, *::before, *::after { -webkit-app-region: no-drag !important; app-region: no-drag !important; }'
 const THUMB_INTERVAL_MS = 2500
 const SNAPSHOT_TIMEOUT_MS = 250 // overlays open without waiting longer than this for snapshots
 /** After dom-ready, a freshly loaded page is revealed once it has drawn content, or after this long at most. */
@@ -3172,6 +3174,9 @@ export class TabManager {
     })
     wc.on('did-start-loading', refresh)
     wc.on('dom-ready', () => {
+      // A page's own `app-region: drag` (web apps mark title bars with it) would move the whole window: Panes is
+      // frameless, and Electron honours it in any page it shows. A user style, so it outranks the page's !important.
+      if (!wc.isDestroyed()) void wc.insertCSS(NO_WINDOW_DRAG, { cssOrigin: 'user' }).catch(() => undefined)
       this.applyDarkening() // covers tabs created or restored after the theme last changed
       this.applyZoom()
       tab.boostKey = null // a new document starts without the old sheet
