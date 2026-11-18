@@ -79,6 +79,7 @@ import { runningMode } from './performance'
 import { trimProcess } from './trim'
 import { SavedPages } from './savedPages'
 import {
+  KEEP_WARM,
   pickPreloads,
   pickRests,
   pidsToTrim,
@@ -4257,7 +4258,8 @@ export class TabManager {
       idleMin: st.unloadIdleMin,
       maxLoaded: st.maxLoadedTabs,
       otherSpaces: st.unloadOtherSpaces,
-      neverSites: st.neverUnloadSites
+      neverSites: st.neverUnloadSites,
+      keepWarm: KEEP_WARM
     }
   }
 

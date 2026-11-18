@@ -78,6 +78,8 @@ export interface MemoryPolicy {
   /** Tabs in spaces you are not in rest (caches given back, frozen) after OTHER_SPACE_IDLE_MIN; see pickRests. */
   otherSpaces: boolean
   neverSites: readonly string[]
+  /** How many of the pages used last are kept loaded whatever their idle time and the limit (KEEP_WARM); 0: none. */
+  keepWarm?: number
 }
 
 export interface TabFacts {
@@ -132,6 +134,12 @@ export const HEAVY_FIRST_AFTER_MS = 5 * 60_000
  * tabs not shown for a while heaviest first, then the least recently shown. With memory `roomy` (memoryRoomy), being
  * idle is no reason on its own: those tabs stay frozen instead, so they open at once.
  */
+/**
+ * The pages used last stay loaded, so going back to one is instant (as Park keeps the pages you were just on): neither
+ * time nor the tab limit unloads them, and memory running short takes them last.
+ */
+export const KEEP_WARM = 3
+
 export function pickUnloads(
   tabs: readonly TabFacts[],
   policy: MemoryPolicy,
@@ -147,9 +155,15 @@ export function pickUnloads(
   if (force) return eligible.map((t) => t.id)
   // a site that messages the person stays loaded (it could not tell of new messages otherwise)
   const mayGo = eligible.filter((t) => !t.messenger)
+  const warm = new Set(
+    [...mayGo]
+      .sort((a, b) => b.lastShownAt - a.lastShownAt)
+      .slice(0, policy.keepWarm ?? 0)
+      .map((t) => t.id)
+  )
 
   const picked = new Set<number>()
-  for (const t of roomy ? [] : mayGo) {
+  for (const t of roomy ? [] : mayGo.filter((x) => !warm.has(x.id))) {
     // other spaces rest early instead (pickRests): unloaded, switching back to a space reloaded every page in it
     if (now - t.lastShownAt >= policy.idleMin * 60_000) picked.add(t.id)
   }
@@ -163,7 +177,7 @@ export function pickUnloads(
       : (stale(a) && (b.mb ?? 0) - (a.mb ?? 0)) || a.lastShownAt - b.lastShownAt
   if (policy.maxLoaded > 0) {
     let loaded = tabs.filter((t) => t.loaded && !picked.has(t.id)).length
-    for (const t of mayGo.filter((t) => !picked.has(t.id)).sort(byCost)) {
+    for (const t of mayGo.filter((t) => !picked.has(t.id) && !warm.has(t.id)).sort(byCost)) {
       if (loaded <= policy.maxLoaded) break
       picked.add(t.id)
       loaded--
@@ -172,9 +186,10 @@ export function pickUnloads(
   if (needMb > 0) {
     let freed = 0
     for (const t of mayGo) if (picked.has(t.id)) freed += t.mb ?? 0
+    // the pages used last go only once nothing else is left
     const more = mayGo
       .filter((t) => !picked.has(t.id) && now - t.lastShownAt >= SHORT_MIN_HIDDEN_MS)
-      .sort(byCost)
+      .sort((a, b) => Number(warm.has(a.id)) - Number(warm.has(b.id)) || byCost(a, b))
     for (const t of more) {
       if (freed >= needMb) break
       picked.add(t.id)

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  KEEP_WARM,
   memoryNeedMb,
   memoryRoomy,
   releaseHelper,
@@ -366,10 +367,44 @@ describe('roomy memory', () => {
 describe('releaseHelper', () => {
   const base = { exists: true, visible: false, lastUsedAt: 0, now: HELPER_IDLE_MS, roomy: false }
   test('hidden, idle and memory not roomy: let go', () => expect(releaseHelper(base)).toBe(true))
-  test('kept while memory is roomy', () => expect(releaseHelper({ ...base, roomy: true })).toBe(false))
+  test('kept while memory is roomy', () =>
+    expect(releaseHelper({ ...base, roomy: true })).toBe(false))
   test('kept while shown or recently used', () => {
     expect(releaseHelper({ ...base, visible: true })).toBe(false)
     expect(releaseHelper({ ...base, lastUsedAt: 1 })).toBe(false)
   })
   test('nothing to let go', () => expect(releaseHelper({ ...base, exists: false })).toBe(false))
+})
+
+describe('the pages used last stay loaded', () => {
+  const now = 10 * 60 * 60_000
+  const policy: MemoryPolicy = {
+    enabled: true,
+    idleMin: 30,
+    maxLoaded: 2,
+    otherSpaces: false,
+    neverSites: [],
+    keepWarm: KEEP_WARM
+  }
+  const tab = (id: number, minutesAgo: number, mb = 100): TabFacts => ({
+    id,
+    loaded: true,
+    visible: false,
+    busy: false,
+    host: `s${id}.com`,
+    lastShownAt: now - minutesAgo * 60_000,
+    mb
+  })
+  // six hidden tabs, all idle well past the 30 minutes; 1 is the one used last
+  const tabs = [1, 2, 3, 4, 5, 6].map((id) => tab(id, 60 + id * 10))
+  test('neither idleness nor the tab limit unloads the last three', () => {
+    const out = pickUnloads(tabs, policy, now)
+    expect(out.sort()).toEqual([4, 5, 6])
+  })
+  test('memory running short takes them, but only after everything else', () => {
+    expect(pickUnloads(tabs, policy, now, false, 350).sort()).toEqual([3, 4, 5, 6])
+  })
+  test('off, they go like any other', () => {
+    expect(pickUnloads(tabs, { ...policy, keepWarm: 0 }, now).length).toBe(6)
+  })
 })
