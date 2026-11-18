@@ -220,6 +220,7 @@ import { drop, glide, lift, moveHeld, owned, rebase, resetLift, settleMs } from 
 import { reducedMotion, springAnimate } from '@renderer/motion'
 import { SPRINGS, springCurve } from '@shared/spring'
 import { staggerDelay } from '@shared/boardPhysics'
+import { warmPics } from './pics'
 
 interface Props {
   /** Chrome (the sidebar or the top bar) is out over the board: it blurs and dims. */
@@ -618,6 +619,9 @@ export function Canvas({
   const [naming, setNaming] = useState(0)
   const spaceHeld = useRef(false)
   const [lod, setLod] = useState(false)
+  // the small copies the cards show zoomed far out, made ahead while nothing else is going on: crossing that zoom
+  // then only changes how sharp the pictures are (Pic.tsx)
+  useEffect(() => warmPics(Object.values(thumbs)), [thumbs])
   const [ghostId, setGhostId] = useState<number | null>(activeId)
   const [fresh, setFresh] = useState<Set<number>>(new Set())
   const [chips, setChips] = useState<Set<number>>(new Set())
@@ -1013,7 +1017,8 @@ export function Canvas({
   const zoomText = useRef<HTMLSpanElement>(null)
   const commitZoom = useCallback((v: Viewport): void => {
     setZoomPct(Math.round(v.k * 100))
-    setLod(v.k < LOD_K)
+    // every card on the board renders again for it: at low priority, so the next touch or wheel is not held up by it
+    startTransition(() => setLod(v.k < LOD_K))
   }, [])
   useEffect(
     () =>
@@ -5616,7 +5621,7 @@ export function Canvas({
               className={'cv-splitbox' + (b.inFrame ? ' framed' : '')}
               data-splitbox=""
               style={{
-                transform: `translate3d(${b.x}px, ${b.y}px, 0)`,
+                transform: `translate(${b.x}px, ${b.y}px)`,
                 width: b.w,
                 height: b.h
               }}
@@ -5730,7 +5735,7 @@ export function Canvas({
               type="button"
               className="cv-blabel"
               title={`Go to ${l.title}`}
-              style={{ transform: `translate3d(${l.x + l.w / 2}px, ${l.y}px, 0)` }}
+              style={{ transform: `translate(${l.x + l.w / 2}px, ${l.y}px)` }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => {
                 const { w, h } = size()

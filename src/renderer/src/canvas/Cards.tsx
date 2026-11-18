@@ -15,7 +15,8 @@ import { badgeText } from '@shared/attention'
 import { firstPage, type FirstPage } from './pdf'
 import { sameModel, type CardModel } from './model'
 import { AnswerText } from './Expanded'
-import { Favicon, Img } from './Img'
+import { Favicon } from './Img'
+import { Pic } from './Pic'
 import { LiveTab } from './LiveTab'
 import {
   ExpandIcon,
@@ -26,8 +27,13 @@ import {
   TrashIcon
 } from './icons'
 
+/**
+ * Placed on the board. A 2D translate, not translate3d: a 3D one gives every card a layer of its own, and a board of
+ * them (with their buttons) was hundreds of layers, each drawn again at every step of a zoom, where one layer for the
+ * board scales as a whole. A card being dragged gets its own layer then (translate3d, set by the drag).
+ */
 const at = (x: number, y: number): React.CSSProperties => ({
-  transform: `translate3d(${x}px, ${y}px, 0)`
+  transform: `translate(${x}px, ${y}px)`
 })
 /**
  * Placed like `at`, turning and scaling about its own middle: the origin is on the board's coordinates (where the
@@ -109,8 +115,8 @@ function PdfFace({
         className="cv-sheet"
         style={{ '--ar': page ? String(page.aspect) : '0.707' } as React.CSSProperties}
       >
-        {page && !lod ? (
-          <img src={page.src} alt="" decoding="async" draggable={false} />
+        {page ? (
+          <Pic src={page.src} low={lod} fallback={<span className="cv-sheet-ph" />} />
         ) : (
           <span className={'cv-sheet-ph' + (failed ? ' failed' : '')}>{failed ? 'PDF' : ''}</span>
         )}
@@ -161,9 +167,10 @@ function Face({
       return (
         <div className="cv-image">
           <div className="cv-image-in">
-            {m.image && !lod ? (
-              <Img
+            {m.image ? (
+              <Pic
                 src={m.image}
+                low={lod}
                 fallback={
                   <div className="cv-sheet-ph" style={{ position: 'static', height: 160 }} />
                 }
@@ -181,7 +188,7 @@ function Face({
     case 'video':
       return (
         <div className="cv-video">
-          {(m.image || m.snap) && !lod ? <Img src={m.image ?? m.snap!} /> : null}
+          {m.image || m.snap ? <Pic src={m.image ?? m.snap!} low={lod} /> : null}
           <span className="cv-hover-cap">
             {m.title}
             {m.site ? <small>{m.site}</small> : null}
@@ -206,7 +213,7 @@ function Face({
           )}
         </div>
       )
-    default:
+    default: {
       if (m.blank) {
         return (
           <div className="cv-blank">
@@ -229,27 +236,23 @@ function Face({
           </div>
         )
       }
-      return (
-        <div className="cv-snap">
-          {m.snap && !lod ? (
-            <img src={m.snap} alt="" decoding="async" draggable={false} />
-          ) : (
-            <div className={'cv-snap-ph' + (m.loading ? ' loading' : '')}>
-              <span className="cv-ph-icon" aria-hidden="true">
-                {lod ? (
-                  <span>{(m.site || m.title || '?').charAt(0).toUpperCase()}</span>
-                ) : (
-                  <Favicon m={m} />
-                )}
-              </span>
-              <h3>{m.title || m.site}</h3>
-              <small>{m.site}</small>
-              {m.loading && <span className="cv-ph-bar" aria-label="Loading" />}
-            </div>
-          )}
-          {m.snap && !lod && <span className="cv-cap">{m.site || m.title}</span>}
+      const placeholder = (
+        <div className={'cv-snap-ph' + (m.loading ? ' loading' : '')}>
+          <span className="cv-ph-icon" aria-hidden="true">
+            <Favicon m={m} />
+          </span>
+          <h3>{m.title || m.site}</h3>
+          <small>{m.site}</small>
+          {m.loading && <span className="cv-ph-bar" aria-label="Loading" />}
         </div>
       )
+      return (
+        <div className="cv-snap">
+          {m.snap ? <Pic src={m.snap} low={lod} fallback={placeholder} /> : placeholder}
+          {m.snap && <span className="cv-cap">{m.site || m.title}</span>}
+        </div>
+      )
+    }
   }
 }
 
@@ -257,7 +260,7 @@ function Face({
 function Hero({ src }: { src: string }): React.JSX.Element {
   return (
     <div className="cv-hero">
-      <Img src={src} />
+      <Pic src={src} />
     </div>
   )
 }

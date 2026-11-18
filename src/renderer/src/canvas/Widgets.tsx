@@ -31,7 +31,7 @@ import {
 /** Placed on the board, turning about its own middle when held (board.css reads --ox/--oy). */
 const atMid = (x: number, y: number, w: number, h: number): React.CSSProperties =>
   ({
-    transform: `translate3d(${x}px, ${y}px, 0)`,
+    transform: `translate(${x}px, ${y}px)`, // 2D: no layer of its own (see Cards.tsx `at`)
     '--ox': `${x + w / 2}px`,
     '--oy': `${y + h / 2}px`
   }) as React.CSSProperties

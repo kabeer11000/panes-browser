@@ -823,6 +823,10 @@
   border-radius: 8px;
   color: #fff;
   background: rgb(20 20 24 / 0.62);
+}
+/* the blur only while the buttons show: a backdrop filter is a layer and a pass of its own, on every card */
+.cv-card:hover .cv-act,
+.cv-acts:focus-within .cv-act {
   backdrop-filter: blur(6px);
 }
 .cv-act:hover {
@@ -4791,4 +4795,19 @@
 }
 .cv-recent button > span:last-child {
   display: none;
+}
+
+/* a card picture that had to be waited for (Pic.tsx) comes in softly rather than popping */
+.cv-pic-in {
+  animation: cv-pic-in 180ms ease-out;
+}
+@keyframes cv-pic-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-pic-in {
+    animation: none;
+  }
 }
