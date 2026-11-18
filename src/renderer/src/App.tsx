@@ -535,7 +535,7 @@ function App(): React.JSX.Element {
     return window.api.onSettings(apply)
   }, [])
   const effective = { ...settings, ...activeSpace?.ui }
-  // the tour: once, as the first-run tour ends (onboarding just done), and whenever "Take the tour" is picked
+  // the tour: whenever "Take the tour" is picked (never by itself)
   const [tourOpen, setTourOpen] = useState(false)
   /** A quick action picked in the search popover, from a tab or from the canvas alike. */
   const runSearchAction = (id: string): void => {
@@ -550,11 +550,8 @@ function App(): React.JSX.Element {
     } else if (id === 'ai-settings') window.api.chatAction('settings')
     else window.api.runAction(id) // everything else main does (TabManager.runAction)
   }
-  const [wasOnboarded, setWasOnboarded] = useState<boolean | null>(null)
-  if (settingsReady && settings.onboarded !== wasOnboarded) {
-    setWasOnboarded(settings.onboarded)
-    if (wasOnboarded === false && settings.onboarded) setTourOpen(true)
-  }
+  // Onboarding done: straight into the way of browsing it picked (the board opens below, once onboarded). The tour is
+  // not shown by itself any more; it is there when asked for ("Take the tour" in search).
   // Browse with tabs or the canvas: a canvas space opens straight into its board, and one switched to tabs leaves it
   const browse = browseWith(settings.browseWith, activeSpace)
   const spaceKnown = activeSpace !== null

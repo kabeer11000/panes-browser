@@ -129,3 +129,25 @@ export function formatSpeed(bytesPerSecond: number): string {
   if (kb < 1024) return `${Math.round(kb)} KB/s`
   return `${(kb / 1024).toFixed(1)} MB/s`
 }
+
+/**
+ * The update, as the last step of onboarding says it: a line under "You are all set", and whether Start browsing
+ * restarts into the new version (it has been downloaded meanwhile). Null: nothing worth saying (no updates on this
+ * build, or a check that failed: the usual checks carry on later).
+ */
+export function onboardingUpdate(s: UpdateState): { line: string; restart: boolean } | null {
+  switch (s.kind) {
+    case 'checking':
+      return { line: 'Checking for a newer Panes…', restart: false }
+    case 'available':
+      return { line: `Getting Panes ${s.version}…`, restart: false }
+    case 'downloading':
+      return { line: `Getting Panes ${s.version}… ${Math.round(s.percent)}%`, restart: false }
+    case 'ready':
+      return { line: `Panes ${s.version} is ready: it starts when you do.`, restart: true }
+    case 'idle':
+      return s.checkedAt !== null ? { line: 'Panes is up to date.', restart: false } : null
+    default:
+      return null
+  }
+}

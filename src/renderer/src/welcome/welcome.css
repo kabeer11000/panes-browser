@@ -436,6 +436,17 @@ body {
 }
 
 /* finish */
+/* the update found while onboarding: quiet while it is looked for and downloaded, in the accent once it is ready */
+.wl-update {
+  margin: -6px 0 0;
+  font-size: 13px;
+  color: var(--fg-dim, rgb(255 255 255 / 0.6));
+  font-variant-numeric: tabular-nums;
+}
+.wl-update.ready {
+  color: var(--accent, #8b9cff);
+  font-weight: 600;
+}
 .wl-default {
   min-height: 40px;
   display: flex;

@@ -2,6 +2,7 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
 import { chromeVars } from '@shared/color'
 import { resolveMode, type PerformanceMode } from '@shared/performance'
+import { onboardingUpdate, type UpdateState } from '@shared/update'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES, SPACE_LOOKS } from '@shared/settings'
 import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '@shared/types'
 import { Segmented, Toggle } from '@renderer/internal/ui'
@@ -175,6 +176,17 @@ export function Welcome(): React.JSX.Element {
   const [s, setS] = useState<Settings | null>(null)
   const [space, setSpace] = useState<Space | null>(null)
   const [stats, setStats] = useState<MemoryStats | null>(null)
+  // A newer Panes is looked for as onboarding starts and downloads while the steps go by: the last step says so, and
+  // Start browsing starts the new version (a fresh install is often a release or two behind)
+  const [upd, setUpd] = useState<UpdateState | null>(null)
+  useEffect(() => {
+    void api.updateCheck()
+    const tick = (): void => void api.updateState().then(setUpd)
+    tick()
+    const t = window.setInterval(tick, 1000)
+    return () => window.clearInterval(t)
+  }, [api])
+  const newer = upd ? onboardingUpdate(upd) : null
   const [isDefault, setIsDefault] = useState(false)
 
   useEffect(() => {
@@ -227,7 +239,9 @@ export function Welcome(): React.JSX.Element {
     resolveMode(s.performanceMode, stats.totalGb * 1024 ** 3) !== stats.runningMode
   const finish = async (): Promise<void> => {
     await api.onboardingDone()
-    if (needsRestart) void api.restart()
+    // the downloaded update's restart also takes the new performance mode
+    if (newer?.restart) void api.updateInstall()
+    else if (needsRestart) void api.restart()
   }
   const forward = (): void => {
     if (step === 'finish') void finish()
@@ -511,6 +525,11 @@ export function Welcome(): React.JSX.Element {
                 <>
                   <Panes big />
                   <h1>You are all set</h1>
+                  {newer && (
+                    <p className={'wl-update' + (newer.restart ? ' ready' : '')} aria-live="polite">
+                      {newer.line}
+                    </p>
+                  )}
                   <div className="wl-default">
                     {isDefault ? (
                       <span className="wl-ok">Panes is your default browser</span>
@@ -559,9 +578,11 @@ export function Welcome(): React.JSX.Element {
             <button type="button" className="wl-next" onClick={forward}>
               {step !== 'finish'
                 ? 'Continue'
-                : needsRestart
-                  ? 'Start browsing (restarts once)'
-                  : 'Start browsing'}
+                : newer?.restart
+                  ? 'Start browsing (with the update)'
+                  : needsRestart
+                    ? 'Start browsing (restarts once)'
+                    : 'Start browsing'}
             </button>
           </footer>
         )}

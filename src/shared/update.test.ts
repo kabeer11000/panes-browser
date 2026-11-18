@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  onboardingUpdate,
   formatSpeed,
   friendlyUpdateError,
   nextUpdateState,
@@ -168,5 +169,30 @@ describe('formatSpeed', () => {
     expect(formatSpeed(512)).toBe('512 B/s')
     expect(formatSpeed(2048)).toBe('2 KB/s')
     expect(formatSpeed(1.5 * 1024 * 1024)).toBe('1.5 MB/s')
+  })
+})
+
+describe('onboardingUpdate', () => {
+  test('says what the update is doing, and restarts only once it is downloaded', () => {
+    expect(onboardingUpdate({ kind: 'checking', checkedAt: null })?.restart).toBe(false)
+    expect(
+      onboardingUpdate({
+        kind: 'downloading',
+        version: '1.2',
+        notes: '',
+        percent: 41.6,
+        bytesPerSecond: 1
+      })?.line
+    ).toContain('42%')
+    expect(onboardingUpdate({ kind: 'ready', version: '1.2', notes: '' })).toEqual({
+      line: 'Panes 1.2 is ready: it starts when you do.',
+      restart: true
+    })
+    expect(onboardingUpdate({ kind: 'idle', checkedAt: 5 })?.line).toBe('Panes is up to date.')
+  })
+  test('nothing to say: never checked, no updates here, or a failed check', () => {
+    expect(onboardingUpdate({ kind: 'idle', checkedAt: null })).toBeNull()
+    expect(onboardingUpdate({ kind: 'disabled', reason: 'dev' })).toBeNull()
+    expect(onboardingUpdate({ kind: 'error', message: 'x', checkedAt: 1 })).toBeNull()
   })
 })
