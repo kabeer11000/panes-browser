@@ -19,20 +19,23 @@ DevTools port (scratch scripts: zoom-check, zoom-fps, trace-zoom, layers). Done 
       picture it shows). 0 flashes in a zoom out/in test, was every picture at each crossing.
 - [x] Zoom: cards placed in 2D and card-button blur only on hover: 632 GPU layers to 139; frames over 20 ms 95 to 35.
 - [x] Zoom: the zoomed-out restyle runs at low priority (startTransition) so the next input is not held up.
+- [x] Sharp pictures zoomed in: a card shown much wider than its picture gets a new one at its width once the board
+      settles (loaded tabs); pictures kept on disk up to 960 px (was 480). beta.87.
+- [x] Crossing the far zoom renders no card (a store read by pictures and answers, not a prop): 70 ms of React gone
+      at each settle. Cards keep their shadows zoomed out (no board-wide pop). beta.88.
+- [x] Hover intent: already there (120 ms resting on a card starts its page).
 
 ## Next
 
 - [ ] Thumbnails as files, not data URLs: a `panes-thumb://` URL per picture instead of base64 strings through IPC
       and React props (a third bigger, copied around, parsed on every decode).
-- [ ] Sharp pictures zoomed in: a card shown much larger than its 480 px picture gets a sharper capture once the
-      board settles (its page is there; capture at the card's size on screen).
-- [ ] The rest of the overlap layers (about 95 cards still get a layer of their own while zooming): find what they
-      overlap and remove it.
+- [ ] The rest of the overlap layers (75 to 130 cards still get a layer of their own while zooming). Ruled out: the
+      card transform (left/top made no reliable difference, reverted), animations, button and media blur, frame
+      heads, resize handles, the board's and grid's will-change. Card shadows matter (none: 23 layers).
 - [ ] The re-raster after a zoom in (about 240 ms on the GPU once it settles): hold the board's layer a moment longer
       only when another movement is likely, or raster at the coming scale ahead.
-- [ ] Zoomed-out style by CSS alone (the `.lod` class), so crossing it renders no React at all.
-- [ ] Hover intent: a card the pointer rests on starts loading its page (Park: pages go live when you open them;
-      starting on hover makes opening look instant).
+- [ ] The `.lod` class restyle at settle (about 55 ms of style recalc): scope its selectors (a `:has()` rule may
+      widen the invalidation).
 - [ ] Keep the last few opened pages warm (not discarded) so going back is instant, within the memory budget.
 - [ ] Prerender the likely next page from the search or command menu (Speculation Rules in the tab's session).
 - [ ] Measure the built app, not only dev (React dev mode doubles render costs in the profiles).
