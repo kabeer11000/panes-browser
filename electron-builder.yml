@@ -3,20 +3,13 @@ productName: Panes
 copyright: Copyright (c) Kabeers Network
 directories:
   buildResources: build
+# Only what the app runs from, named: the built code, its resources and package.json (the production node_modules
+# are added by electron-builder, filtered below). A list of what to leave out let everything else in the project
+# folder ship: a new file there went into every release (notes, session logs, the website).
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!scripts/**'
-  - '!tasks/**'
-  - '!.debug-*'
-  - '!{Logos.zip,No Background.png,Transparent.png,Light.png}'
-  - '!.preview-profile/**'
-  - '!.remember/**'
-  - '!dithered.mp4'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - out/**
+  - resources/**
+  - package.json
   # adblock-rs is built from source on install: only js/index.js, js/index.node and package.json are needed to run it,
   # not its Rust sources or the ~200 MB cargo target folder.
   - '!node_modules/adblock-rs/{target,src,benches,fuzz,data}/**'

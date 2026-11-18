@@ -148,9 +148,7 @@ async function macLayers(publish: boolean): Promise<string[]> {
     const asar = `dist/mac/app-darwin-${arch}.asar`
     const built = await $`bun scripts/mac-layer.ts --arch ${arch} --out ${asar}`.nothrow()
     if (built.exitCode !== 0) {
-      console.log(
-        `release: no Mac layer for ${arch} (no Mac shell build yet: gh workflow run mac.yml)`
-      )
+      console.log(`release: no Mac layer for ${arch} (scripts/mac-layer.ts said why, above)`)
       continue
     }
     const out = `dist/layer-darwin-${arch}`

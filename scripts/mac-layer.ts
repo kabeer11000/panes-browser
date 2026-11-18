@@ -14,7 +14,7 @@
  */
 import { createPackage, extractAll } from '@electron/asar'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
-import { dirname, join, resolve } from 'path'
+import { basename, dirname, join, resolve } from 'path'
 import { $ } from 'bun'
 
 const args = process.argv.slice(2)
@@ -73,7 +73,8 @@ async function canvasPackage(): Promise<string> {
   const tgz = join(cache, `canvas-darwin-${arch}-${version}.tgz`)
   writeFileSync(tgz, Buffer.from(await res.arrayBuffer()))
   // the tarball holds package/...: unpacked straight into the package's own folder
-  await $`tar -xzf ${tgz} -C ${dir} --strip-components=1`.quiet()
+  // relative paths, run inside the folder: GNU tar reads a path with a drive letter as a remote host
+  await $`tar -xzf ../${basename(tgz)} --strip-components=1`.cwd(dir).quiet()
   rmSync(tgz)
   return dir
 }
