@@ -221,6 +221,8 @@ interface Tab {
   dirty: boolean
   /** Created with a URL, so it is loading rather than blank even while getURL() is still empty. */
   hasUrl: boolean
+  /** A page (not the first about:blank) has been shown in it: one that never got there is only a download's tab. */
+  shownPage: boolean
   spaceId: number
   /** Restored or unloaded, not loaded yet: loads the first time the tab is shown. */
   pending: { url: string; title: string; history?: NavHistory | null } | null
@@ -344,9 +346,10 @@ export class TabManager {
     if (!wc) return
     for (const [id, t] of this.tabs) {
       if (liveContents(t) !== wc) continue
-      const url = wc.getURL()
-      const shown = !!url && url !== 'about:blank' && !url.startsWith('panes://')
-      if (!shown && wc.navigationHistory.length() <= 1) this.close(id)
+      // A tab opened only to download a file (a link with target=_blank, a download button that opens a window) never
+      // showed a page: it goes, as in Chrome. getURL() is no guide, it already names the file's address. A tab with a
+      // page in it stays; its page is still there.
+      if (!t.shownPage) this.close(id)
       return
     }
   }
@@ -1050,6 +1053,7 @@ export class TabManager {
       thumbTimer: null,
       dirty: true,
       hasUrl: false,
+      shownPage: false,
       spaceId,
       pending: null,
       unloaded,
@@ -3146,7 +3150,10 @@ export class TabManager {
     const refresh = (): void => this.refresh()
     wc.on('did-navigate', (_e, url) => {
       // a new view commits about:blank first: that is not the page that was asked for
-      if (url !== 'about:blank') tab.navUrl = null
+      if (url !== 'about:blank') {
+        tab.navUrl = null
+        tab.shownPage = true
+      }
     })
 
     if (process.env['PANES_DEBUG']) {
