@@ -284,7 +284,7 @@ describe('pickPreloads', () => {
     id: number,
     usedAt: number,
     over: Partial<{ web: boolean; loaded: boolean }> = {}
-  ) => ({
+  ): { id: number; usedAt: number; web: boolean; loaded: boolean } => ({
     id,
     usedAt,
     web: true,
