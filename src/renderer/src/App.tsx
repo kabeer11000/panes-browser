@@ -1232,6 +1232,10 @@ function App(): React.JSX.Element {
                   initial={cvSearch.initial}
                   thumbs={thumbs}
                   onPick={(text) => answerCvSearch(cvSearch.req, text)}
+                  // an open tab: its card opens in the preview (the board's own way to a tab), nothing new is made
+                  onPickTab={(id) =>
+                    window.dispatchEvent(new CustomEvent('panes:canvas-show', { detail: { id } }))
+                  }
                   onClose={() => answerCvSearch(cvSearch.req, null)}
                   onAction={(id) => {
                     answerCvSearch(cvSearch.req, null)

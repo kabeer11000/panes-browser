@@ -61,6 +61,8 @@ interface Props {
    * gives its address.
    */
   onPick?: (text: string) => void
+  /** An open tab picked where onPick is used (the canvas): go to that tab, instead of opening its address again. */
+  onPickTab?: (id: number) => void
   /** Pictures of the tabs (by id): the recent strip and the picked tab's preview show them. */
   thumbs?: Record<number, string>
 }
@@ -174,6 +176,7 @@ export function SearchPalette({
   onAction,
   initial,
   onPick,
+  onPickTab,
   thumbs
 }: Props): React.JSX.Element {
   const [openedAt] = useState(() => Date.now())
@@ -292,12 +295,14 @@ export function SearchPalette({
   }, [current])
 
   const switchTo = (id: number): void => {
-    window.api.activateTab(id)
+    if (onPickTab) onPickTab(id)
+    else window.api.activateTab(id)
     onClose()
   }
   const run = (r: SearchResult | undefined, how: 'current' | 'tab' | 'split'): void => {
     const text = shown.trim()
     if (r?.kind === 'action') return onAction(r.actionId as string) // the same in the canvas as on a tab
+    if (onPick && r?.kind === 'tab' && onPickTab) return switchTo(r.tabId as number)
     if (onPick) {
       const picked = !r
         ? text
