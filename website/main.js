@@ -303,7 +303,7 @@ async function macArch() {
   for (const a of dlLinks('other')) a.textContent = isMac ? 'Also for Windows' : 'Also for Mac'
   for (const n of document.querySelectorAll('[data-dl-note]')) n.textContent = arch === 'mac-x64' ? 'Intel Mac.' : 'Apple Silicon.'
   // without the API, a Mac visitor gets the releases page rather than the Windows installer
-  if (isMac) for (const a of dlLinks('primary')) a.href = `https://github.com/${REPO}/releases`
+  if (isMac) for (const a of dlLinks('primary')) a.href = document.querySelector(arch === 'mac-x64' ? '[data-dl="mac-x64"]' : '[data-dl="mac"]').href
   let found = {}
   try {
     found = await findInstallers()
