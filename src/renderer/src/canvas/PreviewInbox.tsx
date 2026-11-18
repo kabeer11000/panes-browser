@@ -150,39 +150,42 @@ export function PreviewInbox({
       </button>
       {open && (
         <div className="cv-bell-menu" role="dialog" aria-label="Notifications from your tabs">
-          {list.length === 0 ? (
-            <p className="cv-bell-empty">Nothing new in your other tabs.</p>
-          ) : (
-            list.map((t) => {
-              const a = t.attention
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  className="cv-bell-tab"
-                  title={`Open ${nameOf(t)}`}
-                  onClick={() => onPick(t.id)}
-                >
-                  <span className="cv-bell-row">
-                    <TabFavicon tab={t} noSpinner />
-                    <span className="cv-bell-name">{nameOf(t)}</span>
-                    <span className={'cv-bell-what' + (a.call === 'ringing' ? ' ringing' : '')}>
-                      {attentionLabel(a)}
-                    </span>
-                  </span>
-                  {[...a.messages].reverse().map((msg) => (
-                    <span key={msg.at + msg.title} className="cv-bell-msg">
-                      <span className="cv-bell-msg-text">
-                        {msg.title && <strong>{msg.title}</strong>}
-                        {msg.body && <span>{msg.body}</span>}
+          {/* the list scrolls inside the menu, so its edges can fade while the menu keeps its shadow */}
+          <div className="cv-bell-scroll">
+            {list.length === 0 ? (
+              <p className="cv-bell-empty">Nothing new in your other tabs.</p>
+            ) : (
+              list.map((t) => {
+                const a = t.attention
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    className="cv-bell-tab"
+                    title={`Open ${nameOf(t)}`}
+                    onClick={() => onPick(t.id)}
+                  >
+                    <span className="cv-bell-row">
+                      <TabFavicon tab={t} noSpinner />
+                      <span className="cv-bell-name">{nameOf(t)}</span>
+                      <span className={'cv-bell-what' + (a.call === 'ringing' ? ' ringing' : '')}>
+                        {attentionLabel(a)}
                       </span>
-                      <time>{messageAge(msg.at, now)}</time>
                     </span>
-                  ))}
-                </button>
-              )
-            })
-          )}
+                    {[...a.messages].reverse().map((msg) => (
+                      <span key={msg.at + msg.title} className="cv-bell-msg">
+                        <span className="cv-bell-msg-text">
+                          {msg.title && <strong>{msg.title}</strong>}
+                          {msg.body && <span>{msg.body}</span>}
+                        </span>
+                        <time>{messageAge(msg.at, now)}</time>
+                      </span>
+                    ))}
+                  </button>
+                )
+              })
+            )}
+          </div>
         </div>
       )}
     </div>

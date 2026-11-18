@@ -3078,10 +3078,21 @@ kbd {
     --fade-bot: 0px;
   }
 }
+/* every scrolling list and menu without a shadow of its own (one with a shadow scrolls in an inner list instead,
+   as the board's notifications do) */
 .tab-list,
 .pal-list,
 .perm-sources,
-.space-pop-scroll {
+.space-pop-scroll,
+.cv-cmd-list,
+.cv-space-menu,
+.cv-dock-scroll,
+.cv-bell-scroll,
+.pn-body,
+.share-grid,
+.chat-history,
+.chat-scroll,
+.ask-body {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,

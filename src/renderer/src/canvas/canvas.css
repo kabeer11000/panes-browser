@@ -3007,15 +3007,21 @@
   right: 0;
   z-index: 30;
   width: 340px;
+  display: flex;
+  flex-direction: column;
   max-height: min(70vh, 480px);
-  overflow-y: auto;
-  padding: 4px;
+  overflow: hidden;
   border-radius: 12px;
   background: var(--popover-bg);
   box-shadow:
     0 0 0 1px var(--border),
     0 12px 32px rgb(0 0 0 / 0.3);
   animation: cv-attn-in var(--dur) var(--ease) both;
+}
+.cv-bell-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px;
 }
 .cv-bell-empty {
   margin: 0;
