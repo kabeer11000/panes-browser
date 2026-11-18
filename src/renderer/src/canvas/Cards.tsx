@@ -135,9 +135,12 @@ function PdfFace({
 function Face({
   m,
   onPdf,
-  onLink
+  onLink,
+  onAspect
 }: {
   m: CardModel
+  /** The shape of what the card holds, once known (an image's, a video's poster): the card takes it. */
+  onAspect?: (ar: number) => void
   onPdf: CardProps['onPdf']
   onLink: CardProps['onLink']
 }): React.JSX.Element {
@@ -166,6 +169,7 @@ function Face({
             {m.image ? (
               <Pic
                 src={m.image}
+                onSize={(w, h) => onAspect?.(w / h)}
                 fallback={
                   <div className="cv-sheet-ph" style={{ position: 'static', height: 160 }} />
                 }
@@ -183,7 +187,17 @@ function Face({
     case 'video':
       return (
         <div className="cv-video">
-          {m.image || m.snap ? <Pic src={m.image ?? m.snap!} /> : null}
+          {m.image || m.snap ? (
+            <Pic
+              src={m.image ?? m.snap!}
+              // a video's own still (a file's first frame) has its shape; YouTube's posters are 4:3 with black
+              // bars whatever the video, so those wait for the video itself (a live card measures it)
+              onSize={(w, h) => {
+                const src = m.image ?? m.snap ?? ''
+                if (m.image && !/ytimg\.com|youtube/.test(src)) onAspect?.(w / h)
+              }}
+            />
+          ) : null}
           <span className="cv-hover-cap">
             {m.title}
             {m.site ? <small>{m.site}</small> : null}
@@ -403,7 +417,12 @@ export const CardView = memo(
         aria-pressed={selected}
         aria-label={label}
       >
-        <Face m={m} onPdf={onPdf} onLink={onLink} />
+        <Face
+          m={m}
+          onPdf={onPdf}
+          onLink={onLink}
+          onAspect={onVideoAspect ? (ar) => onVideoAspect(m.id, ar) : undefined}
+        />
         {live > 0 && m.isTab && (
           <LiveTab
             key={call ? 'call' : 'video'}

@@ -19,6 +19,8 @@ import {
   linkedSections,
   GAP,
   regridFrame,
+  unsizeFrame,
+  fitFrames,
   fitView,
   forDisk,
   frameAt,
@@ -251,18 +253,52 @@ describe('editing', () => {
     expect(c.manual).toBe(true)
     expectClean(s)
   })
-  test('dropping on a frame snaps into its slots, growing it, without overlap', () => {
+  test('dropping on a section puts the cards where they were dropped, as they were, and it holds them', () => {
     const f = base.frames[1]
-    const s = dropCards(base, [1, 2, 3], 0, 0, { x: f.x + 30, y: f.y + 70 })
+    const c1 = base.cards.find((x) => x.id === 1)!
+    const c2 = base.cards.find((x) => x.id === 2)!
+    // the pointer carried card 1 to a spot inside the section
+    const dx = f.x + 60 - c1.x
+    const dy = f.y + 90 - c1.y
+    const s = fitFrames(dropCards(base, [1, 2, 3], dx, dy, { x: f.x + 70, y: f.y + 100 }))
+    const d1 = s.cards.find((x) => x.id === 1)!
+    const d2 = s.cards.find((x) => x.id === 2)!
+    expect([d1.x, d1.y]).toEqual([f.x + 60, f.y + 90])
+    // the same arrangement as before the drop, nothing put back on a grid
+    expect([d2.x - d1.x, d2.y - d1.y]).toEqual([c2.x - c1.x, c2.y - c1.y])
     expect(s.cards.filter((c) => c.frame === f.id).length).toBe(8)
-    expectClean(s)
+    const g = s.frames.find((x) => x.id === f.id)!
+    expect(g.free).toBe(true)
+    // it grew to hold them
+    for (const c of s.cards.filter((x) => x.frame === f.id)) {
+      expect(c.x).toBeGreaterThanOrEqual(g.x)
+      expect(c.y + (c.h ?? 0)).toBeLessThanOrEqual(g.y + g.h)
+    }
   })
-  test('dropping a card back on its own spot leaves it there', () => {
+  test('a drop near a section edge is kept inside it, below its name', () => {
+    const f = base.frames[1]
+    const c1 = base.cards.find((x) => x.id === 1)!
+    const s = dropCards(base, [1], f.x - 50 - c1.x, f.y - 50 - c1.y, { x: f.x + 5, y: f.y + 5 })
+    const d = s.cards.find((x) => x.id === 1)!
+    expect(d.x).toBeGreaterThanOrEqual(f.x)
+    expect(d.y).toBeGreaterThan(f.y)
+  })
+  test('a section laid out by hand is not put back on a grid, until it is fitted again', () => {
+    const f = base.frames[1]
+    const c1 = base.cards.find((x) => x.id === 1)!
+    const s = dropCards(base, [1], f.x + 333 - c1.x, f.y + 77 - c1.y, { x: f.x + 340, y: f.y + 80 })
+    expect(regridFrame(s, f.id)).toBe(s)
+    const back = unsizeFrame(s, f.id)
+    const g = back.frames.find((x) => x.id === f.id)!
+    expect(g.free).toBeUndefined()
+    expectClean(back)
+  })
+  test('a card nudged within its section stays where it was put', () => {
     const f = base.frames[0]
     const c = base.cards.find((x) => x.id === 2)!
-    const s = dropCards(base, [2], 3, -2, { x: f.x + 100, y: f.y + 100 })
+    const s = dropCards(base, [2], 3, 2, { x: f.x + 100, y: f.y + 100 })
     const d = s.cards.find((x) => x.id === 2)!
-    expect([d.x, d.y]).toEqual([c.x, c.y])
+    expect([d.x, d.y]).toEqual([c.x + 3, c.y + 2])
   })
   test('moving a frame moves its cards and never lands on another frame', () => {
     const a = base.frames[0]
@@ -551,4 +587,21 @@ describe('tidy with arrows between sections', () => {
       .map((p) => p.name)
     expect(order.indexOf('d.com')).toBe(order.indexOf('a.com') + 1)
   })
+})
+
+describe('videoCardSize keeps the shape', () => {
+  test('landscape and portrait at their usual sizes', () => {
+    expect(videoCardSize(16 / 9)).toEqual({ w: 320, h: 180 })
+    expect(videoCardSize(3 / 4)).toEqual({ w: 225, h: 300 })
+  })
+  test('a tall image grows taller instead of being squared off', () => {
+    const s = videoCardSize(0.5)
+    expect(s.w / s.h).toBeCloseTo(0.5, 2)
+    expect(s.w).toBeGreaterThanOrEqual(160)
+  })
+  test('a wide panorama grows wider instead of being made taller', () => {
+    const s = videoCardSize(4)
+    expect(s.w / s.h).toBeCloseTo(4, 1)
+  })
+  test('no shape: the default card', () => expect(videoCardSize(0).w).toBeGreaterThan(0))
 })

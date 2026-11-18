@@ -85,6 +85,12 @@ export interface CanvasFrame extends Box {
   color?: number
   /** The person resized it: it no longer hugs its contents, it only grows to keep them inside. */
   sized?: boolean
+  /**
+   * Laid out by hand (as in FigJam): what the person drops in stays exactly where it was dropped, nothing is put back
+   * on a grid, and it only grows to keep its contents. A drop into a section makes it so; back to a grid when it is
+   * fitted to its contents again (unsizeFrame).
+   */
+  free?: boolean
 }
 export interface CanvasCard {
   id: number
@@ -551,7 +557,7 @@ function ensureFrame(s: CanvasState, kind: 'other' | 'private'): CanvasState {
  */
 export function regridFrame(s: CanvasState, id: string, keepCols = false): CanvasState {
   const f = s.frames.find((x) => x.id === id)
-  if (!f) return s
+  if (!f || f.free) return s // laid out by hand: left as the person put it
   const cs = members(s, id).sort((a, b) => a.y - b.y || a.x - b.x || a.id - b.id)
   const ns = memberNotes(s, id).sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id))
   const inHere = new Set(cs.map((c) => c.id))
@@ -1174,6 +1180,22 @@ function seatAt(
 ): CanvasState {
   const f = s.frames.find((x) => x.id === frameId)
   if (!f) return s
+  if (f.kind !== 'private') {
+    // where it was dropped, as in FigJam: kept inside the section's edge and below its name, and the section, laid
+    // out by hand from now on, grows to hold it (fitFrames)
+    const at = { x: Math.max(f.x + PAD, near.x), y: Math.max(f.y + HEAD, near.y) }
+    let next: CanvasState = {
+      ...withFrame(s, { ...f, free: true, sized: true }),
+      cards: s.cards.map((c) =>
+        c.id === id ? { ...c, x: at.x, y: at.y, frame: frameId, manual: true } : c
+      )
+    }
+    const hug = hugBox(next, frameId)
+    const cur = next.frames.find((x) => x.id === frameId)!
+    if (hug) next = withFrame(next, { ...cur, ...(boundsOf([cur, hug]) as Box) })
+    next = settleFrame(next, frameId)
+    return next
+  }
   const slot = freeSlot(s, f, new Set([...skip, id]), near)
   let next: CanvasState = {
     ...withFrame(s, slot.frame),
@@ -1340,11 +1362,23 @@ export function resetCardSize(s: CanvasState, id: number): CanvasState {
   }
 }
 
-/** A video card's size for its video's aspect: 320 wide when landscape, 300 tall when portrait. */
+/**
+ * A card's size for what it holds (a video, an image) of aspect `ar`: 320 wide when landscape, 300 tall when
+ * portrait. Where that would make it narrower or flatter than a card can be, the other side grows instead, so the
+ * card keeps the picture's exact shape (a tall image was squared off a little, cropping it).
+ */
 export function videoCardSize(ar: number): { w: number; h: number } {
-  return ar >= 1
-    ? { w: 320, h: Math.max(CARD_MIN_H, Math.min(CARD_MAX_H, Math.round(320 / ar))) }
-    : { w: Math.max(CARD_MIN_W, Math.min(CARD_MAX_W, Math.round(300 * ar))), h: 300 }
+  if (!(ar > 0)) return { w: CARD_W, h: CARD_H }
+  const clampW = (w: number): number => Math.max(CARD_MIN_W, Math.min(CARD_MAX_W, Math.round(w)))
+  const clampH = (h: number): number => Math.max(CARD_MIN_H, Math.min(CARD_MAX_H, Math.round(h)))
+  if (ar >= 1) {
+    const h = 320 / ar
+    return h >= CARD_MIN_H
+      ? { w: 320, h: clampH(h) }
+      : { w: clampW(CARD_MIN_H * ar), h: CARD_MIN_H }
+  }
+  const w = 300 * ar
+  return w >= CARD_MIN_W ? { w: clampW(w), h: 300 } : { w: CARD_MIN_W, h: clampH(CARD_MIN_W / ar) }
 }
 
 /**
@@ -1535,8 +1569,8 @@ function seatNote(
 }
 
 /**
- * Drop a note moved by (dx, dy): its middle inside a section makes it one of that section's (in the nearest free
- * slot); anywhere else it is loose where it was let go. The section it left closes up.
+ * Drop a note moved by (dx, dy): its middle inside a section makes it one of that section's, where it was let go;
+ * anywhere else it is loose where it was let go. The section it left closes up.
  */
 export function dropNote(s: CanvasState, id: string, dx: number, dy: number): CanvasState {
   const n = s.notes.find((x) => x.id === id)
@@ -1552,7 +1586,18 @@ export function dropNote(s: CanvasState, id: string, dx: number, dy: number): Ca
     ...s,
     notes: s.notes.map((x) => (x.id === id ? { ...x, ...to, frame: null } : x))
   }
-  if (target) next = seatNote(next, id, target.id, to)
+  if (target) {
+    // where it was let go, as a card is (seatAt): inside the section's edge, the section laid out by hand from now on
+    const at = { x: Math.max(target.x + PAD, to.x), y: Math.max(target.y + HEAD, to.y) }
+    next = {
+      ...withFrame(next, { ...target, free: true, sized: true }),
+      notes: next.notes.map((x) => (x.id === id ? { ...x, ...at, frame: target.id } : x))
+    }
+    const hug = hugBox(next, target.id)
+    const cur = next.frames.find((x) => x.id === target.id)!
+    if (hug) next = withFrame(next, { ...cur, ...(boundsOf([cur, hug]) as Box) })
+    next = settleFrame(next, target.id)
+  }
   if (from && from !== target?.id) next = dropIfEmpty(next, from)
   return next
 }
@@ -1684,13 +1729,14 @@ export function fitFrames(s: CanvasState): CanvasState {
   return next
 }
 
-/** Back to hugging its contents (a double-click on a resize handle). */
+/** Back to hugging its contents, in a tidy grid again (a double-click on a resize handle). */
 export function unsizeFrame(s: CanvasState, id: string): CanvasState {
   const f = s.frames.find((x) => x.id === id)
-  if (!f || !f.sized) return s
+  if (!f || (!f.sized && !f.free)) return s
   const next: CanvasFrame = { ...f }
   delete next.sized
-  return fitFrames(withFrame(s, next))
+  delete next.free
+  return fitFrames(regridFrame(withFrame(s, next), id))
 }
 
 export const patchNote = (

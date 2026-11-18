@@ -9,12 +9,15 @@ import { useBoardLod } from './boardLod'
 export function Pic({
   src,
   low: lowProp,
-  fallback = null
+  fallback = null,
+  onSize
 }: {
   src: string
   /** The small copy is enough; by default, whenever the board is zoomed far out. */
   low?: boolean
   fallback?: React.ReactNode
+  /** The picture's own size, once it shows (a card takes the shape of the image it holds). */
+  onSize?: (w: number, h: number) => void
 }): React.JSX.Element | null {
   const [, bump] = useReducer((n: number) => n + 1, 0)
   const boardLow = useBoardLod()
@@ -63,6 +66,11 @@ export function Pic({
       decoding="sync"
       draggable={false}
       className={fade ? 'cv-pic-in' : undefined}
+      onLoad={(e) => {
+        const i = e.currentTarget
+        // the small copy has the same shape as the picture: either size says what the card should be
+        if (i.naturalWidth > 0 && i.naturalHeight > 0) onSize?.(i.naturalWidth, i.naturalHeight)
+      }}
     />
   )
 }
