@@ -59,13 +59,30 @@ mac:
         - CFBundleTypeName: Web page
           CFBundleTypeRole: Viewer
           LSItemContentTypes: [public.html, public.xhtml, com.adobe.pdf]
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    - NSCameraUsageDescription: So the websites you allow can use your camera. Panes asks you first, site by site.
+    - NSMicrophoneUsageDescription: So the websites you allow can use your microphone. Panes asks you first, site by site.
+    - NSDocumentsFolderUsageDescription: Panes opens and saves files in Documents when you choose to, such as an upload or a saved page.
+    - NSDownloadsFolderUsageDescription: Panes saves the files you download to your Downloads folder.
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}
+  title: Panes
+  # build/background.png and background@2x.png, rendered from build/dmg/background.html by scripts/dmg-background.ts.
+  # The icons sit either side of the arrow drawn on it; move them together.
+  background: build/background.png
+  iconSize: 120
+  iconTextSize: 13
+  window:
+    width: 600
+    height: 440
+  contents:
+    - x: 170
+      y: 196
+      type: file
+    - x: 430
+      y: 196
+      type: link
+      path: /Applications
 linux:
   mimeTypes: [x-scheme-handler/http, x-scheme-handler/https, text/html, application/xhtml+xml]
   target:
