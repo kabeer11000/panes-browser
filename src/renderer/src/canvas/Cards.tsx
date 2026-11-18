@@ -17,6 +17,7 @@ import { sameModel, type CardModel } from './model'
 import { AnswerText } from './Expanded'
 import { Favicon } from './Img'
 import { Pic } from './Pic'
+import { useBoardLod } from './boardLod'
 import { LiveTab } from './LiveTab'
 import {
   ExpandIcon,
@@ -56,7 +57,6 @@ interface CardProps {
   h?: number
   selected: boolean
   fresh: boolean
-  lod: boolean
   hidden: boolean
   rank: number
   onClose: (id: number) => void
@@ -81,12 +81,10 @@ interface CardProps {
 
 function PdfFace({
   m,
-  lod,
   onPdf,
   id
 }: {
   m: CardModel
-  lod: boolean
   id: number
   onPdf: CardProps['onPdf']
 }): React.JSX.Element {
@@ -116,7 +114,7 @@ function PdfFace({
         style={{ '--ar': page ? String(page.aspect) : '0.707' } as React.CSSProperties}
       >
         {page ? (
-          <Pic src={page.src} low={lod} fallback={<span className="cv-sheet-ph" />} />
+          <Pic src={page.src} fallback={<span className="cv-sheet-ph" />} />
         ) : (
           <span className={'cv-sheet-ph' + (failed ? ' failed' : '')}>{failed ? 'PDF' : ''}</span>
         )}
@@ -136,12 +134,10 @@ function PdfFace({
 
 function Face({
   m,
-  lod,
   onPdf,
   onLink
 }: {
   m: CardModel
-  lod: boolean
   onPdf: CardProps['onPdf']
   onLink: CardProps['onLink']
 }): React.JSX.Element {
@@ -162,7 +158,7 @@ function Face({
         </div>
       )
     case 'pdf':
-      return <PdfFace m={m} lod={lod} id={m.id} onPdf={onPdf} />
+      return <PdfFace m={m} id={m.id} onPdf={onPdf} />
     case 'image':
       return (
         <div className="cv-image">
@@ -170,7 +166,6 @@ function Face({
             {m.image ? (
               <Pic
                 src={m.image}
-                low={lod}
                 fallback={
                   <div className="cv-sheet-ph" style={{ position: 'static', height: 160 }} />
                 }
@@ -188,7 +183,7 @@ function Face({
     case 'video':
       return (
         <div className="cv-video">
-          {m.image || m.snap ? <Pic src={m.image ?? m.snap!} low={lod} /> : null}
+          {m.image || m.snap ? <Pic src={m.image ?? m.snap!} /> : null}
           <span className="cv-hover-cap">
             {m.title}
             {m.site ? <small>{m.site}</small> : null}
@@ -202,7 +197,7 @@ function Face({
           <p className="cv-answer-q">{m.title}</p>
           {m.text ? (
             <div className="cv-answer-text">
-              {lod ? null : <AnswerText text={m.text} onLink={onLink} />}
+              <AnswerBody text={m.text} onLink={onLink} />
             </div>
           ) : (
             <span className="cv-thinking" aria-label="Thinking">
@@ -227,11 +222,11 @@ function Face({
       if (m.reader) {
         return (
           <div className="cv-doc">
-            {m.image && !lod ? <Hero src={m.image} /> : null}
+            {m.image ? <Hero src={m.image} /> : null}
             <div className="cv-doc-body">
               <span className="cv-site">{m.site}</span>
               <h3>{m.title}</h3>
-              {!lod && m.text ? <p>{m.text}</p> : null}
+              {m.text ? <p>{m.text}</p> : null}
             </div>
           </div>
         )
@@ -248,12 +243,23 @@ function Face({
       )
       return (
         <div className="cv-snap">
-          {m.snap ? <Pic src={m.snap} low={lod} fallback={placeholder} /> : placeholder}
+          {m.snap ? <Pic src={m.snap} fallback={placeholder} /> : placeholder}
           {m.snap && <span className="cv-cap">{m.site || m.title}</span>}
         </div>
       )
     }
   }
+}
+
+/** An answer's text, left out while the board is zoomed far out (a few pixels high, and the costliest to draw). */
+function AnswerBody({
+  text,
+  onLink
+}: {
+  text: string
+  onLink: CardProps['onLink']
+}): React.JSX.Element | null {
+  return useBoardLod() ? null : <AnswerText text={text} onLink={onLink} />
 }
 
 /** A page's hero picture; one that will not load is left out. */
@@ -350,7 +356,6 @@ export const CardView = memo(
     h = CARD_H,
     selected,
     fresh,
-    lod,
     hidden,
     rank,
     onClose,
@@ -390,7 +395,7 @@ export const CardView = memo(
         aria-pressed={selected}
         aria-label={label}
       >
-        <Face m={m} lod={lod} onPdf={onPdf} onLink={onLink} />
+        <Face m={m} onPdf={onPdf} onLink={onLink} />
         {live > 0 && m.isTab && (
           <LiveTab
             key={call ? 'call' : 'video'}
@@ -490,7 +495,6 @@ export const CardView = memo(
     a.h === b.h &&
     a.selected === b.selected &&
     a.fresh === b.fresh &&
-    a.lod === b.lod &&
     a.hidden === b.hidden &&
     a.rank === b.rank &&
     a.onClose === b.onClose &&

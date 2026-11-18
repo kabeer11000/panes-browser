@@ -221,6 +221,7 @@ import { reducedMotion, springAnimate } from '@renderer/motion'
 import { SPRINGS, springCurve } from '@shared/spring'
 import { staggerDelay } from '@shared/boardPhysics'
 import { fullPic, warmPics } from './pics'
+import { setBoardLod } from './boardLod'
 import { sharpWidth } from '@shared/sharpPicture'
 
 interface Props {
@@ -1036,6 +1037,8 @@ export function Canvas({
   const commitZoom = useCallback((v: Viewport): void => {
     setZoomPct(Math.round(v.k * 100))
     // every card on the board renders again for it: at low priority, so the next touch or wheel is not held up by it
+    // the parts of cards that change with it read it directly (boardLod): no card renders again for it
+    setBoardLod(v.k < LOD_K)
     startTransition(() => setLod(v.k < LOD_K))
   }, [])
   useEffect(
@@ -5685,7 +5688,6 @@ export function Canvas({
               h={ch}
               selected={sel.has(`c:${c.id}`)}
               fresh={fresh.has(c.id)}
-              lod={lod}
               hidden={expanded?.id === c.id && expandedCovers}
               rank={ranks.get(c.id) ?? 0}
               onClose={onClose}

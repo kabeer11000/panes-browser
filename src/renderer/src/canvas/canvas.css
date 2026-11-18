@@ -134,10 +134,8 @@
   display: block;
 }
 
-/* zoomed far out: flat cards, no shadows */
-.cv.lod .cv-card {
-  box-shadow: 0 0 0 1px var(--border);
-}
+/* zoomed far out, cards keep their shadows: taking them away the moment the board settled was every card on screen
+   changing at once (and drawn again for it) */
 /* the writing would be a few pixels high: skip it, a screenful of text is what costs the frames */
 .cv.lod .cv-doc p,
 .cv.lod .cv-cap,

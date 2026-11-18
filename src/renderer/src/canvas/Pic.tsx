@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState } from 'react'
 import { bad, full, prepare, small } from './pics'
+import { useBoardLod } from './boardLod'
 
 /**
  * A card's picture: the decoded picture, or its small copy when `low` (the board zoomed far out) or until the picture
@@ -7,14 +8,17 @@ import { bad, full, prepare, small } from './pics'
  */
 export function Pic({
   src,
-  low = false,
+  low: lowProp,
   fallback = null
 }: {
   src: string
+  /** The small copy is enough; by default, whenever the board is zoomed far out. */
   low?: boolean
   fallback?: React.ReactNode
 }): React.JSX.Element | null {
   const [, bump] = useReducer((n: number) => n + 1, 0)
+  const boardLow = useBoardLod()
+  const low = lowProp ?? boardLow
   const fullOk = full.has(src)
   const smallUrl = small.peek(src)
   // a new picture of the same card (the page changed) replaces the old one once it is decoded, not before
