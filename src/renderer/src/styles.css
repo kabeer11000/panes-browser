@@ -2816,6 +2816,11 @@ kbd {
     0 0 0 1px var(--border),
     0 18px 48px rgb(0 0 0 / 0.38);
 }
+.pal.popover.up {
+  flex-direction: column-reverse;
+  border-radius: 12px 12px var(--pal-r, 8px) var(--pal-r, 8px);
+  transform-origin: bottom center;
+}
 .pal.popover .pal-input {
   padding: 0 12px;
   gap: 8px;

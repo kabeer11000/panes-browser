@@ -377,6 +377,8 @@ export function SearchPalette({
   }
 
   const popover = variant === 'dropdown' && anchor
+  // a bar low in the window (the preview's toolbar set at the bottom) has the popover rise from it instead
+  const up = !!popover && anchor.top + anchor.height / 2 > window.innerHeight * 0.6
   const panelStyle = popover
     ? (() => {
         const room = window.innerWidth - EDGE * 2
@@ -386,7 +388,8 @@ export function SearchPalette({
         return {
           left: Math.max(EDGE, Math.min(left, window.innerWidth - width - EDGE)),
           // the popover sits in the page area, which the out-bar shifts down by --slide-y: take that back out, live
-          top: `calc(${anchor.top}px - var(--slide-y, 0px))`,
+          top: up ? undefined : `calc(${anchor.top}px - var(--slide-y, 0px))`,
+          bottom: up ? window.innerHeight - anchor.top - anchor.height : undefined,
           width,
           '--pal-r': `${anchor.radius}px`
         } as React.CSSProperties
@@ -403,16 +406,16 @@ export function SearchPalette({
       onPointerDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
-        className={'pal' + (popover ? ' popover' : '')}
+        className={'pal' + (popover ? ' popover' : '') + (up ? ' up' : '')}
         style={panelStyle}
         role="dialog"
         aria-label="Search or enter address"
         // grows from the bar it hangs off (or drops in, centred), on a quick spring; leaves faster than it came
-        initial={{ opacity: 0, y: popover ? -6 : -12, scale: popover ? 0.97 : 0.96 }}
+        initial={{ opacity: 0, y: up ? 6 : popover ? -6 : -12, scale: popover ? 0.97 : 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{
           opacity: 0,
-          y: -4,
+          y: up ? 4 : -4,
           scale: 0.98,
           transition: { duration: 0.1, ease: [0.3, 0, 0.2, 1] }
         }}

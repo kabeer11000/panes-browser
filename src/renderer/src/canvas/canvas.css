@@ -4840,3 +4840,18 @@
     animation: none;
   }
 }
+
+/* Settings, Preview toolbar: Bottom. The panel is turned over, the page above and its toolbar below, and what the
+   toolbar opens rises from it instead of dropping */
+.cv-panel.bar-bottom {
+  flex-direction: column-reverse;
+}
+.cv-panel.bar-bottom .cv-panel-head {
+  border-bottom: 0;
+  border-top: 1px solid color-mix(in srgb, var(--fg) 7%, transparent);
+}
+.cv-panel.bar-bottom .cv-bell-menu,
+.cv-panel.bar-bottom .cv-bell-peek {
+  top: auto;
+  bottom: calc(100% + 8px);
+}

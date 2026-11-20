@@ -228,6 +228,20 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
         <Row
+          label="Preview toolbar"
+          hint="Where a page opened from the board keeps its toolbar: above the page, or below it, nearer the hand."
+        >
+          <Segmented
+            label="Preview toolbar"
+            value={s.previewBar}
+            options={[
+              { value: 'top', label: 'Top' },
+              { value: 'bottom', label: 'Bottom' }
+            ]}
+            onChange={(v) => void update({ previewBar: v })}
+          />
+        </Row>
+        <Row
           label="Pane view"
           hint="Ctrl and scroll opens it. Full fills the page area with your tabs; Side strip keeps the page in view and scrolls your tabs down the right edge."
         >

@@ -531,6 +531,8 @@ export interface Settings {
   touchpadSmoothing: TouchpadSmoothing
   /** Two fingers sliding down from the touchpad's top edge close the board's preview: off, from the very edge, or easier. */
   previewSwipe: PreviewSwipe
+  /** Where the board's preview keeps its toolbar: above the page (as a window does) or below it, nearer the hand. */
+  previewBar: 'top' | 'bottom'
   /** Tab view, Windows touchpad: two fingers sliding sideways on a page go back or forward. */
   swipeHistory: boolean
   /** Tab view, Windows touchpad: two fingers sliding in from the pad's left or right edge switch to the previous or next tab. */

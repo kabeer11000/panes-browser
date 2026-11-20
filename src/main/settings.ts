@@ -107,6 +107,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
     patch.previewSwipe === 'easy'
   )
     out.previewSwipe = patch.previewSwipe
+  if (patch.previewBar === 'top' || patch.previewBar === 'bottom') out.previewBar = patch.previewBar
   if (typeof patch.swipeHistory === 'boolean') out.swipeHistory = patch.swipeHistory
   if (typeof patch.swipeTabs === 'boolean') out.swipeTabs = patch.swipeTabs
   Object.assign(out, sanitizeYouTube(patch))

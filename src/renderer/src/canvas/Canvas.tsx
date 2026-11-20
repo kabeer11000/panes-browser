@@ -2445,9 +2445,11 @@ export function Canvas({
     smoothing: DEFAULT_SETTINGS.touchpadSmoothing
   })
   const [previewSwipe, setPreviewSwipe] = useState(DEFAULT_SETTINGS.previewSwipe)
+  const [previewBar, setPreviewBar] = useState(DEFAULT_SETTINGS.previewBar)
   useEffect(() => {
     const take = (s: Partial<Settings>): void => {
       setPreviewSwipe(s.previewSwipe ?? DEFAULT_SETTINGS.previewSwipe)
+      setPreviewBar(s.previewBar ?? DEFAULT_SETTINGS.previewBar)
       feel.current = {
         speed: s.touchpadSpeed ?? DEFAULT_SETTINGS.touchpadSpeed,
         glide: s.touchpadGlide ?? DEFAULT_SETTINGS.touchpadGlide,
@@ -6004,6 +6006,7 @@ export function Canvas({
           waiting={waiting}
           onOpenTab={openWaiting}
           swipe={previewSwipe}
+          bar={previewBar}
         />
       )}
       {ctx && (

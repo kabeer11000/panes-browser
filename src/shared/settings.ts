@@ -46,6 +46,7 @@ export const DEFAULT_SETTINGS: Settings = {
   touchpadGlide: 320,
   touchpadSmoothing: 'balanced',
   previewSwipe: 'edge',
+  previewBar: 'top',
   swipeHistory: true,
   swipeTabs: true,
   browseWith: 'tabs',

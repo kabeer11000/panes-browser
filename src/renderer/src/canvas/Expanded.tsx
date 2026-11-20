@@ -143,6 +143,8 @@ interface Props extends ExpandSource {
   onClose: () => void
   /** Ctrl+W closed this page: show the page it came from instead; false when there is none (the preview closes). */
   onBack?: () => boolean
+  /** Where the toolbar sits (Settings): above the page, or below it. */
+  bar?: 'top' | 'bottom'
   /** The panel now covers its card (true, once it has grown) or is about to uncover it (false, as it closes). */
   onCover?: (covered: boolean) => void
   onGoToTab: () => void
@@ -726,6 +728,7 @@ export function Expanded({
   answerLinks,
   onClose,
   onBack,
+  bar = 'top',
   onCover,
   onGoToTab,
   onTab,
@@ -1516,7 +1519,11 @@ export function Expanded({
   return (
     <div className="cv-expand" ref={root} role="dialog" aria-modal="false" aria-label={m.title}>
       <div className="cv-scrim" ref={scrim} onPointerDown={() => close()} />
-      <div className="cv-panel" ref={panel} style={{ left, top, width: w, height: h }}>
+      <div
+        className={'cv-panel' + (bar === 'bottom' ? ' bar-bottom' : '')}
+        ref={panel}
+        style={{ left, top, width: w, height: h }}
+      >
         {/* three zones: the page (nav, address) on the left, how to see it in the middle, what to do on the right.
             The rest (bookmark, copy link, find, zoom, pop out) is in More and on a right-click of the bar. */}
         <header
