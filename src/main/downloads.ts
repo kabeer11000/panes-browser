@@ -7,11 +7,13 @@ import type { SettingsStore } from './settings'
 import { JsonStore } from './store'
 
 /** "name (1).ext" style de-duplication so a download never overwrites an existing file. */
-function uniquePath(dir: string, filename: string): string {
+function uniquePath(dir: string, filename: string, taken: ReadonlySet<string>): string {
   const ext = extname(filename)
   const stem = basename(filename, ext)
+  // a running download's file is not on disk under its name yet: a page saving several at once must not get one name
+  const used = (p: string): boolean => existsSync(p) || taken.has(p.toLowerCase())
   let candidate = join(dir, filename)
-  for (let n = 1; existsSync(candidate); n++) candidate = join(dir, `${stem} (${n})${ext}`)
+  for (let n = 1; used(candidate); n++) candidate = join(dir, `${stem} (${n})${ext}`)
   return candidate
 }
 
@@ -223,7 +225,12 @@ export class DownloadManager {
 
   /** A free path for `filename` in the download folder ("name (2).png" when it is taken). */
   pathFor(filename: string): string {
-    return uniquePath(this.folder(), filename)
+    return uniquePath(this.folder(), filename, this.claimed())
+  }
+
+  /** The paths of downloads still running (lowercase: Windows paths ignore case). */
+  private claimed(): Set<string> {
+    return new Set([...this.live.values()].map((item) => item.getSavePath().toLowerCase()))
   }
 
   /**
@@ -261,7 +268,7 @@ export class DownloadManager {
 
   private track(item: DownloadItem, page: DownloadPage): void {
     const { downloadAsk } = this.settings.get()
-    const suggested = uniquePath(this.folder(), item.getFilename())
+    const suggested = this.pathFor(item.getFilename())
     if (!downloadAsk) {
       item.setSavePath(suggested)
       this.begin(item, page)
