@@ -4231,9 +4231,22 @@ export class TabManager {
         },
         { label: 'Close preview', accelerator: 'Esc', click: pick('close') }
       ]
+      // a point low in the window (the preview's toolbar set at the bottom): the menu ends there instead of starting
+      // there, so it rises from the button rather than running off the window. Native menus cannot be bottom-aligned,
+      // so its height is reckoned from its items (ponytail: estimate; a measured height would need a custom menu).
+      const [, winH] = this.win.getContentSize()
+      const rise =
+        y !== undefined && y > winH * 0.6
+          ? items.reduce(
+              (h, it) => h + (it.type === 'separator' ? 9 : it.visible === false ? 0 : 26),
+              8
+            )
+          : 0
       Menu.buildFromTemplate(items).popup({
         window: this.win,
-        ...(x !== undefined && y !== undefined ? { x: Math.round(x), y: Math.round(y) } : {}),
+        ...(x !== undefined && y !== undefined
+          ? { x: Math.round(x), y: Math.max(0, Math.round(y - rise)) }
+          : {}),
         callback: () => setTimeout(() => resolve(null), 0)
       })
     })

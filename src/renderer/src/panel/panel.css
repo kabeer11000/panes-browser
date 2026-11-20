@@ -801,3 +801,10 @@ body,
   box-shadow: var(--shadow-2), var(--rim);
   animation: pn-in var(--dur) var(--ease-snappy) both;
 }
+/* opened from a button low in the window: the view ends at the button, and the card sits at its bottom */
+html[data-up='true'] .pn-root {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+}

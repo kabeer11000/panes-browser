@@ -34,6 +34,8 @@ export class SitePanel {
   /** When it was last shown (see release). */
   private lastUsedAt = 0
   private anchor: Rect | null = null
+  /** The card opens upward from its button (see place). */
+  private up = false
   private picking = false
   private blurredAt = 0
   private pushTimer: NodeJS.Timeout | null = null
@@ -103,7 +105,6 @@ export class SitePanel {
     if (wc && !wc.isDestroyed() && !wc.isLoading()) wc.send('panel:hide')
   }
 
-
   /**
    * Give back its renderer process if it is hidden and has gone unused a while and memory is short (releaseHelper);
    * it is made again the next time it is needed. True when it was let go.
@@ -139,6 +140,7 @@ export class SitePanel {
     const dev = process.env['ELECTRON_RENDERER_URL']
     if (is.dev && dev) void view.webContents.loadURL(`${dev}/panel.html`)
     else void view.webContents.loadFile(join(__dirname, '../renderer/panel.html'))
+    view.webContents.on('did-finish-load', () => this.markUp())
     view.webContents.on('blur', () => {
       if (this.picking || !this.visible) return
       this.blurredAt = Date.now()
@@ -156,10 +158,27 @@ export class SitePanel {
       0,
       Math.min(Math.round(this.anchor.x + this.anchor.width) - WIDTH - PAD, winW - width)
     )
+    // A button low in the window (the board's preview with its toolbar at the bottom): the card rises from it instead
+    this.up = this.anchor.y + this.anchor.height / 2 > winH * 0.6
+    this.markUp()
+    if (this.up) {
+      // from the window's top down to the button, the card sitting at the bottom of the view (panel.css, html[data-up])
+      const bottom = Math.round(this.anchor.y - GAP) + PAD
+      this.view.setBounds({ x, y: 0, width, height: Math.max(120, Math.min(winH, bottom)) })
+      return
+    }
     const y = Math.max(0, Math.round(this.anchor.y + this.anchor.height + GAP) - PAD)
     // Down to the window's bottom, once, and never resized after: a native view that changes size shows its old frame
     // until the page has drawn the new one, which clipped the card and broke its transitions as its content changed.
     // The card grows inside the view; a press on the view outside the card closes the panel (see Panel.tsx).
     this.view.setBounds({ x, y, width, height: Math.max(120, winH - y) })
+  }
+
+  /** Tell the card which way it opens (it is laid out from the top, or from the bottom when it rises). */
+  private markUp(): void {
+    const wc = this.view?.webContents
+    // (not held back while loading: the page still counts as loading inside its own did-finish-load, which redoes this)
+    if (!wc || wc.isDestroyed()) return
+    void wc.executeJavaScript(`document.documentElement.dataset.up = '${this.up}'`).catch(() => {})
   }
 }

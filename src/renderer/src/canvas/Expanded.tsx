@@ -1690,7 +1690,7 @@ export function Expanded({
                 title="Page zoom (Ctrl+0 for the usual size)"
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
-                  pageMenu(r.left, r.bottom + 4)
+                  pageMenu(r.left, bar === 'bottom' ? r.top - 4 : r.bottom + 4)
                 }}
               >
                 {zoomLabel}
@@ -1739,7 +1739,7 @@ export function Expanded({
                 title="More: bookmark, copy link, find, zoom, pop out..."
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
-                  pageMenu(r.left, r.bottom + 4)
+                  pageMenu(r.left, bar === 'bottom' ? r.top - 4 : r.bottom + 4)
                 }}
               >
                 <MoreIcon vertical />
