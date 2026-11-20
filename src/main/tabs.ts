@@ -138,7 +138,8 @@ import { JsonStore } from './store'
 const THUMB_WIDTH = 800
 const CANVAS_THUMB_WIDTH = 480 // pictures taken for the canvas are small at once: about 30 KB each
 /** See the tab's dom-ready: no part of a web page can drag the window. */
-const NO_WINDOW_DRAG = '*, *::before, *::after { -webkit-app-region: no-drag !important; app-region: no-drag !important; }'
+const NO_WINDOW_DRAG =
+  '*, *::before, *::after { -webkit-app-region: no-drag !important; app-region: no-drag !important; }'
 const THUMB_INTERVAL_MS = 2500
 const SNAPSHOT_TIMEOUT_MS = 250 // overlays open without waiting longer than this for snapshots
 /** After dom-ready, a freshly loaded page is revealed once it has drawn content, or after this long at most. */
@@ -3064,11 +3065,22 @@ export class TabManager {
             ? { x: 0, y: 0, width: w, height: h }
             : null
           : normal
-      // a live page that went full screen (a video) is no longer held to the slot: it takes the window
-      const liveFull = this.canvasMode && id === this.liveId && this.fullscreenId === id
-      const companion = this.canvasMode && !liveFull ? this.companions.get(id) : undefined
+      // a live page that went full screen (a video) is no longer held to the slot: it takes the window, whether it is
+      // the preview's own page or the other pane of a split in it. The panes that did not go full screen step aside
+      // meanwhile, instead of staying drawn over (or under) the full-screen one.
+      const liveFull =
+        this.canvasMode &&
+        this.fullscreenId === id &&
+        (id === this.liveId || this.companions.has(id))
+      const otherFull = this.fullscreenId !== null && this.fullscreenId !== id
+      const companion =
+        this.canvasMode && !liveFull && !otherFull ? this.companions.get(id) : undefined
       const live =
-        (this.canvasMode && id === this.liveId && this.liveRect !== null && !liveFull) ||
+        (this.canvasMode &&
+          id === this.liveId &&
+          this.liveRect !== null &&
+          !liveFull &&
+          !otherFull) ||
         !!companion
       // A tab streaming to its card must keep painting. Like captureHidden: shown with only its top-left pixels
       // inside the window's bottom-right corner, which its rounded corner leaves transparent, so none of it is seen.
@@ -3184,7 +3196,8 @@ export class TabManager {
     wc.on('dom-ready', () => {
       // A page's own `app-region: drag` (web apps mark title bars with it) would move the whole window: Panes is
       // frameless, and Electron honours it in any page it shows. A user style, so it outranks the page's !important.
-      if (!wc.isDestroyed()) void wc.insertCSS(NO_WINDOW_DRAG, { cssOrigin: 'user' }).catch(() => undefined)
+      if (!wc.isDestroyed())
+        void wc.insertCSS(NO_WINDOW_DRAG, { cssOrigin: 'user' }).catch(() => undefined)
       this.applyDarkening() // covers tabs created or restored after the theme last changed
       this.applyZoom()
       tab.boostKey = null // a new document starts without the old sheet

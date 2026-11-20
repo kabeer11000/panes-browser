@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
 import {
   computeFrames,
   leaf,
@@ -157,14 +157,13 @@ export function Panes({
     return () => cancelAnimationFrame(raf)
   }, [structureKey, size.w, size.h, liveKey])
 
-  // Dragging a divider hides the native views (they would swallow pointer events).
-  const startResize = (e: PointerEvent<HTMLDivElement>, div: DividerFrame): void => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    dragRef.current = { div, ratios: div.ratios }
-    setResizing(true)
-    void holdOverlay('divider')
-  }
-  const resize = (e: PointerEvent<HTMLDivElement>): void => {
+  // Dragging a divider parks the native views (they would swallow pointer events), at once: waiting for fresh pictures
+  // left the pages in place long enough for a quick drag to run onto one and be lost. The drag follows the pointer on
+  // the window, not by pointer capture, which the window taking focus for the overlay could drop mid-drag.
+  const resizeFns = useRef<{ move: (e: globalThis.PointerEvent) => void; end: () => void } | null>(
+    null
+  )
+  const resize = (e: { clientX: number; clientY: number }): void => {
     const d = dragRef.current
     const box = containerRef.current?.getBoundingClientRect()
     if (!d || !box) return
@@ -185,14 +184,48 @@ export function Panes({
     d.ratios = ratios
     setLive({ base: structureKey, path: div.path, ratios })
   }
+  const resizeRef = useRef(resize)
+  useLayoutEffect(() => {
+    resizeRef.current = resize
+  })
   const endResize = (): void => {
     const d = dragRef.current
+    const fns = resizeFns.current
+    if (fns) {
+      window.removeEventListener('pointermove', fns.move)
+      window.removeEventListener('pointerup', fns.end)
+      window.removeEventListener('pointercancel', fns.end)
+      window.removeEventListener('blur', fns.end)
+      resizeFns.current = null
+    }
     if (!d) return
     dragRef.current = null
     window.api.setRatios(d.div.path, d.ratios)
     setResizing(false)
     void releaseOverlay('divider')
   }
+  const endRef = useRef(endResize)
+  useLayoutEffect(() => {
+    endRef.current = endResize
+  })
+  const startResize = (e: PointerEvent<HTMLDivElement>, div: DividerFrame): void => {
+    if (e.button !== 0) return
+    e.preventDefault() // no text selection while dragging
+    endRef.current() // a drag left over (its release never arrived) ends first
+    dragRef.current = { div, ratios: div.ratios }
+    const fns = {
+      move: (ev: globalThis.PointerEvent) => resizeRef.current(ev),
+      end: () => endRef.current()
+    }
+    resizeFns.current = fns
+    window.addEventListener('pointermove', fns.move)
+    window.addEventListener('pointerup', fns.end)
+    window.addEventListener('pointercancel', fns.end)
+    window.addEventListener('blur', fns.end)
+    setResizing(true)
+    void holdOverlay('divider', false)
+  }
+  useEffect(() => () => endRef.current(), [])
 
   return (
     <div
@@ -247,9 +280,6 @@ export function Panes({
             height: d.frame.h
           }}
           onPointerDown={(e) => startResize(e, d)}
-          onPointerMove={resize}
-          onPointerUp={endResize}
-          onPointerCancel={endResize}
           onDoubleClick={() =>
             window.api.setRatios(
               d.path,

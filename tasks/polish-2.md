@@ -120,7 +120,7 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [ ] Redo notifications UI across the browser (esp. canvas), creatively.
 - [x] Missing favicon: a letter in some places, a globe in others. One fallback everywhere.
 - [x] Option: preview dialog toolbar at the bottom of the screen.
-- [ ] Split view: fullscreen broken (esp. canvas preview); resizing panes unreliable.
+- [x] Split view: fullscreen broken (esp. canvas preview); resizing panes unreliable.
 - [ ] Shared spaces (FigJam-like, fully featured): both users edit notes, images, arrows, sections, cards. Later: optional shared tabs (watch-together).
       Decisions 2026-11-20: own Yjs websocket relay on the user's Render account; join by invite link with a secret key (no accounts); images shrunk and uploaded to the relay (~5 MB cap). Order: small fixes -> notifications redesign -> shared spaces.
 
