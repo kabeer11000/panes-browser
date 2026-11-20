@@ -58,7 +58,7 @@ export function Bookmarks(): React.JSX.Element {
         {shown.map((b) => (
           <div key={b.id} className="int-card">
             <a className="int-card-link" href={b.url}>
-              <Site favicon={b.favicon} title={b.title} url={b.url} />
+              <Site favicon={b.favicon} />
               <span className="int-title">{b.title}</span>
               <span className="int-sub">{host(b.url)}</span>
             </a>

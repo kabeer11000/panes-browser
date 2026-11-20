@@ -177,7 +177,7 @@ export function History(): React.JSX.Element {
                     </svg>
                   )}
                 </button>
-                <Site favicon={e.favicon} title={e.title} url={e.url} />
+                <Site favicon={e.favicon} />
                 <a className="int-link" href={e.url}>
                   <span className="int-title">{e.title || e.url}</span>
                   <span className="int-sub">{host(e.url)}</span>

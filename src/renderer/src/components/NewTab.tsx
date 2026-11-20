@@ -5,6 +5,7 @@ import { dailyPhotoId, nextPhotoId, photoUrl } from '@shared/photos'
 import { displayHost } from '@shared/url'
 import { CanvasIcon, ImageIcon, ShieldIcon } from './icons'
 import { useDitheredPhoto } from './useDitheredPhoto'
+import { SiteIcon } from './SiteIcon'
 
 const MAX_SITES = 8
 
@@ -22,25 +23,13 @@ function pickSites(all: LocalSuggestion[]): LocalSuggestion[] {
   return out
 }
 
-/** A site's tile: its icon, or its first letter when it has none or the icon will not load. */
-function SiteTile({ favicon, host }: { favicon?: string; host: string }): React.JSX.Element {
-  const [failed, setFailed] = useState(false)
+/** A site's tile: its icon, or the globe when it has none or the icon will not load. */
+function SiteTile({ favicon }: { favicon?: string }): React.JSX.Element {
   return (
     <span className="newtab-tile">
-      {favicon && !failed ? (
-        <img src={favicon} alt="" onError={() => setFailed(true)} />
-      ) : (
-        <b>{host.charAt(0).toUpperCase()}</b>
-      )}
+      <SiteIcon src={favicon} />
     </span>
   )
-}
-
-/** A stable hue per site, so chips without a favicon still look distinct. */
-const hueOf = (host: string): number => {
-  let h = 0
-  for (const c of host) h = (h * 31 + c.charCodeAt(0)) % 360
-  return h
 }
 
 const PARALLAX_PX = 16 // how far the photo drifts at the window's edge
@@ -216,10 +205,10 @@ export function NewTab({
                   type="button"
                   className="newtab-site"
                   title={s.title}
-                  style={{ '--hue': hueOf(host), '--i': i } as React.CSSProperties}
+                  style={{ '--i': i } as React.CSSProperties}
                   onClick={() => window.api.navigate(s.url)}
                 >
-                  <SiteTile favicon={s.favicon ?? undefined} host={host} />
+                  <SiteTile favicon={s.favicon ?? undefined} />
                   <span className="newtab-label">{host}</span>
                 </button>
               )
@@ -237,10 +226,9 @@ export function NewTab({
                       key={s.url}
                       type="button"
                       className="newtab-row"
-                      style={{ '--hue': hueOf(displayHost(s.url)) } as React.CSSProperties}
                       onClick={() => window.api.navigate(s.url)}
                     >
-                      <SiteTile favicon={s.favicon ?? undefined} host={displayHost(s.url)} />
+                      <SiteTile favicon={s.favicon ?? undefined} />
                       <span>
                         <b>{s.title}</b>
                         <i>{s.reason}</i>
@@ -252,10 +240,9 @@ export function NewTab({
                       key={p.url}
                       type="button"
                       className="newtab-row"
-                      style={{ '--hue': hueOf(displayHost(p.url)) } as React.CSSProperties}
                       onClick={() => window.api.navigate(p.url)}
                     >
-                      <SiteTile favicon={p.favicon ?? undefined} host={displayHost(p.url)} />
+                      <SiteTile favicon={p.favicon ?? undefined} />
                       <span>
                         <b>{p.title}</b>
                         <i>Continue reading - {displayHost(p.url)}</i>

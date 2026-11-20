@@ -2256,21 +2256,13 @@ kbd {
   transform: scale(0.95);
 }
 .newtab-tile img,
-.newtab-tile b {
+.newtab-tile .site-globe {
   width: 32px;
   height: 32px;
   border-radius: var(--r-3);
 }
 .newtab-tile img {
   object-fit: contain;
-}
-.newtab-tile b {
-  display: grid;
-  place-items: center;
-  background: hsl(var(--hue) 60% 50% / 0.22);
-  color: hsl(var(--hue) 70% 72%);
-  font-size: var(--fs-xl);
-  font-weight: 600;
 }
 .newtab-label {
   max-width: 100%;
@@ -5489,4 +5481,17 @@ kbd {
 }
 .newtab-private button:active {
   scale: var(--press);
+}
+
+/* a site with no icon of its own (components/SiteIcon): a quiet globe, filling the slot the icon would */
+.site-globe {
+  display: inline-grid;
+  place-items: center;
+  color: var(--fg-dim);
+}
+.site-globe > svg {
+  width: 100%;
+  height: 100%;
+  max-width: 22px;
+  max-height: 22px;
 }

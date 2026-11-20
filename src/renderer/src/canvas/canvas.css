@@ -4005,7 +4005,8 @@
   backdrop-filter: blur(6px);
   animation: cv-attn-in var(--dur) var(--ease) both;
 }
-.cv-attn img {
+.cv-attn img,
+.cv-attn .site-globe {
   width: 14px;
   height: 14px;
   border-radius: 3px;
@@ -4543,6 +4544,19 @@
 .cv-recent button.on > img,
 .cv-recent button.on > span:first-child {
   opacity: 1;
+}
+.cv-recent .fav-attn > img,
+.cv-recent .fav-attn > .site-globe {
+  width: 14px;
+  height: 14px;
+  border-radius: 3.5px;
+}
+.cv-recent .fav-attn > b.count {
+  top: -6px;
+  right: -8px;
+  min-width: 14px;
+  height: 14px;
+  font-size: 9.5px;
 }
 .cv-recent button > span:last-child {
   overflow: hidden;

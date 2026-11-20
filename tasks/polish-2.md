@@ -3,6 +3,7 @@
 Goal: no new features except AI page edits. Make what exists stable, always reachable, fast to open, light on RAM.
 
 ## Goals (measurable; each item is done only when its number is met in the running app)
+
 - G1 Stability: no blank window, ever (Recover boundary everywhere); 0 console errors across the scripted tour
   (open, tabs, split, canvas, settings, notifications) in the test copy.
 - G2 Reachable: at 720x480, 1366x768 and 2560x1440, every control is on screen and clickable in every mode (pinned
@@ -18,6 +19,7 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - G8 AI: page edits work on YouTube, Jira, a news site; local answers start < 1.5 s on the i5 stand-in.
 
 ## 0. Test rig (first, everything else depends on it)
+
 - [x] Scratch Panes driven only over CDP (`PANES_USERDATA` scratch profile, own `--remote-debugging-port`, own
       `--inspect`). Clicks and keys go in as `Input.dispatch*` events on the chrome and page targets, screenshots with
       `Page.captureScreenshot`. No OS focus needed, so the user's terminal and windows are never touched.
@@ -26,12 +28,14 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
       seen this way; those few checks still use agent-desktop and are batched, with a warning first.
 
 ## 1. Stability
+
 - [x] Canvas white screen when editing text (reported 2026-11-13): reproduce, fix root cause, test.
 - [ ] Notifications: audit the attention/notification path end to end (badges, inbox, popups, grouping), list every
       failure found, fix, unit-test the state logic in shared/.
 - [x] Renderer crash guard: any React tree that throws shows a recoverable state, never a blank window.
 
 ## 2. Always reachable UI
+
 - [x] Tour card says "1 / 7" but its text says "Six short stops".
 - [ ] Inventory every surface (sidebar, top bar, canvas toolbar, preview bar, popovers, panels) x every way in/out
       (shortcut, click, hover, Esc, resize, fullscreen, split, small window). Fix any state where a control is lost.
@@ -40,20 +44,24 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
       connecting, AI working, saved/unsaved, download state). Checked against platform UI guidelines.
 
 ## 3. Canvas split view
+
 - [ ] More than two panes (grid layouts), drag to rearrange, resize every divider, keyboard focus moves, close/
       maximise one pane, layouts survive restart.
 
 ## 4. Speed
+
 - [ ] Measure first: cold start (normal and opened by a link from another app), warm "open link while running",
       tab switch. Baseline numbers in this file before any change.
 - [ ] Fix the largest costs found; re-measure.
 - [ ] Search: address bar suggestion latency and ranking, measured, then improved.
 
 ## 5. Memory: beat Chrome and Brave on the same tab set
+
 - [ ] Script: same 10 sites in Chrome, Brave and Panes, idle 10 min, total private bytes of all processes. Baseline.
 - [ ] Close the gap with what exists (trim, unload, process limits) and anything the measurement points at.
 
 ## 6. AI
+
 - [x] Cactus re-checked 2026-11-17 (v4.1.1): now ships windows-x86_64 cactus.exe, a win_amd64 Python wheel and a
       browser/Node WASM build (cactus.js + cactus.wasm, 1.2 MB, exports cactus_load/describe/complete/embed/transcribe).
       The CLI has no image input; vision is cactus_describe(rgb, w, h, ...). Measured on this machine (4 cores):
@@ -80,6 +88,7 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [ ] Model efficiency: measure the current local model on the bench; consider a smaller default.
 
 ## 7. Circle to search (asked 2026-11-16)
+
 - [x] Circle to search v1 (2026-11-17): Ctrl+Shift+S, the command bar, or a fast mouse shake over the page. A frozen
       picture of the page with a glowing lasso; circle, scribble or tap (a tap picks the element, a picture whole).
       Text comes from the page's DOM (exact, local, isolated world). Bar: Search (default engine), Search image
@@ -90,6 +99,7 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
       object out. ~4 s in WASM: run it behind the shimmer, never block the gesture.
 
 ## 8. User-reported polish queue (2026-11-17)
+
 - [ ] Preview dialog: top of the website has odd rounding / overflow.
 - [x] Canvas cursors: right cursor for every surface (grab/grabbing, resize, text, pointer, crosshair for tools).
 - [x] Drag handles: look and feel (size, hover, hit area, spring).
@@ -101,21 +111,27 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [x] Fully zoomed-out canvas: section headers scale smoothly with zoom (no sudden switch), overall polish of the board.
 
 ## Batch 2026-11-20
-- [ ] Open native apps from links (zoommtg:, slack:, msteams:...): 'apps' permission card naming the app.
-- [ ] Ctrl+W in the preview: page opened from another (arrow) goes back to that page; otherwise the board.
-- [ ] Ctrl+W shrinks the recent-tabs count in the preview dialog: make consistent.
+
+- [x] Open native apps from links (zoommtg:, slack:, msteams:...): 'apps' permission card naming the app.
+- [x] Ctrl+W in the preview: page opened from another (arrow) goes back to that page; otherwise the board.
+- [x] Ctrl+W shrinks the recent-tabs count in the preview dialog: make consistent.
 - [ ] Notifications (top centre) vs recent tabs in the preview: confusing, notifications used to switch tabs. Move notifications to the side in both UIs.
-- [ ] Recent-tab favicons in the preview show the notification bubble. Redo notifications UI across the browser (esp. canvas), creatively.
-- [ ] Missing favicon: a letter in some places, a globe in others. One fallback everywhere.
+- [x] Recent-tab favicons in the preview show the notification bubble.
+- [ ] Redo notifications UI across the browser (esp. canvas), creatively.
+- [x] Missing favicon: a letter in some places, a globe in others. One fallback everywhere.
 - [ ] Option: preview dialog toolbar at the bottom of the screen.
 - [ ] Split view: fullscreen broken (esp. canvas preview); resizing panes unreliable.
+- [ ] Shared spaces (FigJam-like, fully featured): both users edit notes, images, arrows, sections, cards. Later: optional shared tabs (watch-together).
+      Decisions 2026-11-20: own Yjs websocket relay on the user's Render account; join by invite link with a secret key (no accounts); images shrunk and uploaded to the relay (~5 MB cap). Order: small fixes -> notifications redesign -> shared spaces.
 
 ## Decisions (2026-11-16)
+
 - Page edits: online model when signed in, local model only for simple CSS edits.
 - Order: stability first (as listed).
 - Split view: free grid (split any pane edge, drag headers, every divider resizes).
 
 ## Log
+
 - Startup: AI SDK + providers (~350 ms) and electron-updater (~110 ms) now load on first use; lock taken in loader.ts. Packaged, warm: first code 510 -> 360 ms, page loaded median 1200 -> 760 ms; link hand-off to a running Panes ~170 ms total (was >500 ms before the check).
 - 720x480 pass: sidebar ~1/3 of width (auto-collapse below ~900?); canvas search placeholder clipped; AI-off banner sits over cards; bin sliver over canvas. Esc from CDP did not close canvas (CDP keys skip before-input-event; recheck with real keys).
 - 2026-11-16: canvas white screen fixed (label width loop, flex-shrink), empty hint fixed, Recover error boundary; beta.61.

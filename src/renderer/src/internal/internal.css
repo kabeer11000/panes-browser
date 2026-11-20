@@ -290,14 +290,6 @@ button {
   background: var(--surface-active);
   object-fit: contain;
 }
-.site-icon.letter {
-  display: grid;
-  place-items: center;
-  padding: 0;
-  color: var(--fg-dim);
-  font-size: var(--fs-m);
-  font-weight: 600;
-}
 
 .int-cards {
   display: grid;
@@ -332,9 +324,6 @@ button {
   padding: 7px;
   margin-bottom: 8px;
   border-radius: var(--r-4);
-}
-.int-card-link .site-icon.letter {
-  font-size: var(--fs-xl);
 }
 .int-card-link .int-title {
   font-weight: 550;

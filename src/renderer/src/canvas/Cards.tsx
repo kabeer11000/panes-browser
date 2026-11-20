@@ -9,6 +9,7 @@ import {
 } from '@shared/ai/canvas'
 import { noteFontSize } from '@shared/ai/canvasText'
 import { CloseIcon, IncognitoIcon, SpeakerIcon, TorIcon } from '@renderer/components/icons'
+import { SiteIcon } from '@renderer/components/SiteIcon'
 import { CallBadge } from '@renderer/components/CallBadge'
 import { CaptureBadge } from '@renderer/components/CaptureBadge'
 import { badgeText } from '@shared/attention'
@@ -458,7 +459,7 @@ export const CardView = memo(
                   aria-label={m.attnCount ? `${m.attnCount} new` : 'Something new'}
                   title={m.attnCount ? `${m.attnCount} new` : 'Something new'}
                 >
-                  {m.favicon && <img src={m.favicon} alt="" />}
+                  <SiteIcon src={m.favicon} />
                   <b className={m.attnCount ? 'count' : ''}>{badgeText(m.attnCount ?? 0)}</b>
                 </span>
               )}

@@ -216,7 +216,7 @@ export function Passwords(): React.JSX.Element {
                     aria-expanded={open}
                     onClick={() => setOpenId(open ? null : item.id)}
                   >
-                    <Site favicon={null} title={siteName(item.origin)} url={item.origin} />
+                    <Site favicon={null} />
                     <span className="u-text">
                       <span className="u-label">{siteName(item.origin)}</span>
                       <span className="u-hint">{item.username || 'No username'}</span>
@@ -277,7 +277,8 @@ export function Passwords(): React.JSX.Element {
           <div className="u-text">
             <div className="u-label">Import from CSV</div>
             <div className="u-hint">
-              Chrome, Edge, Brave, Opera, Vivaldi, Firefox, Safari, 1Password, Bitwarden, LastPass and KeePass all export CSV. Pick the file here.
+              Chrome, Edge, Brave, Opera, Vivaldi, Firefox, Safari, 1Password, Bitwarden, LastPass
+              and KeePass all export CSV. Pick the file here.
             </div>
           </div>
         </button>

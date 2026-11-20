@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SiteIcon } from '@renderer/components/SiteIcon'
 import type { CardModel } from './model'
 
 /** A picture from the web: one that will not load shows `fallback` (nothing by default), not a broken image. */
@@ -14,13 +15,7 @@ export function Img({
   return <img src={src} alt="" decoding="async" draggable={false} onError={() => setBad(src)} />
 }
 
-/** A site's icon, or the first letter of its name when it has none or it will not load. */
-export function Favicon({
-  m
-}: {
-  m: Pick<CardModel, 'favicon' | 'site' | 'title'>
-}): React.JSX.Element {
-  // a page with no name yet (still loading, or only a download) shows an empty mark, not a question mark
-  const letter = <span>{(m.site || m.title).charAt(0).toUpperCase()}</span>
-  return m.favicon ? <Img src={m.favicon} fallback={letter} /> : letter
+/** A site's icon, or the globe when it has none or it will not load (as everywhere else, see SiteIcon). */
+export function Favicon({ m }: { m: Pick<CardModel, 'favicon'> }): React.JSX.Element {
+  return <SiteIcon src={m.favicon} />
 }

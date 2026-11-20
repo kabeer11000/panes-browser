@@ -5,7 +5,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseMarkdown, type Block, type Inline } from '@shared/ai/markdown'
 import type { CanvasReaderDoc } from '@shared/ai/canvasItems'
 import type { PageMenuPick, PreviewSwipe, Rect, TabInfo } from '@shared/types'
-import type { Grouped } from '@shared/attention'
+import { badgeText, type Grouped } from '@shared/attention'
 import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
 import { READER } from './model'
@@ -20,6 +20,7 @@ import {
   StopIcon
 } from '@renderer/components/icons'
 import { FindBar } from '@renderer/components/FindBar'
+import { SiteIcon } from '@renderer/components/SiteIcon'
 import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
@@ -86,13 +87,8 @@ function cardTarget(
  * A site's icon in the header, decoded with the frame it first shows in: the header is made anew when another card
  * takes the preview's place, and an icon decoded a frame late would blink.
  */
-function HeadIcon({ m }: { m: Pick<CardModel, 'favicon' | 'site' | 'title'> }): React.JSX.Element {
-  const [bad, setBad] = useState<string | null>(null)
-  // a page with no name yet (still loading, or only a download) shows an empty mark, not a question mark
-  const letter = <span>{(m.site || m.title).charAt(0).toUpperCase()}</span>
-  if (!m.favicon || bad === m.favicon) return letter
-  const src = m.favicon
-  return <img src={src} alt="" decoding="sync" draggable={false} onError={() => setBad(src)} />
+function HeadIcon({ m }: { m: Pick<CardModel, 'favicon'> }): React.JSX.Element {
+  return <SiteIcon src={m.favicon} decoding="sync" />
 }
 
 /** Hide or show a card under the preview straight away, ahead of the board's own state (see Expanded's close). */
@@ -1632,7 +1628,17 @@ export function Expanded({
                       if (r.id !== m.id) onSwitch(r.id)
                     }}
                   >
-                    <HeadIcon m={r} />
+                    {r.attnNew ? (
+                      // something new in that tab: the same red mark as on its tab and its card
+                      <span className="fav-attn">
+                        <HeadIcon m={r} />
+                        <b className={r.attnCount ? 'count' : ''}>
+                          {badgeText(r.attnCount ?? 0, 9)}
+                        </b>
+                      </span>
+                    ) : (
+                      <HeadIcon m={r} />
+                    )}
                     <span>{r.title || r.site}</span>
                   </button>
                 ))}

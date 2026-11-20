@@ -32,6 +32,7 @@ import {
   SplitIcon,
   TorIcon
 } from './icons'
+import { SiteIcon } from './SiteIcon'
 
 export interface Anchor {
   left: number
@@ -460,9 +461,9 @@ export function SearchPalette({
                 <span className="pal-recent-pic">
                   {thumbs?.[t.id] ? (
                     <img src={thumbs[t.id]} alt="" />
-                  ) : t.favicon ? (
-                    <img className="pal-recent-fav" src={t.favicon} alt="" />
-                  ) : null}
+                  ) : (
+                    <SiteIcon className="pal-recent-fav" src={t.favicon} />
+                  )}
                   <kbd>{i + 1}</kbd>
                 </span>
                 <span className="pal-recent-name">{t.title || t.url}</span>
