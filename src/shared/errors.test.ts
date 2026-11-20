@@ -17,6 +17,8 @@ describe('kindOf', () => {
     expect(kindOf('ERR_CERT_AUTHORITY_INVALID')).toBe('cert')
     expect(kindOf('ERR_SSL_PROTOCOL_ERROR')).toBe('cert')
     expect(kindOf('ERR_BLOCKED_BY_CLIENT')).toBe('blocked')
+    expect(kindOf('PAGE_CRASHED')).toBe('crashed')
+    expect(parseErrorParams('?desc=PAGE_CRASHED').desc).toBe('PAGE_CRASHED')
     expect(kindOf('ERR_SOMETHING_NEW')).toBe('generic')
   })
 

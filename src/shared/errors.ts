@@ -1,5 +1,6 @@
 /** The families of failed page loads Panes has a custom page for. */
-export type ErrorKind = 'offline' | 'dns' | 'refused' | 'timeout' | 'cert' | 'blocked' | 'generic'
+export type ErrorKind =
+  'offline' | 'dns' | 'refused' | 'timeout' | 'cert' | 'blocked' | 'crashed' | 'generic'
 
 export interface ErrorInfo {
   kind: ErrorKind
@@ -17,7 +18,8 @@ const KIND_OF: Array<[RegExp, ErrorKind]> = [
   ],
   [/TIMED_OUT/, 'timeout'],
   [/^ERR_CERT_|SSL_|BAD_SSL|INSECURE_RESPONSE/, 'cert'],
-  [/BLOCKED_BY_/, 'blocked']
+  [/BLOCKED_BY_/, 'blocked'],
+  [/PAGE_CRASHED/, 'crashed'] // not Chromium's: Panes' own, for a page whose renderer died (main/tabs.ts)
 ]
 
 /** Electron's error description, like "ERR_NAME_NOT_RESOLVED", to a family. */
@@ -66,6 +68,11 @@ const INFO: Record<ErrorKind, Omit<ErrorInfo, 'kind'>> = {
       'An ad blocker rule or the site itself refused the request',
       'Turn the ad blocker off in Settings to check'
     ]
+  },
+  crashed: {
+    title: 'This page crashed',
+    message: 'Something made the page stop working. The rest of Panes is fine.',
+    tips: ['Reload the page', 'If it keeps happening, the page may be using too much memory']
   },
   generic: {
     title: "Can't open this page",

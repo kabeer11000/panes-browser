@@ -33,6 +33,7 @@ function Badge({ kind }: { kind: ErrorKind }): React.JSX.Element {
     timeout: 'M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 9v4l3 2M9 2h6',
     cert: 'M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3',
     blocked: 'M12 3 4 6v6c0 4.4 3.2 7.6 8 9 4.8-1.4 8-4.6 8-9V6zM9 9l6 6M15 9l-6 6',
+    crashed: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8 10h.01M16 10h.01M8.5 16a4 4 0 0 1 7 0',
     generic: 'M12 4 3 20h18zM12 10v4M12 17h.01'
   }
   return (
@@ -167,7 +168,7 @@ export function ErrorPage(): React.JSX.Element {
       <div className="err-actions">
         {target && (
           <button type="button" className="err-btn primary" onClick={retry} autoFocus>
-            Try again
+            {info.kind === 'crashed' ? 'Reload' : 'Try again'}
           </button>
         )}
         {info.kind === 'dns' && host && (

@@ -354,7 +354,13 @@ export class TabManager {
       if (!t.shownPage) this.close(id)
       return
     }
+    // A pop-up opened only for the file (window.open of a download address) goes too, instead of staying blank.
+    const popup = BrowserWindow.fromWebContents(wc)
+    if (popup && popup !== this.win && !this.popupsShown.has(wc)) popup.close()
   }
+
+  /** Pop-up windows that have shown a page of their own (see downloadStarted). */
+  private popupsShown = new WeakSet<WebContents>()
 
   contentsOf(id: number): WebContents | null {
     const t = this.tabs.get(id)
@@ -1039,8 +1045,14 @@ export class TabManager {
   private destroyView(tab: Tab): void {
     if (tab.unloaded) return
     if (!isOffscreen(tab.view)) this.win.contentView.removeChildView(tab.view)
-    tab.view.webContents.close()
+    const wc = liveContents(tab) // already gone when the page closed itself
+    if (!wc) return
+    this.closedByUs.add(wc)
+    wc.close()
   }
+
+  /** Pages Panes closed itself (a tab closed or unloaded): their going is not the page closing its own tab. */
+  private closedByUs = new WeakSet<WebContents>()
 
   create(
     input = '',
@@ -3202,6 +3214,24 @@ export class TabManager {
     if (isOffscreen(tab.view)) tab.view.tabId = id // the board finds the page's canvas by its tab
     const wc = tab.view.webContents
     const refresh = (): void => this.refresh()
+    // A page that closes itself (window.close(), as many download pages do once the file has started) takes its tab
+    // with it, as in Chrome. Left in place the tab held a page that was gone: a frozen picture, and every action on it
+    // (reload, back) failed.
+    wc.once('destroyed', () => {
+      if (!this.closedByUs.has(wc) && this.tabs.get(id) === tab) this.close(id)
+    })
+    // A page whose renderer died (crashed, out of memory) shows a "this page crashed" page with Reload, as Chrome's
+    // sad tab does, instead of its last frame frozen on screen.
+    wc.on('render-process-gone', (_e, d) => {
+      if (d.reason === 'clean-exit' || this.tabs.get(id) !== tab) return
+      const url = tab.failed?.url ?? wc.getURL()
+      tab.failed = { url, code: 0, desc: 'PAGE_CRASHED' }
+      const space = this.deps.spaces.get(tab.spaceId)
+      const theme = space ? { color: space.color, tint: space.tint } : undefined
+      const back = wc.navigationHistory.canGoBack()
+      void wc.loadURL(errorPageUrl(url, 0, 'PAGE_CRASHED', back, theme)).catch(() => {})
+      refresh()
+    })
     wc.on('did-navigate', (_e, url) => {
       // a new view commits about:blank first: that is not the page that was asked for
       if (url !== 'about:blank') {
@@ -3231,6 +3261,9 @@ export class TabManager {
       void applyIdentity(child.webContents, ids, details.url, false)
       child.webContents.on('did-start-navigation', (d) => {
         if (d.isMainFrame && !d.isSameDocument) followIdentity(child.webContents, ids, d.url)
+      })
+      child.webContents.on('did-navigate', (_e, url) => {
+        if (url !== 'about:blank') this.popupsShown.add(child.webContents)
       })
     })
     wc.on('did-start-loading', refresh)
