@@ -1,7 +1,7 @@
 import { cosine, GROUP_THRESHOLD } from './cluster'
 import { fallbackName } from './grouping'
 import { keepItem, type CanvasItem } from './canvasItems'
-import { moveMarks, sanitizeMarks, type CanvasMark } from './canvasMarks'
+import { FRAME_TITLE, moveMarks, sanitizeMarks, type CanvasMark } from './canvasMarks'
 import { pruneConnectors, remapCards, sanitizeConnectors, type CanvasConnector } from './connectors'
 import { cleanWidget, newWidget, WIDGET_SIZE, type Widget, type WidgetKind } from '../widgets'
 
@@ -409,12 +409,17 @@ const memberMarks = (s: CanvasState, frameId: string): CanvasMark[] =>
 const looseNotes = (s: CanvasState): CanvasNote[] => s.notes.filter((n) => !n.frame)
 
 /** Drawings (shapes, text, blocks, lines) as boxes: new frames, notes and cards keep clear of them. */
-const markBoxes = (s: CanvasState): Box[] =>
-  (s.marks ?? []).map((m) => ({ x: m.x, y: m.y, w: m.w, h: m.h }))
+const markBoxes = (s: CanvasState, except?: string): Box[] =>
+  (s.marks ?? [])
+    .filter((m) => !except || m.frame !== except) // a section's own drawings are no obstacle to it
+    .map((m) => ({ x: m.x, y: m.y, w: m.w, h: m.h }))
+
+/** A section's box with its name above it: the name is part of it, nothing may sit on it. */
+const titled = (f: Box): Box => ({ x: f.x, y: f.y - FRAME_TITLE, w: f.w, h: f.h + FRAME_TITLE })
 const frameObstacles = (s: CanvasState, except?: string): Box[] => [
-  ...s.frames.filter((f) => f.id !== except),
+  ...s.frames.filter((f) => f.id !== except).map(titled),
   ...looseNotes(s),
-  ...markBoxes(s)
+  ...markBoxes(s, except)
 ]
 
 function withFrame(s: CanvasState, f: CanvasFrame): CanvasState {
@@ -442,15 +447,95 @@ function translateFrame(s: CanvasState, id: string, dx: number, dy: number): Can
   }
 }
 
-/** If a frame overlaps another frame or a note, move it (with its cards) to the nearest free place. */
-function settleFrame(s: CanvasState, id: string): CanvasState {
-  const f = s.frames.find((x) => x.id === id)
-  if (!f) return s
-  const others = frameObstacles(s, id)
-  if (!others.some((o) => intersects(f, o, FRAME_GAP / 4))) return s
-  const spot = freeSpot(f, others, f)
-  return translateFrame(s, id, spot.x - f.x, spot.y - f.y)
+/** Something on the board that can be moved out of a section's way: a section (with what is in it) or a loose item. */
+interface Movable {
+  key: string
+  box: Box
+  move: (s: CanvasState, dx: number, dy: number) => CanvasState
 }
+
+/** Everything on the board that moves by itself: sections, and notes, cards and drawings outside any section. */
+function movables(s: CanvasState): Movable[] {
+  return [
+    ...s.frames.map((f) => ({
+      key: `f:${f.id}`,
+      box: titled(f),
+      move: (t: CanvasState, dx: number, dy: number) => translateFrame(t, f.id, dx, dy)
+    })),
+    ...looseNotes(s).map((n) => ({
+      key: `n:${n.id}`,
+      box: n as Box,
+      move: (t: CanvasState, dx: number, dy: number) => ({
+        ...t,
+        notes: t.notes.map((x) => (x.id === n.id ? { ...x, x: x.x + dx, y: x.y + dy } : x))
+      })
+    })),
+    ...s.cards
+      .filter((c) => !c.frame)
+      .map((c) => ({
+        key: `c:${c.id}`,
+        box: cardBox(c),
+        move: (t: CanvasState, dx: number, dy: number) => ({
+          ...t,
+          cards: t.cards.map((x) => (x.id === c.id ? { ...x, x: x.x + dx, y: x.y + dy } : x))
+        })
+      })),
+    ...(s.marks ?? [])
+      .filter((m) => !m.frame)
+      .map((m) => ({
+        key: `m:${m.id}`,
+        box: { x: m.x, y: m.y, w: m.w, h: m.h },
+        move: (t: CanvasState, dx: number, dy: number) => ({
+          ...t,
+          marks: moveMarks(t, [m.id], dx, dy).marks
+        })
+      }))
+  ]
+}
+
+/**
+ * Make room around a section that grew, was dropped or was made: it stays where it is (the one being worked on never
+ * jumps away), and whatever it now covers is pushed out the shortest way that leads away from it (judged by their
+ * middles), just far enough to clear it. What that pushes into moves on in turn; a cap on the rounds ends it.
+ */
+export function makeRoom(s: CanvasState, id: string): CanvasState {
+  const origin = `f:${id}`
+  if (!s.frames.some((f) => f.id === id)) return s
+  let next = s
+  const queue = [origin]
+  for (let guard = 0; queue.length > 0 && guard < 400; guard++) {
+    const key = queue.shift()!
+    let all = movables(next)
+    const me = all.find((m) => m.key === key)
+    if (!me) continue
+    for (const k of all.map((m) => m.key)) {
+      if (k === key || k === origin) continue
+      const cur = all.find((m) => m.key === k)
+      if (!cur || !intersects(me.box, cur.box, FRAME_GAP / 4)) continue
+      const a = me.box
+      const b = cur.box
+      const clear = FRAME_GAP / 2
+      // each way out that leads away from the pusher (judged by the middles), with how far it is
+      const ways: Array<[number, number]> = []
+      const below = b.y + b.h / 2 >= a.y + a.h / 2
+      const after = b.x + b.w / 2 >= a.x + a.w / 2
+      ways.push(below ? [0, a.y + a.h + clear - b.y] : [0, a.y - clear - (b.y + b.h)])
+      ways.push(after ? [a.x + a.w + clear - b.x, 0] : [a.x - clear - (b.x + b.w), 0])
+      const [dx, dy] = ways.reduce((p, q) =>
+        Math.abs(q[0] + q[1]) < Math.abs(p[0] + p[1]) ? q : p
+      )
+      next = cur.move(next, dx, dy)
+      all = movables(next)
+      if (!queue.includes(k)) queue.push(k)
+      // a push further down the chain may land back on the section: look round it again
+      if (key !== origin && !queue.includes(origin)) queue.push(origin)
+    }
+  }
+  return next
+}
+
+/** A section that changed keeps its place and moves what it now covers out of the way (see makeRoom). */
+const settleFrame = makeRoom
 
 /** Shrink a frame's height to its last row of cards (never below one row). */
 function shrinkFrame(s: CanvasState, id: string): CanvasState {
@@ -677,9 +762,53 @@ export function seatSplit(
       set.has(c.id) ? { ...c, x: c.x + dx, y: c.y + dy, frame: frameId, manual: true } : c
     )
   }
-  next = regridFrame(next, frameId, !!f.sized)
+  next = f.free ? lineUpSplit(next, ids, frameId) : regridFrame(next, frameId, !!f.sized)
   next = settleFrame(next, frameId)
   for (const id of from) next = dropIfEmpty(next, id)
+  return next
+}
+
+/**
+ * A split view in a section laid out by hand (which regridFrame leaves alone): its cards side by side at their own
+ * sizes, from where the first one is, with room for its lip and outline. What else in the section the row now covers
+ * steps down below it, and the section grows to hold it all. (Cards were left where they were, so a member wider than
+ * a default card lay over its neighbour.)
+ */
+function lineUpSplit(s: CanvasState, ids: number[], frameId: string): CanvasState {
+  const f = s.frames.find((x) => x.id === frameId)
+  const cs = ids.map((id) => s.cards.find((c) => c.id === id)).filter((c): c is CanvasCard => !!c)
+  if (!f || cs.length < 2) return s
+  const x0 = Math.max(f.x + PAD + SPLIT_SIDE, cs[0].x)
+  const y0 = Math.max(f.y + HEAD + SPLIT_TOP_EXTRA, cs[0].y)
+  const at = new Map<number, { x: number; y: number }>()
+  let x = x0
+  for (const c of cs) {
+    at.set(c.id, { x, y: y0 })
+    x += (c.w ?? CARD_W) + GAP
+  }
+  // the split's outline, with its lip above it, as the row nothing else may sit in
+  const row: Box = {
+    x: x0 - SPLIT_INSET,
+    y: y0 - SPLIT_LIP,
+    w: x - GAP - x0 + SPLIT_INSET * 2,
+    h: Math.max(...cs.map((c) => c.h ?? CARD_H)) + SPLIT_LIP + SPLIT_INSET
+  }
+  const below = row.y + row.h + GAP
+  const set = new Set(ids)
+  const covered = (b: Box): boolean => intersects(b, row, GAP / 2)
+  let next: CanvasState = {
+    ...s,
+    cards: s.cards.map((c) => {
+      if (set.has(c.id)) return { ...c, ...at.get(c.id)! }
+      return c.frame === frameId && covered(cardBox(c)) ? { ...c, y: Math.max(c.y, below) } : c
+    }),
+    notes: s.notes.map((n) =>
+      n.frame === frameId && covered(n) ? { ...n, y: Math.max(n.y, below) } : n
+    )
+  }
+  const hug = hugBox(next, frameId)
+  const cur = next.frames.find((x) => x.id === frameId)!
+  if (hug) next = withFrame(next, { ...cur, ...(boundsOf([cur, hug]) as Box) })
   return next
 }
 
@@ -1156,9 +1285,10 @@ export function dropCards(
     } else if (!target) {
       from.add(c.frame)
       const others = [
-        ...s.frames,
+        ...s.frames.map(titled),
         ...looseNotes(s),
-        ...s.cards.filter((o) => o.id !== id && o.frame === null).map(cardBox)
+        ...s.cards.filter((o) => o.id !== id && o.frame === null).map(cardBox),
+        ...markBoxes(s)
       ]
       const spot = freeSpot({ w: c.w ?? CARD_W, h: c.h ?? CARD_H }, others, to, GAP)
       s = {
@@ -1521,7 +1651,7 @@ export function addNote(
   }
   const spot = freeSpot(
     size,
-    [...s.frames, ...s.notes, ...s.cards.map(cardBox), ...markBoxes(s)],
+    [...s.frames.map(titled), ...s.notes, ...s.cards.map(cardBox), ...markBoxes(s)],
     at,
     GAP
   )
@@ -1718,14 +1848,7 @@ export function fitFrames(s: CanvasState): CanvasState {
     grew.push(f.id)
   }
   // a section that grew onto its neighbours moves them (and theirs) out of the way
-  for (const id of grew) {
-    const me = next.frames.find((x) => x.id === id)
-    if (!me) continue
-    for (const o of next.frames) {
-      if (o.id === id || !intersects(me, o, FRAME_GAP / 4)) continue
-      next = settleFrame(next, o.id)
-    }
-  }
+  for (const id of grew) next = makeRoom(next, id)
   return next
 }
 
@@ -2068,7 +2191,7 @@ export function addLoose(
   const at = b ? { x: b.x + b.w + GAP * 2, y: b.y } : (near.point ?? { x: 0, y: 0 })
   const spot = freeSpot(
     { w: CARD_W, h: CARD_H },
-    [...s.frames, ...s.notes, ...s.cards.map(cardBox), ...markBoxes(s)],
+    [...s.frames.map(titled), ...s.notes, ...s.cards.map(cardBox), ...markBoxes(s)],
     at,
     GAP
   )

@@ -305,3 +305,80 @@ describe('resized cards in a split view', () => {
     expect(arrangeSplit(s, [1, 2])).toBe(s)
   })
 })
+
+describe('split view in a section laid out by hand', () => {
+  // the board seen in testing: a free section whose split members were left where they were, the first one wider
+  // than a default card, so the second lay over it
+  const s0 = {
+    ...emptyState('b'),
+    split: [1, 2],
+    frames: [
+      {
+        id: 'other',
+        name: 'Other',
+        kind: 'other' as const,
+        x: 0,
+        y: 0,
+        w: 704,
+        h: 664,
+        pinned: false,
+        sized: true,
+        free: true
+      }
+    ],
+    cards: [
+      {
+        id: 1,
+        url: 'https://a.com/',
+        x: 24,
+        y: 340,
+        w: 320,
+        h: 187,
+        frame: 'other',
+        manual: true,
+        private: false
+      },
+      {
+        id: 2,
+        url: 'https://b.com/',
+        x: 280,
+        y: 340,
+        w: 320,
+        h: 170,
+        frame: 'other',
+        manual: true,
+        private: false
+      },
+      {
+        id: 3,
+        url: 'https://c.com/',
+        x: 360,
+        y: 24,
+        w: 320,
+        h: 170,
+        frame: 'other',
+        manual: false,
+        private: false
+      }
+    ]
+  }
+  test('its cards sit side by side at their own widths, nothing in the section overlaps, and the section holds them', () => {
+    const s = arrangeSplit(s0, [1, 2])
+    const [a, b, c] = [1, 2, 3].map((id) => s.cards.find((x) => x.id === id)!)
+    expect(b.y).toBe(a.y)
+    expect(b.x).toBeGreaterThanOrEqual(a.x + (a.w ?? CARD_W) + GAP - 0.5)
+    for (const [p, q] of [
+      [a, b],
+      [a, c],
+      [b, c]
+    ])
+      expect(intersects(cardBox(p), cardBox(q))).toBe(false)
+    const f = s.frames[0]
+    for (const card of [a, b, c]) expect(contains(f, cardBox(card))).toBe(true)
+  })
+  test('once lined up, arranging again changes nothing', () => {
+    const once = arrangeSplit(s0, [1, 2])
+    const twice = arrangeSplit(once, [1, 2])
+    expect(twice.cards).toEqual(once.cards)
+  })
+})

@@ -41,9 +41,12 @@ import {
   syncTabs,
   tidy,
   type Box,
+  type CanvasFrame,
+  makeRoom,
   type CanvasState,
   type TabLite
 } from './canvas'
+import type { CanvasMark } from './canvasMarks'
 
 const tab = (id: number, host = `site${id}.com`, priv = false): TabLite => ({
   id,
@@ -604,4 +607,106 @@ describe('videoCardSize keeps the shape', () => {
     expect(s.w / s.h).toBeCloseTo(4, 1)
   })
   test('no shape: the default card', () => expect(videoCardSize(0).w).toBeGreaterThan(0))
+})
+
+describe('makeRoom', () => {
+  const frame = (id: string, x: number, y: number, w = 600, h = 400): CanvasFrame => ({
+    id,
+    name: id,
+    kind: 'user',
+    x,
+    y,
+    w,
+    h,
+    pinned: true
+  })
+  const board = (frames: CanvasFrame[], extra: Partial<CanvasState> = {}): CanvasState => ({
+    ...emptyState('t'),
+    frames,
+    ...extra
+  })
+  const titledBox = (f: CanvasFrame): Box => ({ x: f.x, y: f.y - 36, w: f.w, h: f.h + 36 })
+  const clear = (s: CanvasState): void => {
+    const boxes = [
+      ...s.frames.map(titledBox),
+      ...s.notes.filter((n) => !n.frame),
+      ...s.cards.filter((c) => !c.frame).map(cardBox)
+    ]
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++) expect(intersects(boxes[i], boxes[j])).toBe(false)
+  }
+
+  test('the section that grew stays put; a neighbour it covers moves right, the short way out', () => {
+    const s = makeRoom(board([frame('a', 0, 0, 900), frame('b', 700, 0)]), 'a')
+    expect(s.frames.find((f) => f.id === 'a')).toMatchObject({ x: 0, y: 0 })
+    const b = s.frames.find((f) => f.id === 'b')!
+    expect(b.y).toBe(0)
+    expect(b.x).toBeGreaterThanOrEqual(900)
+    clear(s)
+  })
+  test('a neighbour below goes down, clear of the section and of its name', () => {
+    const s = makeRoom(board([frame('a', 0, 0, 600, 500), frame('b', 0, 450)]), 'a')
+    const b = s.frames.find((f) => f.id === 'b')!
+    expect(b.x).toBe(0)
+    expect(b.y - 36).toBeGreaterThanOrEqual(500)
+    clear(s)
+  })
+  test('pushes cascade: what is pushed moves what it lands on', () => {
+    const s = makeRoom(board([frame('a', 0, 0, 900), frame('b', 700, 0), frame('c', 1400, 0)]), 'a')
+    expect(s.frames.find((f) => f.id === 'a')).toMatchObject({ x: 0, y: 0 })
+    clear(s)
+  })
+  test('loose notes and cards under a grown section are moved out, and its own contents ride with nothing', () => {
+    const note = { id: 'n1', text: '', color: 0, x: 300, y: 300, w: 200, h: 200, frame: null }
+    const card = {
+      id: 7,
+      url: 'https://a.com',
+      x: 100,
+      y: 350,
+      frame: null,
+      manual: true,
+      private: false
+    }
+    const inside = { id: 'n2', text: '', color: 0, x: 40, y: 80, w: 200, h: 200, frame: 'a' }
+    const s = makeRoom(
+      board([frame('a', 0, 0, 600, 500)], { notes: [note, inside], cards: [card] }),
+      'a'
+    )
+    expect(s.notes.find((n) => n.id === 'n2')).toMatchObject({ x: 40, y: 80 })
+    clear(s)
+  })
+  test('a section with a drawing inside it is not moved on account of its own drawing', () => {
+    const mark = {
+      id: 'm1',
+      kind: 'rect',
+      x: 50,
+      y: 80,
+      w: 100,
+      h: 100,
+      frame: 'a'
+    } as unknown as CanvasMark
+    const s0 = board([frame('a', 0, 0)], { marks: [mark] })
+    const s = moveFrame(s0, 'a', 10, 0)
+    expect(s.frames[0]).toMatchObject({ x: 10, y: 0 })
+  })
+  test('something just above, touching its name, steps up a little instead of being sent far off', () => {
+    const s = makeRoom(board([frame('a', 0, 400, 900), frame('b', 0, 0, 600, 380)]), 'a')
+    const b = s.frames.find((f) => f.id === 'b')!
+    expect(b.x).toBe(0)
+    expect(b.y).toBeLessThan(0)
+    expect(b.y).toBeGreaterThan(-100)
+    clear(s)
+  })
+  test('a crowded board ends with nothing overlapping', () => {
+    const frames = [frame('a', 0, 0, 1200, 900)]
+    for (let i = 0; i < 12; i++)
+      frames.push(frame(`b${i}`, (i % 4) * 500, Math.floor(i / 4) * 450, 450, 380))
+    const s = makeRoom(board(frames), 'a')
+    expect(s.frames.find((f) => f.id === 'a')).toMatchObject({ x: 0, y: 0 })
+    clear(s)
+  })
+  test('nothing to move: the same board back', () => {
+    const s0 = board([frame('a', 0, 0), frame('b', 900, 0)])
+    expect(makeRoom(s0, 'a')).toEqual(s0)
+  })
 })
