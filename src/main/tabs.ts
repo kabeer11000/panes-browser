@@ -823,6 +823,27 @@ export class TabManager {
     return !this.canvasMode && !this.overlay && this.current() !== null
   }
 
+  /**
+   * The page a sideways touchpad swipe goes back or forward in, and where it sits: the tab on screen, or on the board
+   * the page live in the preview (the pane last used, in a split). Null when no page is on screen to swipe.
+   */
+  swipeTarget(): { wc: WebContents; rect: Rect; preview: boolean } | null {
+    if (this.overlay || this.fullscreenId !== null) return null
+    if (!this.canvasMode) {
+      const t = this.current()
+      const wc = t ? liveContents(t) : null
+      const rect = this.activeRect()
+      return wc && rect ? { wc, rect, preview: false } : null
+    }
+    if (!this.previewOpen) return null
+    const id = this.pageTabId()
+    if (id === null) return null
+    const rect = id === this.liveId ? this.liveRect : (this.companions.get(id) ?? null)
+    const t = this.tabs.get(id)
+    const wc = t ? liveContents(t) : null
+    return wc && rect ? { wc, rect, preview: true } : null
+  }
+
   /** Where the active tab's page sits in the window, for things that hang off its corner. */
   activeRect(): Rect | null {
     return this.activeId === null ? null : (this.rects[this.activeId] ?? null)
@@ -1739,22 +1760,42 @@ export class TabManager {
     writeFileSync(file.replace('.png', '-ui.png'), ui.toPNG())
   }
 
-  /** Float the current tab's video in a small always-on-top window, or bring it back. */
+  /** Float the video of the page on screen (on the board, the one in the preview) in a small always-on-top window, or bring it back. */
   togglePip(): void {
     if (this.pip.tabId !== null) return this.pip.stop()
-    const tab = this.current()
-    if (!tab || this.activeId === null) return
+    const tab = this.pageTab()
+    const id = this.pageTabId()
+    if (!tab || id === null) return
     // a page drawn off screen has no native view to move into the floating window: Chromium's own picture in picture
     // floats its video instead (it opens a window of its own, whatever draws the page)
     if (isOffscreen(tab.view)) {
       void tab.view.webContents.executeJavaScript(VIDEO_PIP_SCRIPT, true).catch(() => undefined)
       return
     }
-    void this.pip.start({ id: this.activeId, view: tab.view })
+    void this.pip.start({ id, view: tab.view })
   }
 
   exitPip(): void {
     this.pip.stop()
+  }
+
+  /**
+   * A page asked for picture in picture itself (its own button, as YouTube's; see preload/frame.ts): its video floats
+   * in Panes' window, as from Panes' own button, or comes back if it is floating. Chromium's own floating window does
+   * not show for a page in a native view. False leaves it to Chromium: a page drawn off screen, or not a tab's page.
+   */
+  pagePip(wc: WebContents, exit: boolean): boolean {
+    let id: number | null = null
+    for (const [tid, t] of this.tabs) if (liveContents(t) === wc) id = tid
+    const tab = id === null ? undefined : this.tabs.get(id)
+    if (id === null || !tab || isOffscreen(tab.view)) return false
+    if (this.pip.tabId === id) {
+      this.pip.stop()
+      return true
+    }
+    if (exit) return false // nothing of ours to close: the page's own call answers
+    void this.pip.start({ id, view: tab.view })
+    return true
   }
 
   /** Dev aid: the state of picture in picture. */

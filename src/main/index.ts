@@ -601,6 +601,7 @@ function createWindow(): void {
     tabs.moveTabToSpace(tabId, spaceId)
   )
   ipcMain.on('pip:toggle', () => tabs.togglePip())
+  ipcMain.handle('pip:page', (e, exit: unknown) => tabs.pagePip(e.sender, exit === true))
   ipcMain.on('pip:exit', () => tabs.exitPip())
   ipcMain.on('tabs:close-pane', (_e, id: number) => tabs.closePane(id))
   const sitePanel = new SitePanel({ win, sites, pickElement: (done) => tabs.pickElement(done) })

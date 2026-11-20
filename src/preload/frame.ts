@@ -86,7 +86,53 @@ function permissionShim(bridge: {
   })
 }
 
+/**
+ * A page's own picture-in-picture button (YouTube's, say): Chromium's floating window does not show for a page in a
+ * native view, so the request goes to Panes' own (main asks the tab to float, as Panes' button does; see pagePip).
+ * Only from a real press: a page cannot float a window by itself. Where Panes does not take it (a page drawn off screen)
+ * Chromium's own picture in picture answers, as before.
+ */
+function pipShim(bridge: { pip: (exit: boolean) => Promise<boolean> }): void {
+  const proto = globalThis.HTMLVideoElement?.prototype
+  const doc = globalThis.Document?.prototype
+  if (!proto?.requestPictureInPicture || !doc?.exitPictureInPicture) return
+  const ua = navigator.userActivation
+  const nativeRequest = proto.requestPictureInPicture
+  const nativeExit = doc.exitPictureInPicture
+  // what the page is handed back for its floating window: the size of the video, and events it may listen for
+  const floated = (video: HTMLVideoElement): PictureInPictureWindow => {
+    video.dispatchEvent(new Event('enterpictureinpicture'))
+    return {
+      get width() {
+        return video.videoWidth
+      },
+      get height() {
+        return video.videoHeight
+      },
+      onresize: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => true
+    } as unknown as PictureInPictureWindow
+  }
+  proto.requestPictureInPicture = function requestPictureInPicture(this: HTMLVideoElement) {
+    if (!ua?.isActive) return nativeRequest.call(this)
+    return bridge.pip(false).then((ours) => (ours ? floated(this) : nativeRequest.call(this)))
+  }
+  doc.exitPictureInPicture = function exitPictureInPicture(this: Document) {
+    return bridge.pip(true).then((ours) => (ours ? undefined : nativeExit.call(this)))
+  }
+}
+
 if (/^https?:$/.test(location.protocol)) {
+  try {
+    contextBridge.executeInMainWorld({
+      func: pipShim,
+      args: [{ pip: (exit: boolean) => ipcRenderer.invoke('pip:page', exit) as Promise<boolean> }]
+    })
+  } catch {
+    // a frame torn down as it started
+  }
   try {
     contextBridge.executeInMainWorld({
       func: permissionShim,
