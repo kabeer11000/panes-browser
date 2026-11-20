@@ -100,6 +100,16 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [ ] Context menus: one menu system, simple, consistent items, not many kinds.
 - [x] Fully zoomed-out canvas: section headers scale smoothly with zoom (no sudden switch), overall polish of the board.
 
+## Batch 2026-11-20
+- [ ] Open native apps from links (zoommtg:, slack:, msteams:...): 'apps' permission card naming the app.
+- [ ] Ctrl+W in the preview: page opened from another (arrow) goes back to that page; otherwise the board.
+- [ ] Ctrl+W shrinks the recent-tabs count in the preview dialog: make consistent.
+- [ ] Notifications (top centre) vs recent tabs in the preview: confusing, notifications used to switch tabs. Move notifications to the side in both UIs.
+- [ ] Recent-tab favicons in the preview show the notification bubble. Redo notifications UI across the browser (esp. canvas), creatively.
+- [ ] Missing favicon: a letter in some places, a globe in others. One fallback everywhere.
+- [ ] Option: preview dialog toolbar at the bottom of the screen.
+- [ ] Split view: fullscreen broken (esp. canvas preview); resizing panes unreliable.
+
 ## Decisions (2026-11-16)
 - Page edits: online model when signed in, local model only for simple CSS edits.
 - Order: stability first (as listed).

@@ -145,6 +145,8 @@ interface Props extends ExpandSource {
   /** Where the card is on screen now (it may have moved since: the board glided to it), for the morph back. */
   cardBox?: () => { x: number; y: number; w: number; h: number } | null
   onClose: () => void
+  /** Ctrl+W closed this page: show the page it came from instead; false when there is none (the preview closes). */
+  onBack?: () => boolean
   /** The panel now covers its card (true, once it has grown) or is about to uncover it (false, as it closes). */
   onCover?: (covered: boolean) => void
   onGoToTab: () => void
@@ -727,6 +729,7 @@ export function Expanded({
   reduced,
   answerLinks,
   onClose,
+  onBack,
   onCover,
   onGoToTab,
   onTab,
@@ -1116,8 +1119,10 @@ export function Expanded({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hideLive, reduced, onClose, cardBox, from, grabShot])
   const closeRef = useRef(close)
+  const onBackRef = useRef(onBack)
   useLayoutEffect(() => {
     closeRef.current = close
+    onBackRef.current = onBack
   })
   // the card clicked again while it closes (Canvas gives it a new `from`): it turns around and grows back, its speed
   // kept, the live page coming back once it is at rest
@@ -1169,7 +1174,9 @@ export function Expanded({
         if (k === 'address') editRef.current()
         else if (k === 'find') openFindRef.current()
         else if (k === 'zoom') readZoom()
-        else if (findKeyRef.current !== null) {
+        else if (k === 'back') {
+          if (!onBackRef.current?.()) closeRef.current()
+        } else if (findKeyRef.current !== null) {
           // Esc in the page with find open: find goes first
           window.api.stopFind()
           setFindKey(null)

@@ -3490,12 +3490,13 @@ export class TabManager {
     if (mod && !input.alt && !input.shift) {
       if (k === 't') this.newTabOrCard()
       else if (k === 'w' && this.canvasMode) {
-        // on the board: the page in the preview closes (and the preview with it); with none open the board takes the
+        // on the board: the page in the preview closes; the preview goes back to the page it was opened from (the
+        // arrow into its card), or closes with it. With none open the board takes the
         // key (it closes the selected card's tab). Never the tab view's tab, which is not on screen.
         const id = this.previewOpen ? (this.pageTab() ? this.pageTabId() : null) : null
         if (id !== null) {
           // the preview's own page: the preview closes with it; a split's other pane: only that pane goes
-          if (!this.companions.has(id)) this.send('canvas:preview-key', 'close')
+          if (!this.companions.has(id)) this.send('canvas:preview-key', 'back')
           this.close(id)
         } else handled = false
       } else if (k === 'w' && this.activeId !== null) this.close(this.activeId)

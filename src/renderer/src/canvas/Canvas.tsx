@@ -107,6 +107,7 @@ import {
   endBox,
   endKey,
   objectAt,
+  openerOf,
   patchConnector,
   pruneConnectors,
   setConnectorEnd,
@@ -118,7 +119,7 @@ import type { Settings, Space, TabInfo } from '@shared/types'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
-import { recentOthers } from '@shared/ai/previewBar'
+import { keptRecent } from '@shared/ai/previewBar'
 import { AiGlow } from './AiGlow'
 import { CardView, FrameBar, FrameHead, FrameView, NoteView } from './Cards'
 import { WidgetView } from './Widgets'
@@ -4784,18 +4785,13 @@ export function Canvas({
    * Another card into the open preview, in place: the page changes inside the preview, which neither closes nor flies
    * out of the new card. The board glides to that card behind it, where the preview will shrink back to on close.
    */
-  // A tab that closed meanwhile leaves the row at once (the others keep their places): one that only downloaded a
-  // file and closed stayed there as an empty "?". Only tabs that are pages with a name are offered: a tab that never
+  // A tab that closed meanwhile leaves the row at once (the others keep their places, the next recent tab fills the
+  // end): one that only downloaded a file and closed stayed there as an empty "?". Only tabs that are pages with a name are offered: a tab that never
   // got past its first load (a download) has nothing to show.
   const named = (id: number): boolean =>
     tabs.some((t) => t.id === id && !!t.title.trim() && !!t.url && t.url !== 'about:blank') &&
     !!st?.cards.some((c) => c.id === id)
-  const stripAlive = strip.filter((id) => tabs.some((t) => t.id === id))
-  const stripWant = expanded
-    ? stripAlive.includes(expanded.id)
-      ? stripAlive
-      : [expanded.id, ...recentOthers(tabs, expanded.id, named)]
-    : []
+  const stripWant = expanded ? keptRecent(strip, tabs, expanded.id, named) : []
   if (stripWant.join(',') !== strip.join(',')) setStrip(stripWant)
   const switchPreview = (next: number, live?: boolean): void => {
     const cur = expandedRef.current ? expandedNow.current : null
@@ -5984,6 +5980,13 @@ export function Canvas({
           onClose={() => {
             setExpandedCovers(false)
             setExpanded(null)
+          }}
+          onBack={() => {
+            const s0 = stRef.current
+            const opener = s0 ? openerOf(s0, expanded.id) : null
+            if (opener === null) return false
+            switchPreview(opener, true)
+            return true
           }}
           onGoToTab={() => goToTab(expanded.id)}
           onTab={(tabId) => {

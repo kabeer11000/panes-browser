@@ -203,6 +203,11 @@ const PERM_ICON: Record<PermKind, () => React.JSX.Element> = {
       <rect x="1.8" y="3" width="7.5" height="6" rx="1" />
       <rect x="6.7" y="7" width="7.5" height="6" rx="1" />
     </Glyph>
+  ),
+  apps: () => (
+    <Glyph>
+      <path d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3" />
+    </Glyph>
   )
 }
 

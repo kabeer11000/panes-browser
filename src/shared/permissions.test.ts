@@ -32,6 +32,7 @@ describe('kindsFor', () => {
     expect(kindsFor('midi')).toEqual(['midi'])
     expect(kindsFor('midiSysex')).toEqual(['midi'])
     expect(kindsFor('window-management')).toEqual(['windows'])
+    expect(kindsFor('openExternal')).toEqual(['apps'])
     expect(kindsFor('usb')).toBeNull()
     expect(kindsFor('idle-detection')).toBeNull()
   })

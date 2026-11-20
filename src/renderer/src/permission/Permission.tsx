@@ -44,7 +44,7 @@ export function Permission(): React.JSX.Element | null {
   }, [answer])
 
   if (!state) return null
-  const { origin, kinds, sources, audio, blocked, temporary } = state
+  const { origin, kinds, sources, audio, blocked, temporary, app } = state
   if (sources) {
     return (
       <ShareDialog
@@ -97,7 +97,7 @@ export function Permission(): React.JSX.Element | null {
       <div className="perm-card" role="dialog" aria-label="Site permission">
         <div className="perm-title">
           <b>{host(origin)}</b>
-          {` wants to use your ${describeKinds(kinds)}`}
+          {app ? ` wants to open ${app}` : ` wants to use your ${describeKinds(kinds)}`}
         </div>
         <div className="perm-actions">
           <button

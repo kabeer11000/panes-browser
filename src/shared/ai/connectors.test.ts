@@ -25,6 +25,7 @@ import {
   elbowPoints,
   endBox,
   objectAt,
+  openerOf,
   patchConnector,
   polylineMid,
   pruneConnectors,
@@ -358,5 +359,19 @@ describe('saving and loading', () => {
     const out = remapCards(list, new Map([[3, 30]]))
     expect(out.map((c) => c.id)).toEqual(['k2'])
     expect(out[0].from).toEqual(card(30))
+  })
+})
+
+describe('openerOf', () => {
+  test('the card an arrow comes from, none for a card no arrow points at', () => {
+    const s = addConnector(board(), card(1), card(2))!.state
+    expect(openerOf(s, 2)).toBe(1)
+    expect(openerOf(s, 1)).toBeNull()
+  })
+  test('ignores an opener whose card has gone, and arrows from notes or points', () => {
+    let s = addConnector(board(), point(0, 0), card(2))!.state
+    expect(openerOf(s, 2)).toBeNull()
+    s = addConnector(s, card(1), card(2))!.state
+    expect(openerOf({ ...s, cards: s.cards.filter((c) => c.id !== 1) }, 2)).toBeNull()
   })
 })

@@ -45,6 +45,16 @@ const HEADS: ConnectorHeads[] = ['end', 'both', 'none']
 
 export const connectorsOf = (s: CanvasState): CanvasConnector[] => s.connectors ?? []
 
+/** The card an arrow comes into `card` from (the newest such arrow), still on the board; null if none. */
+export function openerOf(s: CanvasState, card: number): number | null {
+  const from = connectorsOf(s)
+    .flatMap((k) =>
+      k.to.kind === 'card' && k.to.id === card && k.from.kind === 'card' ? [k.from.id] : []
+    )
+    .filter((id) => id !== card && s.cards.some((c) => c.id === id))
+  return from.length ? from[from.length - 1] : null
+}
+
 /** The key of the object an end is tied to, as the renderer names dragged elements (`c12`, `nn3`, `ff2`). */
 export const endKey = (e: End): string | null =>
   e.kind === 'card'

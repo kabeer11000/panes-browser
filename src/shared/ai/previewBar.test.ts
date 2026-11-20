@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { pageCaps, recentOthers, restRect, sameRect, zoomPercent } from './previewBar'
+import { pageCaps, keptRecent, recentOthers, restRect, sameRect, zoomPercent } from './previewBar'
 
 describe('pageCaps', () => {
   test('a web page gets everything', () => {
@@ -76,5 +76,22 @@ describe('recentOthers', () => {
   })
   test('fewer tabs than asked for', () => {
     expect(recentOthers(tabs.slice(0, 2), 1, () => true)).toEqual([2])
+  })
+})
+
+describe('keptRecent', () => {
+  const at = (...ids: number[]): { id: number; usedAt: number }[] => ids.map((id, i) => ({ id, usedAt: 100 - i }))
+  test('a closed tab is replaced by the next most recent, keeping the order', () => {
+    // row was [1, 2, 3, 4]; 3 closed; 5 is the most recent tab not shown
+    expect(keptRecent([1, 2, 3, 4], at(5, 1, 2, 4, 6), 1, () => true)).toEqual([1, 2, 4, 5])
+  })
+  test('stays put when nothing closed', () => {
+    expect(keptRecent([2, 1, 3, 4], at(1, 2, 3, 4, 5), 2, () => true)).toEqual([2, 1, 3, 4])
+  })
+  test('a card outside the row starts it afresh', () => {
+    expect(keptRecent([1, 2], at(1, 2, 3), 3, () => true)).toEqual([3, 1, 2])
+  })
+  test('shrinks only when there is nothing left to show', () => {
+    expect(keptRecent([1, 2, 3], at(1, 3), 1, () => true)).toEqual([1, 3])
   })
 })

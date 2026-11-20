@@ -166,7 +166,8 @@ export interface Rect {
 /** What the canvas preview's page menu hands back for the board to do itself. */
 export type PageMenuPick = 'popout' | 'ask' | 'find' | 'site' | 'reader' | 'live' | 'close'
 /** Shortcuts main routes to the open canvas preview ('zoom': its page zoom changed, read it again). */
-export type PreviewKey = 'find' | 'address' | 'close' | 'zoom'
+/** `back`: Ctrl+W closed the preview's page; the page it was opened from takes its place, else the preview closes. */
+export type PreviewKey = 'find' | 'address' | 'close' | 'zoom' | 'back'
 
 export type UiCommand =
   | 'focus-address'
@@ -1134,6 +1135,8 @@ export interface PermissionPromptState {
   audio?: boolean
   /** The system itself is keeping apps from this device: the card says so and points to the switch. */
   blocked?: 'camera' | 'microphone'
+  /** For opening an app: the name the system gives the app the link opens ("Zoom Meetings"). */
+  app?: string
 }
 
 export type PermissionAnswer =

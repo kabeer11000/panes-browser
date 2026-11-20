@@ -59,3 +59,25 @@ export function recentOthers(
     .slice(0, n)
     .map((t) => t.id)
 }
+
+/**
+ * The preview's recent tabs row, kept in its order while the preview is open. A tab that closes leaves its place and
+ * the next most recent one joins at the end, so the row keeps its length (closing a page no longer shrinks it).
+ * Opening a card that is not in the row starts it afresh.
+ */
+export function keptRecent(
+  row: readonly number[],
+  tabs: readonly { id: number; usedAt: number }[],
+  open: number,
+  onBoard: (id: number) => boolean
+): number[] {
+  const alive = row.filter((id) => tabs.some((t) => t.id === id))
+  if (!alive.includes(open)) return [open, ...recentOthers(tabs, open, onBoard)]
+  const more = recentOthers(
+    tabs,
+    open,
+    (id) => onBoard(id) && !alive.includes(id),
+    Math.max(0, RECENT_IN_PREVIEW + 1 - alive.length)
+  )
+  return [...alive, ...more]
+}

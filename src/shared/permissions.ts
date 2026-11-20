@@ -8,6 +8,7 @@ export type PermKind =
   | 'screen'
   | 'midi'
   | 'windows'
+  | 'apps'
 export type PermDecision = 'allow' | 'block'
 /** What the site settings offer for one kind: a remembered answer, or asking each time. */
 export type PermSetting = PermDecision | 'ask'
@@ -29,7 +30,8 @@ export const PERM_KINDS: readonly PermKind[] = [
   'screen',
   'clipboard',
   'midi',
-  'windows'
+  'windows',
+  'apps'
 ]
 
 export const PERM_LABEL: Record<PermKind, string> = {
@@ -40,7 +42,8 @@ export const PERM_LABEL: Record<PermKind, string> = {
   clipboard: 'Clipboard',
   screen: 'Screen sharing',
   midi: 'MIDI devices',
-  windows: 'Window placement'
+  windows: 'Window placement',
+  apps: 'Open apps'
 }
 
 /** How the prompt names each kind after "wants to use your". */
@@ -52,7 +55,8 @@ const PERM_NOUN: Record<PermKind, string> = {
   clipboard: 'clipboard',
   screen: 'screen',
   midi: 'MIDI devices',
-  windows: 'displays to place windows'
+  windows: 'displays to place windows',
+  apps: 'apps'
 }
 
 /** How long "Allow this time" lasts. Long enough for a call, short enough that it is not a quiet Allow. */
@@ -98,6 +102,8 @@ export function kindsFor(
       return ['midi']
     case 'window-management':
       return ['windows']
+    case 'openExternal': // a link to an app on this computer (zoommtg:, slack:, msteams:, ...)
+      return ['apps']
     default:
       return null
   }

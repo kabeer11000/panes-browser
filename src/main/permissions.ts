@@ -1,5 +1,6 @@
 import { is } from '@electron-toolkit/utils'
 import {
+  app,
   desktopCapturer,
   ipcMain,
   shell,
@@ -11,6 +12,7 @@ import {
   type IpcMainInvokeEvent,
   type MediaAccessPermissionRequest,
   type NativeImage,
+  type OpenExternalPermissionRequest,
   type Session,
   type Streams,
   type WebContents,
@@ -339,6 +341,13 @@ export class PermissionManager {
       const kinds = kindsFor(permission, (details as MediaAccessPermissionRequest).mediaTypes)
       const origin = kinds && permissionOrigin(kinds, details.requestingUrl, wc.getURL())
       if (!kinds || !origin) return cb(false)
+      // A link to an app: refused quietly when no app on this computer takes it, otherwise the card names the app.
+      let appName: string | undefined
+      if (permission === 'openExternal') {
+        const url = (details as OpenExternalPermissionRequest).externalURL ?? ''
+        appName = url ? app.getApplicationNameForProtocol(url) : ''
+        if (!appName) return cb(false)
+      }
       const finish = (granted: boolean): void => {
         this.tell(wc, store, origin, kinds, granted)
         if (granted && captureKindsOf(kinds).length > 0) {
@@ -360,7 +369,7 @@ export class PermissionManager {
         })
         return finish(false)
       }
-      void this.decide(wc, store, origin, kinds).then((d) => finish(d === 'allow'))
+      void this.decide(wc, store, origin, kinds, appName).then((d) => finish(d === 'allow'))
     })
 
     // Synchronous checks never ask. They are answered from the same store as requests, and what a page learns
@@ -452,12 +461,17 @@ export class PermissionManager {
     wc: WebContents,
     store: PermissionStore,
     origin: string,
-    kinds: PermKind[]
+    kinds: PermKind[],
+    appName?: string
   ): Promise<PermDecision> {
     const known = (): PermDecision | 'ask' => resolveKinds(kinds, (k) => store.get(origin, k))
     const now = known()
     if (now !== 'ask') return now
-    const outcome = await this.ask({ origin, kinds, temporary: !store.persist }, wc, known)
+    const outcome = await this.ask(
+      { origin, kinds, temporary: !store.persist, app: appName },
+      wc,
+      known
+    )
     switch (outcome.action) {
       case 'known':
         return outcome.decision
