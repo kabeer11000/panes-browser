@@ -41,10 +41,17 @@ const PAGE = `<!doctype html><meta charset="utf-8"><style>
  * out of the page's sight. `dir` is -1 when the content would move to show what is on its left.
  */
 const SCROLLS = `((x, y, dir) => {
+  const se = document.scrollingElement
+  const ox = (el) => (el ? getComputedStyle(el).overflowX : 'visible')
+  // the page itself scrolls sideways unless html (or body, whose overflow passes up to the page when html's is
+  // visible) hides it: most sites hide a few pixels of overflow, and that must not take the swipe away
+  const html = ox(document.documentElement)
+  const page = html !== 'visible' ? html : ox(document.body)
   for (let el = document.elementFromPoint(x, y); el; el = el.parentElement) {
-    const root = el === document.scrollingElement || el === document.body
-    const o = getComputedStyle(el).overflowX
-    if (!root && o !== 'auto' && o !== 'scroll') continue
+    if (el === document.body && se !== document.body) continue // its overflow is the page's, handled at html
+    const root = el === se
+    const o = root ? page : ox(el)
+    if (root ? o === 'hidden' || o === 'clip' : o !== 'auto' && o !== 'scroll') continue
     if (el.scrollWidth <= el.clientWidth + 1) continue
     if (dir < 0 ? el.scrollLeft > 0 : el.scrollLeft + el.clientWidth < el.scrollWidth - 1) return true
   }
