@@ -4847,9 +4847,9 @@
   flex-direction: column-reverse;
 }
 .cv-panel.bar-bottom .cv-panel-head {
-  /* its last buttons keep clear of the window's bottom-right corner, where resting the pointer brings out the
-     downloads bin (CORNER_X in main/dock.ts) */
-  padding-right: 72px;
+  /* its last buttons keep clear of the downloads bin's sliver: a native view over the window's bottom edge from
+     WIDTH + INSET to INSET px off the right (main/dock.ts) that takes every click there, plus a little room */
+  padding-right: 120px;
   border-bottom: 0;
   border-top: 1px solid color-mix(in srgb, var(--fg) 7%, transparent);
 }
