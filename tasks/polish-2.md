@@ -121,6 +121,14 @@ Goal: no new features except AI page edits. Make what exists stable, always reac
 - [x] Missing favicon: a letter in some places, a globe in others. One fallback everywhere.
 - [x] Option: preview dialog toolbar at the bottom of the screen.
 - [x] Split view: fullscreen broken (esp. canvas preview); resizing panes unreliable.
+- [x] Board: a growing section makes room (pushes neighbours) instead of jumping; split in hand-laid section no longer overlaps.
+- [x] Bottom toolbar: site settings / More menu open upward.
+- [x] Bottom toolbar vs downloads bin in the corner.
+- [ ] Touchpad swipe back/forward: does nothing on the board's preview (was tab view only). Needs a real-touchpad check.
+- [ ] Tidy with AI off: too basic, make the result neat.
+- [x] Picture in picture broken, esp. in canvas view.
+- [ ] Permissions feel slow on allowed sites: measured Panes side 30-140 ms; camera cold start ~2 s, location ~3.8 s (Windows). Need the site.
+- [ ] Notifications + tab switcher + preview notifications: one coherent, macOS-quality design; must work with the bottom toolbar.
 - [ ] Shared spaces (FigJam-like, fully featured): both users edit notes, images, arrows, sections, cards. Later: optional shared tabs (watch-together).
       Decisions 2026-11-20: own Yjs websocket relay on the user's Render account; join by invite link with a secret key (no accounts); images shrunk and uploaded to the relay (~5 MB cap). Order: small fixes -> notifications redesign -> shared spaces.
 

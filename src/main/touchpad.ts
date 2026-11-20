@@ -301,7 +301,8 @@ class Reader {
     this.lastFingers = f.fingers
     if (this.board && !this.board.isDestroyed())
       this.board.send('canvas:touchpad', f.dx, f.dy, f.fingers, f.y, t)
-    else if (this.nav) this.nav({ ...f, padW: d.slots[0].x.span })
+    // the swipes too: on the board they go back and forward in the page open in its preview (see NavGestures)
+    if (this.nav) this.nav({ ...f, padW: d.slots[0].x.span })
   }
 
   private lastFingers = 0

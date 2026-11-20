@@ -91,7 +91,7 @@ export class NavGestures {
   }
 
   private frame(f: TouchFrame): void {
-    if (!this.tabs.pageShowing()) {
+    if (!this.tabs.swipeTarget()) {
       // still let the recogniser see the fingers, so a swipe begun elsewhere is not picked up halfway
       this.swipe.touch({ ...f, fingers: f.fingers === 2 ? 3 : f.fingers })
       this.fingers = f.fingers === 2 ? 3 : f.fingers
@@ -113,6 +113,8 @@ export class NavGestures {
       if (e.kind === 'commit') this.hide()
       return
     }
+    // on the board's preview there is no tab row to step through: only back and forward
+    if (!history && this.tabs.swipeTarget()?.preview) return this.hide()
     if (e.kind === 'track') return this.show(e.action, e.progress)
     this.hide()
     if (e.action === 'back') this.tabs.back()
@@ -121,8 +123,9 @@ export class NavGestures {
   }
 
   private ask(action: NavAction): void {
-    const wc = this.tabs.activeContents()
-    const rect = this.tabs.activeRect()
+    const target = this.tabs.swipeTarget()
+    const wc = target?.wc
+    const rect = target?.rect
     if (!wc || !rect || this.win.isDestroyed()) {
       this.pageScrolls = false
       return
@@ -154,7 +157,7 @@ export class NavGestures {
   }
 
   private show(action: NavAction, progress: number): void {
-    const rect = this.tabs.activeRect()
+    const rect = this.tabs.swipeTarget()?.rect
     if (!rect || this.win.isDestroyed()) return
     const last = this.shown
     // about 125 frames a second come in; the badge needs a fraction of that
