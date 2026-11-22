@@ -693,7 +693,9 @@
   margin: 0;
   padding: 0;
   opacity: 0;
-  overflow: hidden;
+  /* clipped while it slides, but not its unread bubble, which hangs just outside the face */
+  overflow: clip;
+  overflow-clip-margin: 10px;
   pointer-events: none;
   transition:
     width 0.24s var(--ease),
