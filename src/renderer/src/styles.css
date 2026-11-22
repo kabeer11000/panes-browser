@@ -119,7 +119,7 @@
   --overlay-solid: color-mix(in srgb, var(--space) calc(var(--tint) * 0.22), rgb(10 10 14));
   --card-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.24), #16161c);
   --thumb-bg: #0d0d11;
-  --popover-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.26), rgb(24 24 30 / 0.97));
+  --popover-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.26), rgb(24 24 30));
   --ghost-bg: rgb(40 40 52 / 0.92);
   --radius-s: var(--r-3);
   --radius-m: var(--r-4);
@@ -2147,7 +2147,7 @@ button {
   --overlay-solid: color-mix(in srgb, var(--space) calc(var(--tint) * 0.16), rgb(244 244 248));
   --card-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.12), #ffffff);
   --thumb-bg: #ececf2;
-  --popover-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.14), rgb(255 255 255 / 0.97));
+  --popover-bg: color-mix(in srgb, var(--space) calc(var(--tint) * 0.14), rgb(255 255 255));
   --ghost-bg: rgb(255 255 255 / 0.96);
   color: var(--fg);
 }
