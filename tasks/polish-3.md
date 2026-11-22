@@ -72,6 +72,7 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Then: first-party screen time / digital health (time per site, daily/weekly, limits, focus), better than
       Apple's Screen Time. Local only.
 
+- [ ] Now playing play/pause: one click sometimes leaves the wrong state (YouTube). Trace mediaPlay and the playing flag.
 - [ ] Switching between tabs with different page zoom shifts the layout (zoom badge appears/goes): no shift, tab view and preview.
 - [ ] Board: "open link side by side" reworked: its animations are poor and it is not fun to use (user 2026-11-22).
       Split view in the preview: no extra toolbar per pane; each pane's tab actions slide out at its right edge on
