@@ -41,7 +41,17 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 ## Queue from the user (2026-11-22 evening), in order
 
 - [x] Ctrl+T then typing at once, from every screen: no key lost. 60/60 timed runs, tab view + board, 0-250 ms.
-- [ ] Board strip + bottom toolbar must trap the pointer (hover, right-click reach the board under them).
+- [x] Board strip + bottom toolbar must trap the pointer (hover, right-click reach the board under them). (88c45d1)
+- [x] Setting to turn off live video on cards (RAM/GPU). Settings, Memory. (f61fef7)
+- [ ] Recent tabs: switching sometimes drops that tab from the bar; a newly opened tab does not show at the left.
+      Rule: left = most recent, stable, never disorienting; tabs appear and move with clear motion. UI is never a surprise.
+- [ ] Preview open: a rim of something peeks from behind at the left / top corners. Hide it (and unload if not needed).
+- [ ] Shared spaces (FigJam-like), decided 2026-11-20 (polish-2.md:132): Yjs, own websocket relay on the user's Render
+      account, invite link with a secret key (no accounts), images shrunk + uploaded to the relay (~5 MB cap). Both edit
+      notes, images, arrows, sections, cards. Later: shared tabs. Plan it in tasks/shared-spaces.md first; deploying to
+      Render is outward-facing: confirm with the user before the first deploy.
+- [ ] Usage analytics (user decided 2026-11-22): self-hosted endpoint, asked on first run (welcome), domains included.
+      Actions, screens, durations, version/OS/RAM tier, perf timings, site domains. Never contents, typed text, passwords.
 - [ ] Tidy freezes the whole PC for a second, even without AI: make it efficient (measure; worker/WASM if needed).
 - [ ] Notes and text on the board: Ctrl+B / Ctrl+I and the like (Figma-like), font size.
 - [x] Certificate interstitial "Proceed (unsafe)": verified on self-signed.badssl.com (c249b32).
@@ -50,6 +60,7 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       when on; off automatically in Efficient/Performance mode. No such setting exists today. Measure GPU on pan/zoom.
 - [ ] Scroll fade gradients on every scrolling list, search popover included.
 - [ ] Notifications sometimes do not open from the strip. User likes the bell after all: reposition it, make it reliable.
+      The bell shows always, even with nothing new (beta.113 feedback). Unread styling is "gross": redo it.
 - [ ] open.spotify.com opens in its mobile layout (user agent? viewport?).
 - [ ] Card host pill (top of a card) shows sometimes, not others: make it reliable.
 - [ ] Cards redesign: sizes, rounding, overall look (user, again). Measure GPU on pan/zoom.
@@ -73,6 +84,9 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       files, fullscreen, pointer lock, gamepad, WebUSB/HID/Serial/Bluetooth device pickers, screen share picker.
 
 ## D. Speed
+
+- [ ] Off the main thread wherever it is a transparent gain (user 2026-11-22): workers for Tidy/clustering, image decode,
+      JSON parse of big state, search ranking; measure each with a long-task trace before and after.
 
 - [ ] First open / load time: measure packaged cold and warm start (startup-trace), find the next big cost.
 
