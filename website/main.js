@@ -134,7 +134,16 @@ const hint = document.getElementById('hint')
 const reset = hint.querySelector('.reset')
 const say = hint.querySelector('.say')
 const stickers = [...document.querySelectorAll('.sticker')]
-const home = new Map(stickers.map((s) => [s.dataset.k, { x: s.style.getPropertyValue('--x'), y: s.style.getPropertyValue('--y'), r: s.style.getPropertyValue('--r') }]))
+const home = new Map(
+  stickers.map((s) => [
+    s.dataset.k,
+    {
+      x: s.style.getPropertyValue('--x'),
+      y: s.style.getPropertyValue('--y'),
+      r: s.style.getPropertyValue('--r')
+    }
+  ])
+)
 const saved = store.get('panes-stickers') || {}
 const place = (s, p) => {
   s.style.setProperty('--x', p.x)
@@ -145,7 +154,9 @@ for (const s of stickers) if (saved[s.dataset.k]) place(s, saved[s.dataset.k])
 const moved = () => Object.keys(store.get('panes-stickers') || {}).length > 0
 const showReset = () => {
   reset.hidden = !moved()
-  say.textContent = moved() ? 'Stuck where you left them.' : "Go on, move one. It'll stay where you leave it."
+  say.textContent = moved()
+    ? 'Stuck where you left them.'
+    : "Go on, move one. It'll stay where you leave it."
 }
 showReset()
 setTimeout(() => hint.classList.add('on'), 2200)
@@ -179,7 +190,11 @@ for (const s of stickers) {
       const tilt = (Math.random() * 24 - 12).toFixed(1)
       s.style.setProperty('--r', `${tilt}deg`)
       const all = store.get('panes-stickers') || {}
-      all[s.dataset.k] = { x: s.style.getPropertyValue('--x'), y: s.style.getPropertyValue('--y'), r: `${tilt}deg` }
+      all[s.dataset.k] = {
+        x: s.style.getPropertyValue('--x'),
+        y: s.style.getPropertyValue('--y'),
+        r: `${tilt}deg`
+      }
       store.set('panes-stickers', all)
       showReset()
     }
@@ -251,7 +266,9 @@ tabs.forEach((t, i) => {
 // itself from. So each button points at the newest release that has its installer, found through GitHub's API.
 // The links in the HTML are the fallbacks (a known installer, or the releases page) if the API can't be reached.
 const REPO = 'kabeer11000/panes-browser'
-const isMac = /Mac/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent)
+const isMac = /Mac/i.test(
+  navigator.userAgentData?.platform || navigator.platform || navigator.userAgent
+)
 const dlLinks = (k) => [...document.querySelectorAll(`[data-dl="${k}"]`)]
 
 async function findInstallers() {
@@ -264,17 +281,30 @@ async function findInstallers() {
     }
   })()
   if (cached) return cached
-  const r = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=60`, { headers: { Accept: 'application/vnd.github+json' } })
-  if (!r.ok) throw new Error(String(r.status))
   const found = {}
-  const want = { win: /^Panes-setup\.exe$/, 'mac-arm64': /-mac-arm64\.dmg$/, 'mac-x64': /-mac-x64\.dmg$/ }
-  for (const rel of await r.json()) {
-    if (rel.draft) continue
-    for (const a of rel.assets || []) {
-      for (const [k, re] of Object.entries(want)) {
-        if (!found[k] && re.test(a.name)) found[k] = { url: a.browser_download_url, tag: rel.tag_name }
+  const want = {
+    win: /^Panes-setup\.exe$/,
+    'mac-arm64': /-mac-arm64\.dmg$/,
+    'mac-x64': /-mac-x64\.dmg$/
+  }
+  // newest first, a page of 100 at a time, until each installer is found (they are only in some releases)
+  for (let page = 1; page <= 5 && Object.keys(found).length < Object.keys(want).length; page++) {
+    const r = await fetch(
+      `https://api.github.com/repos/${REPO}/releases?per_page=100&page=${page}`,
+      { headers: { Accept: 'application/vnd.github+json' } }
+    )
+    if (!r.ok) throw new Error(String(r.status))
+    const list = await r.json()
+    for (const rel of list) {
+      if (rel.draft) continue
+      for (const a of rel.assets || []) {
+        for (const [k, re] of Object.entries(want)) {
+          if (!found[k] && re.test(a.name))
+            found[k] = { url: a.browser_download_url, tag: rel.tag_name }
+        }
       }
     }
+    if (list.length < 100) break
   }
   try {
     sessionStorage.setItem('panes-dl', JSON.stringify({ at: Date.now(), found }))
@@ -298,12 +328,21 @@ async function macArch() {
 ;(async () => {
   const arch = await macArch()
   const primary = isMac ? arch : 'win'
-  const label = { win: 'Download for Windows', 'mac-arm64': 'Download for Mac', 'mac-x64': 'Download for Mac (Intel)' }
+  const label = {
+    win: 'Download for Windows',
+    'mac-arm64': 'Download for Mac',
+    'mac-x64': 'Download for Mac (Intel)'
+  }
   for (const a of dlLinks('primary')) a.querySelector('span').textContent = label[primary]
   for (const a of dlLinks('other')) a.textContent = isMac ? 'Also for Windows' : 'Also for Mac'
-  for (const n of document.querySelectorAll('[data-dl-note]')) n.textContent = arch === 'mac-x64' ? 'Intel Mac.' : 'Apple Silicon.'
+  for (const n of document.querySelectorAll('[data-dl-note]'))
+    n.textContent = arch === 'mac-x64' ? 'Intel Mac.' : 'Apple Silicon.'
   // without the API, a Mac visitor gets the releases page rather than the Windows installer
-  if (isMac) for (const a of dlLinks('primary')) a.href = document.querySelector(arch === 'mac-x64' ? '[data-dl="mac-x64"]' : '[data-dl="mac"]').href
+  if (isMac)
+    for (const a of dlLinks('primary'))
+      a.href = document.querySelector(
+        arch === 'mac-x64' ? '[data-dl="mac-x64"]' : '[data-dl="mac"]'
+      ).href
   let found = {}
   try {
     found = await findInstallers()

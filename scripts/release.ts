@@ -11,9 +11,11 @@
  *           release tag that touch src/ (scripts/release-notes.ts, preview: `bun scripts/release-notes.ts`). Panes shows
  *           them next to the update, and the script does not pause: read the preview before a real run.
  * --dry-run build into dist/ and dist/layer with the current version, then stop before anything is changed or uploaded
- * --layer-only  no installer is built: the app alone and its layer (what every existing Panes updates from), with the
- *           last release's installer carried over as the download. Refused when Electron changed since (that needs a
- *           new installer).
+ * --layer-only  no installer is built: the app alone and its layer (what every existing Panes updates from). Only a
+ *           small latest.yml goes up, pointing at the release that has the installer (../<tag>/Panes-setup.exe), so
+ *           an older Panes that needs the installer still finds it. Refused when Electron changed since (that needs
+ *           a new installer). The default whenever Electron is the same as the last release's.
+ * --full    build and upload the installer even though Electron did not change.
  *
  * The GitHub release is a draft until every file is on it, then published and marked latest in one step. Until then
  * /releases/latest still points at the previous release, and a failed run leaves only a draft that a rerun reuses.
@@ -24,7 +26,7 @@
  *
  * Needs a `gh auth login`, a clean working tree and HEAD pushed. A version that is already published is refused.
  */
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { parseArgs } from 'util'
 import { $ } from 'bun'
 import electronPackage from 'electron/package.json'
@@ -37,12 +39,13 @@ const { values, positionals } = parseArgs({
     notes: { type: 'string' },
     preid: { type: 'string', default: 'beta' },
     'dry-run': { type: 'boolean', default: false },
-    'layer-only': { type: 'boolean', default: false }
+    'layer-only': { type: 'boolean', default: false },
+    full: { type: 'boolean', default: false }
   }
 })
 const [bump] = positionals
 const dryRun = values['dry-run']
-const layerOnly = values['layer-only']
+const forceFull = values.full
 
 function fail(message: string): never {
   console.error(`release: ${message}`)
@@ -87,22 +90,41 @@ async function bumpVersion(increment: string): Promise<string> {
  * --layer-only: the release before this one, whose installer is carried over (it must be on the same shell, so a
  * Panes installed from it takes this release's layer). Known before the long build, like the rest of the preflight.
  */
-async function installerSource(): Promise<string> {
+async function installerSource(): Promise<{ tag: string } | { why: string }> {
   const prev = JSON.parse(await $`gh release view --json tagName`.text()) as { tagName: string }
   const manifest = parseManifest(
     JSON.parse(await $`gh release download ${prev.tagName} -p ${MANIFEST_NAME} -O -`.text())
   )
   const here = shellId('win32', 'x64', electronPackage.version)
-  if (!manifest) fail(`${prev.tagName} has no valid ${MANIFEST_NAME}: make a full release.`)
+  if (!manifest) return { why: `${prev.tagName} has no valid ${MANIFEST_NAME}` }
   if (manifest.shell !== here)
-    fail(
-      `${prev.tagName} is on shell ${manifest.shell}, this build on ${here}: a new Electron needs a full release.`
-    )
-  return prev.tagName
+    return {
+      why: `${prev.tagName} is on shell ${manifest.shell}, this build on ${here}: a new Electron`
+    }
+  return { tag: prev.tagName }
+}
+
+/**
+ * The installer stays where it is: this release's latest.yml points at it, in the release that holds it
+ * (electron-updater reads releases/download/<this tag>/<url>, and the URL's `..` takes it to that release). A
+ * latest.yml that already points back (carried from a layer-only release) is kept as it is.
+ */
+function pointAtInstaller(yml: string, from: string): string {
+  const to = (file: string): string => (file.startsWith('../') ? file : `../${from}/${file}`)
+  return yml
+    .replace(/^(\s*-?\s*url:\s*)(\S+)\s*$/gm, (_m, k: string, f: string) => `${k}${to(f)}`)
+    .replace(/^(path:\s*)(\S+)\s*$/m, (_m, k: string, f: string) => `${k}${to(f)}`)
 }
 
 if (!dryRun) await preflight()
-const carryFrom = layerOnly ? await installerSource() : null
+// Same Electron as the last release: no installer (139 MB) is built or uploaded, only the app's layers. A new
+// Electron, or --full, builds the installer.
+const source = forceFull || dryRun ? null : await installerSource()
+if (values['layer-only'] && source && 'why' in source)
+  fail(`--layer-only: ${source.why}. Make a full release.`)
+const carryFrom = source && 'tag' in source ? source.tag : null
+if (!forceFull && !carryFrom && source && 'why' in source)
+  console.log(`release: with the installer (${source.why})`)
 // Before the bump is pushed, so a release with nothing to say does not burn a version number.
 const generated = await notesSinceLastTag()
 const notes = values.notes ?? generated.notes
@@ -123,17 +145,18 @@ await $`bun run build`
 if (carryFrom) {
   // the app alone (dist/win-unpacked, what the layer is made of): no installer is built
   await $`bunx electron-builder --win --dir --publish never ${`--config.extraMetadata.panesBuild=${build}`}`
-  // the last installer stays the download: a Panes installed from it updates to this layer on its first run
-  await $`gh release download ${carryFrom} -p Panes-setup.exe -p Panes-setup.exe.blockmap -p latest.yml -D dist --clobber`
-  console.log(`release: layer only, the installer carried over from ${carryFrom}`)
+  // the installer stays in its release; only latest.yml comes along, pointing back at it
+  const yml = await $`gh release download ${carryFrom} -p latest.yml -O -`.text()
+  writeFileSync('dist/latest.yml', pointAtInstaller(yml, carryFrom))
+  console.log(`release: layer only, latest.yml points at the installer from ${carryFrom}'s chain`)
 } else {
   // --publish never still writes latest.yml and app-update.yml; the files are uploaded below, once the build is whole.
   await $`bunx electron-builder --win --publish never ${`--config.extraMetadata.panesBuild=${build}`}`
 }
 
-const installer = ['Panes-setup.exe', 'Panes-setup.exe.blockmap', 'latest.yml'].map(
-  (f) => `dist/${f}`
-)
+const installer = (
+  carryFrom ? ['latest.yml'] : ['Panes-setup.exe', 'Panes-setup.exe.blockmap', 'latest.yml']
+).map((f) => `dist/${f}`)
 const missing = installer.filter((f) => !existsSync(f))
 if (missing.length) fail(`electron-builder did not produce ${missing.join(', ')}`)
 
