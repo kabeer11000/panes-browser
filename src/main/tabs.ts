@@ -538,6 +538,8 @@ export class TabManager {
   private streaming = new Set<number>()
   /** Tabs shown live to the others in a shared space (main/share.ts): they keep painting wherever they are. */
   private liveShared = new Set<number>()
+  /** Each live tab's remote input, in order: a key waits on the password check, and a click after it waits too. */
+  private liveInputs = new Map<number, Promise<void>>()
   /** Tabs closed, newest last, as they were (Ctrl+Shift+T brings the last back so). */
   /** The preview's page is stepped aside for a popover over it (see setLiveAside). */
   private liveAside = false
@@ -4141,7 +4143,10 @@ export class TabManager {
     if (on) {
       this.liveShared.add(id)
       this.ensureLoaded(id, t!)
-    } else this.liveShared.delete(id)
+    } else {
+      this.liveShared.delete(id)
+      this.liveInputs.delete(id)
+    }
     const wc = t && liveContents(t)
     if (wc && !wc.isDestroyed())
       wc.setBackgroundThrottling(!on && id !== this.activeId && !this.streaming.has(id))
@@ -4162,10 +4167,34 @@ export class TabManager {
    * the page as if here. Positions come as fractions of the page, so the two need not be the same size.
    */
   remoteInput(id: number, ev: RemoteInput): void {
+    const next = (this.liveInputs.get(id) ?? Promise.resolve()).then(() =>
+      this.applyRemoteInput(id, ev)
+    )
+    this.liveInputs.set(
+      id,
+      next.catch(() => {})
+    )
+  }
+
+  /**
+   * Keys never reach a password field for the person driving: true when one has the focus in any frame of the page.
+   * Errs closed (a frame that cannot be asked counts as no, but any frame saying yes blocks).
+   */
+  private async passwordFocused(wc: WebContents): Promise<boolean> {
+    const probe =
+      "(() => { const a = document.activeElement; return !!a && a.tagName === 'INPUT' && a.type === 'password' })()"
+    const frames = wc.mainFrame.framesInSubtree.filter((f) => !f.isDestroyed())
+    const said = await Promise.all(frames.map((f) => f.executeJavaScript(probe).catch(() => false)))
+    return said.some((v) => v === true)
+  }
+
+  private async applyRemoteInput(id: number, ev: RemoteInput): Promise<void> {
     if (!this.liveShared.has(id)) return
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
     if (!t || !wc || wc.isDestroyed()) return
+    if ((ev.t === 'key' || ev.t === 'char') && (await this.passwordFocused(wc))) return
+    if (wc.isDestroyed() || !this.liveShared.has(id)) return
     const { width, height } = t.view.getBounds()
     const at = (v: number, size: number): number => Math.round(Math.min(1, Math.max(0, v)) * size)
     switch (ev.t) {

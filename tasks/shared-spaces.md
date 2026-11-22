@@ -103,6 +103,18 @@ People without Panes join from any browser in a light web version that is also P
 - [ ] 4. Deploy relay to Render (confirm first). Invite links work across machines.
 - [ ] 5. Pictures: shrink + upload blobs; tab cards as shared page links.
 - [ ] 6. Web board MVP: view, cursors, notes, Get Panes.
-- [ ] 7. Shared browsing: stream a tab over WebRTC to Panes peers, then the web board; then handing control.
+- [x] 7a. Shared browsing in Panes (52d8ce1, beta.132): card menu "Show it live to everyone"; watchers open a live
+      panel (WebRTC, STUN, signalled through the relay sealed); ask for control, host lets/declines, takes back, stops.
+      Pointer, clicks, wheel, keys injected with sendInputEvent (fractions of the page, validated in main). Tested two
+      Panes on the relay: 1920x1080, remote clicks and typing landed, take back blocked input, stop closed the panel.
+- [ ] 7b. Sound (the tab's audio track, watch-together); the host hears no echo.
+- [ ] 7c. TURN (Cloudflare, decided) for networks where no direct path is found; today STUN only.
+- [~] 7d. Guard rails: DONE no typing into the host's password fields by the driver (keys and chars dropped while
+      any frame's focus is a password input; checked: none reached it, typing elsewhere kept order). OPEN: file pickers and downloads stay the
+      host's; a visible "Ana is driving" on the host's tab itself, not only in the board's bar.
+- [ ] 7e. Capture restarts when the shared tab navigates far (once seen not to answer after a file: -> http: move).
+- [ ] 7f. Smoothness bar: measure glass-to-glass latency (timestamp page, two Panes), adaptive size to the viewer's
+      panel, 60 fps when the page moves; the driver's own pointer drawn locally at once.
+- [ ] 7g. Watch from the web board (people without Panes).
 - [ ] 8. Chat (Panes + web).
 - [ ] 9. Room expiry, limits, abuse.
