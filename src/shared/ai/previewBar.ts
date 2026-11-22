@@ -73,10 +73,37 @@ export function recentOthers(
 }
 
 /**
- * The preview's recent tabs row, kept in its order while the preview is open. A tab that closes leaves its place and
- * the next most recent one joins at the end, so the row keeps its length (closing a page no longer shrinks it).
- * A tab opened after everything in the row was last used is the newest: it joins at the left, and the row's last
- * one makes room (never the open one). Opening a card that is not in the row starts it afresh.
+ * A row of tabs that holds still (the user, again and again: nothing moves under the pointer). `prev` is the row as
+ * shown; `want` the tabs it should hold now, most recent first. A tab still wanted keeps its seat; one that left frees
+ * its seat and the next one coming in takes that seat, not the end (the others do not slide); a tab newly opened
+ * (`isNew`) joins at the left, the newest thing being there. At most `n`: the last ones make room, never `keep`.
+ */
+export function seated(
+  prev: readonly number[],
+  want: readonly number[],
+  isNew: (id: number) => boolean,
+  n: number,
+  keep?: number
+): number[] {
+  if (prev.length === 0) return want.slice(0, n)
+  const wanted = new Set(want)
+  const seats: (number | null)[] = prev.map((id) => (wanted.has(id) ? id : null))
+  const incoming = want.filter((id) => !prev.includes(id))
+  const fresh = incoming.filter(isNew)
+  const rest = incoming.filter((id) => !isNew(id))
+  for (let i = 0; i < seats.length && rest.length > 0; i++) if (seats[i] === null) seats[i] = rest.shift()!
+  const row = [...fresh, ...seats.filter((id): id is number => id !== null), ...rest]
+  while (row.length > n) {
+    const last = row.findLastIndex((id) => id !== keep)
+    if (last < 0) break
+    row.splice(last, 1)
+  }
+  return row
+}
+
+/**
+ * The preview's recent tabs row (see seated): the open tab and the ones used last, each in its seat. A tab opened
+ * after everything in the row was last used is the newest: it joins at the left.
  */
 export function keptRecent(
   row: readonly number[],
@@ -85,29 +112,25 @@ export function keptRecent(
   onBoard: (id: number) => boolean
 ): number[] {
   const byId = new Map(tabs.map((t) => [t.id, t]))
-  let alive = row.filter((id) => byId.has(id))
-  if (!alive.includes(open)) return [open, ...recentOthers(tabs, open, onBoard)]
+  const alive = row.filter((id) => byId.has(id))
   // the open one is in use right now (its time keeps moving): the row's others say when the row was last touched
   const newest = Math.max(
     0,
     ...alive.filter((id) => id !== open).map((id) => recency(byId.get(id)!))
   )
-  const fresh = tabs
-    .filter((t) => (t.openedAt ?? 0) > newest && !alive.includes(t.id) && onBoard(t.id))
-    .sort((a, b) => recency(b) - recency(a))
-    .map((t) => t.id)
-  if (fresh.length) {
-    alive = [...fresh, ...alive]
-    while (alive.length > RECENT_IN_PREVIEW + 1) {
-      const last = alive.findLastIndex((id) => id !== open)
-      alive.splice(last, 1)
-    }
-  }
-  const more = recentOthers(
-    tabs,
-    open,
-    (id) => onBoard(id) && !alive.includes(id),
-    Math.max(0, RECENT_IN_PREVIEW + 1 - alive.length)
-  )
-  return [...alive, ...more]
+  const isNew = (id: number): boolean => (byId.get(id)?.openedAt ?? 0) > newest
+  const want = [open, ...recentOthers(tabs, open, onBoard, RECENT_IN_PREVIEW)]
+  return seated(row, want, isNew, RECENT_IN_PREVIEW + 1, open)
+}
+
+/** The board's row (no page open), held still the same way. */
+export function keptBoardRow(
+  row: readonly number[],
+  tabs: readonly RecentTab[],
+  onBoard: (id: number) => boolean
+): number[] {
+  const byId = new Map(tabs.map((t) => [t.id, t]))
+  const newest = Math.max(0, ...row.filter((id) => byId.has(id)).map((id) => recency(byId.get(id)!)))
+  const isNew = (id: number): boolean => (byId.get(id)?.openedAt ?? 0) > newest
+  return seated(row, recentOthers(tabs, -1, onBoard, RECENT_ON_BOARD), isNew, RECENT_ON_BOARD)
 }

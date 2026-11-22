@@ -1,5 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { pageCaps, keptRecent, recentOthers, restRect, sameRect, zoomPercent } from './previewBar'
+import {
+  pageCaps,
+  keptBoardRow,
+  keptRecent,
+  recentOthers,
+  restRect,
+  sameRect,
+  seated,
+  zoomPercent
+} from './previewBar'
 
 describe('pageCaps', () => {
   test('a web page gets everything', () => {
@@ -82,15 +91,19 @@ describe('recentOthers', () => {
 describe('keptRecent', () => {
   const at = (...ids: number[]): { id: number; usedAt: number }[] =>
     ids.map((id, i) => ({ id, usedAt: 100 - i }))
-  test('a closed tab is replaced by the next most recent, keeping the order', () => {
+  test('a closed tab is replaced in its own seat by the next most recent; the others do not move', () => {
     // row was [1, 2, 3, 4]; 3 closed; 5 is the most recent tab not shown
-    expect(keptRecent([1, 2, 3, 4], at(5, 1, 2, 4, 6), 1, () => true)).toEqual([1, 2, 4, 5])
+    expect(keptRecent([1, 2, 3, 4], at(5, 1, 2, 4, 6), 1, () => true)).toEqual([1, 2, 5, 4])
   })
   test('stays put when nothing closed', () => {
     expect(keptRecent([2, 1, 3, 4], at(1, 2, 3, 4, 5), 2, () => true)).toEqual([2, 1, 3, 4])
   })
-  test('a card outside the row starts it afresh', () => {
-    expect(keptRecent([1, 2], at(1, 2, 3), 3, () => true)).toEqual([3, 1, 2])
+  test('a card outside the row takes a seat at its end; the row does not start over', () => {
+    expect(keptRecent([1, 2], at(1, 2, 3), 3, () => true)).toEqual([1, 2, 3])
+  })
+  test('picking a tab in the row moves nothing (it was the reorder the user saw)', () => {
+    // 3 was open, the person picks 1: 1 is now the most recent, 3 the next; every tab keeps its seat
+    expect(keptRecent([3, 1, 2, 4], [...at(1, 3, 2, 4), { id: 5, usedAt: 1 }], 1, () => true)).toEqual([3, 1, 2, 4])
   })
   test('shrinks only when there is nothing left to show', () => {
     expect(keptRecent([1, 2, 3], at(1, 3), 1, () => true)).toEqual([1, 3])
@@ -126,5 +139,44 @@ describe('recentOthers, opened tabs', () => {
       { id: 4, usedAt: 0, openedAt: 0 }
     ]
     expect(recentOthers(tabs, -1, () => true, 4)).toEqual([3, 2, 1, 4])
+  })
+})
+
+describe('seated', () => {
+  const never = (): boolean => false
+  test('tabs keep their seats whatever their recency now', () => {
+    expect(seated([4, 2, 9], [9, 4, 2], never, 5)).toEqual([4, 2, 9])
+  })
+  test('a new arrival fills the seat of one that left, not the end', () => {
+    expect(seated([4, 2, 9], [4, 9, 7], never, 5)).toEqual([4, 7, 9])
+  })
+  test('a newly opened tab joins at the left; the last makes room, never the kept one', () => {
+    expect(seated([4, 2, 9], [8, 4, 2, 9], (id) => id === 8, 3, 9)).toEqual([8, 4, 9])
+  })
+  test('an empty row is the wanted order', () => {
+    expect(seated([], [3, 1, 2], never, 2)).toEqual([3, 1])
+  })
+})
+
+describe('keptBoardRow', () => {
+  test('picking a tab from the board row does not move it to the front', () => {
+    const before = [
+      { id: 1, usedAt: 50 },
+      { id: 2, usedAt: 40 },
+      { id: 3, usedAt: 30 }
+    ]
+    const row = keptBoardRow([], before, () => true)
+    expect(row).toEqual([1, 2, 3])
+    // 3 picked: it is the most recent now
+    const after = before.map((t) => (t.id === 3 ? { ...t, usedAt: 90 } : t))
+    expect(keptBoardRow(row, after, () => true)).toEqual([1, 2, 3])
+  })
+  test('a tab opened since joins at the left', () => {
+    const tabs = [
+      { id: 1, usedAt: 50 },
+      { id: 2, usedAt: 40 },
+      { id: 7, usedAt: 0, openedAt: 99 }
+    ]
+    expect(keptBoardRow([1, 2], tabs, () => true)).toEqual([7, 1, 2])
   })
 })

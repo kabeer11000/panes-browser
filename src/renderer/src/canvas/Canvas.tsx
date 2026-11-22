@@ -119,7 +119,7 @@ import type { Settings, Space, TabInfo } from '@shared/types'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
-import { keptRecent, recentOthers, RECENT_ON_BOARD } from '@shared/ai/previewBar'
+import { keptBoardRow, keptRecent } from '@shared/ai/previewBar'
 import { AiGlow } from './AiGlow'
 import { CardView, FrameBar, FrameHead, FrameView, NoteView } from './Cards'
 import { WidgetView } from './Widgets'
@@ -668,6 +668,8 @@ export function Canvas({
   // the preview's recent tabs: set when it opens (that card first, then the three tabs used last) and kept in that
   // order while it stays open, so switching between them never reshuffles the row under the pointer
   const [strip, setStrip] = useState<number[]>([])
+  /** The board's recent tabs row as shown (no page open): held still, see keptBoardRow. */
+  const [boardSeats, setBoardSeats] = useState<number[]>([])
   const [stage, setStage] = useState({ w: 0, h: 0 })
   const [contents, setContents] = useState<Record<number, CanvasPageContent>>({})
   const asked = useRef(new Map<number, string>())
@@ -4890,7 +4892,14 @@ export function Canvas({
   const named = (id: number): boolean =>
     tabs.some((t) => t.id === id && !!t.title.trim() && !!t.url && t.url !== 'about:blank') &&
     !!st?.cards.some((c) => c.id === id)
-  const stripWant = expanded ? keptRecent(strip, tabs, expanded.id, named) : []
+  // the board's row holds still (shared/ai/previewBar.ts seated): a tab picked from it does not jump to the front
+  const boardTabs = tabs.filter((t) => !t.private && !t.tor)
+  const boardWant = keptBoardRow(boardSeats, boardTabs, named)
+  if (boardWant.join(',') !== boardSeats.join(',')) setBoardSeats(boardWant)
+  // and the preview's starts where the board's was, so opening a tab from it moves nothing either
+  const stripWant = expanded
+    ? keptRecent(strip.length ? strip : boardSeats, tabs, expanded.id, named)
+    : []
   if (stripWant.join(',') !== strip.join(',')) setStrip(stripWant)
   // the tab strip, after the recent tabs: a tab with something new that is not among them yet (two at most)
   // what plays is first in the strip already: it is not listed again among the tabs
@@ -4905,14 +4914,7 @@ export function Canvas({
   ]
   const previewRow = withWaiting(strip, true)
   // on the board, no page is open: the tabs used last, then what waits
-  const boardRow = withWaiting(
-    recentOthers(
-      tabs.filter((t) => !t.private && !t.tor),
-      -1,
-      named,
-      RECENT_ON_BOARD
-    )
-  )
+  const boardRow = withWaiting(boardWant)
   const switchPreview = (next: number, live?: boolean): void => {
     const cur = expandedRef.current ? expandedNow.current : null
     const card = stRef.current?.cards.find((x) => x.id === next)
