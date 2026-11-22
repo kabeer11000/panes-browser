@@ -117,3 +117,34 @@ describe('notifyShim', () => {
     })
   })
 })
+
+describe('service worker notifications', () => {
+  test('a worker showing one reports it (title, body, where it goes) and does not throw', async () => {
+    const { swNotifyShim } = await import('./swNotify')
+    const got: unknown[] = []
+    class SWR {
+      showNotification(): Promise<void> {
+        throw new Error('the original is not used')
+      }
+    }
+    const g = { ServiceWorkerRegistration: SWR } as unknown as typeof globalThis
+    swNotifyShim({ report: (n) => got.push(n) }, g)
+    await new SWR().showNotification('Ana', {
+      body: 'Are you there?',
+      data: { url: 'https://chat.example/c/1' }
+    } as NotificationOptions)
+    await new SWR().showNotification('Plain')
+    expect(got).toEqual([
+      { title: 'Ana', body: 'Are you there?', url: 'https://chat.example/c/1' },
+      { title: 'Plain', body: '', url: null }
+    ])
+  })
+
+  test('reports are checked: no title, no report; only web addresses to go to; long text cut', async () => {
+    const { parseWorkerNote } = await import('./swNotify')
+    expect(parseWorkerNote(null)).toBeNull()
+    expect(parseWorkerNote({ body: 'x' })).toBeNull()
+    expect(parseWorkerNote({ title: 'T', url: 'javascript:alert(1)' })?.url).toBeNull()
+    expect(parseWorkerNote({ title: 'x'.repeat(5000) })?.title.length).toBe(300)
+  })
+})

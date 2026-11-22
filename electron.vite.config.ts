@@ -20,6 +20,20 @@ export default defineConfig({
   },
   preload: {
     resolve: { alias: shared },
+    // A module two preloads import would go into a chunk file each requires, and a sandboxed preload cannot require a
+    // file: every page's preload failed once that way. Fail the build instead (give each its own module).
+    plugins: [
+      {
+        name: 'preloads-share-no-chunk',
+        generateBundle(_options, bundle) {
+          const shared = Object.values(bundle).filter((c) => c.type === 'chunk' && !c.isEntry)
+          if (shared.length > 0)
+            this.error(
+              `preloads share ${shared.map((c) => c.fileName).join(', ')}: a sandboxed preload cannot require it`
+            )
+        }
+      }
+    ],
     build: {
       rollupOptions: {
         input: {
@@ -34,7 +48,8 @@ export default defineConfig({
           dock: resolve('src/preload/dock.ts'),
           youtube: resolve('src/preload/youtube.ts'),
           adblock: resolve('src/preload/adblock.ts'),
-          frame: resolve('src/preload/frame.ts')
+          frame: resolve('src/preload/frame.ts'),
+          sw: resolve('src/preload/sw.ts')
         }
       }
     }

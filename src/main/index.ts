@@ -12,6 +12,7 @@ import {
   shell
 } from 'electron'
 import type { CaptureKind } from '@shared/capture'
+import { parseWorkerNote } from '@shared/swNotify'
 import { createServer } from 'http'
 import { existsSync, statSync } from 'fs'
 import { pathToFileURL } from 'url'
@@ -331,6 +332,30 @@ function createWindow(): void {
   )
   win.once('closed', () => alarms.dispose())
   const permissions = new PermissionStore()
+  // A site's service worker showing a notification (a push, its tab in the background): shown and marked here, only
+  // for a site allowed notifications (the worker's own call is replaced, and with it Chromium's check)
+  tabSession.registerPreloadScript({
+    type: 'service-worker',
+    filePath: join(__dirname, '../preload/sw.js')
+  })
+  const hookedWorkers = new WeakSet<Electron.ServiceWorkerMain>()
+  tabSession.serviceWorkers.on('running-status-changed', ({ versionId, runningStatus }) => {
+    if (runningStatus !== 'starting' && runningStatus !== 'running') return
+    const worker = tabSession.serviceWorkers.getWorkerFromVersionID(versionId)
+    if (!worker || hookedWorkers.has(worker)) return
+    hookedWorkers.add(worker)
+    worker.ipc.on('sw:notify', (_e, data: unknown) => {
+      const note = parseWorkerNote(data)
+      let origin: string
+      try {
+        origin = new URL(worker.scope).origin
+      } catch {
+        return
+      }
+      if (note && permissions.get(origin, 'notifications') === 'allow')
+        tabs.workerNotification(origin, note)
+    })
+  })
   // Popover views (site panel, permission and password cards) wear the window's colours too.
   setChromeThemeSource(() => {
     const space = spaces.get(spaces.activeId())
@@ -1142,7 +1167,8 @@ if (gotLock)
     mark('ready')
     electronApp.setAppUserModelId('pk.procheck.panes')
     // panes://join links (a shared space's invite page) open Panes; a development build would register the wrong program
-    if (app.isPackaged && !app.isDefaultProtocolClient('panes')) app.setAsDefaultProtocolClient('panes')
+    if (app.isPackaged && !app.isDefaultProtocolClient('panes'))
+      app.setAsDefaultProtocolClient('panes')
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
     createWindow()
     app.on('activate', () => {
