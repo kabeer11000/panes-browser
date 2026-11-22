@@ -36,6 +36,7 @@ export function SpaceSwitcher({
 }: Props): React.JSX.Element {
   const [editingSpace, setEditingSpace] = useState<number | null>(null)
   const editing = spaces.find((s) => s.id === editingSpace)
+  const activeName = spaces.find((s) => s.id === activeSpaceId)?.name ?? ''
   const groupId = useId() // scopes the layout animation to this row, never across switchers
   const owner = 'space-' + groupId
   const { spaceAudio: audio, spaceAttention } = useSpaceMarks()
@@ -139,16 +140,39 @@ export function SpaceSwitcher({
           </button>
           {caption && (
             <AnimatePresence mode="popLayout" initial={false}>
-              <motion.span
+              {/* the space's name is its settings: it says so (a pencil under the pointer), never a
+                  hidden "click the avatar again" */}
+              <motion.button
+                type="button"
                 key={activeSpaceId}
-                className="space-caption"
+                className={'space-caption no-drag' + (editingSpace === activeSpaceId ? ' on' : '')}
+                aria-haspopup="dialog"
+                aria-expanded={editingSpace === activeSpaceId}
+                title={`Edit ${activeName}: name, look, how it browses`}
                 initial={{ opacity: 0, x: 8 * dir }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 * dir }}
                 transition={{ duration: 0.18 }}
+                onClick={() =>
+                  setEditingSpace(editingSpace === activeSpaceId ? null : activeSpaceId)
+                }
               >
-                {spaces.find((s) => s.id === activeSpaceId)?.name}
-              </motion.span>
+                <span>{activeName}</span>
+                <svg
+                  className="space-caption-edit"
+                  width="11"
+                  height="11"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M10.5 2.5l3 3L6 13H3v-3l7.5-7.5z" />
+                </svg>
+              </motion.button>
             </AnimatePresence>
           )}
         </div>

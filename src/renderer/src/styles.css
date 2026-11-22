@@ -1747,13 +1747,48 @@ button {
 .space-caption {
   margin-left: auto;
   max-width: 45%;
-  padding-left: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 7px 0 8px;
+  border-radius: 7px;
   color: var(--fg-dim);
   font-size: var(--fs-s);
   font-weight: 600;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.space-caption > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.space-caption:hover,
+.space-caption.on {
+  color: var(--fg);
+  background: var(--surface-hover);
+}
+.space-caption:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* the pencil says "this is where the space is set up": out of the way until pointed at, then plain */
+.space-caption-edit {
+  flex: none;
+  opacity: 0;
+  translate: -3px 0;
+  transition:
+    opacity 0.15s,
+    translate 0.15s;
+}
+.space-caption:hover .space-caption-edit,
+.space-caption:focus-visible .space-caption-edit,
+.space-caption.on .space-caption-edit {
+  opacity: 0.8;
+  translate: 0 0;
 }
 /* a space's face: a soft squircle in its colours with a white glyph */
 .sav {

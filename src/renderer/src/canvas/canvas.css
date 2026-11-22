@@ -3750,50 +3750,54 @@
   color: var(--fg-dim);
 }
 
-/* ---- the space chip (SpaceChip.tsx): the board's top-left corner ---- */
+/* ---- the board's top-left corner: the spaces (SpaceSwitcher, as in the sidebar) and the undo history ---- */
 .cv-chip-host {
   position: relative;
 }
-.cv-space-chip {
-  height: 26px;
+/* the row on a quiet plate of its own, so it reads on any board colour; the name sits after the avatars */
+.cv-spaces {
   display: flex;
   align-items: center;
-  gap: 7px;
-  max-width: 200px;
-  padding: 0 8px 0 9px;
-  border-radius: 8px;
-  font-size: 12px;
+  height: 32px;
+  padding: 0 3px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--popover-bg) 70%, transparent);
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 10%, transparent);
+}
+.cv-spaces .space-switcher,
+.cv-spaces .space-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.cv-spaces .space-chip {
+  width: 28px;
+  height: 28px;
+}
+.cv-spaces .space-caption {
+  margin-left: 2px;
+  max-width: 180px;
+  height: 26px;
+}
+.cv-hist-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
   color: var(--fg-dim);
-  background: transparent;
   transition:
     background var(--dur-fast),
     color var(--dur-fast);
 }
-.cv-space-chip:hover,
-.cv-space-chip.on {
+.cv-hist-btn:hover,
+.cv-hist-btn.on {
   color: var(--fg);
   background: var(--surface);
 }
-.cv-space-chip:focus-visible {
+.cv-hist-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-.cv-space-chip > i,
-.cv-space-menu button > i {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.cv-space-chip > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cv-space-chip > svg {
-  flex: none;
-  opacity: 0.6;
 }
 .cv-space-menu {
   top: calc(100% + 6px);
@@ -3808,29 +3812,6 @@
   gap: 9px;
   padding: 7px 10px;
 }
-.cv-space-menu button.here {
-  font-weight: 550;
-}
-.cv-space-menu button.here::after {
-  content: '';
-  margin-left: auto;
-  width: 5px;
-  height: 9px;
-  border: solid var(--accent);
-  border-width: 0 1.5px 1.5px 0;
-  rotate: 45deg;
-  translate: 0 -2px;
-}
-.cv-space-menu button.add {
-  color: var(--fg-dim);
-}
-.cv-space-menu button.add > i {
-  width: 8px;
-  height: auto;
-  font-style: normal;
-  line-height: 1;
-  text-align: center;
-}
 .cv-space-menu button.step {
   justify-content: space-between;
   gap: var(--sp-3);
@@ -3839,11 +3820,6 @@
   flex: none;
   color: var(--fg-dim);
   font-size: var(--fs-xs);
-}
-.cv-space-menu hr {
-  margin: 4px 6px;
-  border: 0;
-  border-top: 1px solid var(--border);
 }
 .cv-dock-input .cv-mention {
   left: 0;
@@ -4977,4 +4953,41 @@
   width: 16px;
   height: 16px;
   border-radius: 4px;
+}
+/* on the board: "new space" is a light afterthought at the row's end, and a hairline sets the name apart */
+.cv-spaces .space-chip.add {
+  width: 24px;
+  height: 24px;
+  background: none;
+  color: var(--fg-dim);
+  opacity: 0.7;
+}
+.cv-spaces .space-chip.add:hover {
+  opacity: 1;
+  background: var(--surface-hover);
+}
+.cv-spaces .space-caption {
+  position: relative;
+  margin-left: 6px;
+}
+.cv-spaces .space-caption::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+/* the space you are in stands forward; the others wait, a little smaller, until pointed at */
+.cv-spaces .space-chip:not(.active):not(.add) .sav {
+  opacity: 0.55;
+  scale: 0.86;
+  transition:
+    opacity 0.15s,
+    scale 0.2s var(--ease);
+}
+.cv-spaces .space-chip:not(.active):not(.add):hover .sav {
+  opacity: 1;
+  scale: 1;
 }

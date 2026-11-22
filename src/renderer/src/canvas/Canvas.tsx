@@ -151,7 +151,9 @@ import { useAsk } from './useAsk'
 import { AskDock } from './AskDock'
 import { Marks } from './Marks'
 import { CommandMenu, type Command } from './CommandMenu'
-import { SpaceChip } from './SpaceChip'
+import { UndoHistory } from './UndoHistory'
+import { SpaceSwitcher } from '@renderer/components/SpaceSwitcher'
+import { useSpaceDir } from '@renderer/hooks/useSpaceDir'
 import { boardDigest } from '@shared/ai/canvasDigest'
 import {
   addPreset,
@@ -609,6 +611,7 @@ export function Canvas({
   useLayoutEffect(() => {
     spaceIdRef.current = spaceId
   }, [spaceId])
+  const spaceDir = useSpaceDir(spaces, spaceId)
   const [sel, setSelState] = useState<Set<string>>(new Set())
   const selRef = useRef(sel)
   const [tool, setTool] = useState<Tool>('select')
@@ -5832,9 +5835,18 @@ export function Canvas({
         >
           {/* the board is the whole window (no top bar under it): the window's own buttons live here */}
           {window.api.platform !== 'darwin' && <WindowControls />}
-          <SpaceChip
-            spaces={spaces}
-            activeId={spaceId}
+          {/* the spaces as everywhere else: a click switches, the name opens this space's settings */}
+          <div className="cv-spaces">
+            <SpaceSwitcher
+              spaces={spaces}
+              activeSpaceId={spaceId}
+              placement="down"
+              caption
+              dir={spaceDir}
+              size={24}
+            />
+          </div>
+          <UndoHistory
             open={history !== null}
             onOpen={openHistory}
             onClose={() => setHistory(null)}
