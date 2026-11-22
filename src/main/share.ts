@@ -7,7 +7,7 @@
  * The room's secret never leaves this file: it is kept encrypted by the system (safeStorage) in its own store, never
  * on the space (spaces are sent to the window whole). The space only says that it is shared.
  */
-import { app, ipcMain, safeStorage, type BrowserWindow } from 'electron'
+import { app, clipboard, ipcMain, safeStorage, type BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { userInfo } from 'os'
 import { join } from 'path'
@@ -77,12 +77,34 @@ export interface ShareDeps {
 }
 
 export class ShareService {
-  private store = new JsonStore<{ rooms: Record<string, Saved> }>('shares', { rooms: {} })
+  private store = new JsonStore<{
+    rooms: Record<string, Saved>
+    /** This person, as the others see them: a name they can change, a colour kept from the first share on. */
+    me?: { name: string; color: string }
+  }>('shares', { rooms: {} })
   private rooms = new Map<number, Room>()
-  /** This person, as the others see them. */
-  private me = {
-    name: userInfo().username || 'Someone',
-    color: COLORS[Math.floor(Math.random() * COLORS.length)]
+
+  private get me(): { name: string; color: string } {
+    if (!this.store.value.me) {
+      this.store.value.me = {
+        name: userInfo().username || 'Someone',
+        color: COLORS[Math.floor(Math.random() * COLORS.length)]
+      }
+      this.store.save()
+    }
+    return this.store.value.me
+  }
+
+  /** The name the others see (every room is told at once). */
+  setName(name: string): void {
+    const n = name.trim().slice(0, 40)
+    if (!n) return
+    this.store.value.me = { ...this.me, name: n }
+    this.store.save()
+    for (const room of this.rooms.values()) {
+      room.client.awareness.setLocalStateField('user', this.me)
+      this.tell(room)
+    }
   }
 
   constructor(private d: ShareDeps) {}
@@ -235,15 +257,21 @@ export class ShareService {
   }
 
   /** This space's name, colour and icon, written for the others (when it changes here, or on sharing). */
-  writeMeta(spaceId: number): void {
+  /**
+   * Only what `keys` names (what the person changed here): a space's other settings changing (how it browses, its
+   * theme) must not send its name again. A space just joined has a stand-in name until the room's arrives, and
+   * writing that back renamed the space for everyone.
+   */
+  writeMeta(spaceId: number, keys: readonly string[] = ['name', 'color', 'icon']): void {
     const room = this.rooms.get(spaceId)
     const space = this.d.spaces.get(spaceId)
     if (!room || !space) return
     const m = room.doc.getMap<string>('meta')
     room.doc.transact(() => {
-      if (m.get('name') !== space.name) m.set('name', space.name)
-      if (m.get('color') !== space.color) m.set('color', space.color)
-      if (m.get('icon') !== space.icon) m.set('icon', space.icon)
+      for (const k of ['name', 'color', 'icon'] as const) {
+        const v = space[k]
+        if (keys.includes(k) && typeof v === 'string' && m.get(k) !== v) m.set(k, v)
+      }
     }, LOCAL)
   }
 
@@ -318,15 +346,24 @@ export class ShareService {
     return s ? inviteLink(s.relay, s.room, this.secretOf(s)) : null
   }
 
-  /** Whether a link is an invite this Panes can join (its own relay). */
+  /** Whether a link is an invite this Panes can join (its own relay, or panes://join from the invite page). */
   isInvite(link: string): boolean {
-    const p = parseInvite(link)
+    const p = parseInvite(fromJoin(link))
     return !!p && p.relay === new URL(SHARE_RELAY).origin
+  }
+
+  /** An invite link on the clipboard for a room this Panes is not in yet (the search popover offers to join it). */
+  async clipboardInvite(): Promise<string | null> {
+    const text = (await clipboard.readText()).trim()
+    if (text.length > 300 || !this.isInvite(text)) return null
+    const p = parseInvite(fromJoin(text))
+    if (!p || Object.values(this.store.value.rooms).some((s) => s.room === p.room)) return null
+    return text
   }
 
   /** Join from an invite link: a new space, its board coming in from the room. The space's id, or null. */
   join(link: string): number | null {
-    const p = parseInvite(link)
+    const p = parseInvite(fromJoin(link))
     if (!p) return null
     // already in it: go there
     for (const [id, s] of Object.entries(this.store.value.rooms))
@@ -371,6 +408,11 @@ export class ShareService {
   }
 }
 
+/** panes://join/<room>#<secret> (the invite page's Open in Panes) as the invite link it stands for. */
+export function fromJoin(link: string): string {
+  return link.trim().replace(/^panes:\/\/join\//i, `${SHARE_RELAY}/s/`)
+}
+
 export function registerShare(d: ShareDeps): ShareService {
   const svc = new ShareService(d)
   const mine = (e: { sender: unknown }): boolean => e.sender === d.win.webContents
@@ -381,6 +423,10 @@ export function registerShare(d: ShareDeps): ShareService {
     mine(e) && typeof link === 'string' ? svc.join(link) : null
   )
   ipcMain.handle('share:state', (e, id: unknown) => (mine(e) ? svc.state(num(id)) : null))
+  ipcMain.on('share:name', (e, name: unknown) => {
+    if (mine(e) && typeof name === 'string') svc.setName(name)
+  })
+  ipcMain.handle('share:clipboard', (e) => (mine(e) ? svc.clipboardInvite() : null))
   ipcMain.on('share:stop', (e, id: unknown) => {
     if (mine(e)) svc.stop(num(id))
   })

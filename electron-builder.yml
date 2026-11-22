@@ -55,6 +55,8 @@ mac:
     - CFBundleURLTypes:
         - CFBundleURLName: Web link
           CFBundleURLSchemes: [http, https]
+        - CFBundleURLName: Panes shared space
+          CFBundleURLSchemes: [panes]
     - CFBundleDocumentTypes:
         - CFBundleTypeName: Web page
           CFBundleTypeRole: Viewer

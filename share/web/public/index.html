@@ -1,1 +1,195 @@
-<!doctype html><meta charset="utf-8"><title>Panes</title><p>The web board is on its way. Open this link in Panes.</p>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Join a shared space in Panes</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f6f8;
+        --card: #fff;
+        --fg: #17181b;
+        --dim: rgb(23 24 27 / 0.62);
+        --line: rgb(23 24 27 / 0.1);
+        --accent: #5b5bf0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #101114;
+          --card: #1a1b20;
+          --fg: #f2f2f4;
+          --dim: rgb(242 242 244 / 0.62);
+          --line: rgb(242 242 244 / 0.1);
+          --accent: #8b8bff;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          15px/1.5 'Segoe UI Variable',
+          'Segoe UI',
+          -apple-system,
+          system-ui,
+          sans-serif;
+      }
+      main {
+        width: 100%;
+        max-width: 420px;
+        padding: 32px 28px 26px;
+        border-radius: 20px;
+        background: var(--card);
+        box-shadow:
+          0 0 0 1px var(--line),
+          0 24px 60px -20px rgb(0 0 0 / 0.35);
+        text-align: center;
+      }
+      .mark {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 18px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: color-mix(in srgb, var(--accent) 16%, transparent);
+        color: var(--accent);
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 21px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0;
+        color: var(--dim);
+      }
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 24px;
+      }
+      a.btn,
+      button {
+        display: block;
+        width: 100%;
+        height: 42px;
+        border: 0;
+        border-radius: 11px;
+        font: inherit;
+        font-weight: 600;
+        line-height: 42px;
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+          filter 0.12s,
+          transform 0.12s;
+      }
+      a.btn:active,
+      button:active {
+        transform: scale(0.985);
+      }
+      .primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .primary:hover {
+        filter: brightness(1.08);
+      }
+      .quiet {
+        background: color-mix(in srgb, var(--fg) 7%, transparent);
+        color: var(--fg);
+      }
+      .quiet:hover {
+        background: color-mix(in srgb, var(--fg) 11%, transparent);
+      }
+      .get {
+        margin-top: 22px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+        font-size: 13.5px;
+      }
+      .get a {
+        color: var(--accent);
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .lock {
+        margin-top: 14px;
+        font-size: 12px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="8" height="8" rx="2" />
+          <rect x="13" y="3" width="8" height="5" rx="2" />
+          <rect x="13" y="10" width="8" height="11" rx="2" />
+          <rect x="3" y="13" width="8" height="8" rx="2" />
+        </svg>
+      </div>
+
+      <section id="ok">
+        <h1>You are invited to a shared space</h1>
+        <p>A board in Panes that everyone in it edits together, live.</p>
+        <div class="actions">
+          <a id="open" class="btn primary" href="#">Open in Panes</a>
+          <button id="copy" class="quiet" type="button">Copy invite link</button>
+        </div>
+        <p class="lock">
+          Or paste the link into Panes' address bar. Everything in the space is end-to-end encrypted with this link.
+        </p>
+      </section>
+
+      <section id="bad" hidden>
+        <h1>This link is not complete</h1>
+        <p>Part of the invite is missing. Ask for the link again, and copy all of it.</p>
+      </section>
+
+      <div class="get">
+        No Panes yet? <a href="https://panes.kabeers.network/" rel="noopener">Download it for Windows or Mac</a>,
+        then open this link again. Joining from the web is on its way.
+      </div>
+    </main>
+    <script>
+      // The room is in the address, the secret after # (never sent to this server). Panes takes both, through
+      // panes://join (registered with the system when Panes is installed).
+      const room = (/^\/s\/([A-Za-z0-9_-]{16,64})\/?$/.exec(location.pathname) || [])[1]
+      const secret = location.hash.slice(1)
+      if (!room || !/^[A-Za-z0-9_-]{43}$/.test(secret)) {
+        document.getElementById('ok').hidden = true
+        document.getElementById('bad').hidden = false
+      } else {
+        const join = 'panes://join/' + room + '#' + secret
+        const open = document.getElementById('open')
+        open.href = join
+        // once, as the page opens: the browser asks whether to open Panes (nothing happens without Panes)
+        if (!sessionStorage.getItem('tried-' + room)) {
+          sessionStorage.setItem('tried-' + room, '1')
+          setTimeout(() => (location.href = join), 400)
+        }
+        const copy = document.getElementById('copy')
+        copy.addEventListener('click', async () => {
+          await navigator.clipboard.writeText(location.href)
+          copy.textContent = 'Link copied'
+          setTimeout(() => (copy.textContent = 'Copy invite link'), 2000)
+        })
+      }
+    </script>
+  </body>

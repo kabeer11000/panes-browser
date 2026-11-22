@@ -618,7 +618,8 @@ function createWindow(): void {
   ipcMain.on('spaces:create', () => tabs.createSpace())
   ipcMain.on('spaces:update', (_e, id: number, patch: SpacePatch) => {
     tabs.updateSpace(id, patch)
-    share.writeMeta(id) // a shared space's name, colour and icon reach the others
+    // a shared space's name, colour and icon reach the others (only those changed here)
+    share.writeMeta(id, Object.keys(patch ?? {}))
   })
   ipcMain.on('spaces:delete', (_e, id: number) => {
     share.forget(id)
@@ -1128,6 +1129,8 @@ if (gotLock)
   app.whenReady().then(() => {
     mark('ready')
     electronApp.setAppUserModelId('pk.procheck.panes')
+    // panes://join links (a shared space's invite page) open Panes; a development build would register the wrong program
+    if (app.isPackaged && !app.isDefaultProtocolClient('panes')) app.setAsDefaultProtocolClient('panes')
     app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
     createWindow()
     app.on('activate', () => {

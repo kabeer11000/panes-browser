@@ -14,7 +14,7 @@ const extensionOf = (path: string): string => path.slice(path.lastIndexOf('.') +
 
 /**
  * The addresses to open from a command line: web links as they are, and the files Panes can show turned
- * into file addresses. Everything else is ignored (flags, the program itself, other schemes), so a
+ * into file addresses, and a shared space's panes://join invite. Everything else is ignored (flags, the program itself, other schemes), so a
  * crafted argument cannot make Panes open anything it should not.
  */
 export function linksFromArgv(
@@ -25,7 +25,10 @@ export function linksFromArgv(
   const out: string[] = []
   for (const arg of argv) {
     if (!arg || arg.startsWith('-')) continue
-    if (/^https?:\/\//i.test(arg)) {
+    // a shared space's invite, handed over by the system (the invite page's Open in Panes): only that one address
+    // of panes://, never an internal page
+    if (/^panes:\/\/join\/[A-Za-z0-9_-]{16,64}#[A-Za-z0-9_-]{43}$/.test(arg)) out.push(arg)
+    else if (/^https?:\/\//i.test(arg)) {
       try {
         out.push(new URL(arg).toString())
       } catch {

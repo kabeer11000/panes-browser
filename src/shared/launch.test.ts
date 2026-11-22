@@ -5,6 +5,17 @@ const toUrl = (p: string): string => 'file:///' + p.replace(/\\/g, '/')
 const exists = (p: string): boolean => !p.includes('missing')
 
 describe('linksFromArgv', () => {
+  test('keeps a panes://join invite, and no other panes:// address', () => {
+    const join = 'panes://join/' + 'a'.repeat(22) + '#' + 'b'.repeat(43)
+    expect(
+      linksFromArgv(
+        [join, 'panes://settings', 'panes://join/short#x', join + 'x', 'panes://join/' + 'a'.repeat(22)],
+        toUrl,
+        exists
+      )
+    ).toEqual([join])
+  })
+
   test('keeps web links and turns openable files into file addresses', () => {
     expect(
       linksFromArgv(
