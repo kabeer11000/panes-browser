@@ -112,7 +112,9 @@ People without Panes join from any browser in a light web version that is also P
 - [~] 7d. Guard rails: DONE no typing into the host's password fields by the driver (keys and chars dropped while
       any frame's focus is a password input; checked: none reached it, typing elsewhere kept order). OPEN: file pickers and downloads stay the
       host's; a visible "Ana is driving" on the host's tab itself, not only in the board's bar.
-- [ ] 7e. Capture restarts when the shared tab navigates far (once seen not to answer after a file: -> http: move).
+- [~] 7e. Capture restarts: DONE a tab whose capture was refused (file: pages are) is captured again on the next
+      hello, and watchers who asked meanwhile are offered to every 2 s once it works (they said hello once and sat on
+      "Connecting"). http navigations kept capturing in tests. OPEN: not yet run on two Panes over the relay.
 - [ ] 7f. Smoothness bar: measure glass-to-glass latency (timestamp page, two Panes), adaptive size to the viewer's
       panel, 60 fps when the page moves; the driver's own pointer drawn locally at once.
 - [ ] 7g. Watch from the web board (people without Panes).

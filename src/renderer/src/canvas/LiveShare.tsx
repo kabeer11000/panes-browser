@@ -48,7 +48,23 @@ function useLiveHost(
     if (tabId === null || !window.api.share) return
     let dead = false
     let stream: MediaStream | null = null
-    const ready = (async (): Promise<MediaStream | null> => {
+    let trying: Promise<MediaStream | null> | null = null
+    /** Watchers who said hello while the tab could not be captured: offered to once it can (they say hello once). */
+    const waiting = new Set<number>()
+    let retry: number | undefined
+    // The tab's picture, captured again when it is not live: a tab on a file: page refuses capture, and the first
+    // refusal used to leave every watcher on "Connecting" for good.
+    const capture = (): Promise<MediaStream | null> => {
+      if (stream?.getVideoTracks().some((t) => t.readyState === 'live'))
+        return Promise.resolve(stream)
+      trying ??= grab()
+        .catch(() => null)
+        .finally(() => {
+          trying = null
+        })
+      return trying
+    }
+    const grab = async (): Promise<MediaStream | null> => {
       const source = await window.api.canvas.streamSource?.(tabId)
       if (!source || dead) return null
       const s = await navigator.mediaDevices.getUserMedia({
@@ -67,12 +83,14 @@ function useLiveHost(
         s.getTracks().forEach((t) => t.stop())
         return null
       }
+      if (stream && stream !== s) stream.getTracks().forEach((t) => t.stop())
       stream = s
       return s
-    })().catch(() => null)
+    }
     const send = (to: number, sig: LiveSignal): void =>
       window.api.share!.signal(spaceId, to, JSON.stringify(sig))
     const drop = (from: number): void => {
+      waiting.delete(from)
       peers.current.get(from)?.pc.close()
       peers.current.delete(from)
       if (driverRef.current === from) {
@@ -90,39 +108,56 @@ function useLiveHost(
       } else if (msg.k === 'input' && driverRef.current === from)
         window.api.share!.input(spaceId, msg.e)
     }
+    /** A call to one watcher, carrying the tab's picture and the two control channels. */
+    const offer = async (from: number, s: MediaStream): Promise<void> => {
+      drop(from)
+      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+      const peer: Peer = { pc, ctl: null, mv: null }
+      peers.current.set(from, peer)
+      setWatching(peers.current.size)
+      for (const track of s.getTracks()) {
+        const sender = pc.addTrack(track, s)
+        // smooth, not sharp: frames keep coming when the network is tight
+        const p = sender.getParameters()
+        p.degradationPreference = 'maintain-framerate'
+        void sender.setParameters(p).catch(() => undefined)
+      }
+      peer.ctl = pc.createDataChannel('ctl', { ordered: true })
+      peer.mv = pc.createDataChannel('mv', { ordered: false, maxRetransmits: 0 })
+      for (const ch of [peer.ctl, peer.mv])
+        ch.onmessage = (e) => {
+          const msg = parse<LiveControl>(String(e.data))
+          if (msg) onCtl(from, msg)
+        }
+      pc.onicecandidate = (e) =>
+        e.candidate && send(from, { k: 'ice', c: e.candidate.toJSON() as never })
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') drop(from)
+      }
+      await pc.setLocalDescription(await pc.createOffer())
+      send(from, { k: 'sdp', sdp: pc.localDescription!.toJSON() as never })
+    }
+    const offerWaiting = async (): Promise<void> => {
+      const s = waiting.size ? await capture() : null
+      if (dead || (waiting.size && !s)) return
+      window.clearInterval(retry)
+      retry = undefined
+      if (!s) return
+      for (const from of [...waiting]) void offer(from, s)
+    }
     const off = window.api.share.onSignal(async (sid, from, data) => {
       if (sid !== spaceId) return
       const sig = parse<LiveSignal>(data)
       if (!sig) return
       if (sig.k === 'hello') {
-        const s = await ready
-        if (!s || dead) return
-        drop(from)
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
-        const peer: Peer = { pc, ctl: null, mv: null }
-        peers.current.set(from, peer)
-        setWatching(peers.current.size)
-        for (const track of s.getTracks()) {
-          const sender = pc.addTrack(track, s)
-          // smooth, not sharp: frames keep coming when the network is tight
-          const p = sender.getParameters()
-          p.degradationPreference = 'maintain-framerate'
-          void sender.setParameters(p).catch(() => undefined)
+        const s = await capture()
+        if (dead) return
+        if (!s) {
+          waiting.add(from)
+          retry ??= window.setInterval(() => void offerWaiting(), 2000)
+          return
         }
-        peer.ctl = pc.createDataChannel('ctl', { ordered: true })
-        peer.mv = pc.createDataChannel('mv', { ordered: false, maxRetransmits: 0 })
-        for (const ch of [peer.ctl, peer.mv])
-          ch.onmessage = (e) => {
-            const msg = parse<LiveControl>(String(e.data))
-            if (msg) onCtl(from, msg)
-          }
-        pc.onicecandidate = (e) =>
-          e.candidate && send(from, { k: 'ice', c: e.candidate.toJSON() as never })
-        pc.onconnectionstatechange = () => {
-          if (pc.connectionState === 'failed' || pc.connectionState === 'closed') drop(from)
-        }
-        await pc.setLocalDescription(await pc.createOffer())
-        send(from, { k: 'sdp', sdp: pc.localDescription!.toJSON() as never })
+        await offer(from, s)
       } else if (sig.k === 'sdp') {
         await peers.current
           .get(from)
@@ -139,6 +174,8 @@ function useLiveHost(
     return () => {
       dead = true
       off()
+      window.clearInterval(retry)
+      waiting.clear()
       for (const [to, p] of all) {
         send(to, { k: 'bye' })
         p.pc.close()
