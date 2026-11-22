@@ -46,7 +46,7 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Recent tabs: switching sometimes drops that tab from the bar; a newly opened tab does not show at the left.
       Rule: left = most recent, stable, never disorienting; tabs appear and move with clear motion. UI is never a surprise.
       (b9de12b, verified live: background tab joins at the left in 1.5 s, board and preview.)
-- [ ] Preview open: a rim of something peeks from behind at the left / top corners. Hide it (and unload if not needed).
+- [x] Preview open: a rim of something peeks from behind at the left / top corners. Board put away at rest. (0f61495)
 - [ ] Shared spaces (FigJam-like, plan: tasks/shared-spaces.md; + Hyperbeam-like co-browsing, chat, web guests), decided 2026-11-20 (polish-2.md:132): Yjs, own websocket relay on the user's Render
       account, invite link with a secret key (no accounts), images shrunk + uploaded to the relay (~5 MB cap). Both edit
       notes, images, arrows, sections, cards. Later: shared tabs. Plan it in tasks/shared-spaces.md first; deploying to
@@ -65,13 +65,21 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Notifications sometimes do not open from the strip. User likes the bell after all: reposition it, make it reliable.
       The bell shows always, even with nothing new (beta.113 feedback). Unread styling is "gross": redo it.
 - [ ] open.spotify.com opens in its mobile layout (user agent? viewport?).
-- [ ] Card host pill (top of a card) shows sometimes, not others: make it reliable.
+- [x] Card host pill (top of a card) shows sometimes, not others: make it reliable. (e4d901c)
 - [ ] Cards redesign: sizes, rounding, overall look (user, again). Measure GPU on pan/zoom.
 - [ ] Site settings popup: full retheme, clean; it is oddly see-through (fix). Then every other popup the same way
       (permission card, save-password, downloads bin, tab hover card...): one clean look, wider/horizontal if it reads better.
 - [ ] Then: first-party screen time / digital health (time per site, daily/weekly, limits, focus), better than
       Apple's Screen Time. Local only.
 
+- [ ] Switching between tabs with different page zoom shifts the layout (zoom badge appears/goes): no shift, tab view and preview.
+- [ ] Board: "open link side by side" reworked: its animations are poor and it is not fun to use (user 2026-11-22).
+      Split view in the preview: no extra toolbar per pane; each pane's tab actions slide out at its right edge on
+      hover (like the downloads bin), and the whole flow is reworked: the context menu item, its wording, the motion.
+      Split view + the recent tabs strip in the preview is broken (behaviour and look): rework both together.
+      Seen 2026-11-22 (scratch, google+wikipedia split): the other pane is a dark blurry picture, not live; the
+      header shows only one pane's address, no sign of which pane has focus; the strip does not show the split.
+      Also: the page view shows too big, then resizes, when switching tabs in the preview (user).
 - [ ] Hyperbeam-smooth shared browsing with remote control, and chat: in tasks/shared-spaces.md.
 - [ ] Off the main thread: see D.
 
