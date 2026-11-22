@@ -62,6 +62,7 @@ import { showEditMenu } from './contextMenu'
 import { TabManager } from './tabs'
 import { registerTouchpad } from './touchpad'
 import { NavGestures } from './gestures'
+import { installBluetoothPicker, installDevicePickers } from './devices'
 import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
 import { registerOffscreenInput } from './offscreenPage'
@@ -331,6 +332,9 @@ function createWindow(): void {
   // apart, and never reaches the normal profile's saved answers.
   permissionManager.install(privateSession, new PermissionStore(false))
   permissionManager.install(torSession, new PermissionStore(false))
+  // USB, HID, serial and Bluetooth devices: Chrome's chooser, in every session tabs use
+  for (const ses of [tabSession, privateSession, torSession]) installDevicePickers(ses)
+  installBluetoothPicker()
   for (const s of [tabSession, privateSession, torSession]) watchCertificates(s)
   const sites = new SiteSettings({
     settings,

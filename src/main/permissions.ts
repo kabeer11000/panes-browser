@@ -38,6 +38,7 @@ import {
   type PermSetting,
   type SiteGrant
 } from '@shared/permissions'
+import { CHOOSER_CHECKS } from '@shared/devices'
 import {
   captureKindsOf,
   mergeSources,
@@ -372,6 +373,8 @@ export class PermissionManager {
     // from them is noted like an answer, so the site settings know when a page holds an outdated "denied".
     session.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => {
       if (ALWAYS_ALLOWED.has(permission)) return true
+      // a device request goes on to the chooser (main/devices.ts), where picking the device is the permission
+      if (CHOOSER_CHECKS.has(permission)) return true
       const mediaType = details.mediaType
       const kinds = kindsFor(
         permission,
