@@ -12,7 +12,7 @@ import type { SiteSettings } from './sites'
 import { releaseHelper } from '@shared/memory'
 import { paintView } from './chromeTheme'
 
-const WIDTH = 352
+const WIDTH = 440
 const PAD = 36 // room around the card for its shadow, so the view never clips it
 const GAP = 4 // between the address bar's button and the card
 const PUSH_DELAY_MS = 80

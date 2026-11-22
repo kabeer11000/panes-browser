@@ -254,10 +254,8 @@ body,
 }
 .pn-section h2 {
   margin: 0;
-  font-size: var(--fs-xs);
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--fs-s);
+  font-weight: 600;
   color: var(--fg-dim);
 }
 .pn-section header em {
@@ -265,12 +263,11 @@ body,
   font-size: var(--fs-s);
   color: var(--fg-dim);
 }
+/* one surface: rows sit on the card itself, parted by hairlines (no box inside the box) */
 .pn-group {
   display: flex;
   flex-direction: column;
-  padding: 0 10px;
-  border-radius: var(--r-4);
-  background: var(--surface);
+  padding: 0 4px;
 }
 .pn-group > * + * {
   border-top: 1px solid var(--border);
@@ -807,4 +804,122 @@ html[data-up='true'] .pn-root {
   flex-direction: column;
   justify-content: flex-end;
   height: 100%;
+}
+
+/* ---- the everyday switches: four tiles in a row ---- */
+.pn-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.pn-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 10px 9px;
+  border-radius: 14px;
+  text-align: left;
+  color: var(--fg);
+  background: var(--surface);
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+.pn-tile:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.pn-tile.on {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+}
+.pn-tile.on:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 30%, var(--surface));
+}
+.pn-tile:disabled {
+  opacity: 0.5;
+}
+.pn-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  color: var(--fg-dim);
+  background: var(--surface-hover);
+}
+.pn-tile.on .pn-tile-icon {
+  color: #fff;
+  background: var(--accent);
+}
+.pn-tile-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.pn-tile b {
+  font-size: var(--fs-s);
+  font-weight: 600;
+}
+.pn-tile > span:last-child,
+.pn-tile b {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pn-tile > span:last-child {
+  font-size: var(--fs-xs);
+  color: var(--fg-dim);
+}
+
+/* ---- a value as a pill that opens the system's menu ---- */
+.pn-pick {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--r-pill);
+  background: var(--surface-hover);
+  color: var(--fg);
+  transition: background var(--dur-fast);
+}
+.pn-pick:hover {
+  background: var(--surface-active);
+}
+.pn-pick.good {
+  color: #4ade80;
+  background: color-mix(in srgb, #4ade80 14%, transparent);
+}
+.pn-pick.bad {
+  color: #ff7a72;
+  background: color-mix(in srgb, #ff7a72 14%, transparent);
+}
+.pn-pick select {
+  appearance: none;
+  padding: 4px 26px 4px 12px;
+  border: 0;
+  border-radius: inherit;
+  font: inherit;
+  font-size: var(--fs-s);
+  font-weight: 550;
+  color: inherit;
+  background: transparent;
+  cursor: default;
+}
+.pn-pick select:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+.pn-pick > svg {
+  position: absolute;
+  right: 9px;
+  width: 11px;
+  height: 11px;
+  pointer-events: none;
+  opacity: 0.7;
+}
+.pn-pick option {
+  color: var(--fg);
+  background: var(--popover-bg);
 }

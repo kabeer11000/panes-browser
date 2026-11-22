@@ -8,11 +8,23 @@ import {
   CloseIcon,
   GlobeIcon,
   IncognitoIcon,
+  PinIcon,
   ReloadIcon,
   ShieldIcon,
   TorIcon
 } from '@renderer/components/icons'
-import { LockGlyph, PermIcon, Row, Section, Segmented, Switch, type Choice } from './ui'
+import {
+  LockGlyph,
+  MoonGlyph,
+  MuteGlyph,
+  PermIcon,
+  Pick,
+  Row,
+  Section,
+  Switch,
+  Tile,
+  type Choice
+} from './ui'
 
 /** Shown whether or not the page has asked; the rest appear once they matter (set, asked, or in use). */
 const EVERYDAY: readonly PermKind[] = ['camera', 'microphone', 'location', 'notifications']
@@ -220,6 +232,51 @@ export function SiteHome({
           </div>
         )}
 
+        <div className="pn-tiles" role="group" aria-label="This site">
+          <Tile
+            icon={<ShieldIcon />}
+            label="Block ads"
+            sub={
+              !info.adblock.global
+                ? 'Off in Settings'
+                : adblockOn
+                  ? info.adblock.blocked > 0
+                    ? `${info.adblock.blocked} blocked`
+                    : 'On'
+                  : 'Allowed here'
+            }
+            on={adblockOn}
+            disabled={!info.adblock.global}
+            onChange={(v) =>
+              send({ adblockOff: !v }, (i) => ({ ...i, adblock: { ...i.adblock, off: !v } }))
+            }
+          />
+          <Tile
+            icon={<MuteGlyph off={info.muted} />}
+            label="Mute"
+            sub={info.muted ? 'Every tab' : 'Off'}
+            on={info.muted}
+            onChange={(v) => send({ muted: v }, (i) => ({ ...i, muted: v }))}
+          />
+          <Tile
+            icon={<MoonGlyph />}
+            label="Dark page"
+            sub={dark ? 'On' : 'Off'}
+            on={dark}
+            onChange={(v) => {
+              const boost = { ...(info.boost ?? DEFAULT_THEME), dark: v }
+              send({ boost }, (i) => ({ ...i, boost }))
+            }}
+          />
+          <Tile
+            icon={<PinIcon />}
+            label="Keep loaded"
+            sub={info.keepLoaded ? 'Never sleeps' : 'Off'}
+            on={info.keepLoaded}
+            onChange={(v) => send({ keepLoaded: v }, (i) => ({ ...i, keepLoaded: v }))}
+          />
+        </div>
+
         <Section title="Permissions" aside={<em>{summary}</em>}>
           {shown.map((p) => {
             const hint = permHint(p, info)
@@ -238,11 +295,11 @@ export function SiteHome({
                 }
                 hintTone={hint?.tone}
               >
-                <Segmented
+                <Pick
                   label={PERM_LABEL[p.kind]}
                   value={p.kind === 'screen' && p.setting === 'allow' ? 'ask' : p.setting}
                   choices={p.kind === 'screen' ? SCREEN_CHOICES : CHOICES}
-                  tone={(v) => (v === 'allow' ? 'good' : v === 'block' ? 'bad' : undefined)}
+                  tone={p.setting === 'allow' ? 'good' : p.setting === 'block' ? 'bad' : undefined}
                   onChange={(v) => setPerm(p.kind, v)}
                 />
               </Row>
@@ -260,29 +317,7 @@ export function SiteHome({
           )}
         </Section>
 
-        <Section title="Ads and trackers">
-          <Row
-            icon={<ShieldIcon />}
-            title="Block ads and trackers"
-            hint={
-              !info.adblock.global
-                ? 'Off for every site in Settings'
-                : adblockOn
-                  ? info.adblock.blocked > 0
-                    ? `${info.adblock.blocked} blocked on this page`
-                    : 'Nothing blocked on this page yet'
-                  : 'Allowed on this site'
-            }
-          >
-            <Switch
-              label="Block ads and trackers on this site"
-              on={adblockOn}
-              disabled={!info.adblock.global}
-              onChange={(v) =>
-                send({ adblockOff: !v }, (i) => ({ ...i, adblock: { ...i.adblock, off: !v } }))
-              }
-            />
-          </Row>
+        <Section title="Page">
           {adblockOn && (
             <Row title="Hide ad spaces" hint="Turn off if the page looks broken">
               <Switch
@@ -319,9 +354,6 @@ export function SiteHome({
               />
             </Row>
           )}
-        </Section>
-
-        <Section title="This site">
           <Row title="Zoom">
             <span className="pn-zoom">
               <button
@@ -351,30 +383,6 @@ export function SiteHome({
               </button>
             </span>
           </Row>
-          <Row title="Mute" hint="In every tab of this site">
-            <Switch
-              label="Mute this site"
-              on={info.muted}
-              onChange={(v) => send({ muted: v }, (i) => ({ ...i, muted: v }))}
-            />
-          </Row>
-          <Row title="Keep loaded" hint="Never put its tabs to sleep">
-            <Switch
-              label="Keep this site loaded"
-              on={info.keepLoaded}
-              onChange={(v) => send({ keepLoaded: v }, (i) => ({ ...i, keepLoaded: v }))}
-            />
-          </Row>
-          <Row title="Dark page" hint={`For this site in ${info.spaceName || 'this space'}`}>
-            <Switch
-              label="Dark page"
-              on={dark}
-              onChange={(v) => {
-                const boost = { ...(info.boost ?? DEFAULT_THEME), dark: v }
-                send({ boost }, (i) => ({ ...i, boost }))
-              }}
-            />
-          </Row>
           <button type="button" className="pn-link" onClick={onBoost}>
             <span>
               <b>Boost</b>
@@ -384,7 +392,7 @@ export function SiteHome({
           </button>
         </Section>
 
-        <Section title="Cookies and site data">
+        <Section title="Cookies and data">
           {confirm === 'clear' ? (
             <Confirm
               text={`Clear cookies and stored data for ${info.host}? You may be signed out.`}

@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
 import type { PermKind } from '@shared/permissions'
-import { CameraIcon, MicIcon, ScreenIcon } from '@renderer/components/icons'
+import { CameraIcon, ChevronDownIcon, MicIcon, ScreenIcon } from '@renderer/components/icons'
 
 export function Switch({
   on,
@@ -219,3 +219,81 @@ export function LockGlyph({ open }: { open?: boolean }): React.JSX.Element {
     </Glyph>
   )
 }
+
+/** A quick switch as a tile (the site's everyday switches, side by side): its mark, its name, and how it is now. */
+export function Tile({
+  icon,
+  label,
+  sub,
+  on,
+  disabled,
+  onChange
+}: {
+  icon: ReactNode
+  label: string
+  sub: string
+  on: boolean
+  disabled?: boolean
+  onChange: (v: boolean) => void
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={`${label}: ${sub}`}
+      disabled={disabled}
+      className={'pn-tile' + (on ? ' on' : '')}
+      onClick={() => onChange(!on)}
+    >
+      <span className="pn-tile-icon">{icon}</span>
+      <b>{label}</b>
+      <span>{sub}</span>
+    </button>
+  )
+}
+
+/** A setting's value as one small pill that opens the choices (the system's own menu): quiet until wanted. */
+export function Pick<T extends string>({
+  label,
+  value,
+  choices,
+  tone,
+  onChange
+}: {
+  label: string
+  value: T
+  choices: readonly Choice<T>[]
+  tone?: 'good' | 'bad'
+  onChange: (v: T) => void
+}): React.JSX.Element {
+  return (
+    <span className={'pn-pick' + (tone ? ' ' + tone : '')}>
+      <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value as T)}>
+        {choices.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon />
+    </span>
+  )
+}
+
+export const MoonGlyph = (): React.JSX.Element => (
+  <Glyph>
+    <path d="M13 9.6A5.5 5.5 0 0 1 6.4 3a5.5 5.5 0 1 0 6.6 6.6Z" />
+  </Glyph>
+)
+
+export const MuteGlyph = ({ off }: { off: boolean }): React.JSX.Element => (
+  <Glyph>
+    <path d="M2.5 6.2v3.6h2.4L8 12.5v-9L4.9 6.2H2.5Z" />
+    {off ? (
+      <path d="m10.5 6 3.5 4M14 6l-3.5 4" />
+    ) : (
+      <path d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8M12.4 4a5.6 5.6 0 0 1 0 8" />
+    )}
+  </Glyph>
+)
