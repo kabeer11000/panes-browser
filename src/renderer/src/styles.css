@@ -5658,3 +5658,22 @@ kbd {
 .share-name .share-join-input {
   flex: none; /* a column: flex 1 squashed it to its text */
 }
+/* a shared space: a small people badge at its face's foot (the unread badge keeps the top corner) */
+.space-shared {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--fg);
+  color: var(--overlay-solid);
+  box-shadow: 0 0 0 1.5px var(--overlay-solid);
+  pointer-events: none;
+}
+.space-shared svg {
+  display: block;
+  fill: currentColor;
+}

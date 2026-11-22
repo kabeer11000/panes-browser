@@ -83,7 +83,7 @@ export const SpaceSwitcher = memo(function SpaceSwitcher({
                 type="button"
                 role="tab"
                 aria-selected={on}
-                aria-label={said ? `${s.name}: ${said}` : s.name}
+                aria-label={(s.shared ? `${s.name}, shared` : s.name) + (said ? `: ${said}` : '')}
                 className={'space-chip no-drag' + (on ? ' active' : '')}
                 layout
                 data-space={s.id}
@@ -101,6 +101,17 @@ export const SpaceSwitcher = memo(function SpaceSwitcher({
                 }}
               >
                 <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={size} />
+                {/* shared with others: two people at its foot, as a shared album shows it */}
+                {s.shared && (
+                  <span className="space-shared" aria-hidden="true">
+                    <svg width="10" height="8" viewBox="0 0 10 8">
+                      <circle cx="3.4" cy="2.2" r="1.7" />
+                      <path d="M0.4 7.6c0-1.8 1.3-3 3-3s3 1.2 3 3z" />
+                      <circle cx="7.2" cy="2.6" r="1.4" opacity="0.75" />
+                      <path d="M6.9 7.6c0-1.2-.4-2.2-1.1-2.8.4-.2.9-.3 1.4-.3 1.5 0 2.6 1.1 2.6 3.1z" opacity="0.75" />
+                    </svg>
+                  </span>
+                )}
                 {waiting?.call && (
                   <span className={'space-ring ' + waiting.call} aria-hidden="true" />
                 )}
