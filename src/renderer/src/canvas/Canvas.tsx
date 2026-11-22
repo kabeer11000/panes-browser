@@ -204,6 +204,10 @@ import type { AskTurn } from './useAsk'
 import { Toolbar, type Tool } from './Toolbar'
 
 /** Room for a frame's title row, in screen px: a popover that has to go below the frame's top sits under it. */
+/** The board's own bars and panels over it: pointer input there is theirs, never the board's (hover, press, double
+ * click, the board's menu). One list, so no handler forgets one. */
+const CHROME =
+  '.cv-bar,.cv-toast,.cv-kbar,.cv-confirm,.cv-expand,.cv-top,.cv-new,.cv-fbar,.cv-dock,.cv-dock-handle,.cv-strip,.cv-ctx,.cv-quick,.cv-aioff'
 const FRAME_HEAD_PX = 44
 /** Wheel px per mm of two-finger touchpad travel, as last measured (shared/freeScroll.ts). */
 const GAIN_KEY = 'panes.touchpadGain'
@@ -2615,12 +2619,7 @@ export function Canvas({
     // the board may have moved without resizing (top bar, sidebar): once per gesture, before anything moves
     measureRoot()
     const t = e.target as HTMLElement
-    if (
-      t.closest(
-        '.cv-bar,.cv-toast,.cv-confirm,.cv-expand,.cv-top,.cv-new,.cv-fbar,.cv-dock,.cv-dock-handle,.cv-strip,.cv-ctx,button,input,textarea,a[href]'
-      )
-    )
-      return
+    if (t.closest(`${CHROME},button,input,textarea,a[href]`)) return
     const s = stRef.current
     if (!s) return
     vp.stop()
@@ -4526,8 +4525,14 @@ export function Canvas({
     if ((tl !== 'select' && tl !== 'connector') || spaceHeld.current || e.buttons !== 0) return
     const t = e.target as Element
     if (t.closest?.('[data-handle]')) return
-    if (t.closest?.('.cv-bar,.cv-toast,.cv-kbar,.cv-confirm')) {
+    if (t.closest?.(CHROME)) {
+      // over the board's own bars: nothing under them is hovered, and what was stays lit no longer
       conn.current?.hover(null)
+      root.current?.classList.remove('over-frame')
+      if (hovFrame.current) {
+        root.current?.querySelector(`[data-fid="${hovFrame.current}"]`)?.classList.remove('hov')
+        hovFrame.current = undefined
+      }
       return
     }
     const s0 = stRef.current
@@ -5593,9 +5598,7 @@ export function Canvas({
         else if (
           !el &&
           toolRef.current === 'select' &&
-          !t.closest(
-            '[data-nid],[data-fhead],.cv-bar,.cv-toast,.cv-expand,.cv-kbar,.cv-fbar,.cv-top,.cv-new,.cv-dock,.cv-dock-handle,.cv-strip,.cv-ctx,button,input,textarea,a'
-          )
+          !t.closest(`[data-nid],[data-fhead],${CHROME},button,input,textarea,a`)
         ) {
           const r = root.current!.getBoundingClientRect()
           askNew(e.clientX - r.left, e.clientY - r.top)
@@ -5605,7 +5608,7 @@ export function Canvas({
         // text fields (the Ask box, a note, a frame's name) keep the usual cut / copy / paste menu
         if (isEditable(e.target)) return
         // the conversation, the preview and the board's own bars are not the board: no board menu there
-        if ((e.target as HTMLElement).closest('.cv-dock,.cv-expand,.cv-bar,.cv-ctx')) return
+        if ((e.target as HTMLElement).closest(CHROME)) return
         e.preventDefault()
         if (phaseRef.current === 'open') openContext(e.target as HTMLElement, e.clientX, e.clientY)
       }}
