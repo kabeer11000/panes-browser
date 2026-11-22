@@ -444,6 +444,8 @@ const withNames = (s: CanvasState, named: Named): CanvasState => ({
 const UNDO_MAX = 60
 const DRAG_PX = 4
 const MARGIN = 360
+/** While the board moves, cards coming into view are mounted at most this often (see updateVisible). */
+const VIS_MOVING_MS = 150
 const DOCK_W = 380
 const DOCK_MIN = 300
 const DOCK_MAX = 720
@@ -949,6 +951,9 @@ export function Canvas({
   /** Where the board was when the mounted cards were last worked out (see updateVisible). */
   /** The set of cards last asked to be mounted (vis, once the transition lands). */
   const visAsked = useRef<Set<number>>(new Set())
+  const visAskedAt = useRef(0)
+  const visLater = useRef<number | undefined>(undefined)
+  const updateVisibleRef = useRef<(v: Viewport) => void>(() => undefined)
   const visAt = useRef<{
     x: number
     y: number
@@ -990,9 +995,25 @@ export function Canvas({
     // one (a re-render of the board mid-pan was a visible hitch). Asked for only when the set really changes: a
     // zoom recomputes it every frame, and each request was a board render queued for nothing.
     const asked = visAsked.current
-    if (!near && !(asked.size === next.size && [...next].every((i) => asked.has(i)))) {
-      visAsked.current = next
-      startTransition(() => setVis(next))
+    // While the board moves, the set only grows: a card coming into view mounts, one leaving stays until the board
+    // settles (then this runs again, exactly). A zoom changed the set nearly every step, and each change rendered the
+    // whole board again: 28 renders in 30 wheel steps. Growth is asked for at most every VIS_MOVING_MS, the rest at rest.
+    const moving = boardMoving()
+    const want = moving ? new Set([...asked, ...next]) : next
+    if (!near && !(asked.size === want.size && [...want].every((i) => asked.has(i)))) {
+      const now = performance.now()
+      if (!moving || now - visAskedAt.current >= VIS_MOVING_MS) {
+        visAskedAt.current = now
+        visAsked.current = want
+        startTransition(() => setVis(want))
+      } else {
+        // the growth comes a moment later, all at once (still while it moves, so nothing new pops in late)
+        window.clearTimeout(visLater.current)
+        visLater.current = window.setTimeout(() => {
+          visAt.current = null // worked out again, not skipped as near
+          updateVisibleRef.current(lastView.current ?? v)
+        }, VIS_MOVING_MS)
+      }
     }
     // main takes fresh pictures only of the tabs on screen; told once the view has settled
     window.clearTimeout(inViewTimer.current)
@@ -1038,6 +1059,9 @@ export function Canvas({
     }, SAVE_MS)
   }, [spaceId])
 
+  useLayoutEffect(() => {
+    updateVisibleRef.current = updateVisible
+  })
   // The zoom as React state (the label, card detail, live video sizes) changes only once the board settles: set every
   // frame of a pinch it re-rendered the whole board each frame, and crossing LOD_K mid-pinch swapped every card's
   // pictures out and back in. While it moves only the board's transform changes, and the label is written directly.
@@ -1052,9 +1076,14 @@ export function Canvas({
   useEffect(
     () =>
       onBoardMotion((m) => {
-        if (!m && lastView.current) commitZoom(lastView.current)
+        if (m || !lastView.current) return
+        commitZoom(lastView.current)
+        // at rest: the cards on screen exactly (while it moved, the set only grew)
+        window.clearTimeout(visLater.current)
+        visAt.current = null
+        updateVisible(lastView.current)
       }),
-    [commitZoom]
+    [commitZoom, updateVisible]
   )
   const onMove = useCallback(
     (v: Viewport): void => {
