@@ -6,14 +6,18 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 
 - [x] Touchpad swipe back/forward never fired: 40 mm needed, no flick, page check too late. Now 30 mm or a flick,
       page asked as fingers land, muted badge with no history. (cb4ac6c; needs a real-touchpad check by the user)
+- [x] Toast click (WhatsApp) did nothing: hook went in after the page grabbed Notification. Now preload, doc start;
+      on the board opens the preview. (01911b8)
+- [x] Call badge unreliable/stuck: tracker missed first call on allowed sites; removed iframes left "on".
+      Preload shim + prune dead frames + 2 s recheck. (d3ecdd2)
 - [x] Preview address: Enter stayed on the page (self tab as the strong "switch to" pick; synthetic mousemove
       moving the pick). (af31e25)
 
 ## B. Board (canvas) design
 
-- [ ] Cards: bigger, no bottom rim (the footer strip with the host), presented better. Picture fills the card, the
+- [x] Cards: bigger, no bottom rim (the footer strip with the host), presented better. Picture fills the card, the
       title floats on it; site identity without a strip.
-- [ ] Notifications vs recent tabs: one new pattern. Today both are the same chip at the same spot (preview closed:
+- [x] Notifications vs recent tabs: one new pattern (the deck, 8eb3bbe). Today both are the same chip at the same spot (preview closed:
       notifications; open: recent tabs), so they read as one thing. Design one surface for "what wants you"
       (notifications) and "where you were" (recent), clearly different.
       Design (2026-11-22): split by place, shape and content.
@@ -40,3 +44,5 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] First open / load time: measure packaged cold and warm start (startup-trace), find the next big cost.
 
 ## Log
+
+- beta.106: swipe, preview Enter. beta.107: deck, toast click. beta.108: calls, cards.

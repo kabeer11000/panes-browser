@@ -93,3 +93,12 @@ and the board's split effect had a 3-try guard that, once spent, never reset, so
 - A/B before shipping a perf idea: three of today's plausible fixes measured as zero gain.
 - Releases: never edit files while `release:win` builds (it builds the working tree, not HEAD). Twice on 2026-11-17 a backgrounded release hung inside electron-builder (idle, no network); the same command in the foreground (`timeout 590 bun run release:win`) finished in ~4 min. Run releases in the foreground. A stuck run that already made its `chore(release)` commit is finished with `bun run release:win` (no bump).
 - Smaller model is not automatically cheaper: Qwen3 0.6B vs 1.7B for section names was barely faster once batched and RAM barely moved (the 8192-token KV cache dominates). Measure before tiering by model.
+
+## Check a new overlay against everything that shares its spot (2026-11-22)
+
+I put the notification deck in the board's top-right corner and checked it on a board with nothing else there. The
+now-playing pill lives in that corner too and the deck covered it; the user found it. I had even seen the pill in a
+card screenshot minutes earlier and did not connect it.
+- Before placing anything absolutely, grep the stylesheet for other rules anchored to the same edges (top/right...)
+  and test with all of them showing at once.
+- Prefer one container that stacks a corner's contents (flex column) over separately positioned siblings.
