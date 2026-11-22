@@ -9,6 +9,7 @@
  */
 import { app, clipboard, ipcMain, safeStorage, type BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { randomUUID } from 'crypto'
 import { userInfo } from 'os'
 import { join } from 'path'
 import * as Y from 'yjs'
@@ -74,17 +75,19 @@ export interface ShareDeps {
   refresh: () => void
   /** Make a new space and go to it. */
   createSpace: () => { id: number }
+  /** A tab's title, for the card the others see of it. */
+  tabTitle: (tabId: number) => string
 }
 
 export class ShareService {
   private store = new JsonStore<{
     rooms: Record<string, Saved>
     /** This person, as the others see them: a name they can change, a colour kept from the first share on. */
-    me?: { name: string; color: string }
+    me?: { name: string; color: string; id?: string }
   }>('shares', { rooms: {} })
   private rooms = new Map<number, Room>()
 
-  private get me(): { name: string; color: string } {
+  private get me(): { name: string; color: string; id?: string } {
     if (!this.store.value.me) {
       this.store.value.me = {
         name: userInfo().username || 'Someone',
@@ -93,6 +96,21 @@ export class ShareService {
       this.store.save()
     }
     return this.store.value.me
+  }
+
+  /** This person in every room, lasting (the document's own id changes each start): whose tabs are whose. */
+  private get who(): string {
+    const me = this.me
+    if (!me.id) {
+      me.id = randomUUID().slice(0, 12)
+      this.store.save()
+    }
+    return me.id
+  }
+
+  /** This person's tabs go into the room with their titles (see TabMirror). */
+  private get tabsOut(): { by: string; title: (id: number) => string } {
+    return { by: this.who, title: (id) => this.d.tabTitle(id) }
   }
 
   /** The name the others see (every room is told at once). */
@@ -201,7 +219,7 @@ export class ShareService {
     room.applyTimer = setTimeout(() => {
       const base =
         room.last ?? this.d.canvas.load(room.spaceId).state ?? emptyState(this.d.canvas.boot)
-      const next = { ...readInto(room.doc, base), seq: sharedSeq(base.seq, room.doc.clientID) }
+      const next = { ...readInto(room.doc, base, this.who), seq: sharedSeq(base.seq, room.doc.clientID) }
       this.d.canvas.saveQuiet(room.spaceId, next)
       const n = ++room.sentN
       room.sent.set(n, next)
@@ -215,7 +233,7 @@ export class ShareService {
   onLocalSave(spaceId: number, state: CanvasState): void {
     const room = this.rooms.get(spaceId)
     if (!room) return
-    writeDiff(room.doc, room.last, state, LOCAL)
+    writeDiff(room.doc, room.last, state, LOCAL, this.tabsOut)
     room.last = state
     // the room has changes this board was not made with: the two together go back to it
     if (room.sentN > room.tookN) this.applySoon(room)

@@ -296,7 +296,8 @@ function createWindow(): void {
     spaces,
     canvas,
     refresh: () => tabs.refresh(),
-    createSpace: () => tabs.createSpace()
+    createSpace: () => tabs.createSpace(),
+    tabTitle: (id) => tabs.tabTitle(id)
   })
   canvas.onSave = (spaceId, state) => share.onLocalSave(spaceId, state)
   // an invite link, however it is opened (typed, clicked, from another app): the space is joined and shown

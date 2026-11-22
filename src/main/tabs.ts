@@ -1407,6 +1407,14 @@ export class TabManager {
       .catch(() => undefined)
   }
 
+  /** A tab's title as it shows (its page's, or the one it was saved with while unloaded); '' when unknown. */
+  tabTitle(id: number): string {
+    const t = this.tabs.get(id)
+    if (!t) return ''
+    const wc = t.unloaded ? null : liveContents(t)
+    return t.pending?.title || wc?.getTitle() || ''
+  }
+
   reopenClosed(): void {
     const url = this.closedUrls.pop()
     if (url) this.create(url)

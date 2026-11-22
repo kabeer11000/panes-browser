@@ -5,14 +5,15 @@
  * person's (their tabs' cards, where they are looking, what they have open).
  *
  * What is shared: sections, notes, arrows, drawings, and the cards that are content (pictures, PDFs, links, answers:
- * negative ids, each with its item). A tab's card is not: the tab is on its owner's machine only.
+ * negative ids, each with its item). A tab stays on its owner's machine; its card goes to the others as a mirror (its
+ * place, address and title, in the `tabs` map, keyed by owner): the others see the page there and open it themselves.
  *
  * Each entity is one value in a Y.Map by its id, the last write winning per entity, with its place in the board's
  * order beside it (`o`) so what is on top stays on top.
  */
 import * as Y from 'yjs'
 import type { CanvasCard, CanvasFrame, CanvasNote, CanvasState } from '../ai/canvas'
-import type { CanvasItem } from '../ai/canvasItems'
+import { itemFor, type CanvasItem } from '../ai/canvasItems'
 import type { CanvasMark } from '../ai/canvasMarks'
 import type { CanvasConnector, End } from '../ai/connectors'
 
@@ -53,7 +54,28 @@ export function sharedSeq(local: number, clientID: number): number {
   return local >= base && local < base + 2 ** 24 ? local : base
 }
 
-const isShared = (c: CanvasCard): boolean => c.id < 0
+/**
+ * Someone else's tab, as it shows on this board: an id far below any content card's (those count down from a person's
+ * id block, under 2^45), made from the owner and their tab, so it stays the same from one change to the next.
+ */
+const MIRROR_BASE = 2 ** 52
+export const isMirror = (id: number): boolean => id <= -MIRROR_BASE
+export function mirrorId(key: string): number {
+  let h = 0
+  for (let i = 0; i < key.length; i++) h = (Math.imul(h, 31) + key.charCodeAt(i)) >>> 0
+  let g = 7
+  for (let i = key.length - 1; i >= 0; i--) g = (Math.imul(g, 37) + key.charCodeAt(i)) >>> 0
+  return -(MIRROR_BASE + (h * 2 ** 8 + (g & 0xff)))
+}
+
+/** A tab's card as the others get it. `by` is its owner (a person's lasting id, not the document's session id). */
+export interface TabMirror {
+  card: CanvasCard
+  title: string
+  by: string
+}
+
+const isShared = (c: CanvasCard): boolean => c.id < 0 && !isMirror(c.id)
 
 /** Whether an arrow's end is on something shared (or a point): an arrow to a tab's card stays its owner's. */
 function sharedEnd(e: End, cards: ReadonlySet<number>): boolean {
@@ -92,7 +114,9 @@ export function writeDiff(
   doc: Y.Doc,
   prev: CanvasState | null,
   next: CanvasState,
-  origin?: unknown
+  origin?: unknown,
+  /** This person's tabs go to the others too (see TabMirror): who they are, and each tab's title. */
+  tabs?: { by: string; title: (id: number) => string }
 ): void {
   const was = prev ? sharedOf(prev) : null
   const now = sharedOf(next)
@@ -111,7 +135,26 @@ export function writeDiff(
       }
       if (before) for (const id of before.keys()) if (!after.has(id)) map.delete(id)
     }
+    if (tabs) writeTabs(doc, next, tabs.by, tabs.title)
   }, origin)
+}
+
+/**
+ * This person's tabs into the document, as they are now: each one's card (private and Tor tabs never), and none of
+ * theirs that is gone. Reconciled whole each time, not diffed: tab ids start again when Panes does, and the last
+ * run's would otherwise stay on everyone's board.
+ */
+function writeTabs(doc: Y.Doc, s: CanvasState, by: string, title: (id: number) => string): void {
+  const map = doc.getMap<TabMirror>('tabs')
+  const mine = new Set<string>()
+  for (const c of s.cards) {
+    if (c.id <= 0 || c.private || !/^https?:/i.test(c.url)) continue
+    const key = `${by}:${c.id}`
+    mine.add(key)
+    const v: TabMirror = { card: c, title: title(c.id), by }
+    if (!same(map.get(key), v)) map.set(key, v)
+  }
+  for (const [key, v] of map) if (v.by === by && !mine.has(key)) map.delete(key)
 }
 
 /** A kind's entities from the document, in order (ties, from two people at once, by id). */
@@ -126,14 +169,22 @@ function listOf<K extends Kind>(doc: Y.Doc, kind: K): Kinds[K][] {
  * The board from the document, with this person's own parts of `local` kept: their tabs' cards (and arrows to
  * them), their view, what they have open, how pages show for them.
  */
-export function readInto(doc: Y.Doc, local: CanvasState): CanvasState {
+export function readInto(doc: Y.Doc, local: CanvasState, me?: string): CanvasState {
   const shared = listOf(doc, 'cards')
-  const own = local.cards.filter((c) => !isShared(c))
+  const own = local.cards.filter((c) => !isShared(c) && !isMirror(c.id))
   const ownIds = new Set(own.map((c) => c.id))
   const items: Record<string, CanvasItem> = {}
   for (const [id, item] of Object.entries(local.items))
-    if (!isShared({ id: Number(id) } as CanvasCard)) items[id] = item
+    if (!isShared({ id: Number(id) } as CanvasCard) && !isMirror(Number(id))) items[id] = item
   for (const x of shared) items[String(x.card.id)] = x.item
+  // the others' tabs: where their owner has them, as the page they are (opened here, it is a page of one's own)
+  const mirrors: CanvasCard[] = []
+  doc.getMap<TabMirror>('tabs').forEach((v, key) => {
+    if (v.by === me) return
+    const id = mirrorId(key)
+    mirrors.push({ ...v.card, id, private: false })
+    items[String(id)] = itemFor(v.card.url, v.title, { source: 'tab' })
+  })
   const sharedIds = new Set(shared.map((x) => x.card.id))
   // an own arrow is one that touches one of this person's tab cards
   const ownArrows = (local.connectors ?? []).filter(
@@ -147,10 +198,11 @@ export function readInto(doc: Y.Doc, local: CanvasState): CanvasState {
     notes: listOf(doc, 'notes'),
     marks: listOf(doc, 'marks'),
     connectors: [...listOf(doc, 'connectors'), ...ownArrows],
-    cards: [...own, ...shared.map((x) => x.card)],
+    cards: [...own, ...shared.map((x) => x.card), ...mirrors],
     items
   }
 }
 
 /** Whether the document holds anything yet (a room just made, or one being joined, before its history came). */
-export const isEmptyDoc = (doc: Y.Doc): boolean => KINDS.every((k) => doc.getMap(k).size === 0)
+export const isEmptyDoc = (doc: Y.Doc): boolean =>
+  KINDS.every((k) => doc.getMap(k).size === 0) && doc.getMap('tabs').size === 0
