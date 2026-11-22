@@ -91,8 +91,8 @@ function place(el: Element): boolean {
   const cx = (Math.max(r.left, 0) + Math.min(r.right, vw)) / 2
   const clampX = (x: number): number => Math.max(EDGE, Math.min(vw - EDGE - w, x))
   // Try the preferred side, then the other, each slid sideways off any page if it can be; the first that is clear
-  // wins. With no page on screen the first one always is. With neither clear, no label: over the control it covered
-  // the very things being pointed at (the preview's tabs).
+  // wins; then beside it (right, then left), in its own bar. A label is never on the control itself (held inside the
+  // window, one near an edge used to be pushed onto it) nor on a page; with nowhere like that, no label.
   const hits = (x: number, y: number): DOMRect | undefined =>
     pages.find((b) => x < b.right && x + w > b.left && y < b.bottom && y + h > b.top)
   const clear = (y: number): { x: number; y: number } | null => {
@@ -103,7 +103,16 @@ function place(el: Element): boolean {
         b.left - EDGE - w >= EDGE
           ? Math.min(x, b.left - EDGE - w)
           : clampX(Math.max(x, b.right + EDGE))
-    return hits(x, y) ? null : { x, y }
+    return onControl(x, y) || hits(x, y) ? null : { x, y }
+  }
+  const onControl = (x: number, y: number): boolean =>
+    x < r.right && x + w > r.left && y < r.bottom && y + h > r.top
+  /** Beside the control, centred on it: right or left, inside the window. */
+  const beside = (right: boolean): { x: number; y: number } | null => {
+    const x = right ? r.right + GAP : r.left - GAP - w
+    const y = clampY(r.top + r.height / 2 - h / 2)
+    if (x < EDGE || x + w > vw - EDGE) return null
+    return onControl(x, y) || hits(x, y) ? null : { x, y }
   }
   const sides = [below, !below]
   const tries = sides.map((b) => ({ below: b, y: clampY(b ? r.bottom + GAP : r.top - GAP - h) }))
@@ -114,6 +123,12 @@ function place(el: Element): boolean {
       spot = { below: t.below, ...c }
       break
     }
+  }
+  for (const right of [true, false]) {
+    if (spot) break
+    const c = beside(right)
+    // the lift comes from the control's side: below reads as "from above", fine for a label at the side too
+    if (c) spot = { below: true, ...c }
   }
   if (!spot) return false
   const { x, y } = spot
