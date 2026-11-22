@@ -99,8 +99,12 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Preview over a YouTube page, bell opened: the page turns into its picture (good), but on closing the bell the
       live page comes back and reflows (things move, update). Make the return seamless: show the live view only once
       it has painted at the same size (no resize on return), no blur or darkening.
-- [ ] Notifications sometimes not picked up; only the tab title changes (count in title). Use the title count as a
-      source for the strip's unread.
+- [ ] Notifications sometimes not picked up; only the tab title changes. Title counts already reach the bell
+      (count > 0 is waiting). The gap: a notification shown from inside a service worker (a push while the tab is in
+      the background; Gmail, Discord, WhatsApp at times) never passes the frame preload's shim (shared/notify.ts covers
+      the page calling registration.showNotification only) and Electron drops it. Fix: a service-worker preload
+      (session.registerPreloadScript type 'service-worker') wrapping self.registration.showNotification, reported to
+      main and matched to the site's tabs by origin.
 - [ ] Preview: switching from one recent tab to another and closing it (Ctrl+W on the board) should keep the
       preview open and show the last tab, as navigation does; no reopen or glitch.
 - [ ] Split view in the board: still not the tab view's (user 23:04). Parked by the user for now.

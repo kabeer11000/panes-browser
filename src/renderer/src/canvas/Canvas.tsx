@@ -6098,13 +6098,18 @@ export function Canvas({
           onClose={() => {
             setExpandedCovers(false)
             setExpanded(null)
-            root.current?.removeAttribute('data-closing') // the next preview may put the board away again
+            // data-closing stays: taken off here (by hand, at once) while .covered went only with the next render,
+            // one frame had the board covered and not closing, hidden: a black flash as the preview closed. The next
+            // preview takes it off as it opens (Expanded), and without .covered it does nothing.
           }}
           onBack={() => {
+            // Ctrl+W on the preview's page: the preview stays, on the tab used just before it here (the strip's
+            // next, newest first), as going back does; the page it was opened from when there is none
             const s0 = stRef.current
-            const opener = s0 ? openerOf(s0, expanded.id) : null
-            if (opener === null) return false
-            switchPreview(opener, true)
+            const before = strip.find((id) => id !== expanded.id && byId.has(id))
+            const to = before ?? (s0 ? openerOf(s0, expanded.id) : null)
+            if (to === null || to === undefined) return false
+            switchPreview(to, true)
             return true
           }}
           onGoToTab={() => goToTab(expanded.id)}
