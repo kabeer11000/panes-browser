@@ -95,9 +95,10 @@ People without Panes join from any browser in a light web version that is also P
 
 ## Phases (each shipped and released on its own)
 
-- [ ] 1. `src/shared/share/doc.ts` + tests: state <-> Y doc round-trip, diffs, concurrent edits merge.
-- [ ] 2. Relay MVP (`share/server`): sync + awareness + log, end-to-end encrypted from the start; local run; test
-      with two headless clients.
+- [x] 1. `src/shared/share/doc.ts` + tests: state <-> Y doc round-trip, diffs, concurrent edits merge. Ids: each
+      person counts in a block of their own (idBlock).
+- [x] 2. Relay MVP (`share/server`): sync + awareness + log, end-to-end encrypted from the start; local run; test
+      with two headless clients. (crypto.ts, wire.ts, client.ts, share/server/relay.ts; 9 end-to-end tests)
 - [ ] 3. Panes client: share a space, join by link, live board sync, cursors. Two scratch instances side by side.
 - [ ] 4. Deploy relay to Render (confirm first). Invite links work across machines.
 - [ ] 5. Pictures: shrink + upload blobs; tab cards as shared page links.
