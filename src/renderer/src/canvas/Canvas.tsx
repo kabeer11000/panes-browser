@@ -119,7 +119,7 @@ import type { Settings, Space, TabInfo } from '@shared/types'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
-import { keptRecent } from '@shared/ai/previewBar'
+import { keptRecent, recentOthers, RECENT_ON_BOARD } from '@shared/ai/previewBar'
 import { AiGlow } from './AiGlow'
 import { CardView, FrameBar, FrameHead, FrameView, NoteView } from './Cards'
 import { WidgetView } from './Widgets'
@@ -134,15 +134,13 @@ import { groupWaiting, NO_ATTENTION } from '@shared/attention'
 import { alreadyOpen, quickFind, type FindItem } from '@shared/ai/quickFind'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
-import { PreviewInbox } from './PreviewInbox'
+import { StripPlaying, StripTab, usePeeks } from './TabStrip'
 import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
 import { boardMoving, onBoardMotion } from './boardMotion'
 import { READER } from './model'
 import { ContextMenu, type MenuEntry } from './ContextMenu'
-import { PlayingItem } from './PlayingItem'
-import { useDismiss } from './useDismiss'
 import { Expanded, type ExpandSource } from './Expanded'
 import { useFinder } from './useFinder'
 import { useBoardClip } from './useBoardClip'
@@ -749,16 +747,8 @@ export function Canvas({
           Number(b.audible && !b.muted) - Number(a.audible && !a.muted)
       )
   }, [tabs, heard, forgot])
-  const [playList, setPlayList] = useState(false)
-  const playBox = useRef<HTMLDivElement>(null)
-  useDismiss(
-    playList,
-    playBox,
-    useCallback(() => setPlayList(false), [])
-  )
-  const forgetPlaying = useCallback((id: number): void => {
-    setForgot((f) => new Set(f).add(id))
-  }, [])
+  // a notification's words on its tab in the strip, for a few seconds (board and preview alike)
+  const peeks = usePeeks(tabs)
   const tabsRef = useRef(allTabs)
   useLayoutEffect(() => {
     tabsRef.current = allTabs
@@ -807,9 +797,7 @@ export function Canvas({
       ).sort((a, b) => b.attention.count - a.attention.count),
     [tabs]
   )
-  /** The board's notification deck is fanned out into its list. */
-  const [deckOpen, setDeckOpen] = useState(false)
-  /** A tab with something waiting, from the inbox or the preview's bell: its card, opened live. */
+  /** A tab picked in the strip (recent, new or playing): its card, opened live. */
   const openWaiting = (id: number): void => {
     const c = stRef.current?.cards.find((x) => x.id === id)
     if (!c) return
@@ -2626,7 +2614,7 @@ export function Canvas({
     const t = e.target as HTMLElement
     if (
       t.closest(
-        '.cv-bar,.cv-toast,.cv-confirm,.cv-expand,.cv-top,.cv-new,.cv-fbar,.cv-dock,.cv-dock-handle,.cv-playing,.cv-ctx,button,input,textarea,a[href]'
+        '.cv-bar,.cv-toast,.cv-confirm,.cv-expand,.cv-top,.cv-new,.cv-fbar,.cv-dock,.cv-dock-handle,.cv-strip,.cv-ctx,button,input,textarea,a[href]'
       )
     )
       return
@@ -4375,14 +4363,6 @@ export function Canvas({
   }
 
   // the pill's title: its card comes into view, selected, with a pulse
-  const goToPlaying = (id: number): void => {
-    const c = stRef.current?.cards.find((x) => x.id === id)
-    if (!c) return
-    if (calls.has(id)) return expandRef.current(id, true) // a call: straight into it
-    reveal(cardBox(c))
-    setSel(new Set([`c:${c.id}`]))
-    window.setTimeout(() => pulse(root.current?.querySelector(`[data-cid="${c.id}"]`) ?? null), 380)
-  }
 
   // AI off or unconfigured is not a dead end: finding by words and grouping by site still work, and one button turns AI on
   const [aiOff, setAiOff] = useState(false)
@@ -4800,6 +4780,26 @@ export function Canvas({
     !!st?.cards.some((c) => c.id === id)
   const stripWant = expanded ? keptRecent(strip, tabs, expanded.id, named) : []
   if (stripWant.join(',') !== strip.join(',')) setStrip(stripWant)
+  // the tab strip, after the recent tabs: a tab with something new that is not among them yet (two at most)
+  // what plays is first in the strip already: it is not listed again among the tabs
+  const nowPlaying = playing[0]?.id
+  const withWaiting = (row: number[]): number[] => [
+    ...row.filter((id) => id !== nowPlaying || id === expanded?.id),
+    ...waiting
+      .map((w) => w.id)
+      .filter((id) => !row.includes(id) && id !== nowPlaying && named(id))
+      .slice(0, 2)
+  ]
+  const previewRow = withWaiting(strip)
+  // on the board, no page is open: the tabs used last, then what waits
+  const boardRow = withWaiting(
+    recentOthers(
+      tabs.filter((t) => !t.private && !t.tor),
+      -1,
+      named,
+      RECENT_ON_BOARD
+    )
+  )
   const switchPreview = (next: number, live?: boolean): void => {
     const cur = expandedRef.current ? expandedNow.current : null
     const card = stRef.current?.cards.find((x) => x.id === next)
@@ -5591,7 +5591,7 @@ export function Canvas({
           !el &&
           toolRef.current === 'select' &&
           !t.closest(
-            '[data-nid],[data-fhead],.cv-bar,.cv-toast,.cv-expand,.cv-kbar,.cv-fbar,.cv-top,.cv-new,.cv-dock,.cv-dock-handle,.cv-playing,.cv-ctx,button,input,textarea,a'
+            '[data-nid],[data-fhead],.cv-bar,.cv-toast,.cv-expand,.cv-kbar,.cv-fbar,.cv-top,.cv-new,.cv-dock,.cv-dock-handle,.cv-strip,.cv-ctx,button,input,textarea,a'
           )
         ) {
           const r = root.current!.getBoundingClientRect()
@@ -6014,11 +6014,12 @@ export function Canvas({
             if (it) edit((s0) => setItem(s0, expanded.id, { ...it, text }))
           }}
           onStep={(dir) => stepExpanded(dir)}
-          recent={strip.flatMap((id) => modelFor({ id }) ?? [])}
+          recent={previewRow.flatMap((id) => modelFor({ id }) ?? [])}
           swapFrom={expanded.swap}
           onSwitch={(id) => switchPreview(id, true)}
-          waiting={waiting}
-          onOpenTab={openWaiting}
+          playing={playing[0] ?? null}
+          onPlaying={openWaiting}
+          peeks={peeks}
           swipe={previewSwipe}
           bar={previewBar}
         />
@@ -6062,54 +6063,30 @@ export function Canvas({
           toastNow(said ? `Undid: ${said}` : 'Nothing to undo')
         }}
       />
-      {/* the top-right corner: what plays, then what waits, stacked in one column so neither covers the other */}
-      {phase === 'open' && !expanded && (
-        <div className="cv-corner">
-          {quick === null && (
-            <PreviewInbox
-              variant="board"
-              tabs={waiting}
-              open={deckOpen}
-              onOpen={() => setDeckOpen(true)}
-              onClose={() => setDeckOpen(false)}
-              onPick={(id) => {
-                setDeckOpen(false)
-                openWaiting(id)
-              }}
-            />
-          )}
-          {playing.length > 0 && (
-            <div
-              className={'cv-playing' + (playList ? ' open' : '')}
-              role="group"
-              aria-label="Playing on the board"
-              ref={playBox}
-            >
-              <div className="cv-playing-row">
-                <PlayingItem t={playing[0]} onGo={goToPlaying} onForget={forgetPlaying} />
-                {playing.length > 1 && (
-                  <button
-                    type="button"
-                    className="cv-playing-more"
-                    aria-expanded={playList}
-                    aria-label={`${playing.length - 1} more playing`}
-                    title="Everything playing on the board"
-                    onClick={() => setPlayList((o) => !o)}
-                  >
-                    +{playing.length - 1}
-                  </button>
-                )}
-              </div>
-              {playList &&
-                playing
-                  .slice(1)
-                  .map((t) => (
-                    <PlayingItem key={t.id} t={t} onGo={goToPlaying} onForget={forgetPlaying} />
+      {/* the tab strip, top centre (as in the preview's header): what plays, the tabs used last, what is new */}
+      {phase === 'open' &&
+        !expanded &&
+        quick === null &&
+        (playing.length > 0 || boardRow.length > 0) && (
+          <div className="cv-strip board" role="toolbar" aria-label="Recent tabs">
+            {playing[0] && <StripPlaying t={playing[0]} onGo={openWaiting} />}
+            {boardRow.length > 0 && (
+              <div className="cv-recent" role="tablist" aria-label="Recent tabs">
+                {boardRow
+                  .flatMap((id) => modelFor({ id }) ?? [])
+                  .map((r) => (
+                    <StripTab
+                      key={r.id}
+                      m={r}
+                      on={false}
+                      peek={peeks.get(r.id)}
+                      onPick={openWaiting}
+                    />
                   ))}
-            </div>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+          </div>
+        )}
       <AiGlow level={busy ? 2 : naming > 0 ? 1 : 0} />
       <Toolbar
         tool={tool}

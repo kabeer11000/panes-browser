@@ -42,6 +42,8 @@ export const zoomPercent = (level: number): number => Math.round(100 * Math.pow(
 
 /** How many recent tabs the preview's header offers to switch to. */
 export const RECENT_IN_PREVIEW = 3
+/** And the board's tab strip, where no page is open. */
+export const RECENT_ON_BOARD = 5
 
 /**
  * The tabs used last, other than the one open in the preview, for the preview's header: only those with a card on

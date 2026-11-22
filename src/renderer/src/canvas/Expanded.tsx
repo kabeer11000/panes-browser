@@ -5,7 +5,6 @@ import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseMarkdown, type Block, type Inline } from '@shared/ai/markdown'
 import type { CanvasReaderDoc } from '@shared/ai/canvasItems'
 import type { PageMenuPick, PreviewSwipe, Rect, TabInfo } from '@shared/types'
-import { badgeText, type Grouped } from '@shared/attention'
 import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
 import { READER } from './model'
@@ -24,7 +23,7 @@ import { SiteIcon } from '@renderer/components/SiteIcon'
 import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
-import { PreviewInbox } from './PreviewInbox'
+import { StripPlaying, StripTab } from './TabStrip'
 import { EdgeSwipe, SWIPE_ZONES } from '@shared/edgeSwipe'
 import { Spring, reducedMotion } from '@renderer/motion'
 import './preview.css'
@@ -175,10 +174,12 @@ interface Props extends ExpandSource {
   swapped?: boolean
   /** The card it replaced, where the recent tabs' highlight slides from. */
   swapFrom?: number
-  /** What waits in the tabs (messages, calls), one entry per site or account, for the header's bell. */
-  waiting?: Grouped<TabInfo>[]
-  /** Open another tab in the preview (picked from the bell). */
-  onOpenTab?: (tab: number) => void
+  /** What plays (or a call), first in the header's tab strip, unless it is this page. */
+  playing?: TabInfo | null
+  /** Go to what plays (its card, in this preview). */
+  onPlaying?: (tab: number) => void
+  /** A notification's words on its tab in the strip, while they show (see TabStrip usePeeks). */
+  peeks?: ReadonlyMap<number, string>
   /** The touchpad swipe that closes it (Settings): off, from the very edge, or easier. */
   swipe?: PreviewSwipe
 }
@@ -743,8 +744,9 @@ export function Expanded({
   onLive,
   onAsk,
   split,
-  waiting = [],
-  onOpenTab,
+  playing,
+  onPlaying,
+  peeks,
   swipe = 'edge'
 }: Props): React.JSX.Element {
   const root = useRef<HTMLDivElement>(null)
@@ -786,10 +788,8 @@ export function Expanded({
   const siteBtn = useRef<HTMLButtonElement>(null)
   const asking = useRef(false)
   const [addressOpen, setAddressOpen] = useState(false)
-  // the bell's list is open: like the address popover, the live page steps aside for its picture under it
-  const [bellOpen, setBellOpen] = useState(false)
   // something is over the page: it stays stepped aside
-  const aside = addressOpen || bellOpen
+  const aside = addressOpen
   const asideRef = useRef(false)
   const tabRef = useRef<number | null>(tab ?? null)
   // whether the live page was already shown once on its own (opened live, a video, an app with no article)
@@ -1293,14 +1293,6 @@ export function Expanded({
     setAddressOpen(false)
     if (text) void submitUrl(text)
   }
-  const openBell = (): void => {
-    grabShot() // the page stands in as a picture while the list covers it
-    setBellOpen(true)
-  }
-  // the bell lists the other sites: one whose tab is in front of the person is being looked at
-  const others = waiting.filter(
-    (w) => !w.tabs.some((id) => id === tab || split?.some((p) => p.tab === id))
-  )
   const submitUrl = async (input: string): Promise<void> => {
     const text = input.trim()
     if (!text || text === href) return
@@ -1618,36 +1610,21 @@ export function Expanded({
             </div>
           </div>
           <div className="cv-hzone cv-hzone-c">
+            {playing && onPlaying && playing.id !== tab && (
+              <StripPlaying t={playing} onGo={onPlaying} />
+            )}
             {recent && recent.length > 1 && onSwitch && (
               <div className="cv-recent" role="tablist" aria-label="Recent tabs" ref={strip}>
                 <i className="cv-recent-pill" aria-hidden="true" />
                 {recent.map((r) => (
-                  <button
-                    type="button"
-                    role="tab"
+                  <StripTab
                     key={r.id}
-                    data-rid={r.id}
-                    aria-selected={r.id === m.id}
-                    className={r.id === m.id ? 'on' : ''}
-                    title={`${r.title}${r.site ? ` - ${r.site}` : ''}`}
-                    onClick={() => {
-                      // the page stays on screen until the next one is ready to take its place
-                      if (r.id !== m.id) onSwitch(r.id)
-                    }}
-                  >
-                    {r.attnNew ? (
-                      // something new in that tab: the same red mark as on its tab and its card
-                      <span className="fav-attn">
-                        <HeadIcon m={r} />
-                        <b className={r.attnCount ? 'count' : ''}>
-                          {badgeText(r.attnCount ?? 0, 9)}
-                        </b>
-                      </span>
-                    ) : (
-                      <HeadIcon m={r} />
-                    )}
-                    <span>{r.title || r.site}</span>
-                  </button>
+                    m={r}
+                    on={r.id === m.id}
+                    peek={peeks?.get(r.id)}
+                    // the page stays on screen until the next one is ready to take its place
+                    onPick={onSwitch}
+                  />
                 ))}
               </div>
             )}
@@ -1717,18 +1694,6 @@ export function Expanded({
               >
                 Ask
               </button>
-            )}
-            {onOpenTab && (
-              <PreviewInbox
-                tabs={others}
-                open={bellOpen}
-                onOpen={openBell}
-                onClose={() => setBellOpen(false)}
-                onPick={(id) => {
-                  setBellOpen(false)
-                  onOpenTab(id)
-                }}
-              />
             )}
             {tab !== undefined ? (
               <button

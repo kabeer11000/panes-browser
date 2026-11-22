@@ -1049,97 +1049,7 @@
 }
 
 /* ---- toast, empty ---- */
-/* ---- what plays on the board: one pill, top right (clear of the conversation column) ---- */
-.cv-playing {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  width: max-content;
-  max-width: 100%;
-  padding: 3px;
-  border-radius: 12px;
-  color: #fff;
-  background: rgb(0 0 0 / 0.66);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
-  animation: cv-fade 0.2s ease-out both;
-}
-/* the board's top-right corner (Canvas.tsx): what plays, then the notification deck, one under the other */
-.cv-corner {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 12;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  max-width: min(360px, 42%);
-  pointer-events: none; /* only its contents take clicks: the board under the gap stays usable */
-  transition: right 0.34s var(--ease);
-}
-.cv-corner > * {
-  pointer-events: auto;
-}
-.cv.docked .cv-corner {
-  right: calc(min(var(--dock-w, 380px), calc(100% - 120px)) + 8px);
-}
-/* one line each: the latest on top (with how many more), the rest below it when opened */
-.cv-playing-row,
-.cv-playing-item {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  min-width: 0;
-}
-.cv-playing-row > .cv-playing-item {
-  flex: 1;
-}
-.cv-playing.open .cv-playing-row {
-  padding-bottom: 2px;
-  margin-bottom: 2px;
-  border-bottom: 1px solid rgb(255 255 255 / 0.12);
-}
-.cv-playing-more {
-  flex: none;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 8px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: rgb(255 255 255 / 0.8);
-}
-.cv-playing-more:hover,
-.cv-playing-more[aria-expanded='true'] {
-  background: rgb(255 255 255 / 0.14);
-  color: #fff;
-}
-.cv-playing-x svg {
-  width: 11px;
-  height: 11px;
-}
-.cv-playing-go {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  border-radius: 8px;
-  font-size: 12.5px;
-  color: inherit;
-}
-.cv-playing-go:hover {
-  background: rgb(255 255 255 / 0.14);
-}
-.cv-playing-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 /* three bars that move while something plays (still under reduced motion) */
 .cv-eq {
   flex: none;
@@ -2918,341 +2828,6 @@
   outline-offset: -2px;
 }
 
-/* the bell: what the other tabs have waiting */
-.cv-bell {
-  position: relative;
-  isolation: isolate; /* the deck's edges (z-index -1) sit behind it, not behind the header */
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 100%;
-}
-/* the notification deck: the newest message as a card, the others as its edges stacked behind it */
-.cv-deck {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 30px;
-  min-width: 0;
-  max-width: 250px;
-  padding: 0 8px 0 4px;
-  border-radius: 10px;
-  text-align: left;
-  font-size: 12px;
-  background: color-mix(in srgb, var(--popover-bg) 90%, var(--fg));
-  box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 16%, transparent),
-    0 1px 2px rgb(0 0 0 / 0.18);
-  transition:
-    background 0.16s,
-    translate 0.2s var(--ease);
-}
-.cv-deck:hover,
-.cv-deck.on {
-  background: color-mix(in srgb, var(--popover-bg) 84%, var(--fg));
-}
-.cv-deck:active {
-  translate: 0 1px;
-}
-.cv-deck:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-/* the cards behind: one edge for two waiting, two for three or more */
-.cv-deck::before,
-.cv-deck::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  left: 50%;
-  border-radius: inherit;
-  background: color-mix(in srgb, var(--popover-bg) 82%, var(--fg));
-  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 12%, transparent);
-  translate: -50% 0;
-  opacity: 0;
-  transition:
-    opacity 0.2s,
-    bottom 0.24s var(--ease);
-}
-.cv-deck::before {
-  width: 92%;
-  height: 100%;
-  bottom: -3px;
-}
-.cv-deck::after {
-  width: 84%;
-  height: 100%;
-  bottom: -6px;
-  background: color-mix(in srgb, var(--popover-bg) 88%, var(--fg));
-}
-.cv-deck[data-behind='1']::before,
-.cv-deck[data-behind='2']::before {
-  opacity: 1;
-}
-.cv-deck[data-behind='2']::after {
-  opacity: 0.7;
-}
-/* open: the deck has fanned out into the list below, so its edges tuck in */
-.cv-deck.on::before,
-.cv-deck.on::after {
-  bottom: 0;
-  opacity: 0;
-}
-.cv-deck-icon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--fg) 8%, transparent);
-}
-.cv-deck-icon img {
-  width: 14px;
-  height: 14px;
-}
-.cv-deck-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: var(--fg-dim);
-}
-.cv-deck-text strong {
-  margin-right: 6px;
-  font-weight: 600;
-  color: var(--fg);
-}
-.cv-deck-age {
-  flex: none;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-dim);
-}
-.cv-deck-n {
-  flex: none;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  font-size: 10.5px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg);
-  background: color-mix(in srgb, var(--fg) 12%, transparent);
-}
-/* something new: it lands on top of the deck, with a glow of the accent that fades */
-.cv-deck.fresh {
-  animation:
-    cv-deck-land 0.42s cubic-bezier(0.32, 0.72, 0, 1) both,
-    cv-deck-glow 1.6s ease-out 0.1s both;
-}
-@keyframes cv-deck-land {
-  from {
-    opacity: 0;
-    translate: 0 -10px;
-    scale: 0.94;
-  }
-}
-@keyframes cv-deck-glow {
-  0% {
-    box-shadow:
-      inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 16%, transparent),
-      0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
-  }
-  30% {
-    box-shadow:
-      inset 0 0 0 1px var(--accent),
-      0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent);
-  }
-}
-/* a call ringing: the deck's top card rings in the badge colour until it is answered */
-.cv-deck.ringing {
-  box-shadow:
-    inset 0 0 0 1.5px var(--badge-bg),
-    0 1px 2px rgb(0 0 0 / 0.18);
-}
-.cv-deck.ringing .cv-deck-icon {
-  animation: call-breathe 2.4s ease-in-out infinite;
-}
-/* on the board: a floating stack in the top-right corner, two lines (who, then what), roomier */
-.cv-bell.board {
-  height: auto;
-  animation: cv-attn-in var(--dur) var(--ease) both;
-}
-.cv-bell.board .cv-deck {
-  height: 46px;
-  max-width: 320px;
-  min-width: 220px;
-  padding: 0 12px 0 8px;
-  gap: 10px;
-  border-radius: 14px;
-  /* solid: the cards behind must not show through it (and no blur to pay for on the board) */
-  background: color-mix(in srgb, var(--popover-bg) 94%, var(--fg));
-  box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 14%, transparent),
-    0 10px 30px rgb(0 0 0 / 0.3);
-}
-.cv-bell.board .cv-deck:hover,
-.cv-bell.board .cv-deck.on {
-  background: color-mix(in srgb, var(--popover-bg) 88%, var(--fg));
-}
-.cv-bell.board .cv-deck::before,
-.cv-bell.board .cv-deck::after {
-  background: color-mix(in srgb, var(--popover-bg) 86%, var(--fg));
-  box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 18%, transparent),
-    0 6px 16px rgb(0 0 0 / 0.22);
-}
-.cv-bell.board .cv-deck::before {
-  bottom: -6px;
-}
-.cv-bell.board .cv-deck::after {
-  bottom: -12px;
-  background: color-mix(in srgb, var(--popover-bg) 92%, var(--fg));
-}
-.cv-bell.board .cv-deck-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-}
-.cv-bell.board .cv-deck-icon img {
-  width: 18px;
-  height: 18px;
-}
-.cv-bell.board .cv-deck-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-.cv-bell.board .cv-deck-text > * {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cv-bell.board .cv-deck-text strong {
-  margin: 0;
-  font-size: 12.5px;
-}
-.cv-bell.board .cv-bell-menu {
-  top: calc(100% + 14px);
-  width: 360px;
-}
-/* fanned out: the list deals in from the deck, one after another */
-.cv-bell-tab {
-  animation: cv-deal 0.3s cubic-bezier(0.32, 0.72, 0, 1) calc(min(var(--i, 0), 8) * 28ms) both;
-}
-@keyframes cv-deal {
-  from {
-    opacity: 0;
-    translate: 0 -8px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cv-deck.fresh,
-  .cv-bell-tab,
-  .cv-deck.ringing .cv-deck-icon {
-    animation: none;
-  }
-}
-.cv-bell-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 30;
-  width: 340px;
-  display: flex;
-  flex-direction: column;
-  max-height: min(70vh, 480px);
-  overflow: hidden;
-  border-radius: 12px;
-  background: var(--popover-bg);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 12px 32px rgb(0 0 0 / 0.3);
-  animation: cv-attn-in var(--dur) var(--ease) both;
-}
-.cv-bell-scroll {
-  min-height: 0;
-  overflow-y: auto;
-  padding: 4px;
-}
-.cv-bell-empty {
-  margin: 0;
-  padding: 14px 12px;
-  font-size: 12.5px;
-  color: var(--fg-dim);
-}
-.cv-bell-tab {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
-  text-align: left;
-}
-.cv-bell-tab:hover {
-  background: var(--surface-hover);
-}
-.cv-bell-tab:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-.cv-bell-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.cv-bell-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12.5px;
-  font-weight: 550;
-}
-.cv-bell-what {
-  flex: none;
-  font-size: 11.5px;
-  color: var(--fg-dim);
-}
-.cv-bell-what.ringing {
-  color: var(--badge-bg);
-  font-weight: 600;
-}
-.cv-bell-msg {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding-left: 24px;
-  font-size: 12px;
-}
-.cv-bell-msg-text {
-  flex: 1;
-  min-width: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  color: var(--fg-dim);
-}
-.cv-bell-msg-text strong {
-  margin-right: 5px;
-  font-weight: 550;
-  color: var(--fg);
-}
-.cv-bell-msg time {
-  flex: none;
-  font-size: 11px;
-  color: var(--fg-dim);
-}
-
 /* previous / next among the section's cards */
 
 /* Reader / Snapshot / Live: words, the chosen one in full colour with a hairline under it */
@@ -3361,10 +2936,8 @@
     translate 0.22s var(--ease),
     left 0.34s var(--ease); /* moves over as the conversation dock slides in or out, with it */
 }
-
-/* resizing the dock by its edge: they follow the pointer, not a beat behind it */
-.cv:has(.cv-dock-rz.on) .cv-bar,
-.cv:has(.cv-dock-rz.on) .cv-corner {
+/* resizing the dock by its edge: the bar follows the pointer, not a beat behind it */
+.cv:has(.cv-dock-rz.on) .cv-bar {
   transition: none;
 }
 .cv.reading .cv-bar {
@@ -3376,9 +2949,7 @@
   .cv-bar {
     transition: opacity var(--dur-fast);
   }
-  .cv-corner {
-    transition: none;
-  }
+
   .cv.reading .cv-bar {
     translate: -50% 0;
   }
@@ -4174,32 +3745,6 @@
   scale: var(--hs, 1);
   transform-origin: top left;
 }
-/* a waiting tab's count: small, on the icon's top-right corner with a ring of the surface it sits on (as on iOS),
-   never a red block over the icon or a pill beside it */
-.cv-bell .fav-attn {
-  display: grid;
-}
-.cv-bell .fav-attn > b {
-  top: -3px;
-  right: -3px;
-  width: 7px;
-  height: 7px;
-  box-shadow: 0 0 0 1.5px var(--ring, var(--popover-bg));
-}
-.cv-bell .fav-attn > b.count {
-  top: -6px;
-  right: -9px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-.cv-bell {
-  --ring: var(--card-bg); /* the preview sheet behind the header */
-}
 
 /* ---- widgets (Widgets.tsx): a stopwatch, timer or reminder, a note underneath with a face of its own ----
    Solid tonal fills, each kind its own hue (like notes, colours of their own, so a grey accent still gives three),
@@ -4935,29 +4480,7 @@
   border-bottom: 0;
   border-top: 1px solid color-mix(in srgb, var(--fg) 7%, transparent);
 }
-.cv-panel.bar-bottom .cv-bell-menu {
-  top: auto;
-  bottom: calc(100% + 8px);
-}
-/* the toolbar at the bottom: the deck's cards stack upward, away from the window's edge */
-.cv-panel.bar-bottom .cv-deck::before {
-  bottom: auto;
-  top: -3px;
-}
-.cv-panel.bar-bottom .cv-deck::after {
-  bottom: auto;
-  top: -6px;
-}
-.cv-panel.bar-bottom .cv-deck.on::before,
-.cv-panel.bar-bottom .cv-deck.on::after {
-  top: 0;
-}
-.cv-bell-row > :is(img, .site-globe) {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-}
+
 /* on the board: "new space" is a light afterthought at the row's end, and a hairline sets the name apart */
 .cv-spaces .space-chip.add {
   width: 24px;
@@ -4994,4 +4517,147 @@
 .cv-spaces .space-chip:not(.active):not(.add):hover .sav {
   opacity: 1;
   scale: 1;
+}
+
+/* ---- the tab strip (TabStrip.tsx): the same row on the board (top centre) and in the preview's header ---- */
+/* on the board: on a quiet plate of its own, centred over the board (clear of the conversation column) */
+.cv-strip.board {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 520px);
+  padding: 3px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--popover-bg) 86%, transparent);
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 12%, transparent),
+    0 8px 24px rgb(0 0 0 / 0.22);
+  animation: cv-fade 0.2s ease-out both;
+  transition: left 0.34s var(--ease);
+}
+.cv.docked .cv-strip.board {
+  left: calc((100% - min(var(--dock-w, 380px), calc(100% - 120px))) / 2);
+}
+/* what plays: a moving level and its name, then play or pause, set off from the tabs by a hairline */
+.cv-strip-play {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  max-width: 200px;
+  padding-right: 6px;
+  margin-right: 2px;
+  color: var(--fg);
+}
+.cv-strip-play::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.cv-strip-play-go {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px 0 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 550;
+  color: inherit;
+}
+.cv-strip-play-go:hover,
+.cv-strip-play-btn:hover {
+  background: var(--surface-hover);
+}
+.cv-strip-play.call .cv-eq {
+  color: var(--badge-bg);
+}
+.cv-strip-play .cv-eq {
+  color: var(--accent);
+}
+.cv-strip-play-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-strip-play-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: inherit;
+}
+.cv-strip-play-btn:focus-visible,
+.cv-strip-play-go:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* a notification's words, for a few seconds, floating beside its tab over the strip (inside the bar's height: below
+   it in the preview is the page, which nothing can cover) */
+.cv-recent button > .cv-strip-peek {
+  position: absolute;
+  left: calc(100% - 6px);
+  top: 50%;
+  translate: 0 -50%;
+  z-index: 3;
+  display: block;
+  width: max-content;
+  max-width: 260px;
+  height: auto;
+  padding: 4px 10px;
+  border-radius: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  font-weight: 550;
+  line-height: 16px;
+  text-align: left;
+  opacity: 1;
+  color: var(--fg);
+  background: var(--popover-bg);
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 16%, transparent),
+    inset 2.5px 0 0 var(--badge-bg),
+    0 6px 18px rgb(0 0 0 / 0.3);
+  pointer-events: none;
+  animation: cv-strip-peek 0.36s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes cv-strip-peek {
+  from {
+    opacity: 0;
+    translate: -6px -50%;
+  }
+}
+/* on the board there is room under the strip: the words drop below their tab, covering none of its neighbours */
+.cv-strip.board .cv-recent button > .cv-strip-peek {
+  left: 50%;
+  top: calc(100% + 10px);
+  translate: -50% 0;
+  animation-name: cv-strip-drop;
+}
+@keyframes cv-strip-drop {
+  from {
+    opacity: 0;
+    translate: -50% -6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-recent button > .cv-strip-peek {
+    animation: none;
+  }
 }
