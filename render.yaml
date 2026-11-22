@@ -1,0 +1,24 @@
+# The shared spaces relay (share/server). Rooms live in SQLite on the disk; everything in them is end-to-end
+# encrypted (the relay never has the keys). Redeploys only when the relay or its message format changes.
+services:
+  - type: web
+    name: panes-share
+    runtime: docker
+    dockerfilePath: ./share/server/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - share/**
+        - src/shared/share/wire.ts
+        - render.yaml
+    envVars:
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: panes-share-data
+      mountPath: /data
+      sizeGB: 1
