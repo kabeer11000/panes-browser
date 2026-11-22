@@ -6023,6 +6023,7 @@ export function Canvas({
           onClose={() => {
             setExpandedCovers(false)
             setExpanded(null)
+            root.current?.removeAttribute('data-closing') // the next preview may put the board away again
           }}
           onBack={() => {
             const s0 = stRef.current

@@ -1091,6 +1091,8 @@ export function Expanded({
     })
   }
   useLayoutEffect(() => {
+    // a preview opening: whatever the last one left on the board (its close) is gone
+    root.current?.closest('.cv')?.removeAttribute('data-closing')
     if (swapped || still() || !panel.current) {
       // in place of the last card's preview (or no motion): at rest from its first frame, nothing flies or fades
       drawRef.current(1)
@@ -1151,6 +1153,7 @@ export function Expanded({
     // (no capture now: one in flight costs frames. The picture under it is kept fresh while the page is used, and
     // main makes the last one the card's once the flight is over)
     root.current?.classList.add('closing') // clicks go to the board again (a card clicked now opens it back up)
+    root.current?.closest('.cv')?.setAttribute('data-closing', '') // the board behind comes back (preview.css)
     // the card shows again under the panel as it lands, at once and without the board drawing again mid-flight (its
     // own state follows when the preview is gone)
     covered.current = false
@@ -1194,6 +1197,7 @@ export function Expanded({
     closing.current = false
     finishClose.current = () => undefined
     root.current?.classList.remove('closing')
+    root.current?.closest('.cv')?.removeAttribute('data-closing')
     open()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from])

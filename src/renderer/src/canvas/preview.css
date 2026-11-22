@@ -16,12 +16,13 @@
 }
 /* At rest over the board, the preview is all there is: the board behind it is not drawn (blurred cards and the
    strip used to show round its edges, and the blur cost the GPU every frame a page was open). Its margin is a plain
-   frame in the board's colour. The board comes back the moment the preview starts to close (Expanded marks it
-   `closing` by hand, no render), before it shrinks. */
-.cv.covered:not(:has(.cv-expand.closing)) :is(.cv-board, .cv-grid, .cv-strip-row, .cv-top) {
+   frame in the board's colour. The board comes back the moment the preview starts to close (Expanded marks the
+   board `data-closing` by hand, no render; an attribute, not :has(), which made every change in the board check
+   the preview again: twice the style work opening and closing one), before it shrinks. */
+.cv.covered:not([data-closing]) :is(.cv-board, .cv-grid, .cv-strip-row, .cv-top) {
   visibility: hidden;
 }
-.cv.covered:not(:has(.cv-expand.closing)) .cv-expand > .cv-scrim {
+.cv.covered:not([data-closing]) .cv-expand > .cv-scrim {
   backdrop-filter: none;
   background: var(--board, var(--overlay-solid));
 }
