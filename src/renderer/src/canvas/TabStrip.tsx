@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDismiss } from './useDismiss'
 import type { TabInfo } from '@shared/types'
 import { attentionLabel, badgeText, messageAge, type Grouped } from '@shared/attention'
@@ -18,12 +18,15 @@ export function StripTab({
   m,
   on,
   peek,
-  onPick
+  onPick,
+  onHover
 }: {
   m: CardModel
   on: boolean
   peek?: string
   onPick: (id: number) => void
+  /** Pointed at, or left (null): the preview names it in its header instead of a tooltip over the strip. */
+  onHover?: (m: CardModel | null) => void
 }): React.JSX.Element {
   const name = `${m.title}${m.site ? ` - ${m.site}` : ''}`
   return (
@@ -32,9 +35,11 @@ export function StripTab({
       role="tab"
       data-rid={m.id}
       aria-selected={on}
-      className={(on ? 'on' : '') + (peek ? ' peeking' : '')}
-      title={peek ? `${name}: ${peek}` : name}
-      aria-label={m.attnNew ? `${name}, ${m.attnCount || 'something'} new` : undefined}
+      className={on ? 'on' : undefined}
+      title={onHover ? undefined : peek ? `${name}: ${peek}` : name}
+      aria-label={m.attnNew ? `${name}, ${m.attnCount || 'something'} new` : name}
+      onPointerEnter={onHover ? () => onHover(m) : undefined}
+      onPointerLeave={onHover ? () => onHover(null) : undefined}
       onClick={() => {
         if (!on) onPick(m.id)
       }}
@@ -42,12 +47,6 @@ export function StripTab({
       <SiteIcon src={m.favicon} decoding="sync" />
       {/* something new in that tab: a dot under its icon, as the Dock marks an app; how many is the bell's to say */}
       {m.attnNew && <i className="cv-unread" aria-hidden="true" />}
-      {/* over the strip, beside its tab, for a few seconds: never below it, where the preview's page is */}
-      {peek && (
-        <span className="cv-strip-peek" role="status">
-          {peek}
-        </span>
-      )}
       <span>{m.title || m.site}</span>
     </button>
   )
@@ -57,12 +56,15 @@ export function StripTab({
 export function StripPlaying({
   t,
   here = false,
-  onGo
+  onGo,
+  onHover
 }: {
   t: TabInfo
   /** It is the page open now: still shown (the strip never shifts), as where you are. */
   here?: boolean
   onGo: (id: number) => void
+  /** Pointed at, or left: the preview names it in its header instead of a tooltip over the strip. */
+  onHover?: (t: TabInfo | null) => void
 }): React.JSX.Element {
   const call = isCapturing(t.capture)
   const sounding = call || (t.audible && !t.muted)
@@ -74,8 +76,21 @@ export function StripPlaying({
       <button
         type="button"
         className="cv-strip-play-go"
-        title={here ? `Playing here: ${title}` : call ? `In a call: ${title}` : `Playing: ${title}`}
+        title={
+          onHover
+            ? undefined
+            : here
+              ? `Playing here: ${title}`
+              : call
+                ? `In a call: ${title}`
+                : `Playing: ${title}`
+        }
+        aria-label={
+          here ? `Playing here: ${title}` : call ? `In a call: ${title}` : `Playing: ${title}`
+        }
         aria-current={here || undefined}
+        onPointerEnter={onHover ? () => onHover(t) : undefined}
+        onPointerLeave={onHover ? () => onHover(null) : undefined}
         onClick={() => {
           if (!here) onGo(t.id)
         }}
@@ -142,6 +157,13 @@ export function StripInbox({
 }): React.JSX.Element | null {
   // the ages are as of opening it (it is open for moments)
   const [now, setNow] = useState(0)
+  // something new came in: the bell rings once (the strip itself stays still)
+  const [ring, setRing] = useState(0)
+  const seen = useRef(waiting.length)
+  useEffect(() => {
+    if (waiting.length > seen.current) setRing((r) => r + 1)
+    seen.current = waiting.length
+  }, [waiting.length])
   const host = useRef<HTMLSpanElement>(null)
   useDismiss(open, host, onClose)
   const said = waiting.length
@@ -151,7 +173,8 @@ export function StripInbox({
     <span className="cv-strip-inbox" ref={host}>
       <button
         type="button"
-        className={'cv-strip-bell' + (open ? ' on' : '')}
+        key={ring}
+        className={'cv-strip-bell' + (open ? ' on' : '') + (ring ? ' ring' : '')}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`Notifications: ${said}`}

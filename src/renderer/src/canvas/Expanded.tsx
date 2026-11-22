@@ -8,6 +8,7 @@ import type { Grouped } from '@shared/attention'
 import type { PageMenuPick, PreviewSwipe, Rect, TabInfo } from '@shared/types'
 import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
+import { displayHost } from '@shared/url'
 import { READER } from './model'
 import { LiveIcon, UnsplitIcon } from './icons'
 import {
@@ -798,6 +799,11 @@ export function Expanded({
   const [addressOpen, setAddressOpen] = useState(false)
   // the strip's notifications are open: like the address popover, the page steps aside for its picture under them
   const [inboxOpen, setInboxOpen] = useState(false)
+  // a tab in the strip pointed at: its name stands in the header's title meanwhile (no tooltip over the strip)
+  const [pointed, setPointed] = useState<Pick<
+    CardModel,
+    'id' | 'title' | 'site' | 'favicon'
+  > | null>(null)
   // something is over the page: it stays stepped aside
   const aside = addressOpen || inboxOpen
   const asideRef = useRef(false)
@@ -1592,7 +1598,20 @@ export function Expanded({
                 )}
               </div>
             )}
-            <div className="cv-panel-title" title={m.title} ref={titleEl}>
+            {pointed && pointed.id !== m.id && (
+              <div className="cv-panel-title cv-pointed" aria-hidden="true">
+                <span className="cv-panel-icon">
+                  <HeadIcon m={pointed} />
+                </span>
+                <strong>{pointed.title || pointed.site}</strong>
+                {pointed.site && <span>{pointed.site}</span>}
+              </div>
+            )}
+            <div
+              className={'cv-panel-title' + (pointed && pointed.id !== m.id ? ' cv-hidden' : '')}
+              title={m.title}
+              ref={titleEl}
+            >
               {/* the site icon doubles as its settings, as in the address bar */}
               {live !== 'off' && caps.site ? (
                 <button
@@ -1630,46 +1649,8 @@ export function Expanded({
               )}
             </div>
           </div>
-          <div className="cv-hzone cv-hzone-c">
-            {playing && onPlaying && (
-              <StripPlaying t={playing} here={playing.id === tab} onGo={onPlaying} />
-            )}
-            {recent && recent.length > 1 && onSwitch && (
-              <div className="cv-recent" role="tablist" aria-label="Recent tabs" ref={strip}>
-                <i className="cv-recent-pill" aria-hidden="true" />
-                {recent.map((r) => (
-                  <StripTab
-                    key={r.id}
-                    m={r}
-                    on={r.id === m.id}
-                    peek={peeks?.get(r.id)}
-                    // the page stays on screen until the next one is ready to take its place
-                    onPick={onSwitch}
-                  />
-                ))}
-              </div>
-            )}
-            {onOpenTab && (
-              <StripInbox
-                // the sites waiting, other than what is on screen in this preview
-                waiting={waiting.filter(
-                  (w) => !w.tabs.some((id) => id === tab || split?.some((p) => p.tab === id))
-                )}
-                open={inboxOpen}
-                onOpen={() => {
-                  grabShot() // the page stands in as a picture while the list covers it
-                  setInboxOpen(true)
-                }}
-                onClose={() => setInboxOpen(false)}
-                onPick={(id) => {
-                  setInboxOpen(false)
-                  onOpenTab(id)
-                }}
-              />
-            )}
-          </div>
-          {/* what comes and goes sits leftmost, so Ask, the bell, More and the way back never move */}
-          <div className="cv-hzone cv-hzone-r cv-hacts">
+          {/* what comes and goes (open live, unsplit, mute, zoom): left of the tabs, so it never moves them */}
+          <div className="cv-hzone cv-hvar">
             {/* no reader: a page that did not open live gets a way to try again, nothing else */}
             {canLive && live === 'off' && (
               <button type="button" className="cv-pill" onClick={() => void goLive()}>
@@ -1723,6 +1704,62 @@ export function Expanded({
                 <ReloadIcon />
               </button>
             )}
+          </div>
+          <div className="cv-hzone cv-hzone-c">
+            {playing && onPlaying && (
+              <StripPlaying
+                t={playing}
+                here={playing.id === tab}
+                onGo={onPlaying}
+                onHover={(t) =>
+                  setPointed(
+                    t && {
+                      id: t.id,
+                      title: t.private || t.tor ? 'Private tab' : t.aiTitle || t.title,
+                      site: t.private || t.tor ? '' : displayHost(t.url),
+                      favicon: t.private || t.tor ? undefined : (t.favicon ?? undefined)
+                    }
+                  )
+                }
+              />
+            )}
+            {recent && recent.length > 1 && onSwitch && (
+              <div className="cv-recent" role="tablist" aria-label="Recent tabs" ref={strip}>
+                <i className="cv-recent-pill" aria-hidden="true" />
+                {recent.map((r) => (
+                  <StripTab
+                    key={r.id}
+                    m={r}
+                    on={r.id === m.id}
+                    peek={peeks?.get(r.id)}
+                    // the page stays on screen until the next one is ready to take its place
+                    onPick={onSwitch}
+                    onHover={setPointed}
+                  />
+                ))}
+              </div>
+            )}
+            {onOpenTab && (
+              <StripInbox
+                // the sites waiting, other than what is on screen in this preview
+                waiting={waiting.filter(
+                  (w) => !w.tabs.some((id) => id === tab || split?.some((p) => p.tab === id))
+                )}
+                open={inboxOpen}
+                onOpen={() => {
+                  grabShot() // the page stands in as a picture while the list covers it
+                  setInboxOpen(true)
+                }}
+                onClose={() => setInboxOpen(false)}
+                onPick={(id) => {
+                  setInboxOpen(false)
+                  onOpenTab(id)
+                }}
+              />
+            )}
+          </div>
+          {/* Ask, More and the way back: always there, always in the same place */}
+          <div className="cv-hzone cv-hzone-r cv-hacts">
             {onAsk && (
               <button
                 type="button"
