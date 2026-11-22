@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import {
   attentionLabel,
+  deckLine,
+  deckTop,
   badgeText,
   callState,
   FRESH_MEMO,
@@ -428,5 +430,34 @@ describe('groupWaiting', () => {
       tab(2, 'https://x.com/', { messages: [m('Ana', 150)] })
     ])
     expect(g[0].attention.messages.map((x) => x.title)).toEqual(['Ana', 'Bo'])
+  })
+})
+
+describe('deck', () => {
+  const at = (p: Partial<TabAttention>): { attention: TabAttention } => ({
+    attention: { ...NO_ATTENTION, ...p }
+  })
+  test('nothing waiting: no top card', () => {
+    expect(deckTop([])).toBeNull()
+  })
+  test('a ringing call is on top, whatever spoke later', () => {
+    const call = at({ call: 'ringing' })
+    const msg = at({ messages: [{ title: 'A', body: 'b', at: 9e12 }] })
+    expect(deckTop([msg, call])).toBe(call)
+  })
+  test('else the one that spoke last, then the most unread', () => {
+    const old = at({ messages: [{ title: 'A', body: '', at: 1 }], count: 50 })
+    const late = at({ messages: [{ title: 'B', body: '', at: 2 }] })
+    const quiet = at({ count: 99 })
+    expect(deckTop([old, late, quiet])).toBe(late)
+    expect(deckTop([at({ count: 2 }), quiet])).toBe(quiet)
+  })
+  test('its line is the newest words, else what waits', () => {
+    expect(deckLine({ ...NO_ATTENTION, messages: [{ title: 'Ann', body: 'hi', at: 1 }] })).toBe(
+      'Ann: hi'
+    )
+    expect(deckLine({ ...NO_ATTENTION, count: 3 })).toBe('3 unread')
+    expect(deckLine({ ...NO_ATTENTION, unseen: true })).toBe('New activity')
+    expect(deckLine({ ...NO_ATTENTION, call: 'ringing' })).toBe('Call coming in')
   })
 })

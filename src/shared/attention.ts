@@ -371,3 +371,30 @@ export function groupWaiting<T extends { id: number; url: string; attention: Tab
     return { ...pick, attention, key, tabs: g.map((t) => t.id) }
   })
 }
+
+/**
+ * The notification deck's order: a call ringing first, then whoever spoke last (by their newest notification), then
+ * the most unread. The first is the card on top.
+ */
+export function deckOrder<T extends { attention: TabAttention }>(list: readonly T[]): T[] {
+  const newest = (t: T): number => t.attention.messages.at(-1)?.at ?? 0
+  return [...list].sort(
+    (a, b) =>
+      +(b.attention.call === 'ringing') - +(a.attention.call === 'ringing') ||
+      newest(b) - newest(a) ||
+      b.attention.count - a.attention.count
+  )
+}
+
+/** The card on top of the deck, or null with nothing waiting. */
+export function deckTop<T extends { attention: TabAttention }>(list: readonly T[]): T | null {
+  return deckOrder(list)[0] ?? null
+}
+
+/** What the deck's top card says: the newest notification's words, else what is waiting. */
+export function deckLine(a: TabAttention): string {
+  if (a.call === 'ringing') return 'Call coming in'
+  const m = a.messages.at(-1)
+  if (m) return [m.title, m.body].filter(Boolean).join(': ') || 'New message'
+  return attentionLabel(a) || 'New activity'
+}

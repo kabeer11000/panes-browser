@@ -2917,87 +2917,248 @@
 /* the bell: what the other tabs have waiting */
 .cv-bell {
   position: relative;
+  isolation: isolate; /* the deck's edges (z-index -1) sit behind it, not behind the header */
   display: flex;
   align-items: center;
   gap: 4px;
   height: 100%;
 }
-/* the tabs waiting, by their (badged) icons, as on the board's inbox: each in a slot the size of the bar's buttons */
-.cv-bell-fav {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  padding: 0 6px 0 0;
-}
-.cv-bell-more {
-  display: grid;
-  place-items: center;
-  height: 28px;
-  padding: 0 4px;
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-dim);
-}
-/* a new notification, out beside the bell for a few seconds; it covers the buttons left of it, not the page */
-/* a new message from another tab drops below the bell as a banner, never along the header over the recent tabs */
-.cv-bell-peek {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 31;
+/* the notification deck: the newest message as a card, the others as its edges stacked behind it */
+.cv-deck {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  width: max-content;
-  max-width: 380px;
-  min-height: 40px;
-  padding: 7px 12px 7px 10px;
-  border-radius: 12px;
-  font-size: 12px;
+  height: 30px;
+  min-width: 0;
+  max-width: 250px;
+  padding: 0 8px 0 4px;
+  border-radius: 10px;
   text-align: left;
-  background: var(--popover-bg);
+  font-size: 12px;
+  background: color-mix(in srgb, var(--popover-bg) 90%, var(--fg));
   box-shadow:
-    0 0 0 1px var(--border),
-    0 10px 28px rgb(0 0 0 / 0.3);
-  animation: cv-peek-in 0.36s cubic-bezier(0.32, 0.72, 0, 1) both;
+    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 16%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.18);
+  transition:
+    background 0.16s,
+    translate 0.2s var(--ease);
 }
-.cv-bell-peek:hover {
-  background: color-mix(in srgb, var(--popover-bg) 92%, var(--fg));
+.cv-deck:hover,
+.cv-deck.on {
+  background: color-mix(in srgb, var(--popover-bg) 84%, var(--fg));
 }
-.cv-bell-peek:focus-visible {
+.cv-deck:active {
+  translate: 0 1px;
+}
+.cv-deck:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
-.cv-bell-peek .cv-bell-msg-text {
-  display: block;
+/* the cards behind: one edge for two waiting, two for three or more */
+.cv-deck::before,
+.cv-deck::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--popover-bg) 82%, var(--fg));
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 12%, transparent);
+  translate: -50% 0;
+  opacity: 0;
+  transition:
+    opacity 0.2s,
+    bottom 0.24s var(--ease);
+}
+.cv-deck::before {
+  width: 92%;
+  height: 100%;
+  bottom: -3px;
+}
+.cv-deck::after {
+  width: 84%;
+  height: 100%;
+  bottom: -6px;
+  background: color-mix(in srgb, var(--popover-bg) 88%, var(--fg));
+}
+.cv-deck[data-behind='1']::before,
+.cv-deck[data-behind='2']::before {
+  opacity: 1;
+}
+.cv-deck[data-behind='2']::after {
+  opacity: 0.7;
+}
+/* open: the deck has fanned out into the list below, so its edges tuck in */
+.cv-deck.on::before,
+.cv-deck.on::after {
+  bottom: 0;
+  opacity: 0;
+}
+.cv-deck-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+.cv-deck-icon img {
+  width: 14px;
+  height: 14px;
+}
+.cv-deck-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  color: var(--fg-dim);
 }
-.cv-bell-peek.ringing {
+.cv-deck-text strong {
+  margin-right: 6px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.cv-deck-age {
+  flex: none;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+}
+.cv-deck-n {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+/* something new: it lands on top of the deck, with a glow of the accent that fades */
+.cv-deck.fresh {
+  animation:
+    cv-deck-land 0.42s cubic-bezier(0.32, 0.72, 0, 1) both,
+    cv-deck-glow 1.6s ease-out 0.1s both;
+}
+@keyframes cv-deck-land {
+  from {
+    opacity: 0;
+    translate: 0 -10px;
+    scale: 0.94;
+  }
+}
+@keyframes cv-deck-glow {
+  0% {
+    box-shadow:
+      inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 16%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  30% {
+    box-shadow:
+      inset 0 0 0 1px var(--accent),
+      0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+}
+/* a call ringing: the deck's top card rings in the badge colour until it is answered */
+.cv-deck.ringing {
   box-shadow:
-    0 0 0 1.5px var(--badge-bg),
-    0 6px 18px rgb(0 0 0 / 0.22);
+    inset 0 0 0 1.5px var(--badge-bg),
+    0 1px 2px rgb(0 0 0 / 0.18);
 }
-.cv-bell-peek.ringing strong::after {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-left: 6px;
-  border-radius: 50%;
-  vertical-align: middle;
-  background: var(--badge-bg);
+.cv-deck.ringing .cv-deck-icon {
   animation: call-breathe 2.4s ease-in-out infinite;
 }
-@keyframes cv-peek-in {
+/* on the board: a floating stack in the top-right corner, two lines (who, then what), roomier */
+.cv-bell.board {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 12;
+  height: auto;
+  transition: right 0.34s var(--ease);
+  animation: cv-attn-in var(--dur) var(--ease) both;
+}
+.cv.docked .cv-bell.board {
+  right: calc(min(var(--dock-w, 380px), calc(100% - 120px)) + 14px);
+}
+.cv-bell.board .cv-deck {
+  height: 46px;
+  max-width: 320px;
+  min-width: 220px;
+  padding: 0 12px 0 8px;
+  gap: 10px;
+  border-radius: 14px;
+  /* solid: the cards behind must not show through it (and no blur to pay for on the board) */
+  background: color-mix(in srgb, var(--popover-bg) 94%, var(--fg));
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 14%, transparent),
+    0 10px 30px rgb(0 0 0 / 0.3);
+}
+.cv-bell.board .cv-deck:hover,
+.cv-bell.board .cv-deck.on {
+  background: color-mix(in srgb, var(--popover-bg) 88%, var(--fg));
+}
+.cv-bell.board .cv-deck::before,
+.cv-bell.board .cv-deck::after {
+  background: color-mix(in srgb, var(--popover-bg) 86%, var(--fg));
+  box-shadow:
+    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 18%, transparent),
+    0 6px 16px rgb(0 0 0 / 0.22);
+}
+.cv-bell.board .cv-deck::before {
+  bottom: -6px;
+}
+.cv-bell.board .cv-deck::after {
+  bottom: -12px;
+  background: color-mix(in srgb, var(--popover-bg) 92%, var(--fg));
+}
+.cv-bell.board .cv-deck-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+.cv-bell.board .cv-deck-icon img {
+  width: 18px;
+  height: 18px;
+}
+.cv-bell.board .cv-deck-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.cv-bell.board .cv-deck-text > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cv-bell.board .cv-deck-text strong {
+  margin: 0;
+  font-size: 12.5px;
+}
+.cv-bell.board .cv-bell-menu {
+  top: calc(100% + 14px);
+  width: 360px;
+}
+/* fanned out: the list deals in from the deck, one after another */
+.cv-bell-tab {
+  animation: cv-deal 0.3s cubic-bezier(0.32, 0.72, 0, 1) calc(min(var(--i, 0), 8) * 28ms) both;
+}
+@keyframes cv-deal {
   from {
     opacity: 0;
     translate: 0 -8px;
-    scale: 0.97;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cv-bell-peek {
+  .cv-deck.fresh,
+  .cv-bell-tab,
+  .cv-deck.ringing .cv-deck-icon {
     animation: none;
   }
 }
@@ -4043,68 +4204,19 @@
   scale: var(--hs, 1);
   transform-origin: top left;
 }
-.cv-inbox {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  translate: -50% 0;
-  transition: left 0.34s var(--ease);
-  z-index: 12;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--popover-bg) 78%, transparent);
-  backdrop-filter: blur(24px) saturate(1.6);
-  box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 14%, transparent),
-    0 10px 30px rgb(0 0 0 / 0.25);
-  animation: cv-attn-in var(--dur) var(--ease) both;
-}
-.cv.docked .cv-inbox {
-  left: calc((100% - min(var(--dock-w, 380px), calc(100% - 120px))) / 2);
-}
-.cv-inbox button {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  transition:
-    background var(--dur-fast),
-    scale 0.2s cubic-bezier(0.32, 0.72, 0, 1);
-}
-.cv-inbox button:active {
-  scale: 0.92;
-}
-.cv-inbox button:hover {
-  background: var(--surface-hover);
-}
-.cv-inbox button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-.cv-inbox-more {
-  padding: 0 10px 0 4px;
-  font-size: 12px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-dim);
-}
 /* a waiting tab's count: small, on the icon's top-right corner with a ring of the surface it sits on (as on iOS),
    never a red block over the icon or a pill beside it */
-:is(.cv-inbox, .cv-bell) .fav-attn {
+.cv-bell .fav-attn {
   display: grid;
 }
-:is(.cv-inbox, .cv-bell) .fav-attn > b {
+.cv-bell .fav-attn > b {
   top: -3px;
   right: -3px;
   width: 7px;
   height: 7px;
   box-shadow: 0 0 0 1.5px var(--ring, var(--popover-bg));
 }
-:is(.cv-inbox, .cv-bell) .fav-attn > b.count {
+.cv-bell .fav-attn > b.count {
   top: -6px;
   right: -9px;
   min-width: 15px;
@@ -4853,8 +4965,26 @@
   border-bottom: 0;
   border-top: 1px solid color-mix(in srgb, var(--fg) 7%, transparent);
 }
-.cv-panel.bar-bottom .cv-bell-menu,
-.cv-panel.bar-bottom .cv-bell-peek {
+.cv-panel.bar-bottom .cv-bell-menu {
   top: auto;
   bottom: calc(100% + 8px);
+}
+/* the toolbar at the bottom: the deck's cards stack upward, away from the window's edge */
+.cv-panel.bar-bottom .cv-deck::before {
+  bottom: auto;
+  top: -3px;
+}
+.cv-panel.bar-bottom .cv-deck::after {
+  bottom: auto;
+  top: -6px;
+}
+.cv-panel.bar-bottom .cv-deck.on::before,
+.cv-panel.bar-bottom .cv-deck.on::after {
+  top: 0;
+}
+.cv-bell-row > :is(img, .site-globe) {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
 }

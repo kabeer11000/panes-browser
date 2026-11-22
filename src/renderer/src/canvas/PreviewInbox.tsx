@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { TabInfo } from '@shared/types'
 import {
   attentionLabel,
+  badgeText,
+  deckLine,
+  deckOrder,
   messageAge,
   NO_ATTENTION,
   nudge,
@@ -10,13 +13,11 @@ import {
   type Grouped,
   type TabAttention
 } from '@shared/attention'
-import { TabFavicon } from '@renderer/components/TabFavicon'
+import { SiteIcon } from '@renderer/components/SiteIcon'
 import { useDismiss } from './useDismiss'
 
 /** How long a popup shows before it tucks back in (a ringing call stays while it rings). */
 const PEEK_MS = 6000
-/** Tabs shown by their icon in the bar; the rest are a "+N" (all of them are in the bell's list). */
-const STRIP = 3
 
 const BellGlyph = (): React.JSX.Element => (
   <svg
@@ -37,16 +38,19 @@ const BellGlyph = (): React.JSX.Element => (
 const nameOf = (t: TabInfo): string => t.aiTitle || t.title || 'A tab'
 
 /**
- * What the other tabs have waiting, in the preview's bar, as the board's inbox shows it: their icons always in
- * sight (badged), a popup when something sure comes in (a notification, a call ringing, a count going up), and the
- * bell for the whole list with what the notifications said. Picking a tab opens it in the preview.
+ * Notifications from the other tabs, as a deck of message cards: the top card says who wrote and what (a call
+ * ringing first, else whoever spoke last), the rest show as edges behind it with how many there are. Something new
+ * lands on top with a slide and a glow. Click the deck to fan it out into the whole list; a card opens its tab.
+ * The same on the board (its top-right corner) and in the preview (the header's right end), and never like the
+ * recent tabs, which are tabs. Nothing waiting: the board shows nothing, the preview a quiet bell.
  */
 export function PreviewInbox({
   tabs,
   open,
   onOpen,
   onClose,
-  onPick
+  onPick,
+  variant = 'bar'
 }: {
   /** What waits, one entry per site or account (never private or Tor tabs). */
   tabs: Grouped<TabInfo>[]
@@ -54,18 +58,18 @@ export function PreviewInbox({
   onOpen: () => void
   onClose: () => void
   onPick: (id: number) => void
-}): React.JSX.Element {
+  /** In the preview's header, or floating on the board. */
+  variant?: 'bar' | 'board'
+}): React.JSX.Element | null {
   const wrap = useRef<HTMLDivElement>(null)
   useDismiss(open, wrap, onClose)
-  // a ringing call first: it will not wait; then the most unread
-  const list = [...tabs].sort(
-    (a, b) =>
-      +(b.attention.call === 'ringing') - +(a.attention.call === 'ringing') ||
-      b.attention.count - a.attention.count
-  )
+  // the deck's order: a ringing call, then whoever spoke last (the popup below goes through it in this order too)
+  const list = deckOrder(tabs)
 
   // ---- the popup: what changed since the last look at the tabs ----
   const before = useRef<Map<string, TabAttention> | null>(null)
+  /** When the last one landed on the deck (never cleared, so the deck remounts only for a new one). */
+  const [landed, setLanded] = useState(0)
   const told = useRef(new Map<string, { count: number; at: number }>())
   const [peek, setPeek] = useState<{ key: string; text: string; call: boolean; at: number } | null>(
     null
@@ -80,6 +84,7 @@ export function PreviewInbox({
       if (!n || !worthPeek(n, told.current.get(t.key), now)) continue
       told.current.set(t.key, { count: t.attention.count, at: now })
       setPeek({ key: t.key, text: nudgeText(n), call: n.kind === 'call', at: now })
+      setLanded(now)
       return
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- list is tabs, sorted
@@ -96,58 +101,83 @@ export function PreviewInbox({
 
   // the ages in the list are as of opening it (it is open for moments)
   const [now, setNow] = useState(0)
+  const top = list[0] ?? null
+  // the top card's age, kept current while it shows
+  const [clock, setClock] = useState(() => Date.now())
+  useEffect(() => {
+    const t = window.setInterval(() => setClock(Date.now()), 30_000)
+    return () => window.clearInterval(t)
+  }, [])
   const said = tabs.length
     ? `${tabs.length} tab${tabs.length > 1 ? 's' : ''} with something new`
     : 'Nothing new'
+  const behind = Math.min(2, list.length - 1)
+  const ringing = top?.attention.call === 'ringing'
+  const toggle = (): void => {
+    if (open) return onClose()
+    setNow(Date.now())
+    onOpen()
+  }
+  if (!top && variant === 'board') return null
   return (
-    <div className="cv-bell" ref={wrap}>
-      {showPeek && peekTab && (
+    <div className={'cv-bell ' + variant} ref={wrap}>
+      {top ? (
         <button
-          key={showPeek.at}
+          // a new one lands on top: remounted, so it slides in again
+          key={landed}
           type="button"
-          className={'cv-bell-peek' + (showPeek.call ? ' ringing' : '')}
-          role="status"
-          title={`Open ${nameOf(peekTab)}`}
-          onClick={() => {
-            setPeek(null)
-            onPick(peekTab.id)
-          }}
+          className={
+            'cv-deck' +
+            (showPeek ? ' fresh' : '') +
+            (ringing ? ' ringing' : '') +
+            (open ? ' on' : '')
+          }
+          data-behind={behind}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-label={`Notifications: ${said}. Newest: ${nameOf(top)}, ${deckLine(top.attention)}`}
+          title={`${nameOf(top)}: ${deckLine(top.attention)}`}
+          onClick={toggle}
         >
-          <TabFavicon tab={peekTab} noSpinner />
-          <span className="cv-bell-msg-text">
-            <strong>{nameOf(peekTab)}</strong>
-            <span>{showPeek.text}</span>
+          <span className="cv-deck-icon">
+            {open ? <BellGlyph /> : <SiteIcon src={top.favicon} />}
           </span>
+          {open ? (
+            // fanned out: the list says it all below, so the deck is its heading
+            <span className="cv-deck-text">
+              <strong>Notifications</strong>
+              <span>
+                {list.length} site{list.length > 1 ? 's' : ''}
+              </span>
+            </span>
+          ) : (
+            <span className="cv-deck-text">
+              <strong>{nameOf(top)}</strong>
+              <span>{deckLine(top.attention)}</span>
+            </span>
+          )}
+          {!open && top.attention.messages.length > 0 && (
+            <time className="cv-deck-age">
+              {messageAge(top.attention.messages.at(-1)!.at, clock)}
+            </time>
+          )}
+          {!open && list.length > 1 && (
+            <b className="cv-deck-n">+{badgeText(list.length - 1, 9)}</b>
+          )}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={'cv-hbtn quiet' + (open ? ' on' : '')}
+          aria-label={`Notifications: ${said}`}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          title={`Notifications: ${said}`}
+          onClick={toggle}
+        >
+          <BellGlyph />
         </button>
       )}
-      {list.slice(0, STRIP).map((t) => (
-        <button
-          key={t.key}
-          type="button"
-          className="cv-hbtn cv-bell-fav"
-          aria-label={`${nameOf(t)}, ${attentionLabel(t.attention)}`}
-          title={`${nameOf(t)}: ${attentionLabel(t.attention)}`}
-          onClick={() => onPick(t.id)}
-        >
-          <TabFavicon tab={t} noSpinner />
-        </button>
-      ))}
-      {list.length > STRIP && <span className="cv-bell-more">+{list.length - STRIP}</span>}
-      <button
-        type="button"
-        className={'cv-hbtn' + (open ? ' on' : '') + (tabs.length ? '' : ' quiet')}
-        aria-label={`Notifications: ${said}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        title={`Notifications: ${said}`}
-        onClick={() => {
-          if (open) return onClose()
-          setNow(Date.now())
-          onOpen()
-        }}
-      >
-        <BellGlyph />
-      </button>
       {open && (
         <div className="cv-bell-menu" role="dialog" aria-label="Notifications from your tabs">
           {/* the list scrolls inside the menu, so its edges can fade while the menu keeps its shadow */}
@@ -155,22 +185,26 @@ export function PreviewInbox({
             {list.length === 0 ? (
               <p className="cv-bell-empty">Nothing new in your other tabs.</p>
             ) : (
-              list.map((t) => {
+              list.map((t, i) => {
                 const a = t.attention
                 return (
                   <button
                     key={t.key}
                     type="button"
                     className="cv-bell-tab"
+                    style={{ '--i': i } as React.CSSProperties}
                     title={`Open ${nameOf(t)}`}
                     onClick={() => onPick(t.id)}
                   >
                     <span className="cv-bell-row">
-                      <TabFavicon tab={t} noSpinner />
+                      <SiteIcon src={t.favicon} />
                       <span className="cv-bell-name">{nameOf(t)}</span>
-                      <span className={'cv-bell-what' + (a.call === 'ringing' ? ' ringing' : '')}>
-                        {attentionLabel(a)}
-                      </span>
+                      {/* what waits, said only when no notification says it below (a count, a call) */}
+                      {(a.call || a.count > 0 || !a.messages.length) && (
+                        <span className={'cv-bell-what' + (a.call === 'ringing' ? ' ringing' : '')}>
+                          {attentionLabel(a)}
+                        </span>
+                      )}
                     </span>
                     {[...a.messages].reverse().map((msg) => (
                       <span key={msg.at + msg.title} className="cv-bell-msg">

@@ -130,11 +130,11 @@ import { landingCard } from '@shared/landing'
 import { useBoardHidden, useStrain } from './strain'
 import { boardLabels } from '@shared/ai/canvasLabels'
 import { isCapturing } from '@shared/capture'
-import { attentionLabel, groupWaiting, NO_ATTENTION } from '@shared/attention'
-import { TabFavicon } from '@renderer/components/TabFavicon'
+import { groupWaiting, NO_ATTENTION } from '@shared/attention'
 import { alreadyOpen, quickFind, type FindItem } from '@shared/ai/quickFind'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
+import { PreviewInbox } from './PreviewInbox'
 import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
@@ -804,6 +804,8 @@ export function Canvas({
       ).sort((a, b) => b.attention.count - a.attention.count),
     [tabs]
   )
+  /** The board's notification deck is fanned out into its list. */
+  const [deckOpen, setDeckOpen] = useState(false)
   /** A tab with something waiting, from the inbox or the preview's bell: its card, opened live. */
   const openWaiting = (id: number): void => {
     const c = stRef.current?.cards.find((x) => x.id === id)
@@ -6048,21 +6050,18 @@ export function Canvas({
           toastNow(said ? `Undid: ${said}` : 'Nothing to undo')
         }}
       />
-      {waiting.length > 0 && phase === 'open' && !expanded && quick === null && (
-        <div className="cv-inbox" role="group" aria-label="New messages in your tabs">
-          {waiting.slice(0, 5).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              title={`${t.aiTitle || t.title || 'A tab'}: ${attentionLabel(t.attention)}. Open it`}
-              aria-label={`${t.aiTitle || t.title || 'A tab'}, ${attentionLabel(t.attention)}`}
-              onClick={() => openWaiting(t.id)}
-            >
-              <TabFavicon tab={t} noSpinner />
-            </button>
-          ))}
-          {waiting.length > 5 && <span className="cv-inbox-more">+{waiting.length - 5}</span>}
-        </div>
+      {phase === 'open' && !expanded && quick === null && (
+        <PreviewInbox
+          variant="board"
+          tabs={waiting}
+          open={deckOpen}
+          onOpen={() => setDeckOpen(true)}
+          onClose={() => setDeckOpen(false)}
+          onPick={(id) => {
+            setDeckOpen(false)
+            openWaiting(id)
+          }}
+        />
       )}
       {playing.length > 0 && phase === 'open' && !expanded && (
         <div
