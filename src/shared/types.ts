@@ -171,6 +171,8 @@ export type PreviewKey = 'find' | 'address' | 'close' | 'zoom' | 'back'
 
 export type UiCommand =
   | 'focus-address'
+  /** Ctrl+T: keep what is typed until the field it is for appears (renderer/typeAhead.ts) */
+  | 'type-ahead'
   | 'toggle-taskview'
   | 'toggle-sidebar'
   | 'find'
@@ -184,7 +186,8 @@ export interface PanesApi {
   getState(): Promise<InitialData>
   onState(cb: (state: TabsState) => void): () => void
   onThumb(cb: (id: number, dataUrl: string) => void): () => void
-  onCommand(cb: (cmd: UiCommand) => void): () => void
+  /** `at`: for 'type-ahead', when main saw Ctrl+T (epoch ms) */
+  onCommand(cb: (cmd: UiCommand, at?: number) => void): () => void
   /** Ctrl+wheel over a page. dy uses DOM units: positive = scroll down (deeper into the stack). */
   onStackWheel(cb: (dy: number) => void): () => void
   /** Ctrl key released (commit point for the tab stack). */

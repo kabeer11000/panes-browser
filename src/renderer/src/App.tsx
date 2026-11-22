@@ -11,6 +11,7 @@ import { loadChatWidth } from './components/chat/width'
 import { Panes } from './components/Panes'
 import { SearchPalette, type Anchor } from './components/SearchPalette'
 import type { CanvasSearchRequest } from './canvas/askSearch'
+import { startTypeAhead } from './typeAhead'
 import { Sidebar } from './components/Sidebar'
 import { TabStack } from './components/TabStack'
 import { TaskView } from './components/TaskView'
@@ -446,7 +447,8 @@ function App(): React.JSX.Element {
   )
 
   useEffect(() => {
-    const offCmd = window.api.onCommand((cmd) => {
+    const offCmd = window.api.onCommand((cmd, at) => {
+      if (cmd === 'type-ahead') return startTypeAhead(at)
       if (cmd === 'focus-address') {
         // on the canvas board a new tab asks what to open there, instead of swapping the board for search
         if (modeRef.current === 'canvas') window.dispatchEvent(new Event('panes:canvas-new'))

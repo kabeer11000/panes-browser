@@ -38,6 +38,26 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       SpaceSwitcher memoised (its layout animation re-measured on board renders mid-pan).
 - [ ] Cards "better looking", not just bigger/no rim: user not satisfied yet. Needs a design pass (measure GPU!).
 
+## Queue from the user (2026-11-22 evening), in order
+
+- [x] Ctrl+T then typing at once, from every screen: no key lost. 60/60 timed runs, tab view + board, 0-250 ms.
+- [ ] Board strip + bottom toolbar must trap the pointer (hover, right-click reach the board under them).
+- [ ] Tidy freezes the whole PC for a second, even without AI: make it efficient (measure; worker/WASM if needed).
+- [ ] Notes and text on the board: Ctrl+B / Ctrl+I and the like (Figma-like), font size.
+- [x] Certificate interstitial "Proceed (unsafe)": verified on self-signed.badssl.com (c249b32).
+- [ ] Preview: tooltips (esp. near the bottom) go under the web contents (native view over the page).
+- [ ] Frosted glass option: whole chrome (board strip, now playing, bottom toolbar, popovers) blurred/translucent
+      when on; off automatically in Efficient/Performance mode. No such setting exists today. Measure GPU on pan/zoom.
+- [ ] Scroll fade gradients on every scrolling list, search popover included.
+- [ ] Notifications sometimes do not open from the strip. User likes the bell after all: reposition it, make it reliable.
+- [ ] open.spotify.com opens in its mobile layout (user agent? viewport?).
+- [ ] Card host pill (top of a card) shows sometimes, not others: make it reliable.
+- [ ] Cards redesign: sizes, rounding, overall look (user, again). Measure GPU on pan/zoom.
+- [ ] Site settings popup: full retheme, clean; it is oddly see-through (fix). Then every other popup the same way
+      (permission card, save-password, downloads bin, tab hover card...): one clean look, wider/horizontal if it reads better.
+- [ ] Then: first-party screen time / digital health (time per site, daily/weekly, limits, focus), better than
+      Apple's Screen Time. Local only.
+
 ## C. Web platform parity (plan, then build)
 
 - [x] window.open(url) returns a live window; the new page is a tab still linked to its opener (6d8e669).

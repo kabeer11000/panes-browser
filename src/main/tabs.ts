@@ -2902,6 +2902,8 @@ export class TabManager {
 
   /** Ctrl+T: a new tab, or on the canvas board a new card where the person asks for it. */
   private newTabOrCard(): void {
+    // first of all, so not a key typed straight after Ctrl+T is lost while the field it is for is still on its way
+    this.send('ui:command', 'type-ahead', Date.now())
     if (this.canvasMode) {
       // the preview's live page is a native view over the board: the new-card popover would open under it, unseen
       if (this.previewOpen) this.send('canvas:preview-key', 'close')

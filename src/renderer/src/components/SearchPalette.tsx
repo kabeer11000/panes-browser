@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import {
   buildResults,
   inlineCompletion,
@@ -8,6 +8,7 @@ import {
   type SearchResult
 } from '@shared/search'
 import type { Settings, TabInfo } from '@shared/types'
+import { takeTypeAhead } from '@renderer/typeAhead'
 import { useGlider } from '@renderer/hooks/useGlider'
 import {
   BookmarkIcon,
@@ -194,9 +195,26 @@ export function SearchPalette({
   const [forward, setForward] = useState(false) // the last edit was typing forward, not deleting
 
   const effective = dirty ? typed.trim() : ''
+  // once per popover: React may run the mount effect again later (StrictMode, a Suspense boundary showing again), and
+  // a second run would select away, or overwrite, what has been typed by then
+  const mounted = useRef(false)
 
-  useEffect(() => {
-    inputRef.current?.select()
+  // a layout effect: autoFocus gives the input the keyboard at commit, and a key landing before a passive effect
+  // would be overwritten by the buffer or selected away
+  useLayoutEffect(() => {
+    if (mounted.current) return
+    mounted.current = true
+    const input = inputRef.current
+    // what was typed straight after Ctrl+T, before this was here, is the start of the search
+    const ahead = takeTypeAhead()
+    if (input && ahead) {
+      input.value = ahead
+      input.setSelectionRange(ahead.length, ahead.length)
+      setTyped(ahead)
+      setShown(ahead)
+      setDirty(true)
+      setForward(true)
+    } else input?.select()
     window.api.aiWarm() // the meaning search is ready by the first keystroke
   }, [])
 

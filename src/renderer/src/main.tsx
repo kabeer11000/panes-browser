@@ -3,6 +3,7 @@ import './styles.css'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { installTypeAhead } from './typeAhead'
 import App from './App'
 import { Recover } from './Recover'
 import { installSpringTokens } from './motion'
@@ -12,6 +13,8 @@ document.documentElement.dataset.platform = window.api.platform
 installSpringTokens()
 installTooltips()
 
+// before anything else listens: Ctrl+T then typing at once keeps every key (typeAhead.ts)
+installTypeAhead()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Recover what="Panes">
