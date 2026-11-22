@@ -562,6 +562,8 @@ export interface Settings {
   performanceMode: PerformanceMode
   /** Unload background tabs to free memory. They reload when you open them. */
   memorySaver: boolean
+  /** Playing videos show live on their board cards (a tab stream each); off, cards keep a still picture. */
+  liveCards: boolean
   /**
    * Experimental: pages are drawn off screen into the window itself (GPU textures, no copy) instead of in native views,
    * so the board can move and scale them like anything else. Applies to pages as they load.

@@ -78,6 +78,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   }
   if (typeof patch.darkenSites === 'boolean') out.darkenSites = patch.darkenSites
   if (typeof patch.memorySaver === 'boolean') out.memorySaver = patch.memorySaver
+  if (typeof patch.liveCards === 'boolean') out.liveCards = patch.liveCards
   if (typeof patch.offscreenPages === 'boolean') out.offscreenPages = patch.offscreenPages
   if (typeof patch.unloadOtherSpaces === 'boolean') out.unloadOtherSpaces = patch.unloadOtherSpaces
   if ((IDLE_CHOICES_MIN as readonly unknown[]).includes(patch.unloadIdleMin)) {

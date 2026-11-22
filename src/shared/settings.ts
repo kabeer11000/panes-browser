@@ -57,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mailHandler: 'system',
   darkenSites: true,
   memorySaver: true,
+  liveCards: true,
   offscreenPages: false,
   unloadIdleMin: 30,
   maxLoadedTabs: 0,

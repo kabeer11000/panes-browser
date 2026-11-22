@@ -826,7 +826,9 @@ export function Canvas({
   // what live cards may cost now: less as the computer strains, nothing while the window is hidden
   const strain = useStrain()
   const boardHidden = useBoardHidden()
-  const budget = liveBudget(strain, streamCap(navigator), STREAM_FPS, boardHidden)
+  // Settings, Memory, "Live video on cards" off: no card streams at all (each is a capture, decoder and GPU work)
+  const [liveCards, setLiveCards] = useState(DEFAULT_SETTINGS.liveCards)
+  const budget = liveBudget(strain, liveCards ? streamCap(navigator) : 0, STREAM_FPS, boardHidden)
   const streamKey = pickStreams({
     // a video playing without sound (muted, or quiet) plays live on its card too
     tabs: tabs.map((t) => ({ ...t, audible: t.audible || !!t.playing, call: calls.has(t.id) })),
@@ -2450,6 +2452,7 @@ export function Canvas({
     const take = (s: Partial<Settings>): void => {
       setPreviewSwipe(s.previewSwipe ?? DEFAULT_SETTINGS.previewSwipe)
       setPreviewBar(s.previewBar ?? DEFAULT_SETTINGS.previewBar)
+      setLiveCards(s.liveCards ?? DEFAULT_SETTINGS.liveCards)
       feel.current = {
         speed: s.touchpadSpeed ?? DEFAULT_SETTINGS.touchpadSpeed,
         glide: s.touchpadGlide ?? DEFAULT_SETTINGS.touchpadGlide,

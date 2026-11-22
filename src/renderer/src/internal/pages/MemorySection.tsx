@@ -104,6 +104,16 @@ export function MemorySection({ s, update }: Props): React.JSX.Element {
         />
       </Row>
       <Row
+        label="Live video on cards"
+        hint="Videos playing in a tab play live on its card on the board. Turn off to save memory and graphics work: cards show a still picture and keep their play controls."
+      >
+        <Toggle
+          label="Live video on cards"
+          on={s.liveCards}
+          onChange={(v) => void update({ liveCards: v })}
+        />
+      </Row>
+      <Row
         label="Memory saver"
         hint="Unload background tabs you are not using. Helps most on computers with little memory."
       >
