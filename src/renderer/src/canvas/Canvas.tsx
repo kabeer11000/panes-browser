@@ -5535,6 +5535,8 @@ export function Canvas({
         (tool === 'text' ? ' tool-text' : tool !== 'select' && tool !== 'hand' ? ' draw' : '') +
         (dim ? ' dim' : '') +
         (expanded ? ' reading' : '') +
+        // the preview has grown over the board and rests there: the board behind it is put away (see preview.css)
+        (expanded && expandedCovers ? ' covered' : '') +
         (asker.open ? ' docked' : '')
       }
       style={{ '--dock-w': `${dockW}px` } as React.CSSProperties}

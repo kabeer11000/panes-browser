@@ -14,6 +14,17 @@
   backdrop-filter: none;
   background: color-mix(in srgb, var(--board, var(--overlay-solid)) 70%, transparent);
 }
+/* At rest over the board, the preview is all there is: the board behind it is not drawn (blurred cards and the
+   strip used to show round its edges, and the blur cost the GPU every frame a page was open). Its margin is a plain
+   frame in the board's colour. The board comes back the moment the preview starts to close (Expanded marks it
+   `closing` by hand, no render), before it shrinks. */
+.cv.covered:not(:has(.cv-expand.closing)) :is(.cv-board, .cv-grid, .cv-strip-row, .cv-top) {
+  visibility: hidden;
+}
+.cv.covered:not(:has(.cv-expand.closing)) .cv-expand > .cv-scrim {
+  backdrop-filter: none;
+  background: var(--board, var(--overlay-solid));
+}
 
 /* the panel scales from its top-left corner (Expanded's flight is computed for that origin) */
 .cv-expand > .cv-panel {
