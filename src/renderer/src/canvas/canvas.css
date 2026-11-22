@@ -139,7 +139,6 @@
 /* the writing would be a few pixels high: skip it, a screenful of text is what costs the frames */
 .cv.lod .cv-doc p,
 .cv.lod .cv-tag,
-.cv.lod .cv-snap::after,
 .cv.lod .cv-answer-text,
 .cv.lod .cv-badges,
 .cv.lod .cv-acts,

@@ -437,28 +437,16 @@
   height: 100%;
   border-radius: 0;
 }
-/* a soft shade at the foot, so the tag reads on any page, deeper under the pointer */
-.cv .cv-snap::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  background: linear-gradient(to top, rgb(0 0 0 / 0.38), rgb(0 0 0 / 0) 38%);
-  box-shadow: inset 0 0 0 0.5px var(--rim);
-  opacity: 0.8;
-  transition: opacity 0.22s ease;
-}
-.cv .cv-card:hover > .cv-snap::after {
-  opacity: 1;
-}
-/* who the page is: a small dark tag on the picture's lower left (icon and site), never a strip under it */
+/* who the page is: a small dark tag on the picture's lower left (icon and site), on the card under the pointer or
+   selected. Not on every card all the time: drawn on each one, with a shadow and a shade under it, it cost a quarter
+   more of the GPU's time through every pan and zoom (measured, beta.108). Flat, no shadow, no motion; and gone while
+   the board moves. */
 .cv .cv-tag {
   position: absolute;
   left: 10px;
   bottom: 10px;
   z-index: 1;
-  display: flex;
+  display: none;
   align-items: center;
   gap: 6px;
   max-width: calc(100% - 20px);
@@ -469,12 +457,15 @@
   font-weight: 560;
   letter-spacing: 0.005em;
   color: #fff;
-  background: rgb(16 16 20 / 0.74);
-  box-shadow:
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.16),
-    0 2px 8px rgb(0 0 0 / 0.25);
+  background: rgb(16 16 20 / 0.84);
+  box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 0.16);
   pointer-events: none;
-  transition: translate 0.22s ease;
+}
+.cv .cv-card:is(:hover, .sel) .cv-tag {
+  display: flex;
+}
+.cv.moving .cv-card .cv-tag {
+  display: none;
 }
 .cv .cv-tag > span {
   min-width: 0;
@@ -488,9 +479,6 @@
   width: 14px;
   height: 14px;
   border-radius: 4px;
-}
-.cv .cv-card:hover .cv-tag {
-  translate: 0 -2px;
 }
 .cv .cv-card.sel {
   outline: none;
