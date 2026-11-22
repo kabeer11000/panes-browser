@@ -59,8 +59,7 @@ import {
   type AttentionMemo,
   type TabAttention
 } from '@shared/attention'
-import { notifyScript, parseNotify } from '@shared/notify'
-import { originOf } from '@shared/permissions'
+import { NOTIFY_PREFIX, parseNotify } from '@shared/notify'
 import { ESC_SCRIPT, isPreviewEsc } from '@shared/previewEsc'
 import { TaskbarAttention } from './attention'
 import { dumpableTabs, type TabDump } from '@shared/dumps'
@@ -2500,37 +2499,23 @@ export class TabManager {
    * Put the notification hook into the tab's page if its site may notify (the script checks, and does nothing
    * otherwise). Runs at dom-ready and again when the tab leaves the screen, which covers a site allowed after load.
    */
-  private hookNotifications(tab: Tab, allowed = false): void {
-    const wc = liveContents(tab)
-    if (!wc || tab.unloaded || tab.notes || !/^https?:/i.test(wc.getURL())) return
-    const notes = new Set<number>()
-    tab.notes = notes // set before the answer, so a second call while this one runs does not hook twice
-    void wc
-      .executeJavaScript(notifyScript(allowed))
-      .then((installed: unknown) => {
-        if (installed !== true && tab.notes === notes) tab.notes = null
-      })
-      .catch(() => {
-        if (tab.notes === notes) tab.notes = null
-      })
-  }
-
   /**
-   * A site was just allowed to notify (`origin`, or null for any site): its open pages get the hook now. Waiting for
-   * them to leave the screen missed what a page in front sent while the person was in another app.
+   * A page's notification, or a click on its toast, as the frame preload reports it (see preload/frame.ts): the tab
+   * is marked, or brought forward.
    */
-  notificationsAllowed(origin: string | null): void {
-    for (const tab of this.tabs.values()) {
-      const wc = liveContents(tab)
-      if (wc && (origin === null || originOf(wc.getURL()) === origin))
-        this.hookNotifications(tab, true)
+  notifyReport(wc: WebContents, data: string): void {
+    for (const [id, t] of this.tabs) {
+      if (liveContents(t) !== wc) continue
+      t.notes ??= new Set()
+      this.onNotifyReport(id, t, NOTIFY_PREFIX + data)
+      return
     }
   }
 
   private onNotifyReport(id: number, tab: Tab, message: string): void {
     const report = parseNotify(message)
     // Reports count only from a document the hook is in: anything else printing the prefix is ignored.
-    if (!report || !tab.notes) return
+    if (!report || !tab.notes) return // tab.notes: the reports of this document
     if (report.kind === 'click') {
       if (tab.notes.delete(report.id)) this.showFromNotification(id)
       return
@@ -3276,7 +3261,6 @@ export class TabManager {
       this.applyZoom()
       tab.boostKey = null // a new document starts without the old sheet
       void this.applyBoost(tab)
-      this.hookNotifications(tab)
       if (this.inPreview(id)) this.hookPreviewEsc(tab) // a page navigated to inside the preview
     })
     wc.on('audio-state-changed', () => {
@@ -3309,8 +3293,8 @@ export class TabManager {
       void wc.loadURL(errorPageUrl(url, code, desc, back, theme)).catch(() => {})
     })
     wc.on('did-navigate', () => {
-      // A new document has no notification hook; it goes in at dom-ready. Not on starting to navigate: a navigation
-      // that turns into a download leaves the old document, hook and all, in place.
+      // A new document: the notifications told of so far were the old one's. Not on starting to navigate: a
+      // navigation that turns into a download leaves the old document in place.
       tab.notes = null
       if (!wc.getURL().startsWith('panes://error')) tab.failed = null
       tab.keyLock = false
@@ -3446,7 +3430,6 @@ export class TabManager {
     })
     wc.on('console-message', (e) => {
       if (isPreviewEsc(e.message)) this.onPreviewEsc(id)
-      else this.onNotifyReport(id, tab, e.message)
     })
     wc.on('page-favicon-updated', (_e, favicons) => {
       // A page swapping one icon for another (not its first icon after loading) is drawing a badge into it.
@@ -4626,8 +4609,6 @@ export class TabManager {
     for (const id of new Set([...visible, ...this.shownBefore])) {
       const t = this.tabs.get(id)
       if (t) t.lastShownAt = now
-      // Just left the screen: from now on its notifications are what the person would miss.
-      if (t && !visible.includes(id)) this.hookNotifications(t)
       // and a sharp picture of it as it was, which stands in for it, full size, when it comes back (see warm)
       // and the page itself saved to disk, to show at once if it is unloaded or Panes restarts (see SavedPages)
       const wc = t && !visible.includes(id) && !t.private && !t.tor && liveContents(t)

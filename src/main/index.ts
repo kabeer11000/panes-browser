@@ -327,9 +327,6 @@ function createWindow(): void {
     const origin = originOf(url)
     return !!origin && permissions.get(origin, 'notifications') === 'allow'
   }
-  permissions.onChange(({ origin, kinds }) => {
-    if (kinds.includes('notifications')) tabs.notificationsAllowed(origin)
-  })
   // Private and Tor tabs ask the same questions, but what they are told is kept in memory only, each session
   // apart, and never reaches the normal profile's saved answers.
   permissionManager.install(privateSession, new PermissionStore(false))
@@ -602,6 +599,9 @@ function createWindow(): void {
   )
   ipcMain.on('pip:toggle', () => tabs.togglePip())
   ipcMain.handle('pip:page', (e, exit: unknown) => tabs.pagePip(e.sender, exit === true))
+  ipcMain.on('notify:report', (e, data: unknown) => {
+    if (typeof data === 'string' && data.length < 4000) tabs.notifyReport(e.sender, data)
+  })
   ipcMain.on('pip:exit', () => tabs.exitPip())
   ipcMain.on('tabs:close-pane', (_e, id: number) => tabs.closePane(id))
   const sitePanel = new SitePanel({ win, sites, pickElement: (done) => tabs.pickElement(done) })

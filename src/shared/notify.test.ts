@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { NOTIFY_PREFIX, NOTIFY_SCRIPT, notifyScript, parseNotify } from './notify'
+import { NOTIFY_PREFIX, notifyShim, parseNotify } from './notify'
 
 const msg = (v: unknown): string => NOTIFY_PREFIX + JSON.stringify(v)
 
@@ -30,29 +30,26 @@ describe('parseNotify', () => {
   })
 })
 
-/** Runs the page script against a stand-in window, as a page with the given permission would. */
-function runScript(
-  permission: string,
-  script = NOTIFY_SCRIPT
-): {
-  installed: boolean
-  logs: string[]
+/** Runs the shim against a stand-in window: what it reported, and the notifications really made. */
+function runShim(): {
+  reports: Array<ReturnType<typeof parseNotify>>
   win: Record<string, unknown>
   shown: unknown[][]
 } {
-  const logs: string[] = []
+  const reports: Array<ReturnType<typeof parseNotify>> = []
   const shown: unknown[][] = []
   class FakeNote {
-    private listeners: Array<() => void> = []
+    private listeners: Array<(e: { isTrusted: boolean }) => void> = []
     constructor(...args: unknown[]) {
       shown.push(args)
     }
-    static permission = permission
-    addEventListener(_t: string, f: () => void): void {
+    static permission = 'granted'
+    addEventListener(_t: string, f: (e: { isTrusted: boolean }) => void): void {
       this.listeners.push(f)
     }
-    click(): void {
-      for (const f of this.listeners) f()
+    /** A click: from the toast (trusted), or one the page made up. */
+    click(isTrusted = true): void {
+      for (const f of this.listeners) f({ isTrusted })
     }
   }
   class FakeSWR {
@@ -64,32 +61,21 @@ function runScript(
     Notification: FakeNote,
     ServiceWorkerRegistration: FakeSWR
   }
-  const console = { debug: (m: string) => logs.push(m) }
-  const installed = new Function('window', 'console', 'return ' + script)(win, console)
-  return { installed, logs, win, shown }
+  notifyShim(
+    { report: (d) => reports.push(parseNotify(NOTIFY_PREFIX + d)) },
+    win as unknown as typeof globalThis
+  )
+  return { reports, win, shown }
 }
 
-describe('NOTIFY_SCRIPT', () => {
-  test('does nothing for a site that may not notify', () => {
-    const r = runScript('default')
-    expect(r.installed).toBe(false)
-    expect(typeof r.win.Notification).toBe('function')
-    expect((r.win.Notification as { permission: string }).permission).toBe('default')
-  })
-
-  test('installs when main has just allowed the site, before the page has heard', () => {
-    const r = runScript('default', notifyScript(true))
-    expect(r.installed).toBe(true)
-  })
-
-  test('reports shows and clicks, and the real notification is still made', () => {
-    const r = runScript('granted')
-    expect(r.installed).toBe(true)
-    const N = r.win.Notification as new (t: string, o?: object) => { click(): void }
+describe('notifyShim', () => {
+  test('reports shows and toast clicks, and the real notification is still made', () => {
+    const r = runShim()
+    const N = r.win.Notification as new (t: string, o?: object) => { click(t?: boolean): void }
     const n = new N('Ana', { body: 'hello', tag: 't' })
     expect(r.shown).toEqual([['Ana', { body: 'hello', tag: 't' }]])
     n.click()
-    expect(r.logs.map((l) => parseNotify(l))).toEqual([
+    expect(r.reports).toEqual([
       { kind: 'show', id: 1, title: 'Ana', body: 'hello' },
       { kind: 'click', id: 1 }
     ])
@@ -97,14 +83,33 @@ describe('NOTIFY_SCRIPT', () => {
     expect((N as unknown as { permission: string }).permission).toBe('granted')
   })
 
+  test('a click the page makes up does not bring its tab forward', () => {
+    const r = runShim()
+    const N = r.win.Notification as new (t: string) => { click(t?: boolean): void }
+    new N('Fake').click(false)
+    expect(r.reports.map((x) => x?.kind)).toEqual(['show'])
+  })
+
+  test('each notification has its own id', () => {
+    const r = runShim()
+    const N = r.win.Notification as new (t: string) => { click(): void }
+    const a = new N('a')
+    new N('b').click()
+    a.click()
+    expect(r.reports.filter((x) => x?.kind === 'click')).toEqual([
+      { kind: 'click', id: 2 },
+      { kind: 'click', id: 1 }
+    ])
+  })
+
   test('a service worker notification becomes a page one, without actions', async () => {
-    const r = runScript('granted')
+    const r = runShim()
     const SWR = r.win.ServiceWorkerRegistration as new () => {
       showNotification(t: string, o?: object): Promise<void>
     }
     await new SWR().showNotification('Call', { body: 'Incoming voice call', actions: [{}] })
     expect(r.shown).toEqual([['Call', { body: 'Incoming voice call' }]])
-    expect(parseNotify(r.logs[0])).toEqual({
+    expect(r.reports[0]).toEqual({
       kind: 'show',
       id: 1,
       title: 'Call',

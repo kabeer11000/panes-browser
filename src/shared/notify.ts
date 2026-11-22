@@ -23,45 +23,53 @@ export function parseNotify(message: string): NotifyReport | null {
 }
 
 /**
- * Put into a page whose site may show notifications (it checks, and does nothing otherwise, so a page that was never
- * allowed carries nothing a bot check could spot). Chromium shows the page's notifications as Windows toasts and
- * passes clicks and closes back to the page by itself; this only listens, so the browser can mark the tab and bring
- * it forward when a toast is clicked (Electron does neither). Two things it changes:
- * - `new Notification(...)` is the real one, behind a Proxy that adds a click listener to what it makes.
- * - `registration.showNotification(...)` from the page: Electron drops notifications from service workers without
- *   showing anything, so the page's call is shown as a page notification instead (actions are not possible there).
- * Returns whether it installed, so main knows the page's reports can be trusted for this document.
- * `allowed`: main has just recorded the site's allow, which the page's `Notification.permission` learns a moment
- * later; the page's own check would still say no.
+ * The page's notifications, as Windows toasts: Chromium shows them and passes clicks back to the page, but Electron
+ * neither marks the tab nor brings it forward, so a click on a WhatsApp toast did nothing. This listens to every
+ * notification the page makes and reports it, and a real click on its toast, to main (`report` gets the JSON that
+ * follows NOTIFY_PREFIX). Run by the frame preload in the page's world at document start, before the page's own code:
+ * a page that keeps its own hold on `Notification` from its first line (WhatsApp does) was missed by a hook put in
+ * later. A Proxy, so the constructor still reads as native. Also: Electron drops notifications from service workers
+ * without showing anything, so a page's `registration.showNotification` is shown as a page notification instead
+ * (actions are not possible there).
+ *
+ * Self-contained (no imports or outer names): Electron runs it from its source text.
  */
-export const notifyScript = (allowed = false): string => `(() => {
-  const Real = window.Notification
-  if (typeof Real !== 'function' || (${allowed ? 'false' : "Real.permission !== 'granted'"})) return false
-  const say = console.debug.bind(console)
-  const report = (data) => say('${NOTIFY_PREFIX}' + JSON.stringify(data))
+export function notifyShim(
+  bridge: { report: (data: string) => void },
+  g: typeof globalThis = globalThis
+): void {
+  const Real = g.Notification
+  if (typeof Real !== 'function') return
   let next = 0
-  const watch = (note, title, options) => {
+  const watch = (
+    note: Notification,
+    title: unknown,
+    options?: NotificationOptions
+  ): Notification => {
     const id = ++next
-    report({ kind: 'show', id, title: String(title ?? ''), body: String((options && options.body) ?? '') })
-    note.addEventListener('click', () => report({ kind: 'click', id }))
+    const body = String(options?.body ?? '')
+    bridge.report(JSON.stringify({ kind: 'show', id, title: String(title ?? ''), body }))
+    note.addEventListener('click', (e: Event) => {
+      // only Chromium's own click, from the toast: a page cannot pull its tab forward with a made-up event
+      if (e.isTrusted) bridge.report(JSON.stringify({ kind: 'click', id }))
+    })
     return note
   }
-  window.Notification = new Proxy(Real, {
-    construct: (target, args, newTarget) => watch(Reflect.construct(target, args, newTarget), args[0], args[1])
+  g.Notification = new Proxy(Real, {
+    construct: (target, args, newTarget) =>
+      watch(Reflect.construct(target, args, newTarget) as Notification, args[0], args[1])
   })
-  const SWR = window.ServiceWorkerRegistration
-  if (SWR && typeof SWR.prototype.showNotification === 'function') {
-    SWR.prototype.showNotification = function showNotification(title, options) {
-      const { actions, ...rest } = options || {}
+  const swr = g.ServiceWorkerRegistration?.prototype
+  if (swr && typeof swr.showNotification === 'function') {
+    swr.showNotification = function showNotification(title: string, options?: NotificationOptions) {
+      const rest = { ...(options ?? {}) } as NotificationOptions & { actions?: unknown }
+      delete rest.actions
       try {
-        new window.Notification(title, rest)
+        new g.Notification(title, rest)
         return Promise.resolve()
       } catch (e) {
         return Promise.reject(e)
       }
     }
   }
-  return true
-})()`
-
-export const NOTIFY_SCRIPT = notifyScript()
+}
