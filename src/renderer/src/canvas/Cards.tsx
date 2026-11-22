@@ -258,13 +258,6 @@ function Face({
       return (
         <div className="cv-snap">
           {m.snap ? <Pic src={m.snap} fallback={placeholder} /> : placeholder}
-          {/* the page fills the card; who it is floats on it as a tag, never a strip under it */}
-          {m.snap && (
-            <span className="cv-tag">
-              <Favicon m={m} />
-              <span>{m.site || m.title}</span>
-            </span>
-          )}
         </div>
       )
     }
@@ -442,6 +435,17 @@ export const CardView = memo(
             onStill={onStill}
           />
         )}
+        {/* who the page is, floating on its picture (a snapshot, a video, a live stream): on the card under the
+            pointer or selected, every kind alike; drawn only there, so the board's other cards cost nothing for it */}
+        {(hot || selected) &&
+          (live > 0 ||
+            (m.kind === 'video' && !!(m.image || m.snap)) ||
+            (m.kind === 'page' && !m.blank && !m.reader && !!m.snap)) && (
+            <span className="cv-tag">
+              <Favicon m={m} />
+              <span>{m.site || m.title}</span>
+            </span>
+          )}
         {m.kind !== 'pending' && (
           <>
             {(hot || selected) &&
