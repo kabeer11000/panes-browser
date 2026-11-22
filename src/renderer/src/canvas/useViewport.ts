@@ -16,6 +16,7 @@ import { reducedMotion } from '@renderer/motion'
 const VK_READERS = '.cv-fbar, .cv-kbar, .cv-mbar, .cv-blabel-in'
 const HS_READERS = [
   '.cv-badges',
+  '.cv-count',
   '.cv-crz',
   '.cv-frame',
   '.cv-frame-head',

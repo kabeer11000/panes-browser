@@ -9,7 +9,6 @@ import {
 } from '@shared/ai/canvas'
 import { noteFontSize } from '@shared/ai/canvasText'
 import { CloseIcon, IncognitoIcon, SpeakerIcon, TorIcon } from '@renderer/components/icons'
-import { SiteIcon } from '@renderer/components/SiteIcon'
 import { CallBadge } from '@renderer/components/CallBadge'
 import { CaptureBadge } from '@renderer/components/CaptureBadge'
 import { badgeText } from '@shared/attention'
@@ -455,20 +454,20 @@ export const CardView = memo(
                   aria-hidden="true"
                 />
               ))}
+            {/* something new in the tab: a count on the card's corner, as on an app icon (a dot with no number) */}
+            {m.attnNew && !m.ringing && (
+              <span
+                className={'cv-count' + (m.attnCount ? '' : ' dot')}
+                role="img"
+                aria-label={m.attnCount ? `${m.attnCount} new` : 'Something new'}
+                title={m.attnCount ? `${m.attnCount} new` : 'Something new'}
+              >
+                {m.attnCount ? badgeText(m.attnCount) : ''}
+              </span>
+            )}
             <div className="cv-badges">
               <CallBadge call={m.ringing ? 'ringing' : null} />
               <CaptureBadge capture={{ camera: !!m.camera, mic: !!m.mic, screen: !!m.screen }} />
-              {m.attnNew && !m.ringing && (
-                <span
-                  className="cv-attn"
-                  role="img"
-                  aria-label={m.attnCount ? `${m.attnCount} new` : 'Something new'}
-                  title={m.attnCount ? `${m.attnCount} new` : 'Something new'}
-                >
-                  <SiteIcon src={m.favicon} />
-                  <b className={m.attnCount ? 'count' : ''}>{badgeText(m.attnCount ?? 0)}</b>
-                </span>
-              )}
               {m.isTab && (m.audible || m.muted || m.kind === 'video') && <MediaControls m={m} />}
               {m.current && (
                 <span className="card-current" title="Current tab" aria-hidden="true" />

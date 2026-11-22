@@ -765,9 +765,6 @@
   opacity: 0;
   pointer-events: none;
 }
-.cv-attn {
-  transition: opacity var(--dur-fast);
-}
 .cv-mbtn {
   display: grid;
   place-items: center;
@@ -3691,53 +3688,6 @@
   opacity: 1;
 }
 
-/* ---- new messages in a tab (WhatsApp, Slack, mail): a badge on its card, and the board's inbox at the top ---- */
-.cv-attn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 7px 0 4px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--card-bg) 88%, transparent);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 2px 8px rgb(0 0 0 / 0.25);
-  backdrop-filter: blur(6px);
-  animation: cv-attn-in var(--dur) var(--ease) both;
-}
-.cv-attn img,
-.cv-attn .site-globe {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-}
-.cv-attn b {
-  min-width: 8px;
-  height: 8px;
-  border-radius: 4px;
-  background: var(--badge-bg, #e5484d);
-}
-.cv-attn b.count {
-  white-space: nowrap;
-  display: grid;
-  place-items: center;
-  min-width: 18px;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 8px;
-  color: var(--badge-fg, #fff);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-@keyframes cv-attn-in {
-  from {
-    opacity: 0;
-    scale: 0.8;
-  }
-}
 /* the card's badges (new messages, a call, sound and video) stay readable as the board zooms out, like the handles
    (--hs, set with the zoom): the row grows as one, so they never run into each other */
 .cv-badges {

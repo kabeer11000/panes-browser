@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseMarkdown, type Block, type Inline } from '@shared/ai/markdown'
 import type { CanvasReaderDoc } from '@shared/ai/canvasItems'
+import type { Grouped } from '@shared/attention'
 import type { PageMenuPick, PreviewSwipe, Rect, TabInfo } from '@shared/types'
 import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
@@ -23,7 +24,7 @@ import { SiteIcon } from '@renderer/components/SiteIcon'
 import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
-import { StripPlaying, StripTab } from './TabStrip'
+import { StripInbox, StripPlaying, StripTab } from './TabStrip'
 import { EdgeSwipe, SWIPE_ZONES } from '@shared/edgeSwipe'
 import { Spring, reducedMotion } from '@renderer/motion'
 import './preview.css'
@@ -178,8 +179,12 @@ interface Props extends ExpandSource {
   playing?: TabInfo | null
   /** Go to what plays (its card, in this preview). */
   onPlaying?: (tab: number) => void
-  /** A notification's words on its tab in the strip, while they show (see TabStrip usePeeks). */
+  /** A notification's words on its tab in the strip, while they show (see usePeeks). */
   peeks?: ReadonlyMap<number, string>
+  /** What waits in the tabs (messages, calls), one entry per site or account, for the strip's notifications. */
+  waiting?: Grouped<TabInfo>[]
+  /** Open another tab in the preview (picked from the notifications). */
+  onOpenTab?: (tab: number) => void
   /** The touchpad swipe that closes it (Settings): off, from the very edge, or easier. */
   swipe?: PreviewSwipe
 }
@@ -747,6 +752,8 @@ export function Expanded({
   playing,
   onPlaying,
   peeks,
+  waiting = [],
+  onOpenTab,
   swipe = 'edge'
 }: Props): React.JSX.Element {
   const root = useRef<HTMLDivElement>(null)
@@ -788,8 +795,10 @@ export function Expanded({
   const siteBtn = useRef<HTMLButtonElement>(null)
   const asking = useRef(false)
   const [addressOpen, setAddressOpen] = useState(false)
+  // the strip's notifications are open: like the address popover, the page steps aside for its picture under them
+  const [inboxOpen, setInboxOpen] = useState(false)
   // something is over the page: it stays stepped aside
-  const aside = addressOpen
+  const aside = addressOpen || inboxOpen
   const asideRef = useRef(false)
   const tabRef = useRef<number | null>(tab ?? null)
   // whether the live page was already shown once on its own (opened live, a video, an app with no article)
@@ -847,6 +856,8 @@ export function Expanded({
 
   // ---- the recent tabs' highlight: under this card's tab, gliding there from the tab it replaced ----
   const strip = useRef<HTMLDivElement>(null)
+  const rowKey = recent?.map((r) => r.id).join(',') ?? ''
+  const pillPlaced = useRef(false)
   useLayoutEffect(() => {
     const row = strip.current
     const pill = row?.querySelector<HTMLElement>('.cv-recent-pill')
@@ -857,6 +868,12 @@ export function Expanded({
     if (!b) return
     pill.style.width = `${b.offsetWidth}px`
     const to = b.offsetLeft
+    if (pillPlaced.current) {
+      // already shown: the row changed around it (a tab closed, one with news joined), it just moves there
+      pill.style.transform = `translateX(${to}px)`
+      return
+    }
+    pillPlaced.current = true
     // where the last preview's pill was this moment (it may still have been gliding): it carries on from there
     const prev = pillNow && performance.now() - pillNow.t < 600 ? pillNow : null
     const a = at(swapFrom)
@@ -877,9 +894,10 @@ export function Expanded({
     )
     void s.to(to, { velocity: prev?.v ?? 0 }).then(() => (pillNow = null))
     return () => s.stop()
-    // once, on mount: the row is fixed while the preview is open
+    // when the row's tabs come in (they arrive a render after the preview opens: placed on mount only, the pill
+    // found no tab and the open one was never marked) and when they change; the glide runs only the first time
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [rowKey])
 
   // ---- the flight: the card's picture grows into the page, and shrinks back into it ----
   /** 0: the card's picture, where it is on the board; 1: the page at rest, edge to edge. */
@@ -1610,8 +1628,8 @@ export function Expanded({
             </div>
           </div>
           <div className="cv-hzone cv-hzone-c">
-            {playing && onPlaying && playing.id !== tab && (
-              <StripPlaying t={playing} onGo={onPlaying} />
+            {playing && onPlaying && (
+              <StripPlaying t={playing} here={playing.id === tab} onGo={onPlaying} />
             )}
             {recent && recent.length > 1 && onSwitch && (
               <div className="cv-recent" role="tablist" aria-label="Recent tabs" ref={strip}>
@@ -1627,6 +1645,24 @@ export function Expanded({
                   />
                 ))}
               </div>
+            )}
+            {onOpenTab && (
+              <StripInbox
+                // the sites waiting, other than what is on screen in this preview
+                waiting={waiting.filter(
+                  (w) => !w.tabs.some((id) => id === tab || split?.some((p) => p.tab === id))
+                )}
+                open={inboxOpen}
+                onOpen={() => {
+                  grabShot() // the page stands in as a picture while the list covers it
+                  setInboxOpen(true)
+                }}
+                onClose={() => setInboxOpen(false)}
+                onPick={(id) => {
+                  setInboxOpen(false)
+                  onOpenTab(id)
+                }}
+              />
             )}
           </div>
           {/* what comes and goes sits leftmost, so Ask, the bell, More and the way back never move */}

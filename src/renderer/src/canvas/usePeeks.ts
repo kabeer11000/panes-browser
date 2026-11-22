@@ -30,10 +30,10 @@ export function usePeeks(tabs: readonly TabInfo[]): ReadonlyMap<number, string> 
     // on the next turn, not inside this effect (the strip draws once more, not twice in a row). Not cancelled when
     // the tabs change again meanwhile (they do, often): what came in is already counted as seen above.
     window.setTimeout(() =>
-      setPeeks((p) => {
-        const m = new Map(p)
-        for (const [tab, text] of fresh) m.set(tab, { text, at: now })
-        return m
+      // one at a time, the newest: two at once lay over each other
+      setPeeks(() => {
+        const [tab, text] = fresh[fresh.length - 1]
+        return new Map([[tab, { text, at: now }]])
       })
     )
   }, [tabs])

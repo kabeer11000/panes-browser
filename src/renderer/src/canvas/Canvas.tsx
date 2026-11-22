@@ -134,7 +134,7 @@ import { groupWaiting, NO_ATTENTION } from '@shared/attention'
 import { alreadyOpen, quickFind, type FindItem } from '@shared/ai/quickFind'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
-import { StripPlaying, StripTab } from './TabStrip'
+import { StripInbox, StripPlaying, StripTab } from './TabStrip'
 import { usePeeks } from './usePeeks'
 import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
@@ -798,6 +798,8 @@ export function Canvas({
       ).sort((a, b) => b.attention.count - a.attention.count),
     [tabs]
   )
+  /** The board's strip has its notifications list open. */
+  const [boardInbox, setBoardInbox] = useState(false)
   /** A tab picked in the strip (recent, new or playing): its card, opened live. */
   const openWaiting = (id: number): void => {
     const c = stRef.current?.cards.find((x) => x.id === id)
@@ -6021,6 +6023,8 @@ export function Canvas({
           playing={playing[0] ?? null}
           onPlaying={openWaiting}
           peeks={peeks}
+          waiting={waiting}
+          onOpenTab={openWaiting}
           swipe={previewSwipe}
           bar={previewBar}
         />
@@ -6068,7 +6072,7 @@ export function Canvas({
       {phase === 'open' &&
         !expanded &&
         quick === null &&
-        (playing.length > 0 || boardRow.length > 0) && (
+        (playing.length > 0 || boardRow.length > 0 || waiting.length > 0) && (
           <div className="cv-strip board" role="toolbar" aria-label="Recent tabs">
             {playing[0] && <StripPlaying t={playing[0]} onGo={openWaiting} />}
             {boardRow.length > 0 && (
@@ -6086,6 +6090,16 @@ export function Canvas({
                   ))}
               </div>
             )}
+            <StripInbox
+              waiting={waiting}
+              open={boardInbox}
+              onOpen={() => setBoardInbox(true)}
+              onClose={() => setBoardInbox(false)}
+              onPick={(id) => {
+                setBoardInbox(false)
+                openWaiting(id)
+              }}
+            />
           </div>
         )}
       <AiGlow level={busy ? 2 : naming > 0 ? 1 : 0} />

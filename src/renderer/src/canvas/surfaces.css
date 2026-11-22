@@ -667,3 +667,269 @@
     animation: none;
   }
 }
+
+/* ---- chrome: what stays on screen over the board (the toolbar, the tab strip, the spaces). One flat material and a
+   hairline edge, no drop shadow, as a macOS or Arc toolbar: shadows are for what floats for a moment (menus, lists),
+   and those all use --float-shadow. ---- */
+.cv {
+  --chrome: color-mix(in srgb, var(--popover-bg) 94%, var(--fg));
+  --chrome-edge: inset 0 0 0 0.5px var(--rim-strong);
+}
+[data-scheme='light'] .cv {
+  --chrome: color-mix(in srgb, var(--popover-bg) 97%, var(--fg));
+}
+.cv .cv-bar,
+.cv .cv-strip.board,
+.cv .cv-spaces {
+  background: var(--chrome);
+  box-shadow: var(--chrome-edge);
+  backdrop-filter: none;
+}
+
+/* ---- the spaces: the one you are in (its face and name) until pointed at; then the others slide out beside it ---- */
+.cv .cv-spaces .space-chip:not(.active) {
+  width: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    width 0.24s var(--ease),
+    opacity 0.18s;
+}
+.cv .cv-spaces:is(:hover, :focus-within) .space-chip:not(.active) {
+  width: 28px;
+  opacity: 1;
+  pointer-events: auto;
+}
+.cv .cv-spaces:is(:hover, :focus-within) .space-chip.add {
+  width: 24px;
+}
+.cv .cv-spaces .space-caption::before {
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+.cv .cv-spaces:is(:hover, :focus-within) .space-caption::before {
+  opacity: 1;
+}
+/* collapsed, the faces of the others are not there to fade: they are full strength when they show */
+.cv .cv-spaces .space-chip:not(.active):not(.add) .sav {
+  opacity: 1;
+  scale: 1;
+}
+
+/* ---- the tab strip: every tab answers the pointer (a soft fill), the open one sits on the pill ---- */
+.cv .cv-recent button:not(.on):hover {
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+.cv .cv-recent button:not(.on):active {
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.cv .cv-strip-play.here .cv-strip-play-go {
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  cursor: default;
+}
+/* the bell at the strip's end: how many sites have something new, in the badge colour */
+.cv-strip-inbox {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.cv-strip-bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.cv-strip-bell:hover,
+.cv-strip-bell.on {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+.cv-strip-bell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.cv-strip-bell > b {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: #fff;
+  background: var(--badge-bg);
+}
+/* the list, as Apple's Notification Center: one rounded card per site, its icon and name, then what it said */
+.cv-nc {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -4px;
+  z-index: 30;
+  width: 340px;
+  max-height: min(70vh, 520px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: var(--popover-bg);
+  box-shadow: var(--float-shadow);
+  overflow: hidden;
+  animation: cv-nc-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.cv-panel.bar-bottom .cv-nc {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+@keyframes cv-nc-in {
+  from {
+    opacity: 0;
+    translate: 0 -6px;
+    scale: 0.98;
+  }
+}
+.cv-nc-head {
+  padding: 12px 16px 6px;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.cv-nc-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 8px 8px;
+}
+.cv-nc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  text-align: left;
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+  transition: background 0.15s;
+  animation: cv-nc-card 0.3s cubic-bezier(0.32, 0.72, 0, 1) calc(var(--i, 0) * 24ms) both;
+}
+.cv-nc-card:hover {
+  background: color-mix(in srgb, var(--fg) 9%, transparent);
+}
+.cv-nc-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+@keyframes cv-nc-card {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+}
+.cv-nc-app {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+.cv-nc-app > :is(img, .site-globe) {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+.cv-nc-app > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-nc-app > :is(time, em) {
+  flex: none;
+  font-style: normal;
+  font-weight: 500;
+  text-transform: none;
+}
+.cv-nc-app > em.ringing {
+  color: var(--badge-bg);
+  font-weight: 650;
+}
+.cv-nc-msg {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--fg-dim);
+}
+.cv-nc-msg > strong {
+  margin-right: 5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.cv-nc-more {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-nc,
+  .cv-nc-card {
+    animation: none;
+  }
+}
+
+/* ---- something new in a card's tab: a count on its corner, as on an app icon; a dot with no number ---- */
+.cv .cv-count {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  z-index: 3;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: var(--badge-bg, #ff3b30);
+  box-shadow: 0 0 0 2px var(--board);
+  scale: var(--hs, 1);
+  transform-origin: top right;
+  pointer-events: none;
+}
+.cv .cv-count.dot {
+  top: -4px;
+  right: -4px;
+  min-width: 12px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+}
+.cv.lod .cv-count {
+  display: none;
+}
