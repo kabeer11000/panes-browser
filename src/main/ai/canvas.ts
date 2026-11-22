@@ -103,11 +103,21 @@ export class CanvasService {
 
   save(spaceId: number, state: unknown): void {
     if (!isState(state)) return
+    this.saveQuiet(spaceId, state)
+    // a shared space: what changed goes to the others (main/share.ts)
+    this.onSave?.(spaceId, state)
+  }
+
+  /** Saved without telling the shared space (a board that came from it). */
+  saveQuiet(spaceId: number, state: CanvasState): void {
     // stamped here, so the new tab can show the boards most recently used first
     this.store.value.spaces[String(spaceId)] = { ...forDisk(state), usedAt: Date.now() }
     this.store.save()
     this.onSaved?.()
   }
+
+  /** Called with each board the window saves (main/share.ts sends what changed to a shared space's room). */
+  onSave: ((spaceId: number, state: CanvasState) => void) | null = null
 
   /** Called after every board save (the widget alarms look again at what is due). */
   onSaved: (() => void) | null = null

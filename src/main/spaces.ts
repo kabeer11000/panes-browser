@@ -168,6 +168,15 @@ export class SpaceStore {
     this.store.save()
   }
 
+  /** Whether a space is shared (main/share.ts keeps the room itself; the space only says so). */
+  setShared(id: number, shared: boolean): void {
+    const space = this.get(id)
+    if (!space || !!space.shared === shared) return
+    if (shared) space.shared = true
+    else delete space.shared
+    this.store.save()
+  }
+
   /** The last space cannot be removed. */
   remove(id: number): boolean {
     const d = this.store.value

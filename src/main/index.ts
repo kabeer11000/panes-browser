@@ -64,6 +64,7 @@ import { registerTouchpad } from './touchpad'
 import { NavGestures } from './gestures'
 import { installBluetoothPicker, installDevicePickers } from './devices'
 import { installCertBypass } from './certs'
+import { registerShare } from './share'
 import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
 import { registerOffscreenInput } from './offscreenPage'
@@ -279,6 +280,16 @@ function createWindow(): void {
     settings,
     content: ai.content
   })
+  // shared spaces: a board saved here goes to its room; one changed there comes back (main/share.ts)
+  const share = registerShare({
+    win,
+    spaces,
+    canvas,
+    refresh: () => tabs.refresh(),
+    createSpace: () => tabs.createSpace()
+  })
+  canvas.onSave = (spaceId, state) => share.onLocalSave(spaceId, state)
+  share.init()
   // board timers and reminders notify from here, board open or not (looked at once the window is up)
   const alarms = new WidgetAlarms({
     canvas,
@@ -598,8 +609,14 @@ function createWindow(): void {
   ipcMain.on('tabs:pop-out', (_e, id: number) => tabs.popOut(id))
   ipcMain.on('spaces:switch', (_e, id: number) => tabs.switchSpace(id))
   ipcMain.on('spaces:create', () => tabs.createSpace())
-  ipcMain.on('spaces:update', (_e, id: number, patch: SpacePatch) => tabs.updateSpace(id, patch))
-  ipcMain.on('spaces:delete', (_e, id: number) => tabs.deleteSpace(id))
+  ipcMain.on('spaces:update', (_e, id: number, patch: SpacePatch) => {
+    tabs.updateSpace(id, patch)
+    share.writeMeta(id) // a shared space's name, colour and icon reach the others
+  })
+  ipcMain.on('spaces:delete', (_e, id: number) => {
+    share.forget(id)
+    tabs.deleteSpace(id)
+  })
   ipcMain.on('spaces:move-tab', (_e, tabId: number, spaceId: number) =>
     tabs.moveTabToSpace(tabId, spaceId)
   )

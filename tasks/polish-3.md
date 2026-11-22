@@ -72,6 +72,9 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Then: first-party screen time / digital health (time per site, daily/weekly, limits, focus), better than
       Apple's Screen Time. Local only.
 
+- [ ] Zooming the board in and out is laggy again: measure with scripts/perf-canvas.ts (frames, long tasks, GPU).
+- [ ] Switching spaces (esp. with many tabs) is laggy and stutters: trace it (long tasks, layout, view swaps).
+- [ ] Search popover offers "canvas mode" while the board is already open.
 - [ ] Now playing play/pause: one click sometimes leaves the wrong state (YouTube). Trace mediaPlay and the playing flag.
 - [ ] Switching between tabs with different page zoom shifts the layout (zoom badge appears/goes): no shift, tab view and preview.
 - [ ] Board: "open link side by side" reworked: its animations are poor and it is not fun to use (user 2026-11-22).

@@ -102,6 +102,25 @@ export interface Space {
   browseWith: BrowseWith | null
   /** Page recolouring for individual sites, only while browsing in this space. Keyed by siteKey(). */
   sites: Record<string, SiteTheme>
+  /** Shared with others (tasks/shared-spaces.md); the room itself is kept by main, never sent here. */
+  shared?: true
+}
+
+/** Someone else in a shared space. */
+export interface SharePerson {
+  /** Their id in the room (changes each time they join). */
+  id: number
+  name: string
+  color: string
+  /** Where their pointer is on the board (board coordinates); null when it is elsewhere. */
+  cursor: { x: number; y: number } | null
+}
+
+/** How a shared space is doing. */
+export interface ShareState {
+  status: 'connecting' | 'syncing' | 'live' | 'offline' | 'refused'
+  people: SharePerson[]
+  me: { name: string; color: string }
 }
 
 /** A boost: how one site's pages are restyled in one space. Colour, type, hidden parts and your own CSS. */
@@ -301,6 +320,19 @@ export interface PanesApi {
   onChatEvent(cb: (e: ChatStreamEvent) => void): () => void
   /** A kept conversation got its name from the model (the list should be read again). */
   onChatNamed(cb: (id: string) => void): () => void
+  /** Shared spaces (tasks/shared-spaces.md): share one, join from a link, see who is there. */
+  share?: {
+    /** Share a space: the invite link (null if it could not be shared). */
+    start(spaceId: number): Promise<string | null>
+    link(spaceId: number): Promise<string | null>
+    /** Join from an invite link: the new space's id, or null when it is not an invite. */
+    join(link: string): Promise<number | null>
+    stop(spaceId: number): void
+    state(spaceId: number): Promise<ShareState | null>
+    onState(cb: (spaceId: number, state: ShareState) => void): () => void
+    /** Where this person's pointer is on the board (board coordinates), or null. */
+    cursor(spaceId: number, at: { x: number; y: number } | null): void
+  }
   /** Canvas mode (AI phase 3): the saved board, thumbnails, and the AI parts of arranging it. */
   canvas: {
     load(spaceId: number): Promise<{ state: CanvasState | null; boot: string } | null>
@@ -312,6 +344,8 @@ export interface PanesApi {
     inView(spaceId: number, tabIds: number[]): void
     /** The tabs whose cards play live now (main keeps those pages painting); [] when none. */
     streaming(tabIds: number[]): void
+    /** A shared space's board changed elsewhere: the board as it is now (this person's own parts kept). */
+    onRemote?(cb: (spaceId: number, state: CanvasState) => void): () => void
     /** Ask for raw touchpad frames while the board is open (Windows only; false when they will not come). */
     touchpad(on: boolean): Promise<boolean>
     /** Two-finger touchpad motion in mm, how many fingers are down, their mean height from the pad's top edge (mm),

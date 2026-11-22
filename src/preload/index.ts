@@ -12,8 +12,10 @@ import type {
   TabsState,
   PasswordPrompt,
   PreviewKey,
+  ShareState,
   UiCommand
 } from '@shared/types'
+import type { CanvasState } from '@shared/ai/canvas'
 
 function subscribe<A extends unknown[]>(channel: string, cb: (...args: A) => void): () => void {
   const listener = (_e: unknown, ...args: unknown[]): void => cb(...(args as A))
@@ -117,6 +119,15 @@ const api: PanesApi = {
     ipcRenderer.on('ai:chat-named', listener)
     return () => ipcRenderer.removeListener('ai:chat-named', listener)
   },
+  share: {
+    start: (id) => ipcRenderer.invoke('share:start', id),
+    link: (id) => ipcRenderer.invoke('share:link', id),
+    join: (link) => ipcRenderer.invoke('share:join', link),
+    stop: (id) => ipcRenderer.send('share:stop', id),
+    state: (id) => ipcRenderer.invoke('share:state', id),
+    onState: (cb) => subscribe<[number, ShareState]>('share:state', cb),
+    cursor: (id, at) => ipcRenderer.send('share:cursor', id, at)
+  },
   canvas: {
     load: (spaceId) => ipcRenderer.invoke('canvas:load', spaceId),
     save: (spaceId, state) => ipcRenderer.send('canvas:save', spaceId, state),
@@ -165,6 +176,7 @@ const api: PanesApi = {
     toolResult: (id, text) => ipcRenderer.send('canvas:tool-result', id, text),
     onNew: (cb) => subscribe<[]>('canvas:new', cb),
     onShowTab: (cb) => subscribe<[number]>('canvas:show-tab', cb),
+    onRemote: (cb) => subscribe<[number, CanvasState]>('canvas:remote', cb),
     onStill: (cb) => subscribe<[number, string]>('canvas:still', cb),
     onLinkOpened: (cb) => subscribe<[number, number]>('canvas:link-opened', cb)
   },
