@@ -178,6 +178,7 @@ const api: PanesApi = {
     onTool: (cb) => subscribe<[string, string, unknown]>('canvas:tool', cb),
     toolResult: (id, text) => ipcRenderer.send('canvas:tool-result', id, text),
     onNew: (cb) => subscribe<[]>('canvas:new', cb),
+    onReopenAt: (cb) => subscribe<[number]>('canvas:reopen-at', cb),
     onShowTab: (cb) => subscribe<[number]>('canvas:show-tab', cb),
     onRemote: (cb) => subscribe<[number, CanvasState, number]>('canvas:remote', cb),
     onStill: (cb) => subscribe<[number, string]>('canvas:still', cb),

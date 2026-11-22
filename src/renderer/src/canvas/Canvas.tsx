@@ -728,6 +728,8 @@ export function Canvas({
   } | null>(null)
   /** A tab opened from the board: its card goes where it was asked for. */
   const placeNext = useRef<{ x: number; y: number; t: number } | null>(null)
+  /** Where the cards of tabs closed lately were (by tab id), for Ctrl+Shift+T to put them back. */
+  const goneAt = useRef(new Map<number, { x: number; y: number }>())
   const lastPointer = useRef<{ x: number; y: number } | null>(null)
   const hovFrame = useRef<string | undefined>(undefined)
   const splitRef = useRef<number[]>([])
@@ -1802,6 +1804,15 @@ export function Canvas({
       (s) => {
         const r = syncTabs(s, lite())
         added = r.added
+        if (r.state.cards !== s.cards) {
+          const still = new Set(r.state.cards.map((c) => c.id))
+          for (const c of s.cards)
+            if (c.id > 0 && !still.has(c.id)) {
+              goneAt.current.delete(c.id) // newest last, so the oldest go first past the cap
+              goneAt.current.set(c.id, { x: c.x, y: c.y })
+            }
+          while (goneAt.current.size > 25) goneAt.current.delete(goneAt.current.keys().next().value!)
+        }
         const link = linkOpened.current
         if (link && Date.now() - link.at < 8000 && added.includes(link.id)) {
           linkOpened.current = null
@@ -2299,6 +2310,15 @@ export function Canvas({
     [root, vp]
   )
   useEffect(() => window.api.canvas.onNew(() => askNew()), [askNew])
+  // a closed tab reopened: its new card lands where the old one was
+  useEffect(
+    () =>
+      window.api.canvas.onReopenAt((id) => {
+        const at = goneAt.current.get(id)
+        if (at) placeNext.current = { ...at, t: Date.now() }
+      }),
+    []
+  )
   // the pointer resting on a tab's card: it is likely to be opened next, so main gets its page ready (wakes or loads it)
   useEffect(() => {
     const el = root.current

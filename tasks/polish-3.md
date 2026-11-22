@@ -91,7 +91,20 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] PiP back-to-tab did nothing: now brings the tab up (6a9d64c, both buttons checked from another tab).
 - [x] Joining a shared space: invite page opens Panes (panes://join), join field, copied-link suggestion, Share on the
       board's top bar, own name; space rename overwrite fixed (b641918, 2c1eca4; two-instance test on the relay).
-- [ ] Live indicator: Apple/Google-grade capsule (sizes, margins, shapes), not the drawn wave glyph.
+- [x] Live indicator: capsule in the room's state colour, halo dot (d803622, beta.124).
+- [x] Shared space reconnects after any outage (gave up after 16 s; relay redeploys left everyone offline) (d803622).
+- [x] Space selector on the board: the name no longer jumps from under the pointer; quiet at rest (d803622).
+- [x] Black flash closing the preview: board hidden one frame (data-closing removed before .covered) (ee11667).
+- [x] Ctrl+W in the preview keeps it open on the tab used before (ee11667).
+- [x] Shared boards show the others' tabs (mirrors) (b93f420); shared spaces badged in the selector (bd49dbc).
+- [ ] Mirrored tabs: pictures (the owner's snapshot, shrunk, encrypted, through the relay's blobs); later live.
+- [ ] Mirrored tabs overlap the viewer's own tabs in the same section (both lay out from the same spots).
+- [ ] Board opened on a space switch stayed blank (stuck in .swap) in the parked test window; reopening fixed it.
+      Check on a visible window whether it ever happens for real.
+- [ ] Reopen closed tab (Ctrl+Shift+T) exactly where it was: Ctrl+W's close (beforeunload path) never recorded the
+      tab at all (checked: example.com closed that way was not in closedUrls). Keep history (pageState: scroll,
+      forms) via navigationHistory.restore, video time, space, in the preview on the board, card back at its spot
+      (placeNext).
 - [ ] Ctrl+T after typing in a page: sometimes the search popover's field does not have the keyboard (click needed).
       Ruled out: a page calling window.focus() (cannot take focus back in Electron, tested), the new-tab page (no
       focus calls). CDP keys skip main's shortcut, and the parked window never has OS focus: needs real keys on a

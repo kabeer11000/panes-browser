@@ -430,6 +430,8 @@ export interface PanesApi {
     toolResult(id: string, text: string): void
     /** New tab (Ctrl+T, the menu) while the board is open: the board asks where and what instead. */
     onNew(cb: () => void): () => void
+    /** A closed tab is coming back (Ctrl+Shift+T): its card goes where the card of tab `id` was. */
+    onReopenAt(cb: (id: number) => void): () => void
     /** The assistant opened a tab for the person while the board is up: show its card in the preview, live. */
     onShowTab(cb: (tabId: number) => void): () => void
     /** A playing video's frame, taken as its tab left the screen: the card's picture until its stream comes in. */

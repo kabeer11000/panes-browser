@@ -208,6 +208,53 @@ const VIDEO_PIP_SCRIPT = `(() => {
   return v ? v.requestPictureInPicture().then(() => 'open') : 'none'
 })()`
 
+/** A closed tab, enough to bring it back where it was: its pages (scroll and forms too), its video's moment, its place. */
+interface ClosedTab {
+  id: number
+  url: string
+  title: string
+  favicon: string | null
+  history: NavHistory | null
+  spaceId: number
+  /** Where its video was, in seconds; null without one playing. */
+  media: number | null
+  /** How far down the page was (a page loaded afresh, as Google's are, does not get its saved scroll back). */
+  scroll: number
+}
+const CLOSED_MAX = 25
+/** Where the page is: how far down, and the moment of its largest video that has started (or null). */
+const PLACE_SCRIPT = `(() => {
+  const v = [...document.querySelectorAll('video')].filter((v) => v.readyState > 0 && !v.ended && v.currentTime > 3)
+    .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0]
+  return { t: v ? v.currentTime : null, y: Math.round(scrollY) }
+})()`
+/**
+ * Back to that place once the page is ready for it: the scroll (if the page did not come back there by itself) and the
+ * video's moment. True when done; the caller tries again until it is (players and long pages come late).
+ */
+const placeScript = (t: number | null, y: number): string => `(() => {
+  // when the page is long enough to get there (sooner, the scroll stops short); again if the page itself jumps back
+  // to the top as its scripts start (YouTube does); settled once it has stayed there a moment, or the person scrolled
+  if (${y} > 0 && !window.__panesPlaced) {
+    const at = window.__panesAt
+    if (Math.abs(scrollY - ${y}) <= 5) {
+      if (at && Date.now() - at > 1500) window.__panesPlaced = true
+    } else if (scrollY > 10 && at) window.__panesPlaced = true
+    else {
+      if (document.documentElement.scrollHeight - innerHeight < ${y}) return false
+      scrollTo(0, ${y})
+      window.__panesAt = window.__panesAt || Date.now()
+    }
+    if (!window.__panesPlaced) return false
+  }
+  if (${t} === null) return true
+  const v = [...document.querySelectorAll('video')].filter((v) => v.readyState > 0)
+    .sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0]
+  if (!v) return false
+  if (Math.abs(v.currentTime - ${t}) > 2) v.currentTime = ${t}
+  return true
+})()`
+
 /** How a tab's page is shown: a native view, or drawn off screen into the window (OffscreenPage). */
 type TabView = WebContentsView | OffscreenPage
 
@@ -486,7 +533,10 @@ export class TabManager {
   private previewTab: number | null = null
   /** Tabs streaming live to their canvas card (setStreaming). */
   private streaming = new Set<number>()
-  private closedUrls: string[] = []
+  /** Tabs closed, newest last, as they were (Ctrl+Shift+T brings the last back so). */
+  private closedTabs: ClosedTab[] = []
+  /** Taken as a close was asked for (the page goes before the tab does, and with it what it could tell). */
+  private closingSnap = new Map<number, ClosedTab>()
   private pdf = new PdfViewerHelper()
   private groups = new Map<number, TabGroup & { spaceId: number }>()
   private nextGroupId = 1
@@ -1296,17 +1346,34 @@ export class TabManager {
     ) {
       if (this.unloadAsked.has(page)) return // already asking
       this.unloadAsked.add(page)
+      // what it is now, before the page goes (it may be gone by the time the tab is: then nothing could be read)
+      const snap = this.captureClosed(id, tab)
+      if (snap) {
+        this.closingSnap.set(id, snap)
+        void page
+          .executeJavaScript(PLACE_SCRIPT, false)
+          .then((p: { t: unknown; y: unknown } | null) => {
+            if (typeof p?.t === 'number' && Number.isFinite(p.t)) snap.media = p.t
+            if (typeof p?.y === 'number' && Number.isFinite(p.y)) snap.scroll = Math.max(0, p.y)
+          })
+          .catch(() => undefined)
+      }
       page.close({ waitForBeforeUnload: true })
       setTimeout(() => {
         this.unloadAsked.delete(page)
         const stayed = this.unloadStayed.delete(page)
+        if (stayed) this.closingSnap.delete(id)
         if (!stayed && !page.isDestroyed() && this.tabs.get(id) === tab) this.close(id)
       }, UNLOAD_WAIT_MS)
       return
     }
     if (this.pipId === id) this.pipId = null // its floating video closes with the page, which may not say so
-    const url = tab.pending?.url || liveContents(tab)?.getURL()
-    if (url && !tab.private) this.closedUrls.push(url)
+    const snap = this.closingSnap.get(id) ?? this.captureClosed(id, tab)
+    this.closingSnap.delete(id)
+    if (snap) {
+      this.closedTabs.push(snap)
+      if (this.closedTabs.length > CLOSED_MAX) this.closedTabs.shift()
+    }
 
     if (this.layout) this.setLayout(removeTab(this.layout, id))
     const ids = this.own()
@@ -1415,9 +1482,56 @@ export class TabManager {
     return t.pending?.title || wc?.getTitle() || ''
   }
 
+  /** A tab as it is now, to bring back after it closes (never a private or Tor one); null when there is nothing. */
+  private captureClosed(id: number, tab: Tab): ClosedTab | null {
+    if (tab.private || tab.tor) return null
+    const wc = tab.unloaded ? null : liveContents(tab)
+    const url = tab.pending?.url || wc?.getURL() || ''
+    if (!url) return null
+    return {
+      id,
+      url,
+      title: tab.pending?.title || wc?.getTitle() || '',
+      favicon: tab.favicon,
+      history: (wc && historyOf(wc)) || tab.pending?.history || null,
+      spaceId: tab.spaceId,
+      media: null,
+      scroll: 0
+    }
+  }
+
+  /**
+   * Ctrl+Shift+T: the last tab closed, as it was: its pages with their scroll and forms (restored, not loaded again),
+   * its video at the same moment, in its space. On the board it opens in the preview, its card where it was.
+   */
   reopenClosed(): void {
-    const url = this.closedUrls.pop()
-    if (url) this.create(url)
+    const c = this.closedTabs.pop()
+    if (!c) return
+    const spaceId = this.deps.spaces.get(c.spaceId) ? c.spaceId : this.activeSpaceId
+    const onBoard = this.canvasMode && spaceId === this.activeSpaceId
+    if (onBoard) this.send('canvas:reopen-at', c.id) // its card goes back to where the closed one was
+    const id = this.create(c.url, !onBoard, spaceId, {
+      title: c.title,
+      favicon: c.favicon,
+      history: c.history
+    })
+    if (onBoard) this.send('canvas:show-tab', id)
+    if (c.media !== null || c.scroll > 0) this.placeWhenReady(id, c.media, c.scroll)
+  }
+
+  /** Its scroll and its video's moment back once the page can take them (tried for a while: both come late). */
+  private placeWhenReady(id: number, t: number | null, y: number): void {
+    let tries = 0
+    const timer = setInterval(() => {
+      const tab = this.tabs.get(id)
+      const wc = tab && !tab.unloaded ? liveContents(tab) : null
+      if (!tab || ++tries > 40) return clearInterval(timer)
+      if (!wc || wc.isLoading()) return
+      void wc
+        .executeJavaScript(placeScript(t === null ? null : Math.round(t * 10) / 10, y), false)
+        .then((done) => done === true && clearInterval(timer))
+        .catch(() => undefined)
+    }, 500)
   }
 
   step(delta: 1 | -1): void {
