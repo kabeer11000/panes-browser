@@ -45,8 +45,12 @@ export function StripTab({
       }}
     >
       <SiteIcon src={m.favicon} decoding="sync" />
-      {/* something new in that tab: a dot under its icon, as the Dock marks an app; how many is the bell's to say */}
-      {m.attnNew && <i className="cv-unread" aria-hidden="true" />}
+      {/* something new in that tab: how many, on the icon's corner as on an app in the Dock (a dot when unknown) */}
+      {m.attnNew && (
+        <i className={'cv-unread' + (m.attnCount ? '' : ' dot')} aria-hidden="true">
+          {m.attnCount ? badgeText(m.attnCount, 9) : null}
+        </i>
+      )}
       <span>{m.title || m.site}</span>
     </button>
   )

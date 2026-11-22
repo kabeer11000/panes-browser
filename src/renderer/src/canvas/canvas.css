@@ -4522,17 +4522,34 @@
   right: -7px;
   box-shadow: 0 0 0 2px var(--chrome, var(--popover-bg));
 }
-/* a tab with something new: a small dot under its icon */
+/* a tab with something new: how many, small, on its icon's top right corner, cut out of the strip by a ring */
 .cv-recent button > .cv-unread {
   position: absolute;
-  bottom: 1px;
-  left: 50%;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  translate: -50% 0;
+  top: -2px;
+  left: calc(50% + 5px);
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
   background: var(--badge-bg);
+  box-shadow: 0 0 0 1.5px var(--chrome, var(--popover-bg));
   pointer-events: none;
+}
+.cv-recent button > .cv-unread.dot {
+  top: 3px;
+  left: calc(50% + 4px);
+  min-width: 7px;
+  width: 7px;
+  height: 7px;
+  padding: 0;
 }
 /* what plays: a moving level and its name, then play or pause, set off from the tabs by a hairline */
 .cv-strip-play {
