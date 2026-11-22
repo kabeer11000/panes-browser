@@ -534,6 +534,8 @@ export class TabManager {
   /** Tabs streaming live to their canvas card (setStreaming). */
   private streaming = new Set<number>()
   /** Tabs closed, newest last, as they were (Ctrl+Shift+T brings the last back so). */
+  /** The preview's page is stepped aside for a popover over it (see setLiveAside). */
+  private liveAside = false
   private closedTabs: ClosedTab[] = []
   /** Taken as a close was asked for (the page goes before the tab does, and with it what it could tell). */
   private closingSnap = new Map<number, ClosedTab>()
@@ -1980,7 +1982,6 @@ export class TabManager {
     if (!on && playing) this.showFromNotification(id)
   }
 
-
   /** Dev aid: the page of the current tab. */
   debugContents(): WebContents | undefined {
     return this.current()?.view.webContents
@@ -2853,6 +2854,7 @@ export class TabManager {
       if (pw) pw.setBackgroundThrottling(true) // was readied for the preview, but never shown in it
     }
     this.preparedId = null
+    if (changed) this.liveAside = false // a page newly in the preview is not stepped aside
     this.liveId = id
     this.liveRect = id !== null && rect ? rect : null
     // a video watched in the preview leaves it: its card takes the frame it was on
@@ -2946,6 +2948,17 @@ export class TabManager {
   /** The tab whose page the canvas preview shows now (null: none). */
   liveTab(): number | null {
     return this.liveId
+  }
+
+  /**
+   * The preview's page steps aside for a popover over it (the bell, the address): parked out of the window at its own
+   * size, still showing to its page. Taken off the window instead, the page was hidden and came back as a page shown
+   * again: it laid itself out anew and its parts moved (YouTube). Coming back is now only a move.
+   */
+  setLiveAside(on: boolean): void {
+    if (this.liveAside === on) return
+    this.liveAside = on
+    this.applyVisibility()
   }
 
   /** Start loading a tab that is about to go live (an unloaded one would otherwise only start once shown). */
@@ -3328,20 +3341,22 @@ export class TabManager {
       const slides =
         (live && liveAt) || (!streamed && placed && !this.overlay && this.fullscreenId === null)
       const rect =
-        live && liveAt
-          ? { ...liveAt, x: liveAt.x + this.slideX, y: liveAt.y + this.slideY }
-          : streamed
-            ? {
-                x: w - 3,
-                y: h - 3,
-                width: Math.max(800, pageRect?.width ?? w),
-                height: Math.max(600, pageRect?.height ?? h)
-              }
-            : placed && this.overlay && !liveFull
-              ? { ...placed, x: PARKED_X }
-              : placed && this.fullscreenId === null
-                ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
-                : placed
+        live && liveAt && this.liveAside
+          ? { ...liveAt, x: PARKED_X }
+          : live && liveAt
+            ? { ...liveAt, x: liveAt.x + this.slideX, y: liveAt.y + this.slideY }
+            : streamed
+              ? {
+                  x: w - 3,
+                  y: h - 3,
+                  width: Math.max(800, pageRect?.width ?? w),
+                  height: Math.max(600, pageRect?.height ?? h)
+                }
+              : placed && this.overlay && !liveFull
+                ? { ...placed, x: PARKED_X }
+                : placed && this.fullscreenId === null
+                  ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
+                  : placed
       const wanted =
         rect !== null &&
         !this.isBlank(tab) &&

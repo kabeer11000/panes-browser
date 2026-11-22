@@ -1440,10 +1440,11 @@ export function Expanded({
   useEffect(() => {
     asideRef.current = aside
     if (live === 'off') return
-    // while it is still loading too: hiding cancels the open waiting in main, which would show it over the popover
-    if (aside) hideLive()
-    else placeLive()
-  }, [aside, live, hideLive, placeLive])
+    // parked, not hidden (see setLiveAside): it comes back as it was, without laying itself out again. While it is
+    // still loading too: main parks it as it opens, so it never shows over the popover
+    window.api.canvas.liveAside(aside)
+    if (!aside) placeLive()
+  }, [aside, live, placeLive])
   // the zoom level shows in the bar while it is not the site's usual one
   useEffect(() => {
     if (live === 'on') readZoom()

@@ -409,6 +409,8 @@ export interface PanesApi {
     }): Promise<number | null>
     liveMove(tabId: number, rect: Rect): void
     liveHide(): void
+    /** The live page steps aside for a popover over it (parked, still showing to itself), or comes back. */
+    liveAside(on: boolean): void
     /** The other panes of a split, live beside the preview's page; [] takes them away. */
     liveCompanions(list: Array<{ id: number; rect: Rect }>): void
     /** A picture of a tab's live page as it is now (stands in for it while it steps aside); null when it has none. */

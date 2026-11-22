@@ -580,6 +580,9 @@ export function registerCanvas(d: {
     )
       d.tabs.navTab(id, what)
   })
+  ipcMain.on('canvas:live-aside', (e, on: unknown) => {
+    if (mine(e)) d.tabs.setLiveAside(on === true)
+  })
   ipcMain.on('canvas:live-hide', (e) => {
     if (!mine(e)) return
     liveGen++
