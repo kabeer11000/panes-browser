@@ -1492,9 +1492,13 @@ export function resetCardSize(s: CanvasState, id: number): CanvasState {
   }
 }
 
+/** A landscape card's width (a page, a video) and a portrait one's height: big enough to read the page at a glance. */
+export const SHAPED_W = 384
+export const SHAPED_H = 340
+
 /**
- * A card's size for what it holds (a video, an image) of aspect `ar`: 320 wide when landscape, 300 tall when
- * portrait. Where that would make it narrower or flatter than a card can be, the other side grows instead, so the
+ * A card's size for what it holds (a page, a video, an image) of aspect `ar`: SHAPED_W wide when landscape,
+ * SHAPED_H tall when portrait. Where that would make it narrower or flatter than a card can be, the other side grows instead, so the
  * card keeps the picture's exact shape (a tall image was squared off a little, cropping it).
  */
 export function videoCardSize(ar: number): { w: number; h: number } {
@@ -1502,13 +1506,15 @@ export function videoCardSize(ar: number): { w: number; h: number } {
   const clampW = (w: number): number => Math.max(CARD_MIN_W, Math.min(CARD_MAX_W, Math.round(w)))
   const clampH = (h: number): number => Math.max(CARD_MIN_H, Math.min(CARD_MAX_H, Math.round(h)))
   if (ar >= 1) {
-    const h = 320 / ar
+    const h = SHAPED_W / ar
     return h >= CARD_MIN_H
-      ? { w: 320, h: clampH(h) }
+      ? { w: SHAPED_W, h: clampH(h) }
       : { w: clampW(CARD_MIN_H * ar), h: CARD_MIN_H }
   }
-  const w = 300 * ar
-  return w >= CARD_MIN_W ? { w: clampW(w), h: 300 } : { w: CARD_MIN_W, h: clampH(CARD_MIN_W / ar) }
+  const w = SHAPED_H * ar
+  return w >= CARD_MIN_W
+    ? { w: clampW(w), h: SHAPED_H }
+    : { w: CARD_MIN_W, h: clampH(CARD_MIN_W / ar) }
 }
 
 /**

@@ -594,8 +594,8 @@ describe('tidy with arrows between sections', () => {
 
 describe('videoCardSize keeps the shape', () => {
   test('landscape and portrait at their usual sizes', () => {
-    expect(videoCardSize(16 / 9)).toEqual({ w: 320, h: 180 })
-    expect(videoCardSize(3 / 4)).toEqual({ w: 225, h: 300 })
+    expect(videoCardSize(16 / 9)).toEqual({ w: 384, h: 216 })
+    expect(videoCardSize(3 / 4)).toEqual({ w: 255, h: 340 })
   })
   test('a tall image grows taller instead of being squared off', () => {
     const s = videoCardSize(0.5)

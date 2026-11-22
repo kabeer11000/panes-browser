@@ -259,7 +259,13 @@ function Face({
       return (
         <div className="cv-snap">
           {m.snap ? <Pic src={m.snap} fallback={placeholder} /> : placeholder}
-          {m.snap && <span className="cv-cap">{m.site || m.title}</span>}
+          {/* the page fills the card; who it is floats on it as a tag, never a strip under it */}
+          {m.snap && (
+            <span className="cv-tag">
+              <Favicon m={m} />
+              <span>{m.site || m.title}</span>
+            </span>
+          )}
         </div>
       )
     }

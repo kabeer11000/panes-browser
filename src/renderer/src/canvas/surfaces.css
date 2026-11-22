@@ -434,20 +434,63 @@
   left: 0;
   top: 0;
   width: 100%;
-  height: calc(100% - 36px);
+  height: 100%;
   border-radius: 0;
-  box-shadow: 0 0.5px 0 var(--rim);
 }
-.cv .cv-cap {
-  left: 14px;
-  right: 14px;
-  bottom: 0;
-  height: 36px;
-  line-height: 36px;
-  font-size: 12px;
-  font-weight: 500;
+/* a soft shade at the foot, so the tag reads on any page, deeper under the pointer */
+.cv .cv-snap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.38), rgb(0 0 0 / 0) 38%);
+  box-shadow: inset 0 0 0 0.5px var(--rim);
+  opacity: 0.8;
+  transition: opacity 0.22s ease;
+}
+.cv .cv-card:hover > .cv-snap::after {
+  opacity: 1;
+}
+/* who the page is: a small dark tag on the picture's lower left (icon and site), never a strip under it */
+.cv .cv-tag {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 20px);
+  height: 24px;
+  padding: 0 10px 0 5px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 560;
   letter-spacing: 0.005em;
-  color: color-mix(in srgb, var(--fg) 78%, transparent);
+  color: #fff;
+  background: rgb(16 16 20 / 0.74);
+  box-shadow:
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.16),
+    0 2px 8px rgb(0 0 0 / 0.25);
+  pointer-events: none;
+  transition: translate 0.22s ease;
+}
+.cv .cv-tag > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv .cv-tag :is(img, .site-globe, .favicon) {
+  position: static; /* not the page picture's rule (.cv-snap img) */
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.cv .cv-card:hover .cv-tag {
+  translate: 0 -2px;
 }
 .cv .cv-card.sel {
   outline: none;

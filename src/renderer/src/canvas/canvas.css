@@ -138,7 +138,8 @@
    changing at once (and drawn again for it) */
 /* the writing would be a few pixels high: skip it, a screenful of text is what costs the frames */
 .cv.lod .cv-doc p,
-.cv.lod .cv-cap,
+.cv.lod .cv-tag,
+.cv.lod .cv-snap::after,
 .cv.lod .cv-answer-text,
 .cv.lod .cv-badges,
 .cv.lod .cv-acts,
@@ -464,17 +465,6 @@
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.cv-cap {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11.5px;
-  color: var(--fg-dim);
 }
 
 /* a PDF: the first page, as paper */
