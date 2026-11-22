@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { BrowseWith, Space } from '@shared/types'
 import { SpaceIdentity } from './SpaceIdentity'
 import { ThemePicker } from './ThemePicker'
+import { ShareSection } from './ShareSection'
 
 const BROWSE: Array<{ value: BrowseWith | null; label: string; title: string }> = [
   { value: null, label: 'Default', title: 'As set in Settings' },
@@ -92,6 +93,8 @@ export function SpacePopover({
             ))}
           </div>
         </div>
+        <div className="sp-divider" />
+        <ShareSection space={space} />
         <div className="space-actions">
           <button
             type="button"

@@ -140,6 +140,8 @@ import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
 import { boardMoving, onBoardMotion } from './boardMotion'
+import { PresenceFaces, RemoteCursors } from './Presence'
+import { usePresence } from '@renderer/components/useShare'
 import { READER } from './model'
 import { ContextMenu, type MenuEntry } from './ContextMenu'
 import { Expanded, type ExpandSource } from './Expanded'
@@ -453,6 +455,8 @@ const LOD_K = 0.22
 /** The board's height under the toolbar at the bottom (and its banners): fitting leaves it out, so nothing lands behind them. */
 const BAR_ROOM = 84
 const SAVE_MS = 700
+/** A shared space's board goes to the others about this soon after a change (it is live for them). */
+const SAVE_SHARED_MS = 60
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const isEditable = (t: EventTarget | null): boolean =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
@@ -673,6 +677,14 @@ export function Canvas({
   const pendingFlip = useRef<{ before: Pos; stagger: boolean; off?: Pos } | null>(null)
   const gesture = useRef<Gesture | null>(null)
   const saveTimer = useRef<number | undefined>(undefined)
+  /** An edit is waiting for saveTimer (not yet sent to main). */
+  const savePending = useRef(false)
+  const thisSpace = spaces.find((x) => x.id === spaceId)
+  const sharedRef = useRef(false)
+  useLayoutEffect(() => {
+    sharedRef.current = !!thisSpace?.shared
+  })
+  const presence = usePresence(spaceId, !!thisSpace?.shared)
   const bootRef = useRef('')
   const tries = useRef(new Map<string, number>())
   const conn = useRef<ConnectorsHandle>(null)
@@ -1044,20 +1056,42 @@ export function Canvas({
     }, 300)
   }, [])
 
+  const saveNow = useCallback((): void => {
+    window.clearTimeout(saveTimer.current)
+    savePending.current = false
+    const s = stRef.current
+    if (s && phaseRef.current !== 'loading') {
+      window.api.canvas.save(spaceId, {
+        ...s,
+        boot: bootRef.current,
+        view: lastView.current,
+        open: expandedNow.current
+      })
+    }
+  }, [spaceId])
   const saveSoon = useCallback((): void => {
     window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(() => {
-      const s = stRef.current
-      if (s && phaseRef.current !== 'loading') {
-        window.api.canvas.save(spaceId, {
-          ...s,
-          boot: bootRef.current,
-          view: lastView.current,
-          open: expandedNow.current
-        })
-      }
-    }, SAVE_MS)
-  }, [spaceId])
+    savePending.current = true
+    saveTimer.current = window.setTimeout(saveNow, sharedRef.current ? SAVE_SHARED_MS : SAVE_MS)
+  }, [saveNow])
+
+  // A shared space's board changed elsewhere (main/share.ts). With an edit of its own not yet sent, this board sends
+  // it first and lets the board from there go: main merges the two and sends them back. Otherwise it is taken as it
+  // is (no undo step, no motion), and main is told which board this one now is.
+  useEffect(
+    () =>
+      window.api.canvas.onRemote?.((id, next, n) => {
+        if (id !== spaceId || phaseRef.current === 'loading') return
+        if (savePending.current) return saveNow()
+        const cur = stRef.current
+        if (!cur) return
+        const s = { ...next, view: cur.view }
+        stRef.current = s
+        setStState(s)
+        window.api.share?.took(spaceId, n)
+      }),
+    [spaceId, saveNow]
+  )
 
   useLayoutEffect(() => {
     updateVisibleRef.current = updateVisible
@@ -1501,6 +1535,7 @@ export function Canvas({
       }
       stRef.current = s
       setStState(s)
+      window.api.share?.took(spaceId, 0) // a shared space: saves from here on are made from the board on disk
       const { w, h } = size()
       const everything = contentBoxes(s)
       const all = boundsOf(everything)
@@ -4556,6 +4591,10 @@ export function Canvas({
   )
   // the dots for drawing a connector show on the object under the pointer (and a little around it)
   const onHover = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    if (sharedRef.current) {
+      const w = world(e.clientX, e.clientY)
+      presence.point({ x: Math.round(w.x), y: Math.round(w.y) })
+    }
     if (root.current && !gesture.current) {
       const r = root.current.getBoundingClientRect()
       const v = vp.get()
@@ -5603,7 +5642,10 @@ export function Canvas({
       }}
       onPointerDown={onDown}
       onPointerMove={onHover}
-      onPointerLeave={() => conn.current?.hover(null)}
+      onPointerLeave={() => {
+        conn.current?.hover(null)
+        presence.point(null)
+      }}
       onDoubleClick={(e) => {
         const t = e.target as HTMLElement
         if (e.timeStamp - edgeClickAt.current < 600) return // the edge's own double click (fitted already)
@@ -5662,6 +5704,7 @@ export function Canvas({
     >
       <div ref={grid} className="cv-grid" aria-hidden="true" />
       <div ref={layer} className="cv-board">
+        <RemoteCursors people={presence.people} />
         {s?.frames.map((f) => (
           <FrameView
             key={f.id}
@@ -5899,6 +5942,7 @@ export function Canvas({
               size={24}
             />
           </div>
+          <PresenceFaces people={presence.people} />
           <UndoHistory
             open={history !== null}
             onOpen={openHistory}

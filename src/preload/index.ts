@@ -126,7 +126,8 @@ const api: PanesApi = {
     stop: (id) => ipcRenderer.send('share:stop', id),
     state: (id) => ipcRenderer.invoke('share:state', id),
     onState: (cb) => subscribe<[number, ShareState]>('share:state', cb),
-    cursor: (id, at) => ipcRenderer.send('share:cursor', id, at)
+    cursor: (id, at) => ipcRenderer.send('share:cursor', id, at),
+    took: (id, n) => ipcRenderer.send('share:took', id, n)
   },
   canvas: {
     load: (spaceId) => ipcRenderer.invoke('canvas:load', spaceId),
@@ -176,7 +177,7 @@ const api: PanesApi = {
     toolResult: (id, text) => ipcRenderer.send('canvas:tool-result', id, text),
     onNew: (cb) => subscribe<[]>('canvas:new', cb),
     onShowTab: (cb) => subscribe<[number]>('canvas:show-tab', cb),
-    onRemote: (cb) => subscribe<[number, CanvasState]>('canvas:remote', cb),
+    onRemote: (cb) => subscribe<[number, CanvasState, number]>('canvas:remote', cb),
     onStill: (cb) => subscribe<[number, string]>('canvas:still', cb),
     onLinkOpened: (cb) => subscribe<[number, number]>('canvas:link-opened', cb)
   },

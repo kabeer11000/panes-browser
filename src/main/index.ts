@@ -289,6 +289,13 @@ function createWindow(): void {
     createSpace: () => tabs.createSpace()
   })
   canvas.onSave = (spaceId, state) => share.onLocalSave(spaceId, state)
+  // an invite link, however it is opened (typed, clicked, from another app): the space is joined and shown
+  tabs.inviteHandler = (url) => {
+    if (!share.isInvite(url)) return false
+    const id = share.join(url)
+    if (id !== null) tabs.switchSpace(id)
+    return true
+  }
   share.init()
   // board timers and reminders notify from here, board open or not (looked at once the window is up)
   const alarms = new WidgetAlarms({
@@ -870,7 +877,7 @@ function createWindow(): void {
   // First run: open the welcome page before anything else is shown.
   if (!settings.get().onboarded && !process.env['PANES_DEBUG']) tabs.create('panes://welcome')
   openLinks = (urls) => {
-    for (const url of urls) tabs.create(url)
+    for (const url of urls) if (!tabs.inviteHandler?.(url)) tabs.create(url)
     if (win.isMinimized()) win.restore()
     win.focus()
   }

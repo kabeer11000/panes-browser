@@ -2046,9 +2046,12 @@ export class TabManager {
     return true
   }
 
+  /** A shared space's invite link: joined (main/share.ts) instead of opened as a page. True when it was one. */
+  inviteHandler: ((url: string) => boolean) | null = null
+
   navigate(input: string): void {
     const url = resolveInput(input, this.deps.settings.searchUrl())
-    if (!url) return
+    if (!url || this.inviteHandler?.(url)) return
     const tab = this.current()
     if (!tab) {
       this.create(url)
@@ -3580,6 +3583,7 @@ export class TabManager {
       return { action: 'deny' }
     })
     wc.on('will-navigate', (e, url) => {
+      if (this.inviteHandler?.(url)) return e.preventDefault()
       if (this.externalScheme(url)) {
         e.preventDefault()
         this.openLink(url, id)
@@ -3628,6 +3632,7 @@ export class TabManager {
 
   /** mailto:/tel: go to the OS; everything else becomes a tab. */
   private openLink(url: string, from?: number): void {
+    if (this.inviteHandler?.(url)) return
     if (this.externalScheme(url)) {
       if (url.toLowerCase().startsWith('mailto:')) return this.openMailto(url)
       return void shell.openExternal(url)

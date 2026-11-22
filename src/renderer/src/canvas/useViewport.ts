@@ -13,7 +13,7 @@ import { reducedMotion } from '@renderer/motion'
  * Each is set on these elements directly, so a frame of a zoom restyles a handful and not every card under the root.
  * Add a selector here when a new rule reads either property.
  */
-const VK_READERS = '.cv-fbar, .cv-kbar, .cv-mbar, .cv-blabel-in'
+const VK_READERS = '.cv-fbar, .cv-kbar, .cv-mbar, .cv-blabel-in, .cv-rcursor'
 const HS_READERS = [
   '.cv-badges',
   '.cv-count',

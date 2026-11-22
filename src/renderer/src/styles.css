@@ -5535,3 +5535,116 @@ kbd {
   max-width: 22px;
   max-height: 22px;
 }
+
+/* ---- sharing a space (ShareSection, in the space editor) ---- */
+.share-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.share-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.share-note {
+  margin: 0;
+  font-size: var(--fs-s);
+  line-height: 1.45;
+  color: var(--fg-dim);
+}
+.share-note.warn {
+  color: #f87171;
+}
+.share-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-s);
+  color: var(--fg-dim);
+}
+.share-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+}
+.share-status.live i {
+  background: #22c55e;
+}
+.share-status.connecting i,
+.share-status.syncing i {
+  background: #eab308;
+}
+.share-status.refused i {
+  background: #ef4444;
+}
+.share-people {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.share-count {
+  margin-left: 6px;
+  font-size: var(--fs-s);
+  color: var(--fg-dim);
+}
+.share-face {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 650;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--popover-bg);
+  user-select: none;
+}
+.share-actions {
+  display: flex;
+  gap: 6px;
+}
+.share-btn {
+  flex: 1;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--r-4);
+  background: var(--surface-hover);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 550;
+  transition:
+    background var(--dur-fast),
+    transform var(--dur-fast) var(--ease);
+}
+.share-btn:hover {
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.share-btn:active {
+  transform: scale(0.98);
+}
+.share-btn:disabled {
+  opacity: 0.6;
+}
+.share-btn.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.share-btn.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, var(--fg));
+}
+.share-btn.quiet {
+  flex: none;
+  background: transparent;
+  color: var(--fg-dim);
+}
+.share-btn.danger {
+  flex: none;
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #f87171;
+}
+.share-btn:focus-visible {
+  outline: var(--ring);
+  outline-offset: 1px;
+}

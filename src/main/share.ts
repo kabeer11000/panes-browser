@@ -53,8 +53,13 @@ interface Room {
   saved: Saved
   doc: Y.Doc
   client: ShareClient
-  /** The board as last written into the document or read from it: what the next diff is taken against. */
+  /** The board the window holds (its last save, or the last board from here it took): what the next diff of a local
+   * save is taken against. Never a board only sent: a save made before the window took it would undo what it brought. */
   last: CanvasState | null
+  /** Boards sent to the window, by number, until it says which it took (share:took). */
+  sent: Map<number, CanvasState>
+  sentN: number
+  tookN: number
   status: ShareStatus
   people: SharePerson[]
   applyTimer?: NodeJS.Timeout
@@ -129,6 +134,9 @@ export class ShareService {
       last: this.d.canvas.load(spaceId).state,
       status: 'connecting',
       people: [],
+      sent: new Map(),
+      sentN: 0,
+      tookN: 0,
       client: null as unknown as ShareClient
     }
     room.client = new ShareClient({
@@ -172,19 +180,41 @@ export class ShareService {
       const base =
         room.last ?? this.d.canvas.load(room.spaceId).state ?? emptyState(this.d.canvas.boot)
       const next = { ...readInto(room.doc, base), seq: sharedSeq(base.seq, room.doc.clientID) }
-      room.last = next
       this.d.canvas.saveQuiet(room.spaceId, next)
-      if (!this.d.win.isDestroyed())
-        this.d.win.webContents.send('canvas:remote', room.spaceId, next)
+      const n = ++room.sentN
+      room.sent.set(n, next)
+      // no board open for it: what is on disk is what the board will open with
+      if (this.d.win.isDestroyed()) return void (room.last = next)
+      this.d.win.webContents.send('canvas:remote', room.spaceId, next, n)
     }, APPLY_MS)
   }
 
-  /** A board saved here: what changed goes into the room. */
+  /** A board saved here: what changed since the board it was made from goes into the room. */
   onLocalSave(spaceId: number, state: CanvasState): void {
     const room = this.rooms.get(spaceId)
     if (!room) return
     writeDiff(room.doc, room.last, state, LOCAL)
     room.last = state
+    // the room has changes this board was not made with: the two together go back to it
+    if (room.sentN > room.tookN) this.applySoon(room)
+  }
+
+  /**
+   * The window took board `n` from here (0: it opened the board from disk). Saves after this are made from it.
+   */
+  took(spaceId: number, n: number): void {
+    const room = this.rooms.get(spaceId)
+    if (!room) return
+    if (n === 0) {
+      room.last = this.d.canvas.load(spaceId).state ?? room.last
+      room.tookN = room.sentN
+    } else {
+      const b = room.sent.get(n)
+      if (!b) return
+      room.last = b
+      room.tookN = n
+    }
+    for (const k of room.sent.keys()) if (k <= room.tookN) room.sent.delete(k)
   }
 
   /** The space's name, colour and icon came (or changed) from the room. */
@@ -275,7 +305,9 @@ export class ShareService {
     const moved = { ...board, seq: sharedSeq(board.seq, r.doc.clientID) }
     r.last = moved
     this.d.canvas.saveQuiet(spaceId, moved)
-    if (!this.d.win.isDestroyed()) this.d.win.webContents.send('canvas:remote', spaceId, moved)
+    const n = ++r.sentN
+    r.sent.set(n, moved)
+    if (!this.d.win.isDestroyed()) this.d.win.webContents.send('canvas:remote', spaceId, moved, n)
     this.d.refresh()
     return inviteLink(saved.relay, saved.room, secret)
   }
@@ -351,6 +383,9 @@ export function registerShare(d: ShareDeps): ShareService {
   ipcMain.handle('share:state', (e, id: unknown) => (mine(e) ? svc.state(num(id)) : null))
   ipcMain.on('share:stop', (e, id: unknown) => {
     if (mine(e)) svc.stop(num(id))
+  })
+  ipcMain.on('share:took', (e, id: unknown, n: unknown) => {
+    if (mine(e) && typeof n === 'number' && Number.isInteger(n) && n >= 0) svc.took(num(id), n)
   })
   ipcMain.on('share:cursor', (e, id: unknown, at: unknown) => {
     if (!mine(e)) return

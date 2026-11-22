@@ -332,6 +332,8 @@ export interface PanesApi {
     onState(cb: (spaceId: number, state: ShareState) => void): () => void
     /** Where this person's pointer is on the board (board coordinates), or null. */
     cursor(spaceId: number, at: { x: number; y: number } | null): void
+    /** The board took board `n` sent with onRemote (0: it opened from disk); its saves are made from it from now on. */
+    took(spaceId: number, n: number): void
   }
   /** Canvas mode (AI phase 3): the saved board, thumbnails, and the AI parts of arranging it. */
   canvas: {
@@ -345,7 +347,7 @@ export interface PanesApi {
     /** The tabs whose cards play live now (main keeps those pages painting); [] when none. */
     streaming(tabIds: number[]): void
     /** A shared space's board changed elsewhere: the board as it is now (this person's own parts kept). */
-    onRemote?(cb: (spaceId: number, state: CanvasState) => void): () => void
+    onRemote?(cb: (spaceId: number, state: CanvasState, n: number) => void): () => void
     /** Ask for raw touchpad frames while the board is open (Windows only; false when they will not come). */
     touchpad(on: boolean): Promise<boolean>
     /** Two-finger touchpad motion in mm, how many fingers are down, their mean height from the pad's top edge (mm),

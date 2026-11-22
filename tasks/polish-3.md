@@ -85,6 +85,28 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       header shows only one pane's address, no sign of which pane has focus; the strip does not show the split.
       Also: the page view shows too big, then resizes, when switching tabs in the preview (user).
 - [ ] Hyperbeam-smooth shared browsing with remote control, and chat: in tasks/shared-spaces.md.
+
+- [ ] PiP is broken (user 21:13, YouTube): opening PiP glitches the whole page, a little video sticks at the left
+      over the page. Must behave like Chrome/Brave: the video leaves for the PiP window, the page stays as it is.
+- [ ] Search popover forgets what was typed when it blurs (click away) and starts from scratch. Chrome-like: the
+      text stays until Escape or navigation, in the preview's, the tab view's and the toolbar's search alike.
+- [ ] Board: tab cards still sometimes land on top of each other (user 21:09, after makeRoom fix of beta.103). Trace
+      where new/synced tab cards get placed (syncTabs, placeItem, reconcileSaved) and what skips makeRoom.
+
+### Missed by the 21:04 session (said "logged", never written here; audit 2026-11-22 21:10)
+
+- [ ] Deleting a tab section / frame group sometimes flashes or stutters (user).
+- [ ] Board chrome is "too much, noisy": drag/resize handles, card buttons, general look should be refined and quiet
+      (Figma / Apple level). Part of the cards redesign, but its own pass.
+- [ ] Space settings popover (SpacePopover): full redesign, same language as the new site settings panel (user asked
+      "did you not redesign the settings popover").
+- [ ] Opening the preview is laggy (user, with pan/zoom/space-switch lag). Zoom renders fixed in 27938ed; preview
+      open, pan and space switch not yet measured on a heavy board.
+- [ ] beta.121 left as a draft with only latest.yml (limit hit mid-release): finish it.
+- [ ] Split view rework (45b4ae7) not verified on screen; split-board.md steps unchecked; the "page shows too big then
+      resizes" placement fix not done.
+- Done in commits, unchecked above until now: site settings retheme + solid popovers (2b77b45, c4bc2b7, 09da048),
+  unread chip/count (607057a, 712c51c), strip holds still (d3cbf02), tooltips never on their own control (2025a09).
 - [ ] Off the main thread: see D.
 
 ### Audit of the earlier session's asks (2026-11-22, from the 17:27 transcript): unverified live
