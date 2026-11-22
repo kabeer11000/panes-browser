@@ -628,7 +628,9 @@ function createWindow(): void {
     tabs.moveTabToSpace(tabId, spaceId)
   )
   ipcMain.on('pip:toggle', () => tabs.togglePip())
-  ipcMain.on('pip:native', (e, on: unknown) => tabs.nativePip(e.sender, on === true))
+  ipcMain.on('pip:native', (e, on: unknown, playing: unknown) =>
+    tabs.nativePip(e.sender, on === true, playing === true)
+  )
   ipcMain.on('capture:report', (e, data: unknown) => {
     if (typeof data === 'string' && data.length < 200)
       tabs.captureReport(e.sender, e.senderFrame, data)

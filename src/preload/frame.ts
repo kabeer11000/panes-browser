@@ -117,7 +117,20 @@ if (/^https?:$/.test(location.protocol)) {
   // Picture in picture is Chromium's own floating window, as in Chrome (the page's button or Panes'): main only hears
   // which tab has it (the events reach this world too: the DOM is shared), so that tab is kept loaded and marked.
   document.addEventListener('enterpictureinpicture', () => ipcRenderer.send('pip:native', true), true)
-  document.addEventListener('leavepictureinpicture', () => ipcRenderer.send('pip:native', false), true)
+  // Its "back to tab" button closes the window and the video plays on; its X pauses it (as in Chrome). Read a moment
+  // later: the pause can land just after the event.
+  document.addEventListener(
+    'leavepictureinpicture',
+    (e) => {
+      const v = e.target
+      setTimeout(
+        () =>
+          ipcRenderer.send('pip:native', false, v instanceof HTMLVideoElement && !v.paused && !v.ended),
+        200
+      )
+    },
+    true
+  )
   try {
     contextBridge.executeInMainWorld({
       func: permissionShim,

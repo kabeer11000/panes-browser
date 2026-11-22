@@ -1843,8 +1843,11 @@ export class TabManager {
         .catch(() => undefined)
   }
 
-  /** A page's video went into picture in picture, or came out of it (preload/frame.ts). */
-  nativePip(wc: WebContents, on: boolean): void {
+  /**
+   * A page's video went into picture in picture, or came out of it (preload/frame.ts). Out and still playing is the
+   * floating window's "back to tab" (its close pauses): the tab is brought up, in whatever space, board included.
+   */
+  nativePip(wc: WebContents, on: boolean, playing = false): void {
     let id: number | null = null
     for (const [tid, t] of this.tabs) if (liveContents(t) === wc) id = tid
     if (id === null) return
@@ -1852,6 +1855,7 @@ export class TabManager {
     else if (this.pipId === id) this.pipId = null
     else return
     this.refresh()
+    if (!on && playing) this.showFromNotification(id)
   }
 
 
