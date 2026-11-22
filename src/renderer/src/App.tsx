@@ -1221,7 +1221,13 @@ function App(): React.JSX.Element {
                 <SearchPalette
                   key={`cv-search-${cvSearch.req}`}
                   tabs={tabs}
-                  active={active}
+                  // the preview's own page is the one in front: typing words from its title must not make
+                  // "switch to this tab" the Enter pick, which would leave the person where they are
+                  active={
+                    cvSearch.tab !== undefined
+                      ? (tabs.find((t) => t.id === cvSearch.tab) ?? active)
+                      : active
+                  }
                   engineName={SEARCH_ENGINES[settings.searchEngine].name}
                   variant="dropdown"
                   ai={settings.ai.enabled}

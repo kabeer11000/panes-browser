@@ -1288,7 +1288,7 @@ export function Expanded({
     // (kept fresh, so there is no wait) while the popover is up, and comes back where it was
     grabShot()
     flushSync(() => setAddressOpen(true))
-    const text = await askSearch(anchorOver(titleEl.current), href ?? '')
+    const text = await askSearch(anchorOver(titleEl.current), href ?? '', tab)
     asking.current = false
     setAddressOpen(false)
     if (text) void submitUrl(text)

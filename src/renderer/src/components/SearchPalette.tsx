@@ -491,7 +491,9 @@ export function SearchPalette({
                 // keys move the pick) sends a move too, which used to pull the pick back to the item under it
                 const at = pointerAt.current
                 pointerAt.current = { x: e.screenX, y: e.screenY }
-                if (at && at.x === e.screenX && at.y === e.screenY) return
+                // and the first one only says where the pointer rests: the list growing under it (as you type,
+                // after clicking the address) sends that, and taking it as a pick sent Enter to a history row
+                if (!at || (at.x === e.screenX && at.y === e.screenY)) return
                 if (i !== current) setSel(i)
               }}
               onClick={(e) =>

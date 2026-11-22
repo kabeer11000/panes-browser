@@ -10,11 +10,13 @@ export interface CanvasSearchRequest {
   anchor: Anchor
   /** What the field starts with (a card's address when changing it). */
   initial: string
+  /** The tab whose address this is (the preview's page): it is the one in front, never a tab to switch to. */
+  tab?: number
 }
 
 let seq = 0
 
-export function askSearch(anchor: Anchor, initial = ''): Promise<string | null> {
+export function askSearch(anchor: Anchor, initial = '', tab?: number): Promise<string | null> {
   const req = ++seq
   return new Promise((resolve) => {
     const done = (e: Event): void => {
@@ -26,7 +28,7 @@ export function askSearch(anchor: Anchor, initial = ''): Promise<string | null> 
     window.addEventListener('panes:canvas-search-result', done)
     window.dispatchEvent(
       new CustomEvent<CanvasSearchRequest>('panes:canvas-search', {
-        detail: { req, anchor, initial }
+        detail: { req, anchor, initial, tab }
       })
     )
   })
