@@ -334,6 +334,10 @@ export interface PanesApi {
     cursor(spaceId: number, at: { x: number; y: number } | null): void
     /** The board took board `n` sent with onRemote (0: it opened from disk); its saves are made from it from now on. */
     took(spaceId: number, n: number): void
+    /** An invite link on the clipboard for a space not joined yet, or null. */
+    clipboardInvite(): Promise<string | null>
+    /** The name the others in shared spaces see. */
+    setName(name: string): void
   }
   /** Canvas mode (AI phase 3): the saved board, thumbnails, and the AI parts of arranging it. */
   canvas: {

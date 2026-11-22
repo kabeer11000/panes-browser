@@ -127,7 +127,9 @@ const api: PanesApi = {
     state: (id) => ipcRenderer.invoke('share:state', id),
     onState: (cb) => subscribe<[number, ShareState]>('share:state', cb),
     cursor: (id, at) => ipcRenderer.send('share:cursor', id, at),
-    took: (id, n) => ipcRenderer.send('share:took', id, n)
+    took: (id, n) => ipcRenderer.send('share:took', id, n),
+    clipboardInvite: () => ipcRenderer.invoke('share:clipboard'),
+    setName: (name) => ipcRenderer.send('share:name', name)
   },
   canvas: {
     load: (spaceId) => ipcRenderer.invoke('canvas:load', spaceId),

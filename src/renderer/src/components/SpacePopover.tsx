@@ -66,6 +66,8 @@ export function SpacePopover({
           onIcon={(icon) => window.api.updateSpace(space.id, { icon })}
         />
         <div className="sp-divider" />
+        <ShareSection space={space} />
+        <div className="sp-divider" />
         <ThemePicker
           color={space.color}
           color2={space.color2}
@@ -93,8 +95,6 @@ export function SpacePopover({
             ))}
           </div>
         </div>
-        <div className="sp-divider" />
-        <ShareSection space={space} />
         <div className="space-actions">
           <button
             type="button"

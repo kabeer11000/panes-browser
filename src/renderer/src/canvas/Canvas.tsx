@@ -141,6 +141,7 @@ import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
 import { boardMoving, onBoardMotion } from './boardMotion'
 import { PresenceFaces, RemoteCursors } from './Presence'
+import { ShareButton } from './ShareButton'
 import { usePresence } from '@renderer/components/useShare'
 import { READER } from './model'
 import { ContextMenu, type MenuEntry } from './ContextMenu'
@@ -5943,6 +5944,7 @@ export function Canvas({
             />
           </div>
           <PresenceFaces people={presence.people} />
+          <ShareButton space={thisSpace} />
           <UndoHistory
             open={history !== null}
             onOpen={openHistory}

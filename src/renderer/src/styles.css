@@ -5588,6 +5588,10 @@ kbd {
 .share-btn:disabled {
   opacity: 0.6;
 }
+/* in the section's column (not a row of buttons sharing it): flex 1 there squashed it to its text's height */
+.share-sec > .share-btn {
+  flex: none;
+}
 .share-btn.primary {
   background: var(--accent);
   color: var(--accent-fg);
@@ -5608,4 +5612,49 @@ kbd {
 .share-btn:focus-visible {
   outline: var(--ring);
   outline-offset: 1px;
+}
+.share-join {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.share-or {
+  font-size: var(--fs-s);
+  color: var(--fg-dim);
+}
+.share-join-row {
+  display: flex;
+  gap: 6px;
+}
+.share-join-row .share-btn {
+  flex: none;
+}
+.share-join-input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-4);
+  background: var(--surface-hover);
+  color: var(--fg);
+  font: inherit;
+  outline: 0;
+}
+.share-join-input:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.share-join-input[aria-invalid='true'] {
+  box-shadow: inset 0 0 0 1.5px #ef4444;
+}
+.share-name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.share-name .share-join-input {
+  flex: none; /* a column: flex 1 squashed it to its text */
 }

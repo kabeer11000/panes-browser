@@ -8,6 +8,7 @@ import {
   type SearchResult
 } from '@shared/search'
 import type { Settings, TabInfo } from '@shared/types'
+import { parseInvite } from '@shared/share/crypto'
 import { takeTypeAhead } from '@renderer/typeAhead'
 import { useGlider } from '@renderer/hooks/useGlider'
 import {
@@ -112,6 +113,8 @@ function ResultIcon({ r }: { r: SearchResult }): React.JSX.Element {
           return <ReloadIcon />
         case 'pip':
           return <PipIcon />
+        case 'join-invite':
+          return <GridIcon />
         case 'history':
           return <HistoryIcon />
         case 'bookmarks':
@@ -195,6 +198,14 @@ export function SearchPalette({
   const [forward, setForward] = useState(false) // the last edit was typing forward, not deleting
 
   const effective = dirty ? typed.trim() : ''
+  // a shared space's invite on the clipboard (one not joined yet): offered first, as Chrome offers a link you copied
+  const [clipInvite, setClipInvite] = useState<string | null>(null)
+  useEffect(() => {
+    void window.api.share?.clipboardInvite().then(setClipInvite)
+  }, [])
+  const typedInvite =
+    effective && (/^panes:\/\/join\//i.test(effective) || parseInvite(effective)) ? effective : null
+  const joinLink = typedInvite ?? (!effective ? clipInvite : null)
   // once per popover: React may run the mount effect again later (StrictMode, a Suspense boundary showing again), and
   // a second run would select away, or overwrite, what has been typed by then
   const mounted = useRef(false)
@@ -279,8 +290,19 @@ export function SearchPalette({
   )
   const results = useMemo(() => {
     const inStrip = new Set(recent.map((t) => t.url))
-    return listed.filter((r) => r.kind !== 'tab' || !inStrip.has(r.url ?? ''))
-  }, [listed, recent])
+    const out = listed.filter((r) => r.kind !== 'tab' || !inStrip.has(r.url ?? ''))
+    if (!joinLink) return out
+    const join: SearchResult = {
+      id: 'join-invite',
+      kind: 'action',
+      actionId: 'join-invite',
+      title: typedInvite ? 'Join this shared space' : 'Join the shared space from the link you copied',
+      subtitle: 'A board you edit together, live',
+      url: joinLink
+    }
+    // an invite typed or pasted is not a page to go to or a search
+    return [join, ...(typedInvite ? out.filter((r) => r.kind !== 'go' && r.kind !== 'search') : out)]
+  }, [listed, recent, joinLink, typedInvite])
   /** A tab clearly meant by what was typed is first: Enter switches to it, so no site name is filled in. */
   const tabFirst = results[0]?.kind === 'tab' && !!effective
 
@@ -320,6 +342,11 @@ export function SearchPalette({
   }
   const run = (r: SearchResult | undefined, how: 'current' | 'tab' | 'split'): void => {
     const text = shown.trim()
+    // the space is joined and shown (main: the same as an invite link opened any other way)
+    if (r?.actionId === 'join-invite' && r.url) {
+      window.api.navigate(r.url)
+      return onClose()
+    }
     if (r?.kind === 'action') return onAction(r.actionId as string) // the same in the canvas as on a tab
     if (onPick && r?.kind === 'tab' && onPickTab) return switchTo(r.tabId as number)
     if (onPick) {

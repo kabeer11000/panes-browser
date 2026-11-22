@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Space, ShareState } from '@shared/types'
+import { parseInvite } from '@shared/share/crypto'
 import { useShareState } from './useShare'
 
 const STATUS: Record<ShareState['status'], string> = {
@@ -28,6 +29,65 @@ export function Face({ name, color, size = 22 }: { name: string; color: string; 
     >
       {initials}
     </span>
+  )
+}
+
+/** The name the others see on this person's cursor and face; saved as it is left. */
+function NameField({ name }: { name: string }): React.JSX.Element {
+  const [draft, setDraft] = useState<string | null>(null)
+  const save = (): void => {
+    if (draft !== null && draft.trim() && draft.trim() !== name) window.api.share?.setName(draft)
+    setDraft(null)
+  }
+  return (
+    <label className="share-name">
+      <span className="share-or">You appear as</span>
+      <input
+        className="share-join-input"
+        value={draft ?? name}
+        maxLength={40}
+        spellCheck={false}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+      />
+    </label>
+  )
+}
+
+const isInvite = (text: string): boolean =>
+  /^panes:\/\/join\/[A-Za-z0-9_-]{16,64}#[A-Za-z0-9_-]{43}$/.test(text) || !!parseInvite(text)
+
+/** Someone sent an invite link: paste it here (or in the address bar) and the space is joined and shown. */
+function JoinWithLink(): React.JSX.Element {
+  const [link, setLink] = useState('')
+  const text = link.trim()
+  const bad = text !== '' && !isInvite(text)
+  const join = (): void => {
+    if (!text || bad) return
+    window.api.navigate(text) // main joins it, as an invite opened any other way, and goes to it
+    setLink('')
+  }
+  return (
+    <div className="share-join">
+      <span className="share-or">Have an invite link?</span>
+      <div className="share-join-row">
+        <input
+          className="share-join-input"
+          placeholder="Paste it here"
+          value={link}
+          spellCheck={false}
+          aria-invalid={bad}
+          aria-label="Invite link"
+          onChange={(e) => setLink(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && join()}
+        />
+        <button type="button" className="share-btn" disabled={!text || bad} onClick={join}>
+          Join
+        </button>
+      </div>
+      {bad && <p className="share-note warn">That is not a Panes invite link.</p>}
+    </div>
   )
 }
 
@@ -73,6 +133,7 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
           {busy ? 'Making a room...' : 'Invite people'}
         </button>
         {failed && <p className="share-note warn">The space could not be shared. Try again in a moment.</p>}
+        <JoinWithLink />
       </div>
     )
 
@@ -96,6 +157,7 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
           {people.length === 0 ? 'Only you, so far' : `${people.length + 1} here`}
         </span>
       </div>
+      {state && <NameField name={state.me.name} />}
       <div className="share-actions">
         <button
           type="button"

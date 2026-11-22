@@ -4764,3 +4764,104 @@
     transition: none;
   }
 }
+.cv-share {
+  position: relative;
+  margin-left: 4px;
+}
+.cv-share-btn {
+  height: 28px;
+  padding: 0 13px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition:
+    filter var(--dur-fast),
+    transform var(--dur-fast) var(--ease);
+}
+.cv-share-btn:hover {
+  filter: brightness(1.08);
+}
+.cv-share-btn:active {
+  transform: scale(0.97);
+}
+/* shared: a quiet chip that says how the room is (the faces beside it say who is in it) */
+.cv-share-btn.on {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px 0 9px;
+  background: color-mix(in srgb, var(--popover-bg) 70%, transparent);
+  color: var(--fg);
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 10%, transparent);
+  --live: var(--fg-dim);
+}
+.cv-share-btn.on:hover {
+  filter: none;
+  background: color-mix(in srgb, var(--popover-bg) 90%, var(--fg) 6%);
+}
+.cv-share-btn.on.live {
+  --live: #22c55e;
+}
+.cv-share-btn.on.connecting,
+.cv-share-btn.on.syncing {
+  --live: #eab308;
+}
+.cv-share-btn.on.refused {
+  --live: #ef4444;
+}
+.cv-share-live {
+  flex: none;
+  overflow: visible;
+}
+.cv-share-live circle {
+  fill: var(--live);
+}
+.cv-share-live path {
+  fill: none;
+  stroke: var(--live);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+/* live: the waves breathe, slowly (opacity only: nothing to lay out or repaint around it) */
+.cv-share-btn.on.live .cv-share-live path {
+  animation: cv-share-live 2.4s ease-in-out infinite;
+}
+@keyframes cv-share-live {
+  50% {
+    opacity: 0.2;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-share-btn.on.live .cv-share-live path {
+    animation: none;
+  }
+}
+.cv-share-btn:focus-visible {
+  outline: var(--ring);
+  outline-offset: 2px;
+}
+.cv-share-pop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  width: 300px;
+  padding: 2px 14px 14px;
+  border-radius: var(--r-6);
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 24px 60px rgb(0 0 0 / 0.45);
+  transform-origin: top left;
+  animation: pop-open 0.2s var(--ease) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-share-pop {
+    animation: none;
+  }
+}
