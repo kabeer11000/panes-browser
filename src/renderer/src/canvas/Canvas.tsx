@@ -1813,7 +1813,8 @@ export function Canvas({
               goneAt.current.delete(c.id) // newest last, so the oldest go first past the cap
               goneAt.current.set(c.id, { x: c.x, y: c.y })
             }
-          while (goneAt.current.size > 25) goneAt.current.delete(goneAt.current.keys().next().value!)
+          while (goneAt.current.size > 25)
+            goneAt.current.delete(goneAt.current.keys().next().value!)
         }
         const link = linkOpened.current
         if (link && Date.now() - link.at < 8000 && added.includes(link.id)) {
@@ -3696,7 +3697,12 @@ export function Canvas({
       site: c?.site || item?.site || (url ? displayHost(url) : ''),
       image,
       text,
-      snap: tab ? (thumbs[tab.id] ?? benchThumbs[tab.id]) : undefined,
+      // someone else's tab on a shared board: its owner's picture of it (shared/share/doc.ts)
+      snap: tab
+        ? (thumbs[tab.id] ?? benchThumbs[tab.id])
+        : item?.source === 'tab'
+          ? item.image
+          : undefined,
       pdf:
         kind === 'pdf' ? (item?.file ? { file: item.file } : { url: pdfSource(url) }) : undefined,
       pages: item?.pages,

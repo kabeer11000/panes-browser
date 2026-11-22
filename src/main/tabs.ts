@@ -4123,6 +4123,12 @@ export class TabManager {
     }
   }
 
+  /** When a tab's picture was taken (0 when it has none). */
+  thumbAt(id: number): number {
+    const t = this.tabs.get(id)
+    return t && t.thumb ? t.thumbAt || 1 : 0 // one from the disk cache (a restored tab) counts as old, not none
+  }
+
   /** The picture a normal tab has (null for private and Tor tabs, which are never kept or shown elsewhere). */
   thumbOf(id: number): string | null {
     const t = this.tabs.get(id)

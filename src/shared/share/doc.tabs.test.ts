@@ -28,14 +28,21 @@ function pair(): [Y.Doc, Y.Doc] {
 describe('tabs shared as mirrors', () => {
   test("a person's tabs show on the other's board where they are, as pages, never as their own tabs", () => {
     const [a, b] = pair()
-    const mine = withCards([card(7, 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', 40), card(8, 'https://example.com/', 300)])
+    const mine = withCards([
+      card(7, 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', 40),
+      card(8, 'https://example.com/', 300)
+    ])
     writeDiff(a, null, mine, undefined, { by: 'ana', title: titles })
     const theirs = readInto(b, emptyState('x'), 'ben')
     expect(theirs.cards).toHaveLength(2)
     for (const c of theirs.cards) expect(isMirror(c.id)).toBe(true)
     const yt = theirs.cards.find((c) => c.url.includes('youtube'))!
     expect([yt.x, yt.frame]).toEqual([40, 'f1'])
-    expect(theirs.items[String(yt.id)]).toMatchObject({ kind: 'video', title: 'Tab 7', source: 'tab' })
+    expect(theirs.items[String(yt.id)]).toMatchObject({
+      kind: 'video',
+      title: 'Tab 7',
+      source: 'tab'
+    })
     // the owner's own board is untouched by them
     expect(readInto(a, mine, 'ana').cards.map((c) => c.id)).toEqual([7, 8])
   })
@@ -48,7 +55,9 @@ describe('tabs shared as mirrors', () => {
       card(9, 'https://ok.example/')
     ])
     writeDiff(a, null, mine, undefined, { by: 'ana', title: titles })
-    expect(readInto(b, emptyState('x'), 'ben').cards.map((c) => c.url)).toEqual(['https://ok.example/'])
+    expect(readInto(b, emptyState('x'), 'ben').cards.map((c) => c.url)).toEqual([
+      'https://ok.example/'
+    ])
   })
 
   test('a move, a close and a restart (new tab ids) reach the other, with no leftovers', () => {
@@ -60,14 +69,20 @@ describe('tabs shared as mirrors', () => {
     let theirs = readInto(b, emptyState('x'), 'ben')
     expect(theirs.cards.map((c) => [c.url, c.x])).toEqual([['https://a.example/', 500]])
     // Panes started again: the same page is tab 3 now, and the board it saves from never had tab 7
-    writeDiff(a, emptyState('b'), withCards([card(3, 'https://a.example/', 500)]), undefined, { by: 'ana', title: titles })
+    writeDiff(a, emptyState('b'), withCards([card(3, 'https://a.example/', 500)]), undefined, {
+      by: 'ana',
+      title: titles
+    })
     theirs = readInto(b, theirs, 'ben')
     expect(theirs.cards).toHaveLength(1)
   })
 
   test("someone else's mirrors are never written back as content of their own", () => {
     const [a, b] = pair()
-    writeDiff(a, null, withCards([card(7, 'https://a.example/')]), undefined, { by: 'ana', title: titles })
+    writeDiff(a, null, withCards([card(7, 'https://a.example/')]), undefined, {
+      by: 'ana',
+      title: titles
+    })
     const theirs = readInto(b, emptyState('x'), 'ben')
     // ben moves the mirror on his board and saves: nothing of it goes into the document as his
     const nudged = { ...theirs, cards: theirs.cards.map((c) => ({ ...c, x: 999 })) }
@@ -85,5 +100,23 @@ describe('tabs shared as mirrors', () => {
     expect(isMirror(mirrorId('ana:7'))).toBe(true)
     expect(isMirror(-(2 ** 45))).toBe(false)
     expect(Number.isSafeInteger(mirrorId('zz'.repeat(20)))).toBe(true)
+  })
+
+  test("a tab's picture goes with it; the other sees it once it is here, the title card until then", () => {
+    const [a, b] = pair()
+    writeDiff(a, null, withCards([card(7, 'https://a.example/')]), undefined, {
+      by: 'ana',
+      title: titles,
+      pic: (id) => (id === 7 ? 'blob7' : undefined)
+    })
+    const asked: string[] = []
+    const before = readInto(b, emptyState('x'), 'ben', (id) => {
+      asked.push(id)
+      return undefined
+    })
+    expect(asked).toEqual(['blob7'])
+    expect(before.items[String(before.cards[0].id)].image).toBeUndefined()
+    const after = readInto(b, emptyState('x'), 'ben', () => 'data:image/jpeg;base64,xx')
+    expect(after.items[String(after.cards[0].id)].image).toBe('data:image/jpeg;base64,xx')
   })
 })

@@ -70,6 +70,38 @@ export class ShareClient {
     void this.connect()
   }
 
+  /** A picture (or any bytes) into the room's store, sealed: its id there, or null when it could not go. */
+  async putBlob(bytes: Uint8Array): Promise<string | null> {
+    const { key, token } = await this.keys
+    try {
+      const res = await fetch(`${this.o.relay.replace(/\/+$/, '')}/blob/${this.o.room}`, {
+        method: 'POST',
+        headers: { 'x-token': token },
+        body: (await seal(key, bytes)) as Uint8Array<ArrayBuffer>
+      })
+      if (!res.ok) return null
+      const { id } = (await res.json()) as { id?: unknown }
+      return typeof id === 'string' ? id : null
+    } catch {
+      return null
+    }
+  }
+
+  /** A picture from the room's store, opened; null when it is not there or not this room's. */
+  async getBlob(id: string): Promise<Uint8Array | null> {
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) return null
+    const { key, token } = await this.keys
+    try {
+      const res = await fetch(`${this.o.relay.replace(/\/+$/, '')}/blob/${this.o.room}/${id}`, {
+        headers: { 'x-token': token }
+      })
+      if (!res.ok) return null
+      return await open(key, new Uint8Array(await res.arrayBuffer()))
+    } catch {
+      return null
+    }
+  }
+
   /** Leave: the document stays as it is (the caller keeps it), others see this person go. */
   destroy(): void {
     this.closed = true

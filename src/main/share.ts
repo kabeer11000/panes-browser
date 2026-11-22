@@ -7,7 +7,7 @@
  * The room's secret never leaves this file: it is kept encrypted by the system (safeStorage) in its own store, never
  * on the space (spaces are sent to the window whole). The space only says that it is shared.
  */
-import { app, clipboard, ipcMain, safeStorage, type BrowserWindow } from 'electron'
+import { app, clipboard, ipcMain, nativeImage, safeStorage, type BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { userInfo } from 'os'
@@ -28,6 +28,14 @@ const LOCAL = 'panes-local'
 /** How long a burst of changes from elsewhere is gathered before the board is rebuilt and sent (one frame or so). */
 const APPLY_MS = 30
 const PERSIST_MS = 800
+/** Tabs' pictures for the others: looked at this often, one tab at most this often, a few per look, this size. */
+const PIC_TICK_MS = 15_000
+const PIC_EVERY_MS = 30_000
+const PICS_PER_ROUND = 4
+const PIC_WIDTH = 320
+const PIC_QUALITY = 62
+/** Pictures of the others' tabs kept opened, at most. */
+const PICS_KEPT = 300
 const COLORS = [
   '#f97316',
   '#22c55e',
@@ -77,6 +85,9 @@ export interface ShareDeps {
   createSpace: () => { id: number }
   /** A tab's title, for the card the others see of it. */
   tabTitle: (tabId: number) => string
+  /** A tab's picture (a JPEG data address) and when it was taken; null and 0 when it has none. */
+  thumbOf: (tabId: number) => string | null
+  thumbAt: (tabId: number) => number
 }
 
 export class ShareService {
@@ -109,8 +120,76 @@ export class ShareService {
   }
 
   /** This person's tabs go into the room with their titles (see TabMirror). */
-  private get tabsOut(): { by: string; title: (id: number) => string } {
-    return { by: this.who, title: (id) => this.d.tabTitle(id) }
+  private tabsOut(spaceId: number): {
+    by: string
+    title: (id: number) => string
+    pic: (id: number) => string | undefined
+  } {
+    return {
+      by: this.who,
+      title: (id) => this.d.tabTitle(id),
+      pic: (id) => this.sentPics.get(`${spaceId}:${id}`)?.id
+    }
+  }
+
+  /** This person's tabs' pictures sent to each room: by space and tab, the store id and when the picture was taken. */
+  private sentPics = new Map<string, { id: string; at: number; sent: number }>()
+  /** Pictures of the others' tabs, opened, by store id (image addresses), and those on their way. */
+  private pics = new Map<string, string>()
+  private picsComing = new Set<string>()
+  private picTimer: NodeJS.Timeout | null = null
+
+  /**
+   * Every little while: the pictures of this person's tabs in each shared space that changed since they last went
+   * (one tab at most every PIC_EVERY_MS, a few per round), shrunk and sealed into the room's store. The tab's card
+   * in the room then names it, and the others see the page as it looks.
+   */
+  private async sendPics(): Promise<void> {
+    let budget = PICS_PER_ROUND
+    for (const room of this.rooms.values()) {
+      if (room.status !== 'live' || !room.last) continue
+      let changed = false
+      for (const c of room.last.cards) {
+        if (budget <= 0) break
+        if (c.id <= 0 || c.private) continue
+        const key = `${room.spaceId}:${c.id}`
+        const at = this.d.thumbAt(c.id)
+        const was = this.sentPics.get(key)
+        if (!at || (was && (at <= was.at || Date.now() - was.sent < PIC_EVERY_MS))) continue
+        const data = this.d.thumbOf(c.id)
+        if (!data) continue
+        const img = nativeImage.createFromDataURL(data)
+        if (img.isEmpty()) continue
+        budget--
+        const jpeg = img.resize({ width: PIC_WIDTH, quality: 'good' }).toJPEG(PIC_QUALITY)
+        const id = await room.client.putBlob(new Uint8Array(jpeg))
+        if (!id || !this.rooms.has(room.spaceId)) continue
+        this.sentPics.set(key, { id, at, sent: Date.now() })
+        changed = true
+      }
+      // the cards name their pictures now: the tabs go into the room again (nothing else changed)
+      if (changed && room.last)
+        writeDiff(room.doc, room.last, room.last, LOCAL, this.tabsOut(room.spaceId))
+    }
+  }
+
+  /** A picture of someone else's tab, once it is here; asked for the first time it is wanted. */
+  private picOf(room: Room): (id: string) => string | undefined {
+    return (id) => {
+      const have = this.pics.get(id)
+      if (have !== undefined || this.picsComing.has(id)) return have
+      this.picsComing.add(id)
+      void room.client
+        .getBlob(id)
+        .then((bytes) => {
+          if (!bytes) return
+          if (this.pics.size >= PICS_KEPT) this.pics.delete(this.pics.keys().next().value!)
+          this.pics.set(id, 'data:image/jpeg;base64,' + Buffer.from(bytes).toString('base64'))
+          if (this.rooms.get(room.spaceId) === room) this.applySoon(room)
+        })
+        .finally(() => this.picsComing.delete(id))
+      return undefined
+    }
   }
 
   /** The name the others see (every room is told at once). */
@@ -135,6 +214,7 @@ export class ShareService {
 
   /** Every shared space connects once the window is up. */
   init(): void {
+    this.picTimer ??= setInterval(() => void this.sendPics(), PIC_TICK_MS)
     for (const [id, saved] of Object.entries(this.store.value.rooms)) {
       const spaceId = Number(id)
       if (this.d.spaces.get(spaceId)) this.open(spaceId, saved)
@@ -219,7 +299,10 @@ export class ShareService {
     room.applyTimer = setTimeout(() => {
       const base =
         room.last ?? this.d.canvas.load(room.spaceId).state ?? emptyState(this.d.canvas.boot)
-      const next = { ...readInto(room.doc, base, this.who), seq: sharedSeq(base.seq, room.doc.clientID) }
+      const next = {
+        ...readInto(room.doc, base, this.who, this.picOf(room)),
+        seq: sharedSeq(base.seq, room.doc.clientID)
+      }
       this.d.canvas.saveQuiet(room.spaceId, next)
       const n = ++room.sentN
       room.sent.set(n, next)
@@ -233,7 +316,7 @@ export class ShareService {
   onLocalSave(spaceId: number, state: CanvasState): void {
     const room = this.rooms.get(spaceId)
     if (!room) return
-    writeDiff(room.doc, room.last, state, LOCAL, this.tabsOut)
+    writeDiff(room.doc, room.last, state, LOCAL, this.tabsOut(spaceId))
     room.last = state
     // the room has changes this board was not made with: the two together go back to it
     if (room.sentN > room.tookN) this.applySoon(room)

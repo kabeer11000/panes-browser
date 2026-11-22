@@ -73,6 +73,8 @@ export interface TabMirror {
   card: CanvasCard
   title: string
   by: string
+  /** Its picture in the room's store (sealed), when the owner has sent one. */
+  pic?: string
 }
 
 const isShared = (c: CanvasCard): boolean => c.id < 0 && !isMirror(c.id)
@@ -115,8 +117,8 @@ export function writeDiff(
   prev: CanvasState | null,
   next: CanvasState,
   origin?: unknown,
-  /** This person's tabs go to the others too (see TabMirror): who they are, and each tab's title. */
-  tabs?: { by: string; title: (id: number) => string }
+  /** This person's tabs go to the others too (see TabMirror): who they are, each tab's title and picture. */
+  tabs?: { by: string; title: (id: number) => string; pic?: (id: number) => string | undefined }
 ): void {
   const was = prev ? sharedOf(prev) : null
   const now = sharedOf(next)
@@ -135,7 +137,7 @@ export function writeDiff(
       }
       if (before) for (const id of before.keys()) if (!after.has(id)) map.delete(id)
     }
-    if (tabs) writeTabs(doc, next, tabs.by, tabs.title)
+    if (tabs) writeTabs(doc, next, tabs.by, tabs.title, tabs.pic)
   }, origin)
 }
 
@@ -144,14 +146,23 @@ export function writeDiff(
  * theirs that is gone. Reconciled whole each time, not diffed: tab ids start again when Panes does, and the last
  * run's would otherwise stay on everyone's board.
  */
-function writeTabs(doc: Y.Doc, s: CanvasState, by: string, title: (id: number) => string): void {
+function writeTabs(
+  doc: Y.Doc,
+  s: CanvasState,
+  by: string,
+  title: (id: number) => string,
+  pic?: (id: number) => string | undefined
+): void {
   const map = doc.getMap<TabMirror>('tabs')
   const mine = new Set<string>()
   for (const c of s.cards) {
     if (c.id <= 0 || c.private || !/^https?:/i.test(c.url)) continue
     const key = `${by}:${c.id}`
     mine.add(key)
-    const v: TabMirror = { card: c, title: title(c.id), by }
+    const p = pic?.(c.id)
+    const v: TabMirror = p
+      ? { card: c, title: title(c.id), by, pic: p }
+      : { card: c, title: title(c.id), by }
     if (!same(map.get(key), v)) map.set(key, v)
   }
   for (const [key, v] of map) if (v.by === by && !mine.has(key)) map.delete(key)
@@ -169,7 +180,13 @@ function listOf<K extends Kind>(doc: Y.Doc, kind: K): Kinds[K][] {
  * The board from the document, with this person's own parts of `local` kept: their tabs' cards (and arrows to
  * them), their view, what they have open, how pages show for them.
  */
-export function readInto(doc: Y.Doc, local: CanvasState, me?: string): CanvasState {
+export function readInto(
+  doc: Y.Doc,
+  local: CanvasState,
+  me?: string,
+  /** A picture from the room's store, as an image address, once it is here (undefined until then). */
+  picOf?: (id: string) => string | undefined
+): CanvasState {
   const shared = listOf(doc, 'cards')
   const own = local.cards.filter((c) => !isShared(c) && !isMirror(c.id))
   const ownIds = new Set(own.map((c) => c.id))
@@ -183,7 +200,12 @@ export function readInto(doc: Y.Doc, local: CanvasState, me?: string): CanvasSta
     if (v.by === me) return
     const id = mirrorId(key)
     mirrors.push({ ...v.card, id, private: false })
-    items[String(id)] = itemFor(v.card.url, v.title, { source: 'tab' })
+    const image = v.pic ? picOf?.(v.pic) : undefined
+    items[String(id)] = itemFor(
+      v.card.url,
+      v.title,
+      image ? { source: 'tab', image } : { source: 'tab' }
+    )
   })
   const sharedIds = new Set(shared.map((x) => x.card.id))
   // an own arrow is one that touches one of this person's tab cards
