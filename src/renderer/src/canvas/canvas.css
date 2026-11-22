@@ -3470,8 +3470,11 @@
   text-align: left;
 }
 .cv-mt.auto .cv-mt-in {
-  max-width: none;
-  white-space: pre;
+  /* past this a line wraps: a pasted page of links made a label thousands of pixels wide (and the board stopped
+     painting part of the window). In em, so a heading's cap grows with it; a fixed width, not the box's, so the
+     measure below stays free of the old width. */
+  max-width: 48em;
+  white-space: pre-wrap;
   /* measured for the label's width (Marks.tsx fit): shrunk to the old width, it grew 2px per render and a pasted
      line ran past React's update limit (blank board) */
   flex-shrink: 0;

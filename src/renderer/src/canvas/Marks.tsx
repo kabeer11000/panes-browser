@@ -5,6 +5,7 @@ import {
   HEADING_MIN,
   isBlock,
   isShape,
+  MARK_TEXT_MAX,
   parseTable,
   shapePath,
   tableText,
@@ -309,6 +310,17 @@ function Label({
             suppressContentEditableWarning
             onPointerDown={(e) => e.stopPropagation()}
             onInput={() => fitRef.current()}
+            onPaste={(e) => {
+              // plain text, and only as much as the label keeps (MARK_TEXT_MAX): the rest would vanish on save
+              e.preventDefault()
+              e.stopPropagation()
+              const el = e.currentTarget
+              const sel = window.getSelection()
+              const chosen = sel && el.contains(sel.anchorNode) ? sel.toString().length : 0
+              const room = MARK_TEXT_MAX - (el.innerText.length - chosen)
+              const text = e.clipboardData.getData('text/plain').replace(/\r\n?/g, '\n')
+              if (room > 0 && text) document.execCommand('insertText', false, text.slice(0, room))
+            }}
             onKeyDown={(e) => {
               e.stopPropagation()
               if (e.key === 'Escape') {
