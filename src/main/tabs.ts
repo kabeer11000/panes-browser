@@ -4,6 +4,7 @@ import {
   clipboard,
   dialog,
   Menu,
+  Notification,
   nativeTheme,
   powerMonitor,
   shell,
@@ -62,6 +63,7 @@ import {
   type TabAttention
 } from '@shared/attention'
 import { NOTIFY_PREFIX, parseNotify } from '@shared/notify'
+import type { WorkerNote } from '@shared/swNotify'
 import { ESC_SCRIPT, isPreviewEsc } from '@shared/previewEsc'
 import { TaskbarAttention } from './attention'
 import { dumpableTabs, type TabDump } from '@shared/dumps'
@@ -2732,6 +2734,50 @@ export class TabManager {
     this.refresh()
   }
 
+  /** Toasts shown for workers' notifications, held until done (a toast let go of loses its click). */
+  private workerToasts = new Set<Notification>()
+
+  /**
+   * A site's service worker showed a notification (main/index.ts, allowed sites only): its newest tab is marked as a
+   * page's own notification marks it, and the toast Electron would have dropped is shown; a click brings the tab up,
+   * or opens where the notification points (the site, if it said nowhere) when no tab of it is open.
+   */
+  workerNotification(origin: string, note: WorkerNote): void {
+    let tabId: number | null = null
+    let newest = -1
+    for (const [id, t] of this.tabs) {
+      if (t.private || t.tor) continue
+      const url = t.pending?.url || liveContents(t)?.getURL() || ''
+      if (!url.startsWith(origin + '/') && url !== origin) continue
+      if ((t.usedAt ?? 0) > newest) {
+        newest = t.usedAt ?? 0
+        tabId = id
+      }
+    }
+    const tab = tabId === null ? undefined : this.tabs.get(tabId)
+    if (tab && tabId !== null) {
+      tab.attention = noteNotification(
+        tab.attention,
+        { title: note.title, body: note.body },
+        this.looking(tabId),
+        Date.now()
+      )
+      this.refresh()
+    }
+    if (!Notification.isSupported()) return
+    const toast = new Notification({ title: note.title || displayHost(origin), body: note.body })
+    this.workerToasts.add(toast)
+    const done = (): void => void this.workerToasts.delete(toast)
+    toast.on('close', done)
+    toast.on('click', () => {
+      done()
+      if (tabId !== null && this.tabs.has(tabId)) return this.showFromNotification(tabId)
+      const id = this.create(note.url ?? origin)
+      this.showFromNotification(id)
+    })
+    toast.show()
+  }
+
   /** The tab's page is in the board's preview (its own page or a split's other pane). */
   private inPreview(id: number): boolean {
     return this.canvasMode && (id === this.liveId || this.companions.has(id))
@@ -3523,6 +3569,12 @@ export class TabManager {
       void wc.loadURL(errorPageUrl(url, code, desc, back, theme)).catch(() => {})
     })
     wc.on('did-navigate', () => {
+      // The blank page a new view is primed with (identity.ts) is no page of the person's: going back reached it
+      // (about:blank, after the first real page). Out of the history once a page has come after it, as in Chrome,
+      // where back stops at the first page.
+      const h = wc.navigationHistory
+      if (h.getActiveIndex() > 0 && h.getEntryAtIndex(0)?.url === 'about:blank')
+        h.removeEntryAtIndex(0)
       // A new document: the notifications told of so far were the old one's. Not on starting to navigate: a
       // navigation that turns into a download leaves the old document in place.
       tab.notes = null
