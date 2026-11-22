@@ -107,7 +107,8 @@ if (location.protocol === 'panes:') {
       return () => ipcRenderer.removeListener('int:passwords-imported', listener)
     },
     deleteImportedPasswordsFile: () => ipcRenderer.invoke('int:import-passwords-delete'),
-    importBookmarksFile: () => ipcRenderer.invoke('int:import-bookmarks-file')
+    importBookmarksFile: () => ipcRenderer.invoke('int:import-bookmarks-file'),
+    certProceed: (url) => ipcRenderer.invoke('int:cert-proceed', url)
   }
   contextBridge.exposeInMainWorld('panesInternal', api)
 } else {

@@ -923,6 +923,8 @@ export interface InternalApi {
   deleteImportedPasswordsFile(): Promise<boolean>
   /** Pick a bookmarks HTML export and import it; null when no file was picked. */
   importBookmarksFile(): Promise<number | null>
+  /** On the error page for an untrusted certificate: let this site through for the rest of the run. */
+  certProceed(url: string): Promise<boolean>
 }
 
 export type ImportItem = 'bookmarks' | 'history' | 'search' | 'tabs'

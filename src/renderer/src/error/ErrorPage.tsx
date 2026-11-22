@@ -155,6 +155,11 @@ export function ErrorPage(): React.JSX.Element {
   }
 
   const quitGame = useCallback(() => setPlaying(false), [])
+  // an untrusted certificate: Chrome's way past it, behind Advanced, for this run only
+  const [advanced, setAdvanced] = useState(false)
+  const proceed = async (): Promise<void> => {
+    if (target && (await window.panesInternal.certProceed(params.url))) location.replace(target)
+  }
 
   return (
     <main className={'err kind-' + info.kind}>
@@ -185,6 +190,26 @@ export function ErrorPage(): React.JSX.Element {
           Go back
         </button>
       </div>
+
+      {info.kind === 'cert' && target && (
+        <div className="err-advanced">
+          {advanced ? (
+            <>
+              <p>
+                Someone may be pretending to be <b>{host}</b> to read what you send it. Go on only
+                if you know this site (a router&apos;s page, a server of your own).
+              </p>
+              <button type="button" className="err-link danger" onClick={() => void proceed()}>
+                Proceed to {host} (unsafe)
+              </button>
+            </>
+          ) : (
+            <button type="button" className="err-link" onClick={() => setAdvanced(true)}>
+              Advanced
+            </button>
+          )}
+        </div>
+      )}
 
       <ul className="err-tips">
         {info.tips.map((t) => (

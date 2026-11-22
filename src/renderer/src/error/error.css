@@ -323,3 +323,32 @@ body {
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
+
+/* an untrusted certificate: the way past it, quiet until asked for */
+.err-advanced {
+  max-width: 440px;
+  margin: 4px auto 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--fg-dim, #888);
+}
+.err-advanced p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+.err-link {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: none;
+  cursor: pointer;
+}
+.err-link:hover {
+  color: var(--fg, #fff);
+}
+.err-link.danger {
+  color: #e5484d;
+}

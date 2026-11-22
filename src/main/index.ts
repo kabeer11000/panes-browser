@@ -63,6 +63,7 @@ import { TabManager } from './tabs'
 import { registerTouchpad } from './touchpad'
 import { NavGestures } from './gestures'
 import { installBluetoothPicker, installDevicePickers } from './devices'
+import { installCertBypass } from './certs'
 import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
 import { registerOffscreenInput } from './offscreenPage'
@@ -335,6 +336,7 @@ function createWindow(): void {
   // USB, HID, serial and Bluetooth devices: Chrome's chooser, in every session tabs use
   for (const ses of [tabSession, privateSession, torSession]) installDevicePickers(ses)
   installBluetoothPicker()
+  installCertBypass()
   for (const s of [tabSession, privateSession, torSession]) watchCertificates(s)
   const sites = new SiteSettings({
     settings,
