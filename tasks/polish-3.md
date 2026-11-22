@@ -31,7 +31,20 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Space selector (top left): redesign.
 - [ ] Space settings button: redesign, intuitive.
 
+- [x] Notifications + recent + now playing: user picked "Top strip everywhere" (2026-11-22). One strip, board top
+      centre and preview header: playing chip, recent tabs, waiting tabs; message words drop below (board) or float
+      beside (preview). Deck, bell and playing pill removed. (ea6a2c7)
+- [x] Perf: beta.108 card tag + shade cost 25-30% GPU in pan/zoom (A/B measured). Tag now hover-only, flat. (f4440d8)
+      SpaceSwitcher memoised (its layout animation re-measured on board renders mid-pan).
+- [ ] Cards "better looking", not just bigger/no rim: user not satisfied yet. Needs a design pass (measure GPU!).
+
 ## C. Web platform parity (plan, then build)
+
+- [x] window.open(url) returns a live window; the new page is a tab still linked to its opener (6d8e669).
+- [ ] beforeunload: no will-prevent-unload handler (closing a tab with unsaved work).
+- [ ] Device pickers: WebUSB/HID/Serial/Bluetooth have no select-* handlers (requests fail).
+- [ ] Certificate errors: no interstitial with proceed.
+- [ ] navigator.registerProtocolHandler: unsupported.
 
 - [ ] Audit what Chrome supports that Panes breaks or lacks; write the list here with a test page per item.
       BroadcastChannel / tab-to-tab (window.opener, postMessage, SharedWorker, storage events), native app
@@ -45,4 +58,5 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 
 ## Log
 
+- beta.109: spaces row, corner fix, window.open. beta.110: tab strip, card perf.
 - beta.106: swipe, preview Enter. beta.107: deck, toast click. beta.108: calls, cards.

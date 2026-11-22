@@ -147,6 +147,8 @@ const SNAPSHOT_TIMEOUT_MS = 250 // overlays open without waiting longer than thi
 const HOLD_AFTER_READY_MS = 800
 /** While a tab shows a capture, how often it looks again for frames that went away without saying so. */
 const CAPTURE_RECHECK_MS = 2000
+/** How long a page closed by the person has to run its beforeunload before it is closed anyway. */
+const UNLOAD_WAIT_MS = 1500
 /**
  * Resolves two frames after the page's first contentful paint (at once if that is past): what a browser waits for
  * before it swaps the old picture for a new page (paint holding), so the page is never seen drawing itself in.
@@ -1062,6 +1064,9 @@ export class TabManager {
 
   /** Pages Panes closed itself (a tab closed or unloaded): their going is not the page closing its own tab. */
   private closedByUs = new WeakSet<WebContents>()
+  /** Pages asked to unload for a close (see close's `ask`), and those whose person chose to stay on them. */
+  private unloadAsked = new WeakSet<WebContents>()
+  private unloadStayed = new WeakSet<WebContents>()
 
   create(
     input = '',
@@ -1274,9 +1279,32 @@ export class TabManager {
     }
   }
 
-  close(id: number): void {
+  /**
+   * Close a tab. `ask`: the person closed it (a close button, Ctrl+W), so the page may ask to stay first, as in
+   * Chrome (unsaved work): it runs its beforeunload, and the tab goes once the page has gone (the destroyed handler in
+   * wire closes it then), or stays if they choose to. A page that does not answer in time is closed anyway.
+   */
+  close(id: number, ask = false): void {
     const tab = this.tabs.get(id)
     if (!tab) return
+    const page = liveContents(tab)
+    if (
+      ask &&
+      page &&
+      !tab.unloaded &&
+      tab.rest === 'awake' && // a frozen page cannot answer: it would only make the close wait
+      /^https?:/i.test(page.getURL())
+    ) {
+      if (this.unloadAsked.has(page)) return // already asking
+      this.unloadAsked.add(page)
+      page.close({ waitForBeforeUnload: true })
+      setTimeout(() => {
+        this.unloadAsked.delete(page)
+        const stayed = this.unloadStayed.delete(page)
+        if (!stayed && !page.isDestroyed() && this.tabs.get(id) === tab) this.close(id)
+      }, UNLOAD_WAIT_MS)
+      return
+    }
     if (this.pip.tabId === id) this.pip.stop() // the page must be back in this window before it is closed
     const url = tab.pending?.url || liveContents(tab)?.getURL()
     if (url && !tab.private) this.closedUrls.push(url)
@@ -2130,7 +2158,7 @@ export class TabManager {
       'new-private': () => this.newPrivateTab(),
       'new-tor': () => this.newTorTab(),
       reopen: () => this.reopenClosed(),
-      'close-tab': () => active !== null && this.close(active),
+      'close-tab': () => active !== null && this.close(active, true),
       'close-others': () => this.closeOthers(),
       duplicate: () => active !== null && this.duplicate(active),
       pin: () => tab && active !== null && this.setPinned(active, !tab.pinned),
@@ -3249,6 +3277,23 @@ export class TabManager {
     wc.once('destroyed', () => {
       if (!this.closedByUs.has(wc) && this.tabs.get(id) === tab) this.close(id)
     })
+    // A page asking to stay (unsaved work in a form or an editor) as it is closed or left: Chrome's question. With
+    // no answer here Electron keeps the page, so typing an address or a link did nothing at all.
+    wc.on('will-prevent-unload', (e) => {
+      if (this.win.isDestroyed()) return e.preventDefault()
+      const choice = dialog.showMessageBoxSync(this.win, {
+        type: 'question',
+        buttons: ['Leave', 'Stay'],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+        title: 'Leave site?',
+        message: 'Leave site?',
+        detail: 'Changes you made may not be saved.'
+      })
+      if (choice === 0) e.preventDefault()
+      else if (this.unloadAsked.has(wc)) this.unloadStayed.add(wc)
+    })
     // A page whose renderer died (crashed, out of memory) shows a "this page crashed" page with Reload, as Chrome's
     // sad tab does, instead of its last frame frozen on screen.
     wc.on('render-process-gone', (_e, d) => {
@@ -3642,10 +3687,10 @@ export class TabManager {
         if (id !== null) {
           // the preview's own page: the preview closes with it; a split's other pane: only that pane goes
           if (!this.companions.has(id)) this.send('canvas:preview-key', 'back')
-          this.close(id)
+          this.close(id, true)
         } else handled = false
-      } else if (k === 'w' && this.activeId !== null) this.close(this.activeId)
-      else if (k === 'f4' && this.activeId !== null) this.close(this.activeId)
+      } else if (k === 'w' && this.activeId !== null) this.close(this.activeId, true)
+      else if (k === 'f4' && this.activeId !== null) this.close(this.activeId, true)
       else if (k === 'l') this.command('focus-address')
       else if (k === 'r') this.reload()
       else if (k === 'f5') this.reload(true)
@@ -4211,7 +4256,7 @@ export class TabManager {
           this.refresh()
         }
       },
-      { label: 'Close tab', click: () => this.close(id) }
+      { label: 'Close tab', click: () => this.close(id, true) }
     )
     Menu.buildFromTemplate(items).popup({ window: this.win })
   }

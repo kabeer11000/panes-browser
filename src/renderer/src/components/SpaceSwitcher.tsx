@@ -1,5 +1,5 @@
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
-import { useEffect, useId, useState } from 'react'
+import { memo, useEffect, useId, useState } from 'react'
 import type { Space } from '@shared/types'
 import { attentionLabel, badgeText } from '@shared/attention'
 import { useSpaceMarks } from '@renderer/hooks/useSpaceAudio'
@@ -26,7 +26,11 @@ interface Props {
  * One component for the sidebar, the collapsed top bar and the horizontal tab bar, so spaces look and
  * behave the same wherever they appear.
  */
-export function SpaceSwitcher({
+/**
+ * Memoised: on the board it sits in a component that renders again as cards come into view mid-pan, and its avatars'
+ * layout animation measured them all again each time (seen in a pan's profile).
+ */
+export const SpaceSwitcher = memo(function SpaceSwitcher({
   spaces,
   activeSpaceId,
   placement,
@@ -179,4 +183,4 @@ export function SpaceSwitcher({
       </LayoutGroup>
     </div>
   )
-}
+})

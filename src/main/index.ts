@@ -556,7 +556,7 @@ function createWindow(): void {
 
   ipcMain.handle('tabs:get', () => tabs.initialData())
   ipcMain.on('tabs:create', (_e, input?: string) => tabs.create(input))
-  ipcMain.on('tabs:close', (_e, id: number) => tabs.close(id))
+  ipcMain.on('tabs:close', (_e, id: number) => tabs.close(id, true))
   ipcMain.on('tabs:activate', (_e, id: number) => tabs.show(id))
   ipcMain.on('tabs:navigate', (_e, input: string) => tabs.navigate(input))
   ipcMain.on('tabs:back', () => tabs.back())
