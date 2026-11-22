@@ -25,6 +25,7 @@ import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
 import { StripInbox, StripPlaying, StripTab } from './TabStrip'
+import { menuTook } from './useDismiss'
 import { EdgeSwipe, SWIPE_ZONES } from '@shared/edgeSwipe'
 import { Spring, reducedMotion } from '@renderer/motion'
 import './preview.css'
@@ -1217,6 +1218,8 @@ export function Expanded({
       )
         return
       if (e.key === 'Escape') {
+        // a menu over the preview (the notifications, a bar's menu) took this Escape: it closes, the preview stays
+        if (menuTook(e)) return
         e.preventDefault()
         e.stopPropagation()
         close()
@@ -1794,7 +1797,7 @@ export function Expanded({
             ? bodyView
             : (() => {
                 const own = (
-                  <div className="cv-live-slot" ref={slot} key={tab ?? 'own'}>
+                  <div className="cv-live-slot" data-native-view ref={slot} key={tab ?? 'own'}>
                     {/* always under the native view: whenever it is away (in flight, a popover over it, closing),
                       the page is still there in picture, never an empty slot. Decoded with the frame (sync): a
                       picture that came a frame late would be a blank frame */}
@@ -1820,7 +1823,12 @@ export function Expanded({
                       p.tab === tab ? (
                         own
                       ) : (
-                        <div className="cv-live-slot" key={p.tab} ref={paneRef(p.tab)}>
+                        <div
+                          className="cv-live-slot"
+                          data-native-view
+                          key={p.tab}
+                          ref={paneRef(p.tab)}
+                        >
                           {p.snap && <img src={p.snap} alt="" decoding="sync" draggable={false} />}
                         </div>
                       )

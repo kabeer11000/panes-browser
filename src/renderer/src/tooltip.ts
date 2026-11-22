@@ -65,8 +65,19 @@ function place(el: Element): boolean {
   const vh = document.documentElement.clientHeight
   // a control slid out of sight (a hidden sidebar, a scrolled list): no label floating over nothing
   if (r.width === 0 || r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) return false
-  // never wider than the window allows (a small popover window gets a wrapped label, never a cut one)
-  tip.style.maxWidth = `${Math.max(80, Math.min(320, vw - 2 * EDGE))}px`
+  // a native view (a web page) is drawn over this whole document: a label there is never seen
+  const pages = [...document.querySelectorAll('[data-native-view]')].map((n) =>
+    n.getBoundingClientRect()
+  )
+  // never wider than the window allows (a small popover window gets a wrapped label, never a cut one), nor than the
+  // strip beside a page the control sits in (the sidebar next to the page: wrapped there, never under the page)
+  let span = vw - 2 * EDGE
+  for (const b of pages) {
+    if (r.top >= b.bottom || r.bottom <= b.top) continue
+    if (r.right <= b.left) span = Math.min(span, b.left - 2 * EDGE)
+    else if (r.left >= b.right) span = Math.min(span, vw - b.right - 2 * EDGE)
+  }
+  tip.style.maxWidth = `${Math.max(80, Math.min(320, span))}px`
   const w = tip.offsetWidth
   const h = tip.offsetHeight
   const room = { above: r.top - GAP - EDGE, below: vh - r.bottom - GAP - EDGE }
@@ -75,18 +86,46 @@ function place(el: Element): boolean {
   const below = wantBelow
     ? room.below >= h || room.below >= room.above
     : room.above < h && room.below > room.above
-  let y = below ? r.bottom + GAP : r.top - GAP - h
-  // neither side has room (a tiny window): keep it inside, over the edge of the control rather than cut off
-  y = Math.max(EDGE, Math.min(vh - EDGE - h, y))
+  const clampY = (y: number): number => Math.max(EDGE, Math.min(vh - EDGE - h, y))
   // centred on the visible part of the control, held inside the window
   const cx = (Math.max(r.left, 0) + Math.min(r.right, vw)) / 2
-  const x = Math.max(EDGE, Math.min(vw - EDGE - w, cx - w / 2))
+  const clampX = (x: number): number => Math.max(EDGE, Math.min(vw - EDGE - w, x))
+  // Try the preferred
+  // side, the other side, then over the control itself, each slid sideways off any page if it can be; the first
+  // that is clear wins. With no page on screen the first one always is.
+  const hits = (x: number, y: number): DOMRect | undefined =>
+    pages.find((b) => x < b.right && x + w > b.left && y < b.bottom && y + h > b.top)
+  const clear = (y: number): { x: number; y: number } | null => {
+    let x = clampX(cx - w / 2)
+    const b = hits(x, y)
+    if (b)
+      x =
+        b.left - EDGE - w >= EDGE
+          ? Math.min(x, b.left - EDGE - w)
+          : clampX(Math.max(x, b.right + EDGE))
+    return hits(x, y) ? null : { x, y }
+  }
+  const sides = [below, !below]
+  const tries = [
+    ...sides.map((b) => ({ below: b, y: clampY(b ? r.bottom + GAP : r.top - GAP - h) })),
+    { below, y: clampY(r.top + r.height / 2 - h / 2) }
+  ]
+  let spot = { below, x: clampX(cx - w / 2), y: tries[0].y }
+  for (const t of tries) {
+    const c = clear(t.y)
+    if (c) {
+      spot = { below: t.below, ...c }
+      break
+    }
+  }
+  const { x, y } = spot
+  const isBelow = spot.below
   tip.style.setProperty('--x', `${Math.round(x)}px`)
   tip.style.setProperty('--y', `${Math.round(y)}px`)
-  tip.style.setProperty('--from', below ? '-4px' : '4px')
+  tip.style.setProperty('--from', isBelow ? '-4px' : '4px')
   // the little lift starts from the control's side of the label, under the control even when the label is pushed in
   const ox = Math.max(8, Math.min(w - 8, cx - x))
-  tip.style.transformOrigin = `${Math.round(ox)}px ${below ? '0' : '100%'}`
+  tip.style.transformOrigin = `${Math.round(ox)}px ${isBelow ? '0' : '100%'}`
   return true
 }
 

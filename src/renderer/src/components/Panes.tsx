@@ -362,7 +362,7 @@ function Pane({
           </button>
         </div>
       )}
-      <div className="pane-body" data-tab-id={tab.id}>
+      <div className="pane-body" data-native-view data-tab-id={tab.id}>
         {!tab.url && (
           <NewTab
             photo={newTabPhoto && !tab.private && !tab.tor}

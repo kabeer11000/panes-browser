@@ -20,7 +20,11 @@
   transform-origin: 0 0;
   will-change: transform, opacity;
 }
+/* its own layer (will-change): lifted over the body, or the page drawn off screen in the body covers what drops
+   from the header (the notifications list, menus) */
 .cv-expand > .cv-panel > .cv-panel-head {
+  position: relative;
+  z-index: 2;
   will-change: opacity;
 }
 
