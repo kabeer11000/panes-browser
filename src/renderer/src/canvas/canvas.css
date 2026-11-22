@@ -1051,15 +1051,12 @@
 /* ---- toast, empty ---- */
 /* ---- what plays on the board: one pill, top right (clear of the conversation column) ---- */
 .cv-playing {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 12;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 1px;
   width: max-content;
-  max-width: min(360px, 42%);
+  max-width: 100%;
   padding: 3px;
   border-radius: 12px;
   color: #fff;
@@ -1068,7 +1065,24 @@
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
   animation: cv-fade 0.2s ease-out both;
 }
-.cv.docked .cv-playing {
+/* the board's top-right corner (Canvas.tsx): what plays, then the notification deck, one under the other */
+.cv-corner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: min(360px, 42%);
+  pointer-events: none; /* only its contents take clicks: the board under the gap stays usable */
+  transition: right 0.34s var(--ease);
+}
+.cv-corner > * {
+  pointer-events: auto;
+}
+.cv.docked .cv-corner {
   right: calc(min(var(--dock-w, 380px), calc(100% - 120px)) + 8px);
 }
 /* one line each: the latest on top (with how many more), the rest below it when opened */
@@ -3067,16 +3081,8 @@
 }
 /* on the board: a floating stack in the top-right corner, two lines (who, then what), roomier */
 .cv-bell.board {
-  position: absolute;
-  top: 10px;
-  right: 14px;
-  z-index: 12;
   height: auto;
-  transition: right 0.34s var(--ease);
   animation: cv-attn-in var(--dur) var(--ease) both;
-}
-.cv.docked .cv-bell.board {
-  right: calc(min(var(--dock-w, 380px), calc(100% - 120px)) + 14px);
 }
 .cv-bell.board .cv-deck {
   height: 46px;
@@ -3355,12 +3361,10 @@
     translate 0.22s var(--ease),
     left 0.34s var(--ease); /* moves over as the conversation dock slides in or out, with it */
 }
-.cv-playing {
-  transition: right 0.34s var(--ease);
-}
+
 /* resizing the dock by its edge: they follow the pointer, not a beat behind it */
 .cv:has(.cv-dock-rz.on) .cv-bar,
-.cv:has(.cv-dock-rz.on) .cv-playing {
+.cv:has(.cv-dock-rz.on) .cv-corner {
   transition: none;
 }
 .cv.reading .cv-bar {
@@ -3372,7 +3376,7 @@
   .cv-bar {
     transition: opacity var(--dur-fast);
   }
-  .cv-playing {
+  .cv-corner {
     transition: none;
   }
   .cv.reading .cv-bar {

@@ -6062,47 +6062,52 @@ export function Canvas({
           toastNow(said ? `Undid: ${said}` : 'Nothing to undo')
         }}
       />
-      {phase === 'open' && !expanded && quick === null && (
-        <PreviewInbox
-          variant="board"
-          tabs={waiting}
-          open={deckOpen}
-          onOpen={() => setDeckOpen(true)}
-          onClose={() => setDeckOpen(false)}
-          onPick={(id) => {
-            setDeckOpen(false)
-            openWaiting(id)
-          }}
-        />
-      )}
-      {playing.length > 0 && phase === 'open' && !expanded && (
-        <div
-          className={'cv-playing' + (playList ? ' open' : '')}
-          role="group"
-          aria-label="Playing on the board"
-          ref={playBox}
-        >
-          <div className="cv-playing-row">
-            <PlayingItem t={playing[0]} onGo={goToPlaying} onForget={forgetPlaying} />
-            {playing.length > 1 && (
-              <button
-                type="button"
-                className="cv-playing-more"
-                aria-expanded={playList}
-                aria-label={`${playing.length - 1} more playing`}
-                title="Everything playing on the board"
-                onClick={() => setPlayList((o) => !o)}
-              >
-                +{playing.length - 1}
-              </button>
-            )}
-          </div>
-          {playList &&
-            playing
-              .slice(1)
-              .map((t) => (
-                <PlayingItem key={t.id} t={t} onGo={goToPlaying} onForget={forgetPlaying} />
-              ))}
+      {/* the top-right corner: what plays, then what waits, stacked in one column so neither covers the other */}
+      {phase === 'open' && !expanded && (
+        <div className="cv-corner">
+          {quick === null && (
+            <PreviewInbox
+              variant="board"
+              tabs={waiting}
+              open={deckOpen}
+              onOpen={() => setDeckOpen(true)}
+              onClose={() => setDeckOpen(false)}
+              onPick={(id) => {
+                setDeckOpen(false)
+                openWaiting(id)
+              }}
+            />
+          )}
+          {playing.length > 0 && (
+            <div
+              className={'cv-playing' + (playList ? ' open' : '')}
+              role="group"
+              aria-label="Playing on the board"
+              ref={playBox}
+            >
+              <div className="cv-playing-row">
+                <PlayingItem t={playing[0]} onGo={goToPlaying} onForget={forgetPlaying} />
+                {playing.length > 1 && (
+                  <button
+                    type="button"
+                    className="cv-playing-more"
+                    aria-expanded={playList}
+                    aria-label={`${playing.length - 1} more playing`}
+                    title="Everything playing on the board"
+                    onClick={() => setPlayList((o) => !o)}
+                  >
+                    +{playing.length - 1}
+                  </button>
+                )}
+              </div>
+              {playList &&
+                playing
+                  .slice(1)
+                  .map((t) => (
+                    <PlayingItem key={t.id} t={t} onGo={goToPlaying} onForget={forgetPlaying} />
+                  ))}
+            </div>
+          )}
         </div>
       )}
       <AiGlow level={busy ? 2 : naming > 0 ? 1 : 0} />

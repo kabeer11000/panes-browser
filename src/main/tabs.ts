@@ -925,9 +925,15 @@ export class TabManager {
       this.deps.settings.get().offscreenPages &&
       app.isHardwareAccelerationEnabled() &&
       !app.isAccessibilitySupportEnabled()
-    const view: TabView = offscreen
-      ? new OffscreenPage(this.win, webPreferences)
-      : new WebContentsView({ webPreferences })
+    return this.placeView(
+      offscreen
+        ? new OffscreenPage(this.win, webPreferences)
+        : new WebContentsView({ webPreferences })
+    )
+  }
+
+  /** A tab's view, made or adopted, set up the same way: rounded, hidden, sized to the tab area, in the window. */
+  private placeView(view: TabView): TabView {
     view.setBorderRadius(VIEW_RADIUS)
     view.setBackgroundColor('#ffffff')
     // a page loaded out of sight (pre-loading) lays out at its real size, not 0x0: no second layout when shown
@@ -1063,14 +1069,17 @@ export class TabManager {
     spaceId = this.activeSpaceId,
     lazy?: { title: string; favicon: string | null; history?: NavHistory | null },
     isPrivate = false,
-    isTor = false
+    isTor = false,
+    /** A page a script opened (window.open): its view, adopted as it is, still linked to the page that opened it,
+     * and the address it is on its way to (it loads that itself; loading it again would drop a form's POST). */
+    opened?: { view: TabView; url: string }
   ): number {
-    const url = resolveInput(input, this.deps.settings.searchUrl())
+    const url = opened ? '' : resolveInput(input, this.deps.settings.searchUrl())
     const unloaded = !!(url && lazy)
 
     const id = this.nextId++
     const tab: Tab = {
-      view: unloaded ? this.inertView() : this.makeView(isPrivate, isTor),
+      view: opened?.view ?? (unloaded ? this.inertView() : this.makeView(isPrivate, isTor)),
       private: isPrivate || isTor,
       tor: isTor,
       torTarget: null,
@@ -1116,6 +1125,10 @@ export class TabManager {
     }
     this.tabs.set(id, tab)
     if (!unloaded) this.wire(id, tab)
+    if (opened) {
+      tab.hasUrl = true
+      tab.navUrl = opened.url
+    }
 
     if (url) {
       tab.hasUrl = true
@@ -1129,7 +1142,7 @@ export class TabManager {
     // a space browsed with the canvas (or while the canvas board is open) keeps the person on the board
     const toBoard =
       activate &&
-      !!url &&
+      !!(url || opened) &&
       !tab.private &&
       (this.boardBrowsing(spaceId) || (this.canvasMode && spaceId === this.activeSpaceId))
     if (activate && !toBoard) this.activate(id, true)
@@ -3501,6 +3514,16 @@ export class TabManager {
           overrideBrowserWindowOptions: this.popupOptions(features, tabSession)
         }
       }
+      // A tab like any other, but the page that opened it keeps hold of it, as in Chrome: window.open(url) hands
+      // back the new window (sites took the null they got as "pop-up blocked"), and the two can talk.
+      const adopted = this.adoptable(id, url)
+      if (adopted) {
+        return {
+          action: 'allow',
+          outlivesOpener: true,
+          createWindow: (options) => this.adoptOpened(options, url, id).webContents
+        }
+      }
       this.openLink(url, id)
       return { action: 'deny' }
     })
@@ -3510,6 +3533,37 @@ export class TabManager {
         this.openLink(url, id)
       }
     })
+  }
+
+  /**
+   * Whether a page opened from this tab can be adopted as a tab, still linked to its opener: not an address handed to
+   * another app, not from a private or Tor tab (those open through their own paths), not with pages drawn off screen.
+   */
+  private adoptable(from: number, url: string): boolean {
+    const opener = this.tabs.get(from)
+    if (!opener || opener.private || opener.tor || this.externalScheme(url)) return false
+    return !this.deps.settings.get().offscreenPages
+  }
+
+  /** A page a script opened, as a tab (see adoptable): on the board, behind it with an arrow from its opener. */
+  private adoptOpened(
+    options: Electron.BrowserWindowConstructorOptions,
+    url: string,
+    from: number
+  ): TabView {
+    const view = this.placeView(
+      new WebContentsView({
+        webPreferences: options.webPreferences,
+        // Electron's own contents for the new page, made with the opener link: adopted, not replaced
+        webContents: (options as { webContents?: WebContents }).webContents
+      })
+    )
+    const onBoard = this.canvasMode
+    const id = this.create('', !onBoard, this.activeSpaceId, undefined, false, false, { view, url })
+    if (onBoard) this.send('canvas:link-opened', from, id)
+    const group = this.tabs.get(from)?.groupId ?? null
+    if (group !== null) this.addToGroup(id, group)
+    return view
   }
 
   private externalScheme(url: string): boolean {
