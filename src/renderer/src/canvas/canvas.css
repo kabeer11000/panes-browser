@@ -1952,6 +1952,8 @@
 .cv-top .wc {
   width: 10px;
   height: 10px;
+  /* solid on the board: the window's own see-through grey let the board's dots show through them */
+  background: color-mix(in srgb, var(--fg) 26%, var(--popover-bg));
 }
 .cv-top .wc svg {
   width: 6.5px;
