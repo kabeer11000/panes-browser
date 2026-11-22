@@ -30,7 +30,11 @@ export function useShareState(spaceId: number, shared: boolean): ShareState | nu
 export function usePresence(
   spaceId: number,
   shared: boolean
-): { people: SharePerson[]; point: (at: { x: number; y: number } | null) => void } {
+): {
+  people: SharePerson[]
+  me: { name: string; color: string } | null
+  point: (at: { x: number; y: number } | null) => void
+} {
   const state = useShareState(spaceId, shared)
   const pending = useRef<{ x: number; y: number } | null | undefined>(undefined)
   const raf = useRef(0)
@@ -45,5 +49,5 @@ export function usePresence(
       pending.current = undefined
     })
   }
-  return { people: state?.people ?? NOBODY, point }
+  return { people: state?.people ?? NOBODY, me: state?.me ?? null, point }
 }

@@ -64,6 +64,7 @@ import {
 } from '@shared/attention'
 import { NOTIFY_PREFIX, parseNotify } from '@shared/notify'
 import type { WorkerNote } from '@shared/swNotify'
+import { electronKey, type RemoteInput } from '@shared/share/live'
 import { ESC_SCRIPT, isPreviewEsc } from '@shared/previewEsc'
 import { TaskbarAttention } from './attention'
 import { dumpableTabs, type TabDump } from '@shared/dumps'
@@ -535,6 +536,8 @@ export class TabManager {
   private previewTab: number | null = null
   /** Tabs streaming live to their canvas card (setStreaming). */
   private streaming = new Set<number>()
+  /** Tabs shown live to the others in a shared space (main/share.ts): they keep painting wherever they are. */
+  private liveShared = new Set<number>()
   /** Tabs closed, newest last, as they were (Ctrl+Shift+T brings the last back so). */
   /** The preview's page is stepped aside for a popover over it (see setLiveAside). */
   private liveAside = false
@@ -3165,7 +3168,7 @@ export class TabManager {
   streamSource(id: number): string | null {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
-    if (!wc || !this.streaming.has(id)) return null
+    if (!wc || (!this.streaming.has(id) && !this.liveShared.has(id))) return null
     try {
       return wc.getMediaSourceId(this.win.webContents)
     } catch {
@@ -3379,8 +3382,13 @@ export class TabManager {
         !!companion
       // A tab streaming to its card must keep painting. Like captureHidden: shown with only its top-left pixels
       // inside the window's bottom-right corner, which its rounded corner leaves transparent, so none of it is seen.
+      // a tab shown live to others keeps painting too, wherever it is (on screen in the tab view, it is just there)
+      const sharedLive = this.liveShared.has(id) && !(placed && !this.canvasMode && !this.overlay)
       const streamed =
-        this.canvasMode && !live && !liveFull && !tab.unloaded && this.streaming.has(id)
+        !live &&
+        !liveFull &&
+        !tab.unloaded &&
+        ((this.canvasMode && this.streaming.has(id)) || sharedLive)
       const pageRect = streamed ? (this.rects[id] ?? this.activeRect()) : null
       // the live rect is the slot at rest: it rides the hover sidebar's and top bar's slide like any page view
       const liveAt = companion ?? (id === this.liveId ? this.liveRect : null)
@@ -4120,6 +4128,77 @@ export class TabManager {
       this.send('tabs:thumb', id, tab.thumb)
     } catch {
       // closed mid-capture
+    }
+  }
+
+  /**
+   * Show a tab live to the others in a shared space, or stop: it is loaded, kept painting and unthrottled while it is.
+   * False when it cannot be (no such tab, private or Tor).
+   */
+  setLiveShared(id: number, on: boolean): boolean {
+    const t = this.tabs.get(id)
+    if (on && (!t || t.private || t.tor)) return false
+    if (on) {
+      this.liveShared.add(id)
+      this.ensureLoaded(id, t!)
+    } else this.liveShared.delete(id)
+    const wc = t && liveContents(t)
+    if (wc && !wc.isDestroyed())
+      wc.setBackgroundThrottling(!on && id !== this.activeId && !this.streaming.has(id))
+    this.applyVisibility()
+    return true
+  }
+
+  /** The tab's address and title, for those it is shown to. */
+  liveInfo(id: number): { url: string; title: string } | null {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (!t || !wc || wc.isDestroyed()) return null
+    return { url: wc.getURL(), title: wc.getTitle() }
+  }
+
+  /**
+   * Someone the person let take control of a tab shown live (main/share.ts) moved, clicked, scrolled or typed: done to
+   * the page as if here. Positions come as fractions of the page, so the two need not be the same size.
+   */
+  remoteInput(id: number, ev: RemoteInput): void {
+    if (!this.liveShared.has(id)) return
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (!t || !wc || wc.isDestroyed()) return
+    const { width, height } = t.view.getBounds()
+    const at = (v: number, size: number): number => Math.round(Math.min(1, Math.max(0, v)) * size)
+    switch (ev.t) {
+      case 'move':
+      case 'down':
+      case 'up':
+        wc.sendInputEvent({
+          type: ev.t === 'move' ? 'mouseMove' : ev.t === 'down' ? 'mouseDown' : 'mouseUp',
+          x: at(ev.x, width),
+          y: at(ev.y, height),
+          button: ev.b ?? 'left',
+          clickCount: ev.n ?? 1
+        })
+        break
+      case 'wheel':
+        wc.sendInputEvent({
+          type: 'mouseWheel',
+          x: at(ev.x, width),
+          y: at(ev.y, height),
+          deltaX: -ev.dx,
+          deltaY: -ev.dy
+        })
+        break
+      case 'key':
+        wc.sendInputEvent({
+          type: ev.up ? 'keyUp' : 'keyDown',
+          keyCode: electronKey(ev.key),
+          modifiers: ev.mods
+        })
+        break
+      case 'char':
+        wc.sendInputEvent({ type: 'char', keyCode: ev.text })
+        break
     }
   }
 

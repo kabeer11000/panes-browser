@@ -142,6 +142,7 @@ import type { CardModel } from './model'
 import { boardMoving, onBoardMotion } from './boardMotion'
 import { PresenceFaces, RemoteCursors } from './Presence'
 import { ShareButton } from './ShareButton'
+import { LiveShare } from './LiveShare'
 import { usePresence } from '@renderer/components/useShare'
 import { READER } from './model'
 import { ContextMenu, type MenuEntry } from './ContextMenu'
@@ -688,6 +689,18 @@ export function Canvas({
     sharedRef.current = !!thisSpace?.shared
   })
   const presence = usePresence(spaceId, !!thisSpace?.shared)
+  /** The tab this person shows live in this shared space (LiveShare), if any. */
+  const [liveTab, setLiveTab] = useState<number | null>(null)
+  useEffect(() => {
+    let alive = true
+    void window.api.share?.liveTab(spaceId).then((t) => alive && setLiveTab(t))
+    return () => {
+      alive = false
+    }
+  }, [spaceId])
+  const showLive = (tabId: number | null): void => {
+    void window.api.share?.showLive(spaceId, tabId).then((ok) => ok && setLiveTab(tabId))
+  }
   const bootRef = useRef('')
   const tries = useRef(new Map<string, number>())
   const conn = useRef<ConnectorsHandle>(null)
@@ -5236,13 +5249,20 @@ export function Canvas({
           section: card?.frame ?? null,
           sections,
           split: splitRef.current.includes(id),
-          ai: aiAvailable
+          ai: aiAvailable,
+          live:
+            thisSpace?.shared && m.isTab && web && !priv
+              ? liveTab === id
+                ? 'stop'
+                : 'start'
+              : undefined
         }),
         (act) => {
           if (act === 'open') expandRef.current(id, false)
           else if (act === 'live') expandRef.current(id, true)
           else if (act === 'pop') leaveRef.current(id)
           else if (act === 'unsplit') window.api.unsplit()
+          else if (act === 'share-live') showLive(liveTab === id ? null : id)
           else if (act === 'play')
             void window.api.mediaPlay?.(m.id, m.playing ? 'pause' : 'play').catch(() => undefined)
           else if (act === 'mute') window.api.toggleMute(m.id)
@@ -5973,6 +5993,14 @@ export function Canvas({
           </div>
           <PresenceFaces people={presence.people} />
           <ShareButton space={thisSpace} />
+          <LiveShare
+            spaceId={spaceId}
+            shared={!!thisSpace?.shared}
+            people={presence.people}
+            liveTab={liveTab}
+            myName={presence.me?.name ?? 'Someone'}
+            onStop={() => showLive(null)}
+          />
           <UndoHistory
             open={history !== null}
             onOpen={openHistory}

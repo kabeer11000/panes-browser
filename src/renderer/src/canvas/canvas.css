@@ -4878,3 +4878,199 @@
     animation: none;
   }
 }
+
+/* ---- a tab shown live in a shared space (LiveShare.tsx) ---- */
+.live-bar,
+.live-invite {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 6px 0 11px;
+  border-radius: 999px;
+  background: var(--chrome, var(--popover-bg));
+  box-shadow: var(--chrome-edge, inset 0 0 0 0.5px var(--border));
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.live-bar {
+  margin-left: 4px;
+}
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff453a;
+  box-shadow: 0 0 0 3px rgb(255 69 58 / 0.22);
+}
+.live-bar-text {
+  font-weight: 600;
+}
+.live-bar-ask {
+  color: var(--fg-dim);
+}
+.live-btn {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 9%, transparent);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background-color var(--dur-fast);
+}
+.live-btn:hover {
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.live-btn:disabled {
+  opacity: 0.55;
+}
+.live-btn.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.live-btn.on {
+  background: rgb(52 199 89 / 0.18);
+  color: #34c759;
+}
+.live-btn.quiet {
+  background: transparent;
+  color: var(--fg-dim);
+}
+.live-invites {
+  display: flex;
+  gap: 6px;
+  margin-left: 4px;
+}
+.live-invite {
+  cursor: pointer;
+  padding: 0 5px 0 5px;
+}
+.live-invite span {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-invite em {
+  font-style: normal;
+  font-weight: 650;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.live-invite:hover em {
+  filter: brightness(1.08);
+}
+.live-invite:focus-visible,
+.live-btn:focus-visible {
+  outline: var(--ring);
+  outline-offset: 2px;
+}
+
+/* the watcher's panel: the host's tab, large, over the board */
+.live-view {
+  position: fixed;
+  inset: 56px 6% 92px;
+  z-index: 200; /* over the board's notices and toasts: the page is what is being looked at */
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 30px 80px rgb(0 0 0 / 0.5);
+  animation: pop-open 0.22s var(--ease) both;
+}
+.live-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.live-what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.25;
+}
+.live-what span {
+  color: var(--fg-dim);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgb(148 163 184 / 0.16);
+  color: rgb(148 163 184);
+}
+.live-badge i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.live-badge.live {
+  background: rgb(255 69 58 / 0.16);
+  color: #ff453a;
+}
+.live-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--fg-dim);
+  font-size: 20px;
+  line-height: 1;
+}
+.live-close:hover {
+  background: color-mix(in srgb, var(--fg) 9%, transparent);
+  color: var(--fg);
+}
+.live-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  outline: 0;
+}
+.live-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.live-stage.driving {
+  cursor: default;
+  box-shadow: inset 0 0 0 2px #34c759;
+}
+.live-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: rgb(255 255 255 / 0.7);
+  font-size: 13px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-view {
+    animation: none;
+  }
+}

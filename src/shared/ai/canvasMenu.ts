@@ -59,6 +59,8 @@ export interface CardFacts {
   split?: boolean
   /** AI is on and ready (else what needs it is left out of the menu). */
   ai?: boolean
+  /** In a shared space: it can be shown live to everyone ('start'), or it is ('stop'); missing: not offered. */
+  live?: 'start' | 'stop'
 }
 
 export function cardMenu(f: CardFacts): MenuEntry[] {
@@ -69,6 +71,14 @@ export function cardMenu(f: CardFacts): MenuEntry[] {
     { id: 'live', label: 'Open live', disabled: !f.canLive },
     { id: 'pop', label: 'Pop out as a tab', disabled: !f.canPop },
     ...(f.split ? [{ id: 'unsplit', label: 'Unsplit' }] : []),
+    ...(f.live
+      ? [
+          {
+            id: 'share-live',
+            label: f.live === 'stop' ? 'Stop showing it live' : 'Show it live to everyone'
+          }
+        ]
+      : []),
     'sep',
     ...(f.media
       ? [

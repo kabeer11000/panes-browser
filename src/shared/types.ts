@@ -114,6 +114,10 @@ export interface SharePerson {
   color: string
   /** Where their pointer is on the board (board coordinates); null when it is elsewhere. */
   cursor: { x: number; y: number } | null
+  /** Their address at the relay, for a live tab's signals (see shared/share/live.ts); 0 until known. */
+  rtc: number
+  /** The tab they show live, if they do. */
+  live: { title: string; url: string } | null
 }
 
 /** How a shared space is doing. */
@@ -334,6 +338,18 @@ export interface PanesApi {
     cursor(spaceId: number, at: { x: number; y: number } | null): void
     /** The board took board `n` sent with onRemote (0: it opened from disk); its saves are made from it from now on. */
     took(spaceId: number, n: number): void
+    /**
+     * Show a tab live to everyone in a shared space (null stops). The tab keeps painting; its title and address
+     * go to the others. False when it cannot be shown.
+     */
+    showLive(spaceId: number, tabId: number | null): Promise<boolean>
+    /** The tab this person shows live in a space, if any. */
+    liveTab(spaceId: number): Promise<number | null>
+    /** A WebRTC signal to someone in the room (by their relay address), and the ones that come. */
+    signal(spaceId: number, to: number, data: string): void
+    onSignal(cb: (spaceId: number, from: number, data: string) => void): () => void
+    /** Input from the person driving the tab shown live (checked again in main). */
+    input(spaceId: number, event: unknown): void
     /** An invite link on the clipboard for a space not joined yet, or null. */
     clipboardInvite(): Promise<string | null>
     /** The name the others in shared spaces see. */

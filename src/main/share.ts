@@ -18,6 +18,7 @@ import { ShareClient, type ShareStatus } from '@shared/share/client'
 import { inviteLink, newRoom, parseInvite } from '@shared/share/crypto'
 import { isEmptyDoc, readInto, sharedSeq, writeDiff } from '@shared/share/doc'
 import type { SharePerson, ShareState } from '@shared/types'
+import { parseRemoteInput, type RemoteInput } from '@shared/share/live'
 import { JsonStore } from './store'
 import type { SpaceStore } from './spaces'
 import type { CanvasService } from './ai/canvas'
@@ -58,6 +59,8 @@ interface Saved {
 }
 
 interface Room {
+  /** The tab this person shows live here, if any. */
+  liveTab?: number
   spaceId: number
   saved: Saved
   doc: Y.Doc
@@ -88,6 +91,10 @@ export interface ShareDeps {
   /** A tab's picture (a JPEG data address) and when it was taken; null and 0 when it has none. */
   thumbOf: (tabId: number) => string | null
   thumbAt: (tabId: number) => number
+  /** Showing a tab live (main/tabs.ts): keep it painting or stop; its address and title; input from the driver. */
+  setLiveShared: (tabId: number, on: boolean) => boolean
+  liveInfo: (tabId: number) => { url: string; title: string } | null
+  remoteInput: (tabId: number, ev: RemoteInput) => void
 }
 
 export class ShareService {
@@ -146,6 +153,8 @@ export class ShareService {
    */
   private async sendPics(): Promise<void> {
     let budget = PICS_PER_ROUND
+    // a tab shown live: its title and address said again (it may have moved on), or the show ends (it closed)
+    for (const room of this.rooms.values()) this.liveAnnounce(room)
     for (const room of this.rooms.values()) {
       if (room.status !== 'live' || !room.last) continue
       let changed = false
@@ -267,7 +276,19 @@ export class ShareService {
       have: saved.have,
       onStatus: (s) => {
         room.status = s
+        // where the others reach this person for a live tab's signals (the relay's id, new each connection)
+        if (s === 'syncing' || s === 'live')
+          room.client.awareness.setLocalStateField('rtc', room.client.me)
         this.tell(room)
+      },
+      onSignal: (from, data) => {
+        if (!this.d.win.isDestroyed())
+          this.d.win.webContents.send(
+            'share:signal',
+            room.spaceId,
+            from,
+            new TextDecoder().decode(data)
+          )
       },
       onHave: (n) => {
         saved.have = n
@@ -383,6 +404,8 @@ export class ShareService {
       const s = st as {
         user?: { name?: string; color?: string }
         cursor?: { x: number; y: number } | null
+        rtc?: unknown
+        live?: { title?: unknown; url?: unknown } | null
       }
       if (!s.user) return
       people.push({
@@ -392,6 +415,11 @@ export class ShareService {
         cursor:
           s.cursor && Number.isFinite(s.cursor.x) && Number.isFinite(s.cursor.y)
             ? { x: s.cursor.x, y: s.cursor.y }
+            : null,
+        rtc: typeof s.rtc === 'number' && Number.isSafeInteger(s.rtc) ? s.rtc : 0,
+        live:
+          s.live && typeof s.live.url === 'string' && s.live.url.length > 0 // only shown, never opened
+            ? { url: s.live.url.slice(0, 2000), title: String(s.live.title ?? '').slice(0, 200) }
             : null
       })
     })
@@ -486,6 +514,7 @@ export class ShareService {
   /** Stop sharing (or leave): this machine keeps its copy of the board, the room is left. */
   stop(spaceId: number): void {
     const room = this.rooms.get(spaceId)
+    if (room?.liveTab !== undefined) this.d.setLiveShared(room.liveTab, false)
     if (room) {
       room.client.destroy()
       clearTimeout(room.applyTimer)
@@ -501,6 +530,55 @@ export class ShareService {
   /** The computer woke: every room that dropped meanwhile connects again now. */
   wake(): void {
     for (const room of this.rooms.values()) room.client.reconnectNow()
+  }
+
+  /**
+   * Show a tab live to everyone in the space (null stops): it keeps painting, and the others hear of it (its title
+   * and address, in presence) and can ask for its picture over WebRTC (the board's LiveShare). One at a time.
+   */
+  showLive(spaceId: number, tabId: number | null): boolean {
+    const room = this.rooms.get(spaceId)
+    if (!room) return false
+    if (room.liveTab !== undefined && room.liveTab !== tabId)
+      this.d.setLiveShared(room.liveTab, false)
+    if (tabId === null) {
+      room.liveTab = undefined
+      room.client.awareness.setLocalStateField('live', null)
+      return true
+    }
+    if (!this.d.setLiveShared(tabId, true)) return false
+    room.liveTab = tabId
+    this.liveAnnounce(room)
+    return true
+  }
+
+  liveTabOf(spaceId: number): number | null {
+    return this.rooms.get(spaceId)?.liveTab ?? null
+  }
+
+  /** The live tab's title and address, to the others (again when its page changes). */
+  liveAnnounce(room: Room): void {
+    if (room.liveTab === undefined) return
+    const info = this.d.liveInfo(room.liveTab)
+    if (!info) return void this.showLive(room.spaceId, null) // the tab went
+    room.client.awareness.setLocalStateField('live', { title: info.title, url: info.url })
+  }
+
+  /** A tab closed or navigated: the live one is said again, or ends. */
+  tabChanged(tabId: number): void {
+    for (const room of this.rooms.values()) if (room.liveTab === tabId) this.liveAnnounce(room)
+  }
+
+  signal(spaceId: number, to: number, data: string): void {
+    const room = this.rooms.get(spaceId)
+    if (room && to > 0 && data.length < 64_000)
+      void room.client.signal(to, new TextEncoder().encode(data))
+  }
+
+  /** Input from whoever drives the live tab (the board let them: the host's own window decides that). */
+  input(spaceId: number, ev: RemoteInput): void {
+    const room = this.rooms.get(spaceId)
+    if (room?.liveTab !== undefined) this.d.remoteInput(room.liveTab, ev)
   }
 
   /** Where this person's pointer is on the board (board coordinates), or null when it left. */
@@ -538,6 +616,17 @@ export function registerShare(d: ShareDeps): ShareService {
   })
   ipcMain.on('share:took', (e, id: unknown, n: unknown) => {
     if (mine(e) && typeof n === 'number' && Number.isInteger(n) && n >= 0) svc.took(num(id), n)
+  })
+  ipcMain.handle('share:show-live', (e, id: unknown, tab: unknown) =>
+    mine(e) ? svc.showLive(num(id), typeof tab === 'number' ? tab : null) : false
+  )
+  ipcMain.handle('share:live-tab', (e, id: unknown) => (mine(e) ? svc.liveTabOf(num(id)) : null))
+  ipcMain.on('share:signal', (e, id: unknown, to: unknown, data: unknown) => {
+    if (mine(e) && typeof data === 'string') svc.signal(num(id), num(to), data)
+  })
+  ipcMain.on('share:input', (e, id: unknown, event: unknown) => {
+    const ev = parseRemoteInput(event)
+    if (mine(e) && ev) svc.input(num(id), ev)
   })
   ipcMain.on('share:cursor', (e, id: unknown, at: unknown) => {
     if (!mine(e)) return
