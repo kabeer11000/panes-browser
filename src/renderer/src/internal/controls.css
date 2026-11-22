@@ -142,7 +142,7 @@
   background: var(--surface-active);
   color: var(--fg);
   font-weight: 550;
-  box-shadow: var(--shadow-1);
+  box-shadow: none;
 }
 
 .sel {
@@ -261,7 +261,7 @@
 .seg button.on {
   color: var(--accent-fg);
   background: var(--accent);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: none;
 }
 .seg.glides button.on {
   background: transparent;
@@ -273,7 +273,7 @@
   left: 0;
   border-radius: var(--r-pill);
   background: var(--accent);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: none;
   pointer-events: none;
   will-change: transform;
 }

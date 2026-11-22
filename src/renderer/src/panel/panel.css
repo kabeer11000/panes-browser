@@ -368,9 +368,7 @@ body,
   width: calc((100% - 4px) / var(--n));
   border-radius: var(--r-3);
   background: var(--popover-bg);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.25),
-    inset 0 0 0 1px var(--border);
+  box-shadow: inset 0 0 0 1px var(--border);
   transform: translateX(calc(100% * var(--at)));
   transition: transform var(--dur) var(--ease);
 }
@@ -593,9 +591,7 @@ body,
 }
 .pn-tabs button.on {
   background: var(--popover-bg);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.25),
-    inset 0 0 0 1px var(--border);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 .pn-tabs i {
   min-width: 16px;
