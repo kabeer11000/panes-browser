@@ -277,122 +277,133 @@ export function SiteHome({
           />
         </div>
 
-        <Section title="Permissions" aside={<em>{summary}</em>}>
-          {shown.map((p) => {
-            const hint = permHint(p, info)
-            return (
-              <Row
-                key={p.kind}
-                icon={<PermIcon kind={p.kind} />}
-                title={PERM_LABEL[p.kind]}
-                hint={
-                  hint && (
-                    <>
-                      {hint.tone === 'live' && <i className="pn-live" aria-hidden="true" />}
-                      {hint.text}
-                    </>
-                  )
-                }
-                hintTone={hint?.tone}
-              >
-                <Pick
-                  label={PERM_LABEL[p.kind]}
-                  value={p.kind === 'screen' && p.setting === 'allow' ? 'ask' : p.setting}
-                  choices={p.kind === 'screen' ? SCREEN_CHOICES : CHOICES}
-                  tone={p.setting === 'allow' ? 'good' : p.setting === 'block' ? 'bad' : undefined}
-                  onChange={(v) => setPerm(p.kind, v)}
-                />
+        <div className="pn-cols">
+          <div className="pn-col">
+            <Section title="Permissions" aside={<em>{summary}</em>}>
+              {shown.map((p) => {
+                const hint = permHint(p, info)
+                return (
+                  <Row
+                    key={p.kind}
+                    icon={<PermIcon kind={p.kind} />}
+                    title={PERM_LABEL[p.kind]}
+                    hint={
+                      hint && (
+                        <>
+                          {hint.tone === 'live' && <i className="pn-live" aria-hidden="true" />}
+                          {hint.text}
+                        </>
+                      )
+                    }
+                    hintTone={hint?.tone}
+                  >
+                    <Pick
+                      label={PERM_LABEL[p.kind]}
+                      value={p.kind === 'screen' && p.setting === 'allow' ? 'ask' : p.setting}
+                      choices={p.kind === 'screen' ? SCREEN_CHOICES : CHOICES}
+                      tone={
+                        p.setting === 'allow' ? 'good' : p.setting === 'block' ? 'bad' : undefined
+                      }
+                      onChange={(v) => setPerm(p.kind, v)}
+                    />
+                  </Row>
+                )
+              })}
+              {(hiddenCount > 0 || allPerms) && (
+                <button
+                  type="button"
+                  className="pn-more"
+                  aria-expanded={allPerms}
+                  onClick={() => setAllPerms((a) => !a)}
+                >
+                  {allPerms ? 'Show fewer' : `${hiddenCount} more`}
+                </button>
+              )}
+            </Section>
+          </div>
+
+          <div className="pn-col">
+            <Section title="Page">
+              {adblockOn && (
+                <Row title="Hide ad spaces" hint="Turn off if the page looks broken">
+                  <Switch
+                    label="Hide ad spaces on this site"
+                    on={info.adblock.cosmetic}
+                    onChange={(v) =>
+                      send({ adblockCosmetic: v }, (i) => ({
+                        ...i,
+                        adblock: { ...i.adblock, cosmetic: v }
+                      }))
+                    }
+                  />
+                </Row>
+              )}
+              {adblockOn && (
+                <Row
+                  title="Block aggressively"
+                  hint={
+                    info.adblock.aggressiveGlobal
+                      ? 'On for every site in Settings'
+                      : "Also blocks the site's own ads. May break the page"
+                  }
+                >
+                  <Switch
+                    label="Block aggressively on this site"
+                    on={info.adblock.aggressive}
+                    disabled={info.adblock.aggressiveGlobal}
+                    onChange={(v) =>
+                      send({ adblockAggressive: v }, (i) => ({
+                        ...i,
+                        adblock: { ...i.adblock, aggressive: v }
+                      }))
+                    }
+                  />
+                </Row>
+              )}
+              <Row title="Zoom">
+                <span className="pn-zoom">
+                  <button
+                    type="button"
+                    aria-label="Zoom out"
+                    disabled={info.zoom <= ZOOM_LEVEL_MIN}
+                    onClick={() => zoomTo(info.zoom - 0.5)}
+                  >
+                    &minus;
+                  </button>
+                  <button
+                    type="button"
+                    className="val"
+                    aria-label={`Zoom ${zoomPct}%. Reset to the usual size`}
+                    disabled={info.zoom === info.defaultZoom}
+                    onClick={() => zoomTo(info.defaultZoom)}
+                  >
+                    {zoomPct}%
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Zoom in"
+                    disabled={info.zoom >= ZOOM_LEVEL_MAX}
+                    onClick={() => zoomTo(info.zoom + 0.5)}
+                  >
+                    +
+                  </button>
+                </span>
               </Row>
-            )
-          })}
-          {(hiddenCount > 0 || allPerms) && (
-            <button
-              type="button"
-              className="pn-more"
-              aria-expanded={allPerms}
-              onClick={() => setAllPerms((a) => !a)}
-            >
-              {allPerms ? 'Show fewer' : `${hiddenCount} more`}
-            </button>
-          )}
-        </Section>
+              <button type="button" className="pn-link" onClick={onBoost}>
+                <span>
+                  <b>Boost</b>
+                  <em>
+                    {info.boost ? 'On for this site' : 'Colour, font, hide parts of the page'}
+                  </em>
+                </span>
+                <ChevronIcon />
+              </button>
+            </Section>
+          </div>
+        </div>
 
-        <Section title="Page">
-          {adblockOn && (
-            <Row title="Hide ad spaces" hint="Turn off if the page looks broken">
-              <Switch
-                label="Hide ad spaces on this site"
-                on={info.adblock.cosmetic}
-                onChange={(v) =>
-                  send({ adblockCosmetic: v }, (i) => ({
-                    ...i,
-                    adblock: { ...i.adblock, cosmetic: v }
-                  }))
-                }
-              />
-            </Row>
-          )}
-          {adblockOn && (
-            <Row
-              title="Block aggressively"
-              hint={
-                info.adblock.aggressiveGlobal
-                  ? 'On for every site in Settings'
-                  : "Also blocks the site's own ads. May break the page"
-              }
-            >
-              <Switch
-                label="Block aggressively on this site"
-                on={info.adblock.aggressive}
-                disabled={info.adblock.aggressiveGlobal}
-                onChange={(v) =>
-                  send({ adblockAggressive: v }, (i) => ({
-                    ...i,
-                    adblock: { ...i.adblock, aggressive: v }
-                  }))
-                }
-              />
-            </Row>
-          )}
-          <Row title="Zoom">
-            <span className="pn-zoom">
-              <button
-                type="button"
-                aria-label="Zoom out"
-                disabled={info.zoom <= ZOOM_LEVEL_MIN}
-                onClick={() => zoomTo(info.zoom - 0.5)}
-              >
-                &minus;
-              </button>
-              <button
-                type="button"
-                className="val"
-                aria-label={`Zoom ${zoomPct}%. Reset to the usual size`}
-                disabled={info.zoom === info.defaultZoom}
-                onClick={() => zoomTo(info.defaultZoom)}
-              >
-                {zoomPct}%
-              </button>
-              <button
-                type="button"
-                aria-label="Zoom in"
-                disabled={info.zoom >= ZOOM_LEVEL_MAX}
-                onClick={() => zoomTo(info.zoom + 0.5)}
-              >
-                +
-              </button>
-            </span>
-          </Row>
-          <button type="button" className="pn-link" onClick={onBoost}>
-            <span>
-              <b>Boost</b>
-              <em>{info.boost ? 'On for this site' : 'Colour, font, hide parts of the page'}</em>
-            </span>
-            <ChevronIcon />
-          </button>
-        </Section>
-
-        <Section title="Cookies and data">
+        {/* the site's data and a way back to defaults: one slim row under both columns */}
+        <div className="pn-foot">
           {confirm === 'clear' ? (
             <Confirm
               text={`Clear cookies and stored data for ${info.host}? You may be signed out.`}
@@ -404,37 +415,33 @@ export function SiteHome({
                 send({ clearData: true }, (i) => ({ ...i, cookies: 0 }))
               }}
             />
+          ) : confirm === 'reset' ? (
+            <Confirm
+              text={`Reset ${info.host}? Everything set here goes back to its default; cookies and site data stay.`}
+              action="Reset"
+              onCancel={() => setConfirm(null)}
+              onConfirm={() => {
+                setConfirm(null)
+                send({ reset: true })
+              }}
+            />
           ) : (
-            <Row
-              title={
-                info.cookies === 0
+            <>
+              <span className="pn-foot-text" title="Plus storage, caches and service workers">
+                {info.cookies === 0
                   ? 'No cookies'
-                  : `${info.cookies} cookie${info.cookies === 1 ? '' : 's'}`
-              }
-              hint="Plus storage, caches and service workers"
-            >
+                  : `${info.cookies} cookie${info.cookies === 1 ? '' : 's'}`}{' '}
+                and site data
+              </span>
               <button type="button" className="pn-btn" onClick={() => setConfirm('clear')}>
                 Clear data
               </button>
-            </Row>
+              <button type="button" className="pn-reset" onClick={() => setConfirm('reset')}>
+                Reset site settings
+              </button>
+            </>
           )}
-        </Section>
-
-        {confirm === 'reset' ? (
-          <Confirm
-            text={`Reset ${info.host}? Everything set here goes back to its default; cookies and site data stay.`}
-            action="Reset"
-            onCancel={() => setConfirm(null)}
-            onConfirm={() => {
-              setConfirm(null)
-              send({ reset: true })
-            }}
-          />
-        ) : (
-          <button type="button" className="pn-reset" onClick={() => setConfirm('reset')}>
-            Reset site settings
-          </button>
-        )}
+        </div>
       </div>
     </div>
   )

@@ -923,3 +923,35 @@ html[data-up='true'] .pn-root {
   color: var(--fg);
   background: var(--popover-bg);
 }
+
+/* ---- below the tiles, two columns: what the site may use, and the page and its data ---- */
+.pn-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.pn-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* ---- the footer: the site's data, and reset, in one slim row ---- */
+.pn-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.pn-foot > .pn-confirm {
+  flex: 1;
+}
+.pn-foot-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-s);
+  color: var(--fg-dim);
+}
