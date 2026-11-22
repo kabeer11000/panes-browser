@@ -135,7 +135,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Off the main thread wherever it is a transparent gain (user 2026-11-22): workers for Tidy/clustering, image decode,
       JSON parse of big state, search ranking; measure each with a long-task trace before and after.
 
-- [ ] First open / load time: measure packaged cold and warm start (startup-trace), find the next big cost.
+- [ ] Releases are slow and Mac updates heavy: each Mac layer's deltas are ~17 MB (Windows ~180 KB, beta.122), so
+      something in the Mac asar changes every build. Diff two consecutive dist/mac asars (file list + hashes), make
+      the build deterministic, re-measure delta size and release time. Also why each Mac layer takes ~3 min.
+- [ ] First open / load time (user 21:15: "needs to be nearly instant"): measure packaged cold and warm start (startup-trace), find the next big cost.
 
 ## Log
 
