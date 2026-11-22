@@ -1,13 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TabInfo } from '@shared/types'
-import {
-  badgeText,
-  NO_ATTENTION,
-  nudge,
-  nudgeText,
-  worthPeek,
-  type TabAttention
-} from '@shared/attention'
+import { badgeText } from '@shared/attention'
 import { isCapturing } from '@shared/capture'
 import { SiteIcon } from '@renderer/components/SiteIcon'
 import { MiniPauseIcon, MiniPlayIcon } from './icons'
@@ -18,52 +10,6 @@ import type { CardModel } from './model'
  * been, what plays and what is new. What plays comes first; then the recent tabs, each badged when something new
  * waits in it; a notification that comes in shows its words on its tab for a few seconds.
  */
-
-/** How long a notification's words stay on its tab. */
-export const PEEK_MS = 5000
-
-/**
- * For each tab, the words of a notification (or call, or new count) that just came in, while they show (PEEK_MS).
- * What already waited when the strip appeared does not pop up.
- */
-export function usePeeks(tabs: readonly TabInfo[]): ReadonlyMap<number, string> {
-  const before = useRef<Map<number, TabAttention> | null>(null)
-  const told = useRef(new Map<number, { count: number; at: number }>())
-  const [peeks, setPeeks] = useState<Map<number, { text: string; at: number }>>(new Map())
-  useEffect(() => {
-    const now = Date.now()
-    const prev = before.current
-    before.current = new Map(tabs.map((t) => [t.id, t.attention]))
-    if (!prev) return
-    const fresh: Array<[number, string]> = []
-    for (const t of tabs) {
-      if (t.private || t.tor) continue
-      const n = nudge(prev.get(t.id) ?? NO_ATTENTION, t.attention)
-      if (!n || !worthPeek(n, told.current.get(t.id), now)) continue
-      told.current.set(t.id, { count: t.attention.count, at: now })
-      fresh.push([t.id, nudgeText(n)])
-    }
-    if (fresh.length)
-      setPeeks((p) => {
-        const m = new Map(p)
-        for (const [id, text] of fresh) m.set(id, { text, at: now })
-        return m
-      })
-  }, [tabs])
-  useEffect(() => {
-    if (peeks.size === 0) return
-    const first = Math.min(...[...peeks.values()].map((p) => p.at))
-    const t = window.setTimeout(
-      () => {
-        const now = Date.now()
-        setPeeks((p) => new Map([...p].filter(([, v]) => now - v.at < PEEK_MS)))
-      },
-      Math.max(0, first + PEEK_MS - Date.now())
-    )
-    return () => window.clearTimeout(t)
-  }, [peeks])
-  return useMemo(() => new Map([...peeks].map(([id, v]) => [id, v.text])), [peeks])
-}
 
 /** One recent tab: its icon (badged when something new waits), its name on hover, and a notification's words. */
 export function StripTab({
