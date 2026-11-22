@@ -4770,81 +4770,92 @@
 }
 .cv-share-btn {
   height: 28px;
-  padding: 0 13px;
-  border-radius: 9px;
+  padding: 0 14px;
+  border-radius: 999px;
   background: var(--accent);
   color: var(--accent-fg);
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
+  letter-spacing: 0.005em;
   transition:
-    filter var(--dur-fast),
+    background-color var(--dur-fast),
     transform var(--dur-fast) var(--ease);
 }
 .cv-share-btn:hover {
-  filter: brightness(1.08);
+  background: color-mix(in srgb, var(--accent) 90%, #fff);
 }
 .cv-share-btn:active {
   transform: scale(0.97);
 }
-/* shared: a quiet chip that says how the room is (the faces beside it say who is in it) */
-.cv-share-btn.on {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 11px 0 9px;
-  background: color-mix(in srgb, var(--popover-bg) 70%, transparent);
-  color: var(--fg);
-  font-weight: 550;
-  font-variant-numeric: tabular-nums;
-  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 10%, transparent);
-  --live: var(--fg-dim);
-}
-.cv-share-btn.on:hover {
-  filter: none;
-  background: color-mix(in srgb, var(--popover-bg) 90%, var(--fg) 6%);
-}
-.cv-share-btn.on.live {
-  --live: #22c55e;
-}
-.cv-share-btn.on.connecting,
-.cv-share-btn.on.syncing {
-  --live: #eab308;
-}
-.cv-share-btn.on.refused {
-  --live: #ef4444;
-}
-.cv-share-live {
-  flex: none;
-  overflow: visible;
-}
-.cv-share-live circle {
-  fill: var(--live);
-}
-.cv-share-live path {
-  fill: none;
-  stroke: var(--live);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  opacity: 0.7;
-}
-/* live: the waves breathe, slowly (opacity only: nothing to lay out or repaint around it) */
-.cv-share-btn.on.live .cv-share-live path {
-  animation: cv-share-live 2.4s ease-in-out infinite;
-}
-@keyframes cv-share-live {
-  50% {
-    opacity: 0.2;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cv-share-btn.on.live .cv-share-live path {
-    animation: none;
-  }
-}
 .cv-share-btn:focus-visible {
   outline: var(--ring);
   outline-offset: 2px;
+}
+/* Shared: a tinted capsule saying how the room is, as a call or SharePlay pill does. The colour is the state. */
+.cv-share-btn.on {
+  --tone: 148 163 184;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px 0 10px;
+  background: rgb(var(--tone) / 0.16);
+  color: rgb(var(--tone));
+  box-shadow: inset 0 0 0 1px rgb(var(--tone) / 0.22);
+}
+.cv-share-btn.on:hover {
+  background: rgb(var(--tone) / 0.24);
+}
+.cv-share-btn.on.live {
+  --tone: 52 199 89;
+}
+.cv-share-btn.on:is(.connecting, .syncing) {
+  --tone: 255 179 64;
+}
+.cv-share-btn.on.refused {
+  --tone: 255 99 89;
+}
+[data-scheme='light'] .cv-share-btn.on.live {
+  --tone: 22 137 62;
+}
+[data-scheme='light'] .cv-share-btn.on:is(.connecting, .syncing) {
+  --tone: 178 106 0;
+}
+[data-scheme='light'] .cv-share-btn.on {
+  --tone: 100 116 139;
+}
+.cv-share-dot {
+  position: relative;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(var(--tone));
+}
+/* live: a soft halo leaves the dot now and then (transform and opacity only) */
+.cv-share-btn.on.live .cv-share-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgb(var(--tone));
+  animation: cv-share-halo 2.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+@keyframes cv-share-halo {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cv-share-btn.on.live .cv-share-dot::after {
+    animation: none;
+  }
 }
 .cv-share-pop {
   position: absolute;

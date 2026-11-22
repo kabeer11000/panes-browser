@@ -1,6 +1,16 @@
 import { gotLock } from './singleInstance' // first: see there
 import { flushTrace, mark } from './startupTrace'
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, screen, session, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  powerMonitor,
+  screen,
+  session,
+  shell
+} from 'electron'
 import type { CaptureKind } from '@shared/capture'
 import { createServer } from 'http'
 import { existsSync, statSync } from 'fs'
@@ -297,6 +307,7 @@ function createWindow(): void {
     return true
   }
   share.init()
+  powerMonitor.on('resume', () => share.wake())
   // board timers and reminders notify from here, board open or not (looked at once the window is up)
   const alarms = new WidgetAlarms({
     canvas,

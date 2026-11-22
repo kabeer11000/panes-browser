@@ -86,6 +86,25 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       Also: the page view shows too big, then resizes, when switching tabs in the preview (user).
 - [ ] Hyperbeam-smooth shared browsing with remote control, and chat: in tasks/shared-spaces.md.
 
+### User 2026-11-22 23:00+ (after beta.122)
+
+- [x] PiP back-to-tab did nothing: now brings the tab up (6a9d64c, both buttons checked from another tab).
+- [x] Joining a shared space: invite page opens Panes (panes://join), join field, copied-link suggestion, Share on the
+      board's top bar, own name; space rename overwrite fixed (b641918, 2c1eca4; two-instance test on the relay).
+- [ ] Live indicator: Apple/Google-grade capsule (sizes, margins, shapes), not the drawn wave glyph.
+- [ ] Ctrl+T after typing in a page: sometimes the search popover's field does not have the keyboard (click needed).
+      Ruled out: a page calling window.focus() (cannot take focus back in Electron, tested), the new-tab page (no
+      focus calls). CDP keys skip main's shortcut, and the parked window never has OS focus: needs real keys on a
+      foreground window (E:/tmp/keys.ps1, target the right HWND: MainWindowHandle was not Panes' window).
+- [ ] Preview over a YouTube page, bell opened: the page turns into its picture (good), but on closing the bell the
+      live page comes back and reflows (things move, update). Make the return seamless: show the live view only once
+      it has painted at the same size (no resize on return), no blur or darkening.
+- [ ] Notifications sometimes not picked up; only the tab title changes (count in title). Use the title count as a
+      source for the strip's unread.
+- [ ] Preview: switching from one recent tab to another and closing it (Ctrl+W on the board) should keep the
+      preview open and show the last tab, as navigation does; no reopen or glitch.
+- [ ] Split view in the board: still not the tab view's (user 23:04). Parked by the user for now.
+
 - [ ] PiP is broken (user 21:13, YouTube): opening PiP glitches the whole page, a little video sticks at the left
       over the page. Must behave like Chrome/Brave: the video leaves for the PiP window, the page stays as it is.
 - [ ] Search popover forgets what was typed when it blurs (click away) and starts from scratch. Chrome-like: the

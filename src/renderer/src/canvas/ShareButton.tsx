@@ -15,13 +15,10 @@ export function ShareButton({ space }: { space: Space | undefined }): React.JSX.
   const state = useShareState(space?.id ?? -1, !!space?.shared)
   if (!space || !window.api.share) return null
   const status = state?.status ?? 'connecting'
-  const here = (state?.people.length ?? 0) + 1
-  // what the chip says is how the room is, not only that it is shared
+  // what the capsule says is how the room is (the faces beside it say who is in it)
   const label =
     status === 'live'
-      ? here > 1
-        ? `Live · ${here}`
-        : 'Live'
+      ? 'Live'
       : status === 'offline'
         ? 'Offline'
         : status === 'refused'
@@ -39,10 +36,7 @@ export function ShareButton({ space }: { space: Space | undefined }): React.JSX.
       >
         {space.shared ? (
           <>
-            <svg className="cv-share-live" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <circle cx="7" cy="7" r="2.2" />
-              <path d="M3.6 3.6a4.8 4.8 0 0 0 0 6.8M10.4 3.6a4.8 4.8 0 0 1 0 6.8" />
-            </svg>
+            <span className="cv-share-dot" aria-hidden="true" />
             {label}
           </>
         ) : (

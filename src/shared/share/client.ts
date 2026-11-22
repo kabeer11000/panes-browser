@@ -62,6 +62,14 @@ export class ShareClient {
     this.connect()
   }
 
+  /** Try again now, not at the next backoff step (the computer woke, the network came back). */
+  reconnectNow(): void {
+    if (this.closed || this.ws || this.status === 'refused') return
+    clearTimeout(this.timer)
+    this.retry = 0
+    void this.connect()
+  }
+
   /** Leave: the document stays as it is (the caller keeps it), others see this person go. */
   destroy(): void {
     this.closed = true
@@ -110,9 +118,10 @@ export class ShareClient {
       this.peers.clear()
       this.o.onPeers?.([])
       if (this.closed) return
-      // refused at the door (a wrong token) is not worth retrying
-      if (e.code === 1008 || (this.status === 'connecting' && e.code === 1006 && this.retry > 4))
-        return this.setStatus(e.code === 1008 ? 'refused' : 'offline')
+      // refused at the door (a wrong token) is not worth retrying. Anything else is: it used to give up after five
+      // failed tries (16 s), and a relay redeploy or a dropped network outlasts that, leaving the space offline
+      // until Panes restarted
+      if (e.code === 1008) return this.setStatus('refused')
       this.setStatus('offline')
       const wait = Math.min(30_000, 500 * 2 ** this.retry++) * (0.75 + Math.random() / 2)
       this.timer = setTimeout(() => void this.connect(), wait)

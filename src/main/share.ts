@@ -397,6 +397,11 @@ export class ShareService {
     this.d.refresh()
   }
 
+  /** The computer woke: every room that dropped meanwhile connects again now. */
+  wake(): void {
+    for (const room of this.rooms.values()) room.client.reconnectNow()
+  }
+
   /** Where this person's pointer is on the board (board coordinates), or null when it left. */
   cursor(spaceId: number, at: { x: number; y: number } | null): void {
     this.rooms.get(spaceId)?.client.awareness.setLocalStateField('cursor', at)
