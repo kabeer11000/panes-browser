@@ -1435,11 +1435,18 @@
   background: var(--stage-bg);
 }
 /* a split view in the preview: its pages side by side, each a slot of its own */
+/* a split in the preview: the tab view's own panes (Panes.tsx), filling the page area */
 .cv-live-split {
   position: absolute;
   inset: 0;
-  display: flex;
-  gap: 8px;
+}
+.cv-live-split > .panes {
+  position: absolute;
+  inset: 0;
+}
+/* over a single page while a strip tab is dragged: the whole page is a drop target */
+.cv-live-split.cv-drop-only {
+  z-index: 2;
 }
 .cv-live-split > .cv-live-slot {
   position: relative;

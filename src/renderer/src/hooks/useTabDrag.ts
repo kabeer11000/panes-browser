@@ -51,6 +51,8 @@ export interface DragContext {
   picked: number[]
   /** The active tab is part of a tiled group, so outer-edge docking makes sense. */
   tiled: boolean
+  /** The element whose edges dock a tab at the split's outer edge (the board's preview has its own); '.stage' if unset. */
+  stage?: string
 }
 
 /** Resolves when the main process next sends the tab state (or after a moment, if the drop changed nothing). */
@@ -184,7 +186,7 @@ function targetAt(
     }
   }
 
-  const stage = document.querySelector('.stage')?.getBoundingClientRect()
+  const stage = document.querySelector(ctx.stage ?? '.stage')?.getBoundingClientRect()
   if (ctx.tiled && stage && within(stage)) {
     const gaps: Array<[Edge, number]> = [
       ['left', x - stage.left],
@@ -207,7 +209,8 @@ function targetAt(
     }
   }
 
-  for (const el of document.querySelectorAll<HTMLElement>('.pane-hit[data-tab-id]')) {
+  const scope = ctx.stage ? (document.querySelector(ctx.stage) ?? document) : document
+  for (const el of scope.querySelectorAll<HTMLElement>('.pane-hit[data-tab-id]')) {
     const r = el.getBoundingClientRect()
     if (!within(r)) continue
     const tabId = Number(el.dataset.tabId)

@@ -26,6 +26,10 @@ import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
 import { StripInbox, StripPlaying, StripTab } from './TabStrip'
+import { Panes } from '@renderer/components/Panes'
+import { DropIndicator } from '@renderer/components/DragLayer'
+import { useTabDrag } from '@renderer/hooks/useTabDrag'
+import { applyDrop, leaves, type LayoutNode } from '@shared/layout'
 import { menuTook } from './useDismiss'
 import { EdgeSwipe, SWIPE_ZONES } from '@shared/edgeSwipe'
 import { Spring, reducedMotion } from '@renderer/motion'
@@ -167,6 +171,13 @@ interface Props extends ExpandSource {
    * they show side by side; the bar acts on this card's page.
    */
   split?: Array<{ tab: number; snap?: string }>
+  /**
+   * For a split: the tabs' layout and the tabs themselves, so the split in the preview is the tab view's own (its
+   * panes, their heads, the divider, rearranging by dragging), placed over the preview's page area.
+   */
+  layout?: LayoutNode | null
+  allTabs?: TabInfo[]
+  thumbs?: Record<number, string>
   /** The card's tab as the browser knows it (address, loading, history, bookmark, sound), when it has one. */
   page?: TabInfo
   /** The preview's recent tabs, this one among them, in an order kept while the preview is open. */
@@ -751,6 +762,9 @@ export function Expanded({
   onLive,
   onAsk,
   split,
+  layout = null,
+  allTabs = [],
+  thumbs = {},
   playing,
   onPlaying,
   peeks,
@@ -804,10 +818,34 @@ export function Expanded({
     CardModel,
     'id' | 'title' | 'site' | 'favicon'
   > | null>(null)
+  // a divider being dragged: the pages step aside for their pictures, as in the tab view
+  const [splitHold, setSplitHold] = useState(false)
+  // dragging a pane's head, or a strip tab onto the page: the tab view's own drag, its targets in this preview
+  const { drag, start: startDrag } = useTabDrag(
+    (id) => {
+      if (id !== m.id) onSwitch?.(id)
+    },
+    () => ({
+      order: allTabs.map((t) => t.id),
+      groups: allTabs.map((t) => t.groupId),
+      group: layout ? leaves(layout) : [],
+      picked: [],
+      tiled: !!split && split.length > 1,
+      stage: '.cv-expand .cv-live-split'
+    })
+  )
   // something is over the page: it stays stepped aside
-  const aside = addressOpen || inboxOpen
+  const aside = addressOpen || inboxOpen || splitHold || drag !== null
   const asideRef = useRef(false)
   const tabRef = useRef<number | null>(tab ?? null)
+  /** In a split: where each pane's page goes, as Panes reports it (null when this is no split). */
+  const splitRects = useRef<Record<number, Rect> | null>(null)
+  /** Where this card's own page goes: its pane in a split, else the slot. */
+  const ownRect = (): Rect | null => {
+    const id = tabRef.current
+    if (splitRects.current) return id !== null ? (splitRects.current[id] ?? null) : null
+    return slotBox(slot.current)
+  }
   // whether the live page was already shown once on its own (opened live, a video, an app with no article)
   const autoLive = useRef(false)
   // find in the live page: the browser's own find box, in the header (the page view would cover anything below)
@@ -1089,7 +1127,7 @@ export function Expanded({
   useEffect(() => () => window.api.canvas.preview?.(false, null), [])
   /** Put the live page over the slot as it is now (unless something has it stepped aside, or it is in flight). */
   const placeLive = useCallback((): void => {
-    const r = slotBox(slot.current)
+    const r = ownRect()
     const id = tabRef.current
     if (
       !r ||
@@ -1272,7 +1310,7 @@ export function Expanded({
       liveRef.current = 'loading'
       flushSync(() => setLive('loading'))
     }
-    const r = slotBox(slot.current)
+    const r = ownRect()
     if (!r) {
       liveRef.current = 'off'
       setLive('off')
@@ -1302,7 +1340,7 @@ export function Expanded({
     if (req !== liveReq.current || closing.current) return
     liveRef.current = 'on'
     setLive('on')
-    const rNow = slotBox(slot.current)
+    const rNow = ownRect()
     if (asideRef.current)
       hideLive() // a popover opened while it loaded: it stays stepped aside
     else if (rNow) window.api.canvas.liveMove(id, rNow)
@@ -1418,15 +1456,13 @@ export function Expanded({
   }, [live, splitKey, placeLive])
 
   // ---- a split view: the other panes, live beside this card's page ----
-  const paneEls = useRef(new Map<number, HTMLDivElement>())
   const placeCompanions = useCallback((): void => {
     if (liveRef.current !== 'on' || asideRef.current || closing.current || !rest.current.done)
       return
-    const list: Array<{ id: number; rect: Rect }> = []
-    for (const [id, el] of paneEls.current) {
-      const r = slotBox(el)
-      if (r) list.push({ id, rect: r })
-    }
+    const own = tabRef.current
+    const list = Object.entries(splitRects.current ?? {})
+      .filter(([id]) => Number(id) !== own)
+      .map(([id, rect]) => ({ id: Number(id), rect }))
     window.api.canvas.liveCompanions?.(list)
   }, [])
   useLayoutEffect(() => {
@@ -1435,19 +1471,20 @@ export function Expanded({
   useEffect(() => {
     if (live !== 'on' || aside || !splitKey) return
     placeCompanions()
-    const ro = new ResizeObserver(placeCompanions)
-    for (const el of paneEls.current.values()) ro.observe(el)
-    return () => {
-      ro.disconnect()
-      window.api.canvas.liveCompanions?.([])
-    }
+    return () => window.api.canvas.liveCompanions?.([])
   }, [live, aside, splitKey, placeCompanions])
-  const paneRef =
-    (id: number) =>
-    (el: HTMLDivElement | null): void => {
-      if (el) paneEls.current.set(id, el)
-      else paneEls.current.delete(id)
-    }
+  // Panes says where its panes are, every frame while they glide or a divider moves: the pages follow
+  const reportSplit = useCallback(
+    (rects: Record<number, Rect>): void => {
+      splitRects.current = rects
+      placeLive()
+      placeCompanions()
+    },
+    [placeLive, placeCompanions]
+  )
+  useLayoutEffect(() => {
+    if (!splitKey) splitRects.current = null
+  }, [splitKey])
 
   /** What was picked in the page menu (the header's More button, or a right-click on the header). */
   const onPagePick = (what: PageMenuPick | null): void => {
@@ -1735,6 +1772,8 @@ export function Expanded({
                     // the page stays on screen until the next one is ready to take its place
                     onPick={onSwitch}
                     onHover={setPointed}
+                    // dragged onto the page: beside it, as a tab dragged onto a page in the tab view
+                    onDragStart={r.id === m.id ? undefined : (e) => startDrag(e, r.id, 'tab')}
                   />
                 ))}
               </div>
@@ -1853,28 +1892,41 @@ export function Expanded({
                     {live === 'loading' && <span className="cv-live-bar" />}
                   </div>
                 )
-                if (!panes) return own
+                if (!panes)
+                  return (
+                    <>
+                      {own}
+                      {/* a strip tab dragged over the page: dropped on it, it opens beside it */}
+                      {drag && tab !== undefined && (
+                        <div className="cv-live-split cv-drop-only">
+                          <div className="pane-hit" data-tab-id={tab} style={{ inset: 0 }} />
+                        </div>
+                      )}
+                    </>
+                  )
                 return (
                   <div className="cv-live-split">
-                    {panes.map((p) =>
-                      p.tab === tab ? (
-                        own
-                      ) : (
-                        <div
-                          className="cv-live-slot"
-                          data-native-view
-                          key={p.tab}
-                          ref={paneRef(p.tab)}
-                        >
-                          {p.snap && <img src={p.snap} alt="" decoding="sync" draggable={false} />}
-                        </div>
-                      )
-                    )}
+                    <Panes
+                      tabs={allTabs}
+                      activeId={tab ?? null}
+                      layout={layout}
+                      preview={
+                        drag?.target?.kind === 'pane'
+                          ? applyDrop(layout, drag.id, drag.target.tabId, drag.target.edge)
+                          : undefined
+                      }
+                      thumbs={thumbs}
+                      dragId={drag?.id ?? null}
+                      onHeaderPointerDown={(e, id) => startDrag(e, id, 'pane')}
+                      report={reportSplit}
+                      onHold={setSplitHold}
+                    />
                   </div>
                 )
               })()}
         </div>
       </div>
+      {drag && <DropIndicator drag={drag} />}
       {/* the flight's soft shadow and light rim, over the panel's clipped edge (see draw) */}
       <div className="cv-fly-edge" ref={edge} aria-hidden="true" />
     </div>

@@ -717,6 +717,11 @@ export function Canvas({
   const hovFrame = useRef<string | undefined>(undefined)
   const splitRef = useRef<number[]>([])
   const expandedNow = useRef<number | null>(null)
+  /** The tabs' layout as it is now, for handlers set up once (see the show handler). */
+  const layoutRef = useRef(layout)
+  useLayoutEffect(() => {
+    layoutRef.current = layout
+  })
 
   const [bench, setBench] = useState<TabInfo[]>([])
   const allTabs = useMemo(() => (bench.length ? [...tabs, ...bench] : tabs), [tabs, bench])
@@ -1702,6 +1707,12 @@ export function Canvas({
     const show = (e: Event): void => {
       const id = (e as CustomEvent<{ id?: number }>).detail?.id
       if (typeof id !== 'number') return
+      // a pane of the split already in the preview (a link opened beside, a pane clicked): it is on screen, the
+      // preview stays as it is instead of opening that pane's card afresh. The layout itself, not the board's
+      // split cards: the new pane's card may not be on the board yet.
+      const group = layoutRef.current ? leaves(layoutRef.current) : []
+      const open = expandedRef.current ? expandedNow.current : null
+      if (open !== null && group.includes(id) && group.includes(open)) return
       showTab.current = { id, at: Date.now() }
       showNowRef.current()
     }
@@ -6005,6 +6016,9 @@ export function Canvas({
               ? splitIds.map((id) => ({ tab: id, snap: thumbs[id] }))
               : undefined
           }
+          layout={layout}
+          allTabs={tabs}
+          thumbs={thumbs}
           onCover={setExpandedCovers}
           onClose={() => {
             setExpandedCovers(false)

@@ -19,7 +19,8 @@ export function StripTab({
   on,
   peek,
   onPick,
-  onHover
+  onHover,
+  onDragStart
 }: {
   m: CardModel
   on: boolean
@@ -27,6 +28,8 @@ export function StripTab({
   onPick: (id: number) => void
   /** Pointed at, or left (null): the preview names it in its header instead of a tooltip over the strip. */
   onHover?: (m: CardModel | null) => void
+  /** A press that may become a drag (the preview: onto the page, to open it beside); a plain click still picks. */
+  onDragStart?: (e: React.PointerEvent) => void
 }): React.JSX.Element {
   const name = `${m.title}${m.site ? ` - ${m.site}` : ''}`
   return (
@@ -40,9 +43,15 @@ export function StripTab({
       aria-label={m.attnNew ? `${name}, ${m.attnCount || 'something'} new` : name}
       onPointerEnter={onHover ? () => onHover(m) : undefined}
       onPointerLeave={onHover ? () => onHover(null) : undefined}
-      onClick={() => {
-        if (!on) onPick(m.id)
-      }}
+      // with a drag start, the press is the drag's: a click without moving comes back through it as a pick
+      onPointerDown={onDragStart}
+      onClick={
+        onDragStart
+          ? undefined
+          : () => {
+              if (!on) onPick(m.id)
+            }
+      }
     >
       <SiteIcon src={m.favicon} decoding="sync" />
       {/* something new in that tab: how many, on the icon's corner as on an app in the Dock (a dot when unknown) */}

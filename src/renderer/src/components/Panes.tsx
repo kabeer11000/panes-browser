@@ -36,6 +36,13 @@ interface Props {
   smartNewTab?: boolean
   /** The space's colours when the new tab photo is to be dithered in them; null for the photo as it is. */
   dither?: { color: string; color2: string | null } | null
+  /**
+   * Where each pane's page goes, by tab. The tab view: main's page views (the default). The board's preview passes
+   * its own, which places its live pages instead: the same split, the same code, in either place.
+   */
+  report?: (rects: Record<number, Rect>) => void
+  /** A divider is being dragged (true) or let go: the pages step aside meanwhile. The default parks main's views. */
+  onHold?: (on: boolean) => void
 }
 
 const GAP = 5 // the gap between tiled panes; the divider's grab area extends past it (see .divider::before)
@@ -74,7 +81,9 @@ export function Panes({
   newTabPhoto = false,
   newTabPhotoId = null,
   smartNewTab = false,
-  dither = null
+  dither = null,
+  report,
+  onHold
 }: Props): React.JSX.Element {
   const byId = new Map(tabs.map((t) => [t.id, t]))
   const singleRoot: LayoutNode | null =
@@ -88,6 +97,12 @@ export function Panes({
   const structureKey = baseRoot ? JSON.stringify(baseRoot) : ''
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const reportRef = useRef(report)
+  const onHoldRef = useRef(onHold)
+  useLayoutEffect(() => {
+    reportRef.current = report
+    onHoldRef.current = onHold
+  })
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [windowResizing, setWindowResizing] = useState(false)
   const resizeTimer = useRef<number | undefined>(undefined)
@@ -147,7 +162,7 @@ export function Panes({
       const key = JSON.stringify(rects)
       if (key === last) return
       last = key
-      window.api.setContentBounds(rects)
+      ;(reportRef.current ?? window.api.setContentBounds)(rects)
     }
     const tick = (): void => {
       report()
@@ -202,7 +217,8 @@ export function Panes({
     dragRef.current = null
     window.api.setRatios(d.div.path, d.ratios)
     setResizing(false)
-    void releaseOverlay('divider')
+    if (onHoldRef.current) onHoldRef.current(false)
+    else void releaseOverlay('divider')
   }
   const endRef = useRef(endResize)
   useLayoutEffect(() => {
@@ -223,7 +239,8 @@ export function Panes({
     window.addEventListener('pointercancel', fns.end)
     window.addEventListener('blur', fns.end)
     setResizing(true)
-    void holdOverlay('divider', false)
+    if (onHoldRef.current) onHoldRef.current(true)
+    else void holdOverlay('divider', false)
   }
   useEffect(() => () => endRef.current(), [])
 
