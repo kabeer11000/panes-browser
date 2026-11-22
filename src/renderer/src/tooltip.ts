@@ -90,9 +90,9 @@ function place(el: Element): boolean {
   // centred on the visible part of the control, held inside the window
   const cx = (Math.max(r.left, 0) + Math.min(r.right, vw)) / 2
   const clampX = (x: number): number => Math.max(EDGE, Math.min(vw - EDGE - w, x))
-  // Try the preferred
-  // side, the other side, then over the control itself, each slid sideways off any page if it can be; the first
-  // that is clear wins. With no page on screen the first one always is.
+  // Try the preferred side, then the other, each slid sideways off any page if it can be; the first that is clear
+  // wins. With no page on screen the first one always is. With neither clear, no label: over the control it covered
+  // the very things being pointed at (the preview's tabs).
   const hits = (x: number, y: number): DOMRect | undefined =>
     pages.find((b) => x < b.right && x + w > b.left && y < b.bottom && y + h > b.top)
   const clear = (y: number): { x: number; y: number } | null => {
@@ -106,11 +106,8 @@ function place(el: Element): boolean {
     return hits(x, y) ? null : { x, y }
   }
   const sides = [below, !below]
-  const tries = [
-    ...sides.map((b) => ({ below: b, y: clampY(b ? r.bottom + GAP : r.top - GAP - h) })),
-    { below, y: clampY(r.top + r.height / 2 - h / 2) }
-  ]
-  let spot = { below, x: clampX(cx - w / 2), y: tries[0].y }
+  const tries = sides.map((b) => ({ below: b, y: clampY(b ? r.bottom + GAP : r.top - GAP - h) }))
+  let spot: { below: boolean; x: number; y: number } | null = null
   for (const t of tries) {
     const c = clear(t.y)
     if (c) {
@@ -118,6 +115,7 @@ function place(el: Element): boolean {
       break
     }
   }
+  if (!spot) return false
   const { x, y } = spot
   const isBelow = spot.below
   tip.style.setProperty('--x', `${Math.round(x)}px`)
