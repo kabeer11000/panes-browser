@@ -112,3 +112,14 @@ an explicit ask; this one happened to be a no-op, which is luck, not a reason.
 - Push only under the standing auto-release authorization (commit, push, release), nothing else.
 - Same day: ran `git checkout -- <file>` to drop my own trace lines. Also on the forbidden list. Undo my own edits
   with an Edit or a script that removes exactly the lines I added, never a git command.
+
+## A real click lands on whatever window is on top there (2026-11-23)
+
+Testing Ctrl+T with real input, I brought my test window to the front and checked it was the foreground window, then
+clicked at screen coordinates. The user's own preview window covered that spot, so the clicks went to it (no harm
+found: empty board space). The foreground check guards keys, not clicks.
+- Before every real click, check `WindowFromPoint` (its root window) is the target; abort otherwise (E:/tmp/keys.ps1
+  does now).
+- Prefer a test window placed where nothing of the user's is, and never click into the user's windows.
+- The parked test copy (PANES_OFFSCREEN) is unfocusable by design: real keys never reach it. Real-key tests need a
+  visible copy with its own profile.

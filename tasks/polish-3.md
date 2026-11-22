@@ -112,6 +112,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       Ruled out: a page calling window.focus() (cannot take focus back in Electron, tested), the new-tab page (no
       focus calls). CDP keys skip main's shortcut, and the parked window never has OS focus: needs real keys on a
       foreground window (E:/tmp/keys.ps1, target the right HWND: MainWindowHandle was not Panes' window).
+      2026-11-23: real keys on a visible copy: 10/10 runs the popover opened with every key ("gmail", 0-200 ms
+      after Ctrl+T) and held the keyboard. Not yet with the keyboard truly in a page first (the click to put it there
+      missed: the user's window was over that spot; keys.ps1 now refuses such a click). Next: a page focused by a
+      click verified with WindowFromPoint, then the same 10 runs; also the board with the preview open.
 - [ ] Preview over a YouTube page, bell opened: the page turns into its picture (good), but on closing the bell the
       live page comes back and reflows (things move, update). Make the return seamless: show the live view only once
       it has painted at the same size (no resize on return), no blur or darkening.
