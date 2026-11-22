@@ -12,7 +12,7 @@ import {
 import type { Rect, Settings, TabInfo } from '@shared/types'
 import { displayHost } from '@shared/url'
 import { TabTitle } from './TabTitle'
-import { CloseIcon, GripIcon, PipIcon } from './icons'
+import { CloseIcon, GripIcon } from './icons'
 import { NewTab } from './NewTab'
 import { TabFavicon } from './TabFavicon'
 import { holdOverlay, releaseOverlay } from '@renderer/overlay'
@@ -388,20 +388,9 @@ function Pane({
             dither={dither}
           />
         )}
-        {tab.pip && (
-          <div className="pip-note">
-            <span className="pip-note-icon">
-              <PipIcon />
-            </span>
-            <div className="pip-note-title">This tab is playing in Picture in Picture</div>
-            <button type="button" className="pip-note-btn" onClick={window.api.exitPip}>
-              Return to tab
-            </button>
-          </div>
-        )}
         {thumb && tab.url && <img className="pane-frozen" src={thumb} alt="" draggable={false} />}
         {/* A tab that has never been on screen has no snapshot: show who it is while its page loads. */}
-        {!thumb && tab.url && !tab.pip && (
+        {!thumb && tab.url && (
           <div className="pane-wait" aria-hidden="true">
             <TabFavicon tab={tab} noSpinner />
             <span>{displayHost(tab.url)}</span>

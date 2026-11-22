@@ -2805,45 +2805,6 @@ kbd {
 }
 
 /* the tab whose page is floating in picture in picture */
-.pip-note {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  background: var(--stage-bg);
-  text-align: center;
-}
-.pip-note-icon {
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-5);
-  background: var(--surface-hover);
-  color: var(--fg-dim);
-  transform: scale(1.5);
-  margin-bottom: 14px;
-}
-.pip-note-title {
-  font-size: var(--fs-l);
-  font-weight: 600;
-}
-.pip-note-btn {
-  padding: 8px 16px;
-  border-radius: var(--r-pill);
-  background: var(--surface-active);
-  color: var(--fg);
-  font-size: var(--fs-m);
-  transition: background var(--dur-fast);
-}
-.pip-note-btn:hover {
-  background: color-mix(in srgb, var(--accent) 30%, var(--surface-active));
-}
-
 /* the popover is the address bar grown larger: same corners and inner spacing */
 .pal.popover {
   border-radius: var(--pal-r, 8px) var(--pal-r, 8px) 12px 12px;

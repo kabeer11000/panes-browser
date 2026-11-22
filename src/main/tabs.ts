@@ -129,7 +129,6 @@ import { isWelcome, kindOf, type TabKind } from '@shared/tabkind'
 import { showContextMenu } from './contextMenu'
 import { feedbackMailto } from './feedback'
 import { mailtoWebUrl } from '@shared/mailto'
-import { PipController } from './pip'
 import type { BookmarkStore, HistoryStore } from './history'
 import type { SettingsStore } from './settings'
 import type { ActiveSite } from './sites'
@@ -197,8 +196,8 @@ const TOR_IDLE_MS = 5 * 60_000
 const NOTICE_MS = 4000
 
 /**
- * Picture in picture for a page drawn off screen (see togglePip): closes the floating video if there is one, else floats
- * the largest video that is playing (or, failing that, the largest one).
+ * Picture in picture (see togglePip): closes the floating video if there is one, else floats the largest video that is
+ * playing (or, failing that, the largest one). 'none' when the frame has no video.
  */
 const VIDEO_PIP_SCRIPT = `(() => {
   if (document.pictureInPictureElement) return document.exitPictureInPicture().then(() => 'closed')
@@ -448,7 +447,8 @@ export class TabManager {
   private activeId: number | null = null
   private nextId = 1
   private layout: LayoutNode | null = null
-  private pip: PipController
+  /** The tab whose video floats in Chromium's picture-in-picture window (told by preload/frame.ts), if any. */
+  private pipId: number | null = null
   /** Spaces: the active one owns `activeId` and `layout`; the others keep theirs here while hidden. */
   private activeSpaceId = 0
   private layouts = new Map<number, LayoutNode | null>()
@@ -548,12 +548,6 @@ export class TabManager {
   ) {
     this.activeSpaceId = deps.spaces.activeId()
     this.notice = new FullscreenNotice(win)
-    this.pip = new PipController({
-      mainWin: win,
-      viewRadius: VIEW_RADIUS,
-      onChange: () => this.refresh(),
-      onReturn: (id) => this.activate(id)
-    })
     win.on('resize', () => this.applyVisibility())
     // Timers outlive the window while the app quits (an update restarts it): they must not touch it then.
     const timers = [
@@ -631,7 +625,7 @@ export class TabManager {
         tor: t.tor,
         pinned: t.pinned,
         capture: t.capture,
-        pip: this.pip.tabId === id,
+        pip: this.pipId === id,
         unloaded: t.unloaded,
         usedAt: t.usedAt,
         openedAt: t.openedAt,
@@ -1310,7 +1304,7 @@ export class TabManager {
       }, UNLOAD_WAIT_MS)
       return
     }
-    if (this.pip.tabId === id) this.pip.stop() // the page must be back in this window before it is closed
+    if (this.pipId === id) this.pipId = null // its floating video closes with the page, which may not say so
     const url = tab.pending?.url || liveContents(tab)?.getURL()
     if (url && !tab.private) this.closedUrls.push(url)
 
@@ -1701,7 +1695,6 @@ export class TabManager {
 
   /** The window is closing: bring a floating video back (so its window does not keep the app alive) and save the session now. */
   shutdown(): void {
-    this.pip.stop()
     void this.privateSession.clearStorageData().catch(() => undefined)
     void this.deps.torSession.clearStorageData().catch(() => undefined)
     this.deps.tor.stop()
@@ -1821,48 +1814,46 @@ export class TabManager {
     writeFileSync(file.replace('.png', '-ui.png'), ui.toPNG())
   }
 
-  /** Float the video of the page on screen (on the board, the one in the preview) in a small always-on-top window, or bring it back. */
+  /**
+   * Float the video of the page on screen (on the board, the one in the preview) in Chromium's picture-in-picture
+   * window, as Chrome does, or bring it back. The page stays where it is; frames are tried in turn (an embedded
+   * player is in its own).
+   */
   togglePip(): void {
-    if (this.pip.tabId !== null) return this.pip.stop()
-    const tab = this.pageTab()
-    const id = this.pageTabId()
-    if (!tab || id === null) return
-    // a page drawn off screen has no native view to move into the floating window: Chromium's own picture in picture
-    // floats its video instead (it opens a window of its own, whatever draws the page)
-    if (isOffscreen(tab.view)) {
-      void tab.view.webContents.executeJavaScript(VIDEO_PIP_SCRIPT, true).catch(() => undefined)
-      return
-    }
-    void this.pip.start({ id, view: tab.view })
+    if (this.pipId !== null) return this.exitPip()
+    const wc = this.pageTab() && liveContents(this.pageTab()!)
+    if (!wc) return
+    void (async () => {
+      for (const frame of wc.mainFrame.framesInSubtree) {
+        const r = await frame.executeJavaScript(VIDEO_PIP_SCRIPT, true).catch(() => 'none')
+        if (r !== 'none') return
+      }
+    })()
   }
 
   exitPip(): void {
-    this.pip.stop()
+    const tab = this.pipId === null ? undefined : this.tabs.get(this.pipId)
+    const wc = tab && liveContents(tab)
+    for (const frame of wc?.mainFrame.framesInSubtree ?? [])
+      void frame
+        .executeJavaScript(
+          'document.pictureInPictureElement && document.exitPictureInPicture().catch(() => {})',
+          true
+        )
+        .catch(() => undefined)
   }
 
-  /**
-   * A page asked for picture in picture itself (its own button, as YouTube's; see preload/frame.ts): its video floats
-   * in Panes' window, as from Panes' own button, or comes back if it is floating. Chromium's own floating window does
-   * not show for a page in a native view. False leaves it to Chromium: a page drawn off screen, or not a tab's page.
-   */
-  pagePip(wc: WebContents, exit: boolean): boolean {
+  /** A page's video went into picture in picture, or came out of it (preload/frame.ts). */
+  nativePip(wc: WebContents, on: boolean): void {
     let id: number | null = null
     for (const [tid, t] of this.tabs) if (liveContents(t) === wc) id = tid
-    const tab = id === null ? undefined : this.tabs.get(id)
-    if (id === null || !tab || isOffscreen(tab.view)) return false
-    if (this.pip.tabId === id) {
-      this.pip.stop()
-      return true
-    }
-    if (exit) return false // nothing of ours to close: the page's own call answers
-    void this.pip.start({ id, view: tab.view })
-    return true
+    if (id === null) return
+    if (on) this.pipId = id
+    else if (this.pipId === id) this.pipId = null
+    else return
+    this.refresh()
   }
 
-  /** Dev aid: the state of picture in picture. */
-  debugPip(): Promise<unknown> {
-    return this.pip.debugInfo()
-  }
 
   /** Dev aid: the page of the current tab. */
   debugContents(): WebContents | undefined {
@@ -3163,7 +3154,6 @@ export class TabManager {
     const hold = this.holdFor(single)
     this.slid.clear()
     for (const [id, tab] of this.tabs) {
-      if (id === this.pip.tabId) continue // its page is in the floating window
       if (hold && id === hold.id) {
         // the page being left, kept in place until the incoming one is ready (see hold)
         tab.view.setBounds({
@@ -3456,14 +3446,8 @@ export class TabManager {
         searchUrl: (t) => this.deps.settings.searchUrl() + encodeURIComponent(t)
       })
     )
-    // A video in picture in picture is fullscreen inside its own small window, not the browser window.
-    wc.on('enter-html-full-screen', () => {
-      if (this.pip.tabId !== id) this.setFullscreen(id)
-    })
-    wc.on('leave-html-full-screen', () => {
-      if (this.pip.tabId === id) this.pip.refullscreen()
-      else this.setFullscreen(null)
-    })
+    wc.on('enter-html-full-screen', () => this.setFullscreen(id))
+    wc.on('leave-html-full-screen', () => this.setFullscreen(null))
     wc.on('did-stop-loading', () => {
       tab.dirty = true
       this.refresh()
@@ -4518,7 +4502,7 @@ export class TabManager {
           (this.sounding(t, wc) ||
             wc.isLoading() ||
             wc.isDevToolsOpened() ||
-            this.pip.tabId === id ||
+            this.pipId === id ||
             this.fullscreenId === id ||
             isCapturing(t.capture)), // in a call: unloading it would hang up
         host,

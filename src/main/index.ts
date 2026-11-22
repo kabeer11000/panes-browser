@@ -628,7 +628,7 @@ function createWindow(): void {
     tabs.moveTabToSpace(tabId, spaceId)
   )
   ipcMain.on('pip:toggle', () => tabs.togglePip())
-  ipcMain.handle('pip:page', (e, exit: unknown) => tabs.pagePip(e.sender, exit === true))
+  ipcMain.on('pip:native', (e, on: unknown) => tabs.nativePip(e.sender, on === true))
   ipcMain.on('capture:report', (e, data: unknown) => {
     if (typeof data === 'string' && data.length < 200)
       tabs.captureReport(e.sender, e.senderFrame, data)
@@ -970,23 +970,6 @@ function createWindow(): void {
         say('cross-site credentials', passwords.credentials('http://evil.test', 1))
         app.quit()
       })
-    } else if (debugPage === 'pip') {
-      const url = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm'
-      setTimeout(() => tabs.create(url), 2500)
-      setTimeout(async () => {
-        console.log('[pip] before', JSON.stringify(tabs.debugTabs()))
-        tabs.togglePip()
-        await new Promise((r) => setTimeout(r, 2500))
-        console.log('[pip] started', JSON.stringify(await tabs.debugPip()))
-        tabs.togglePip()
-        await new Promise((r) => setTimeout(r, 1200))
-        console.log(
-          '[pip] stopped',
-          JSON.stringify(await tabs.debugPip()),
-          'views in main window:',
-          win.contentView.children.length
-        )
-      }, 9000)
     } else if (debugPage === 'close') {
       setTimeout(() => tabs.create('https://example.com/'), 2500)
       setTimeout(() => tabs.create('https://example.org/'), 3000)

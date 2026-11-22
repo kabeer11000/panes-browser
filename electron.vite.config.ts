@@ -25,7 +25,6 @@ export default defineConfig({
         input: {
           index: resolve('src/preload/index.ts'),
           internal: resolve('src/preload/internal.ts'),
-          pip: resolve('src/preload/pip.ts'),
           popover: resolve('src/preload/popover.ts'),
           permission: resolve('src/preload/permission.ts'),
           panel: resolve('src/preload/panel.ts'),
@@ -57,7 +56,6 @@ export default defineConfig({
         input: {
           index: resolve('src/renderer/index.html'),
           internal: resolve('src/renderer/internal.html'),
-          pip: resolve('src/renderer/pip.html'),
           popover: resolve('src/renderer/popover.html'),
           error: resolve('src/renderer/error.html'),
           welcome: resolve('src/renderer/welcome.html'),

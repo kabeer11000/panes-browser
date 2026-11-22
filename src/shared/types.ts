@@ -1023,15 +1023,6 @@ export interface ImportAllResult {
   search: SearchEngineId | null
 }
 
-export interface PipState {
-  playing: boolean
-  current: number
-  duration: number
-  muted: boolean
-  w: number
-  h: number
-}
-
 /** The address bar's rectangle in window coordinates, plus the colours the popover should wear. */
 export interface PromptAnchor {
   x: number
@@ -1211,18 +1202,6 @@ export interface SitePanelApi {
   onHide(cb: () => void): () => void
   /** Fresh state while the panel is open: the tab navigated or loaded, a setting changed elsewhere. */
   onInfo(cb: (info: SiteInfo | null) => void): () => void
-}
-
-/** What the picture-in-picture controls overlay can do. */
-export interface PipApi {
-  onState(cb: (state: PipState) => void): () => void
-  playPause(): void
-  seek(to: number): void
-  skip(delta: number): void
-  toggleMute(): void
-  close(): void
-  back(): void
-  drag(phase: 'start' | 'move' | 'end'): void
 }
 
 /** One model the chat picker can offer. Unavailable ones are shown disabled, with the reason in `hint`. */
