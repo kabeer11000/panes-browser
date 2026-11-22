@@ -266,7 +266,7 @@ function createWindow(): void {
   const ai = registerAi({ settings, tabs, history, downloads })
   suggester.setSemantic((q, exclude) => ai.features.semantic(q, exclude))
   registerTouchpad()
-  new NavGestures(win, tabs, settings)
+  const gestures = new NavGestures(win, tabs, settings)
   const canvas = registerCanvas({
     win,
     tabs,
@@ -814,7 +814,7 @@ function createWindow(): void {
   // the test driver reaches these over the main process inspector (scripts/drive.ts main)
   if (offscreenTest)
     Object.assign(globalThis, {
-      panesTest: { win, tabs, spaces, settings, permissions, loadAi, updater }
+      panesTest: { win, tabs, spaces, settings, permissions, loadAi, updater, gestures }
     })
   win.on('close', () => tabs.shutdown())
   win.on('ready-to-show', () => {

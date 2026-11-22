@@ -98,3 +98,38 @@ describe('NavSwipe edges', () => {
     expect(out.at(-1)).toEqual({ kind: 'commit', action: 'prevTab' })
   })
 })
+
+describe('NavSwipe flick', () => {
+  /** Two fingers moving `mm` sideways over `ms`, in 8 ms frames, then lifted. */
+  function timed(mm: number, ms: number): NavEvent | undefined {
+    const g = new NavSwipe()
+    const out: NavEvent[] = []
+    const steps = Math.round(ms / 8)
+    g.touch({ dx: 0, dy: 0, fingers: 2, x: 50, y: 30, padW: PAD, t: 0 })
+    for (let i = 1; i <= steps; i++) {
+      const e = g.touch({ dx: mm / steps, dy: 0, fingers: 2, x: 50, y: 30, padW: PAD, t: i * 8 })
+      if (e) out.push(e)
+    }
+    const e = g.touch({ dx: 0, dy: 0, fingers: 0, x: 0, y: 0, padW: PAD, t: steps * 8 + 8 })
+    if (e) out.push(e)
+    return out.at(-1)
+  }
+  test('a quick short flick goes back', () => {
+    expect(timed(16, 80)).toEqual({ kind: 'commit', action: 'back' })
+    expect(timed(-16, 80)).toEqual({ kind: 'commit', action: 'forward' })
+  })
+  test('the same distance slowly is let go', () => {
+    expect(timed(16, 1000)).toEqual({ kind: 'cancel' })
+  })
+  test('a flick that stops before lifting is let go', () => {
+    const g = new NavSwipe()
+    g.touch({ dx: 0, dy: 0, fingers: 2, x: 50, y: 30, padW: PAD, t: 0 })
+    for (let i = 1; i <= 10; i++)
+      g.touch({ dx: 1.6, dy: 0, fingers: 2, x: 50, y: 30, padW: PAD, t: i * 8 })
+    for (let i = 11; i <= 30; i++)
+      g.touch({ dx: 0, dy: 0, fingers: 2, x: 50, y: 30, padW: PAD, t: i * 8 })
+    expect(g.touch({ dx: 0, dy: 0, fingers: 0, x: 0, y: 0, padW: PAD, t: 248 })).toEqual({
+      kind: 'cancel'
+    })
+  })
+})

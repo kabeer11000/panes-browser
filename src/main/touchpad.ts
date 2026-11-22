@@ -158,6 +158,8 @@ export interface TouchFrame {
   xMin: number
   xMax: number
   padW: number
+  /** When the pad took it, ms */
+  t: number
 }
 
 /**
@@ -302,7 +304,7 @@ class Reader {
     if (this.board && !this.board.isDestroyed())
       this.board.send('canvas:touchpad', f.dx, f.dy, f.fingers, f.y, t)
     // the swipes too: on the board they go back and forward in the page open in its preview (see NavGestures)
-    if (this.nav) this.nav({ ...f, padW: d.slots[0].x.span })
+    if (this.nav) this.nav({ ...f, padW: d.slots[0].x.span, t })
   }
 
   private lastFingers = 0

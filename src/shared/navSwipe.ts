@@ -19,6 +19,8 @@ export interface NavFrame {
   /** The leftmost and rightmost finger (mm from the left edge); `x` when not given. */
   xMin?: number
   xMax?: number
+  /** When the pad took this frame, ms; given, a quick flick past a fraction of the mark acts too. */
+  t?: number
 }
 
 export type NavEvent =
@@ -30,9 +32,13 @@ export type NavEvent =
 export const NAV_EDGE_MM = 6
 /** Travel (mm) that completes a tab switch, and a history step. */
 export const TAB_MM = 22
-export const HISTORY_MM = 40
+export const HISTORY_MM = 30
 /** A history swipe shows only past this much sideways travel (mm), so a plain scroll is not interrupted. */
 const HISTORY_START_MM = 8
+/** A flick: lifting while moving at least this fast (mm/s, over the last FLICK_MS) acts from FLICK_PROGRESS on. */
+const FLICK_SPEED = 150
+const FLICK_MS = 60
+const FLICK_PROGRESS = 0.25
 
 export class NavSwipe {
   /** Which gestures are on (Settings). */
@@ -45,6 +51,8 @@ export class NavSwipe {
   private sy = 0
   private tracking: NavAction | null = null
   private progress = 0
+  /** Recent (time, sideways travel) samples, for the flick speed. */
+  private trail: { t: number; sx: number }[] = []
 
   /** Feed one frame; what it means, or null for nothing (yet). */
   touch(f: NavFrame): NavEvent | null {
@@ -55,6 +63,7 @@ export class NavSwipe {
       this.sx = this.sy = 0
       this.progress = 0
       this.tracking = null
+      this.trail = []
       this.edge =
         f.padW > 0 && (f.xMin ?? f.x) <= NAV_EDGE_MM
           ? 'left'
@@ -67,7 +76,8 @@ export class NavSwipe {
     if (f.fingers !== 2) {
       // lifted (or a third finger joined): act if it went far enough, else let it go
       const lifted = was === 2 && f.fingers < 2
-      const act = lifted && this.tracking && this.progress >= 1 ? this.tracking : null
+      const act =
+        lifted && this.tracking && (this.progress >= 1 || this.flicked()) ? this.tracking : null
       const had = this.tracking !== null
       this.drop()
       if (act) return { kind: 'commit', action: act }
@@ -76,6 +86,10 @@ export class NavSwipe {
     if (this.mode === 'none') return null
     this.sx += f.dx
     this.sy += f.dy
+    if (f.t !== undefined) {
+      this.trail.push({ t: f.t, sx: this.sx })
+      while (this.trail.length > 2 && f.t - this.trail[1].t >= FLICK_MS) this.trail.shift()
+    }
     // up or down more than sideways: a scroll, not this
     if (Math.abs(this.sy) > Math.max(6, Math.abs(this.sx) * 0.7)) return this.cancel()
     let action: NavAction
@@ -95,6 +109,18 @@ export class NavSwipe {
     this.tracking = action
     this.progress = Math.min(1, progress)
     return { kind: 'track', action, progress: this.progress }
+  }
+
+  /** Lifted mid-way but fast, the way it is tracking: meant all the way. */
+  private flicked(): boolean {
+    if (this.progress < FLICK_PROGRESS || this.trail.length < 2) return false
+    const a = this.trail[0]
+    const b = this.trail[this.trail.length - 1]
+    const dt = b.t - a.t
+    if (dt <= 0) return false
+    const v = ((b.sx - a.sx) / dt) * 1000
+    const want = this.tracking === 'back' || this.tracking === 'prevTab' ? 1 : -1
+    return v * want >= FLICK_SPEED
   }
 
   /** This gesture is not one after all: what was shown goes. */
