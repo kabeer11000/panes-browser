@@ -7,7 +7,7 @@ services:
     dockerfilePath: ./share/server/Dockerfile
     dockerContext: .
     plan: starter
-    region: oregon
+    region: singapore
     healthCheckPath: /health
     autoDeploy: true
     buildFilter:
