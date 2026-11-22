@@ -43,10 +43,11 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Ctrl+T then typing at once, from every screen: no key lost. 60/60 timed runs, tab view + board, 0-250 ms.
 - [x] Board strip + bottom toolbar must trap the pointer (hover, right-click reach the board under them). (88c45d1)
 - [x] Setting to turn off live video on cards (RAM/GPU). Settings, Memory. (f61fef7)
-- [ ] Recent tabs: switching sometimes drops that tab from the bar; a newly opened tab does not show at the left.
+- [x] Recent tabs: switching sometimes drops that tab from the bar; a newly opened tab does not show at the left.
       Rule: left = most recent, stable, never disorienting; tabs appear and move with clear motion. UI is never a surprise.
+      (b9de12b, verified live: background tab joins at the left in 1.5 s, board and preview.)
 - [ ] Preview open: a rim of something peeks from behind at the left / top corners. Hide it (and unload if not needed).
-- [ ] Shared spaces (FigJam-like), decided 2026-11-20 (polish-2.md:132): Yjs, own websocket relay on the user's Render
+- [ ] Shared spaces (FigJam-like, plan: tasks/shared-spaces.md; + Hyperbeam-like co-browsing, chat, web guests), decided 2026-11-20 (polish-2.md:132): Yjs, own websocket relay on the user's Render
       account, invite link with a secret key (no accounts), images shrunk + uploaded to the relay (~5 MB cap). Both edit
       notes, images, arrows, sections, cards. Later: shared tabs. Plan it in tasks/shared-spaces.md first; deploying to
       Render is outward-facing: confirm with the user before the first deploy.
@@ -55,7 +56,9 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Tidy freezes the whole PC for a second, even without AI: make it efficient (measure; worker/WASM if needed).
 - [ ] Notes and text on the board: Ctrl+B / Ctrl+I and the like (Figma-like), font size.
 - [x] Certificate interstitial "Proceed (unsafe)": verified on self-signed.badssl.com (c249b32).
-- [ ] Preview: tooltips (esp. near the bottom) go under the web contents (native view over the page).
+- [x] Tooltips go under the web contents: preview and tab view (sidebar). 25/25 clear in a sweep. (7dcff39)
+- [x] Preview notifications list under the page (offscreen page canvas) + Escape closed the preview. (7dcff39)
+- [x] Space switcher unread bubble clipped. (8926016)
 - [ ] Frosted glass option: whole chrome (board strip, now playing, bottom toolbar, popovers) blurred/translucent
       when on; off automatically in Efficient/Performance mode. No such setting exists today. Measure GPU on pan/zoom.
 - [ ] Scroll fade gradients on every scrolling list, search popover included.
@@ -68,6 +71,16 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       (permission card, save-password, downloads bin, tab hover card...): one clean look, wider/horizontal if it reads better.
 - [ ] Then: first-party screen time / digital health (time per site, daily/weekly, limits, focus), better than
       Apple's Screen Time. Local only.
+
+- [ ] Hyperbeam-smooth shared browsing with remote control, and chat: in tasks/shared-spaces.md.
+- [ ] Off the main thread: see D.
+
+### Audit of the earlier session's asks (2026-11-22, from the 17:27 transcript): unverified live
+
+- [ ] Delete key closes the selected tab cards on the board (read-only check only).
+- [ ] Clicking a Windows notification (WhatsApp-style page) opens that tab.
+- [ ] Hover states on the strip's tabs, tab switchers, preview header buttons; header height 34 px.
+- [ ] Zoom / pinch / pan on the board: re-measure with scripts/perf-canvas.ts after the recent UI changes.
 
 ## C. Web platform parity (plan, then build)
 

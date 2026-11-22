@@ -207,7 +207,7 @@ import { Toolbar, type Tool } from './Toolbar'
 /** The board's own bars and panels over it: pointer input there is theirs, never the board's (hover, press, double
  * click, the board's menu). One list, so no handler forgets one. */
 const CHROME =
-  '.cv-bar,.cv-toast,.cv-kbar,.cv-confirm,.cv-expand,.cv-top,.cv-new,.cv-fbar,.cv-dock,.cv-dock-handle,.cv-strip,.cv-ctx,.cv-quick,.cv-aioff'
+  '.cv-bar,.cv-toast,.cv-kbar,.cv-confirm,.cv-expand,.cv-top,.cv-new,.cv-fbar,.cv-dock,.cv-dock-handle,.cv-strip-row,.cv-strip,.cv-ctx,.cv-quick,.cv-aioff'
 const FRAME_HEAD_PX = 44
 /** Wheel px per mm of two-finger touchpad travel, as last measured (shared/freeScroll.ts). */
 const GAIN_KEY = 'panes.touchpadGain'
@@ -6079,27 +6079,30 @@ export function Canvas({
         }}
       />
       {/* the tab strip, top centre (as in the preview's header): what plays, the tabs used last, what is new */}
-      {phase === 'open' &&
-        !expanded &&
-        quick === null &&
-        (playing.length > 0 || boardRow.length > 0 || waiting.length > 0) && (
-          <div className="cv-strip board" role="toolbar" aria-label="Recent tabs">
-            {playing[0] && <StripPlaying t={playing[0]} onGo={openWaiting} />}
-            {boardRow.length > 0 && (
-              <div className="cv-recent" role="tablist" aria-label="Recent tabs">
-                {boardRow
-                  .flatMap((id) => modelFor({ id }) ?? [])
-                  .map((r) => (
-                    <StripTab
-                      key={r.id}
-                      m={r}
-                      on={false}
-                      peek={peeks.get(r.id)}
-                      onPick={openWaiting}
-                    />
-                  ))}
-              </div>
-            )}
+      {/* the bell beside it, on its own: always there, so the row never changes its shape when something comes in */}
+      {phase === 'open' && !expanded && quick === null && (
+        <div className="cv-strip-row">
+          {(playing.length > 0 || boardRow.length > 0) && (
+            <div className="cv-strip board" role="toolbar" aria-label="Recent tabs">
+              {playing[0] && <StripPlaying t={playing[0]} onGo={openWaiting} />}
+              {boardRow.length > 0 && (
+                <div className="cv-recent" role="tablist" aria-label="Recent tabs">
+                  {boardRow
+                    .flatMap((id) => modelFor({ id }) ?? [])
+                    .map((r) => (
+                      <StripTab
+                        key={r.id}
+                        m={r}
+                        on={false}
+                        peek={peeks.get(r.id)}
+                        onPick={openWaiting}
+                      />
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="cv-strip-bellbox">
             <StripInbox
               waiting={waiting}
               open={boardInbox}
@@ -6111,7 +6114,8 @@ export function Canvas({
               }}
             />
           </div>
-        )}
+        </div>
+      )}
       <AiGlow level={busy ? 2 : naming > 0 ? 1 : 0} />
       <Toolbar
         tool={tool}

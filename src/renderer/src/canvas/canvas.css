@@ -4470,7 +4470,7 @@
 
 /* ---- the tab strip (TabStrip.tsx): the same row on the board (top centre) and in the preview's header ---- */
 /* on the board: on a quiet plate of its own, centred over the board (clear of the conversation column) */
-.cv-strip.board {
+.cv-strip-row {
   position: absolute;
   top: 8px;
   left: 50%;
@@ -4478,19 +4478,59 @@
   z-index: 12;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   max-width: calc(100% - 520px);
+  animation: cv-fade 0.2s ease-out both;
+  transition: left 0.34s var(--ease);
+}
+.cv.docked .cv-strip-row {
+  left: calc((100% - min(var(--dock-w, 380px), calc(100% - 120px))) / 2);
+}
+.cv-strip.board {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px;
   border-radius: 11px;
   background: color-mix(in srgb, var(--popover-bg) 86%, transparent);
   box-shadow:
     inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 12%, transparent),
     0 8px 24px rgb(0 0 0 / 0.22);
-  animation: cv-fade 0.2s ease-out both;
-  transition: left 0.34s var(--ease);
 }
-.cv.docked .cv-strip.board {
-  left: calc((100% - min(var(--dock-w, 380px), calc(100% - 120px))) / 2);
+/* the bell on its own round plate, the strip's height */
+.cv-strip-bellbox {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+.cv-strip-bellbox .cv-strip-bell {
+  justify-content: center;
+  width: 26px;
+  padding: 0;
+  border-radius: 50%;
+}
+.cv-strip-bellbox .cv-strip-bell > b {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  box-shadow: 0 0 0 2px var(--chrome, var(--popover-bg));
+}
+/* a tab with something new: a small dot under its icon */
+.cv-recent button > .cv-unread {
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  translate: -50% 0;
+  background: var(--badge-bg);
+  pointer-events: none;
 }
 /* what plays: a moving level and its name, then play or pause, set off from the tabs by a hairline */
 .cv-strip-play {
@@ -4567,22 +4607,21 @@
   width: max-content;
   max-width: 260px;
   height: auto;
-  padding: 4px 10px;
-  border-radius: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 11.5px;
-  font-weight: 550;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 16px;
   text-align: left;
   opacity: 1;
   color: var(--fg);
   background: var(--popover-bg);
   box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 16%, transparent),
-    inset 2.5px 0 0 var(--badge-bg),
-    0 6px 18px rgb(0 0 0 / 0.3);
+    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 12%, transparent),
+    0 8px 24px rgb(0 0 0 / 0.28);
   pointer-events: none;
   animation: cv-strip-peek 0.36s cubic-bezier(0.32, 0.72, 0, 1) both;
 }

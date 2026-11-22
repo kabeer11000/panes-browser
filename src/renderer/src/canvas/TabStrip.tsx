@@ -34,19 +34,14 @@ export function StripTab({
       aria-selected={on}
       className={(on ? 'on' : '') + (peek ? ' peeking' : '')}
       title={peek ? `${name}: ${peek}` : name}
+      aria-label={m.attnNew ? `${name}, ${m.attnCount || 'something'} new` : undefined}
       onClick={() => {
         if (!on) onPick(m.id)
       }}
     >
-      {m.attnNew ? (
-        // something new in that tab: the same red mark as on its tab and its card
-        <span className="fav-attn">
-          <SiteIcon src={m.favicon} decoding="sync" />
-          <b className={m.attnCount ? 'count' : ''}>{badgeText(m.attnCount ?? 0, 9)}</b>
-        </span>
-      ) : (
-        <SiteIcon src={m.favicon} decoding="sync" />
-      )}
+      <SiteIcon src={m.favicon} decoding="sync" />
+      {/* something new in that tab: a dot under its icon, as the Dock marks an app; how many is the bell's to say */}
+      {m.attnNew && <i className="cv-unread" aria-hidden="true" />}
       {/* over the strip, beside its tab, for a few seconds: never below it, where the preview's page is */}
       {peek && (
         <span className="cv-strip-peek" role="status">
@@ -130,7 +125,7 @@ const nameOf = (t: TabInfo): string => t.aiTitle || t.title || 'A tab'
 /**
  * The notifications, at the strip's end: a bell with how many sites have something new, opening the list as on
  * Apple's Notification Center (one rounded card per site: its icon and name, then what each notification said, newest
- * first, with its age). A card opens its tab. Shown only while something waits.
+ * first, with its age). A card opens its tab. Always there (the strip keeps its shape): quiet when nothing waits.
  */
 export function StripInbox({
   waiting,
@@ -149,8 +144,9 @@ export function StripInbox({
   const [now, setNow] = useState(0)
   const host = useRef<HTMLSpanElement>(null)
   useDismiss(open, host, onClose)
-  if (waiting.length === 0) return null
-  const said = `${waiting.length} site${waiting.length > 1 ? 's' : ''} with something new`
+  const said = waiting.length
+    ? `${waiting.length} site${waiting.length > 1 ? 's' : ''} with something new`
+    : 'nothing new'
   return (
     <span className="cv-strip-inbox" ref={host}>
       <button
@@ -167,12 +163,13 @@ export function StripInbox({
         }}
       >
         <BellGlyph />
-        <b>{badgeText(waiting.length, 9)}</b>
+        {waiting.length > 0 && <b>{badgeText(waiting.length, 9)}</b>}
       </button>
       {open && (
         <div className="cv-nc" role="dialog" aria-label="Notifications">
           <div className="cv-nc-head">Notifications</div>
           <div className="cv-nc-list">
+            {waiting.length === 0 && <p className="cv-nc-empty">You are all caught up.</p>}
             {waiting.map((t, i) => {
               const a = t.attention
               const msgs = [...a.messages].reverse()
