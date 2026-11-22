@@ -14,7 +14,8 @@ import {
   SHARE_REFRESH_MS,
   shareAudio,
   shareTab,
-  stopCaptureScript
+  captureShim,
+  type CaptureState
 } from './capture'
 import type { ScreenSource } from './types'
 
@@ -136,7 +137,6 @@ describe('mergeCapture and captureKindsOf', () => {
   test('maps permission kinds to capture kinds', () => {
     expect(captureKindsOf(['camera', 'microphone', 'location'])).toEqual(['camera', 'mic'])
     expect(captureKindsOf(['screen'])).toEqual(['screen'])
-    expect(stopCaptureScript(['mic'])).toContain('["mic"]')
   })
 })
 
@@ -159,5 +159,138 @@ describe('isCapturing', () => {
   test('any one kind', () => {
     expect(isCapturing(NO_CAPTURE)).toBe(false)
     expect(isCapturing({ ...NO_CAPTURE, mic: true })).toBe(true)
+  })
+})
+
+describe('captureShim', () => {
+  class FakeTrack {
+    readyState: 'live' | 'ended' = 'live'
+    private listeners: Array<() => void> = []
+    constructor(
+      readonly kind: 'audio' | 'video',
+      private readonly surface?: string
+    ) {}
+    getSettings(): { displaySurface?: string } {
+      return { displaySurface: this.surface }
+    }
+    addEventListener(_t: string, f: () => void): void {
+      this.listeners.push(f)
+    }
+    dispatchEvent(): boolean {
+      for (const f of this.listeners) f()
+      return true
+    }
+    stop(): void {
+      this.readyState = 'ended'
+    }
+    clone(): FakeTrack {
+      return new FakeTrack(this.kind, this.surface)
+    }
+  }
+  /** A stand-in window; `tick` runs the shim's once-a-second look. */
+  function setup(): {
+    reports: Array<CaptureState | null>
+    gum: (tracks: FakeTrack[]) => Promise<{ getTracks(): FakeTrack[] }>
+    tick: () => void
+    timers: () => number
+    stop: (kinds: string[]) => void
+  } {
+    const reports: Array<CaptureState | null> = []
+    let next: FakeTrack[] = []
+    let stopCb: (kinds: string[]) => void = () => {}
+    const intervals = new Map<number, () => void>()
+    let n = 0
+    class MediaDevices {
+      getUserMedia(): Promise<{ getTracks(): FakeTrack[] }> {
+        const tracks = next
+        return Promise.resolve({ getTracks: () => tracks })
+      }
+    }
+    const g = {
+      MediaDevices,
+      MediaStreamTrack: FakeTrack,
+      Event: class {
+        constructor(readonly type: string) {}
+      },
+      setInterval: (f: () => void) => (intervals.set(++n, f), n),
+      clearInterval: (id: number) => intervals.delete(id)
+    }
+    captureShim(
+      {
+        report: (d) => reports.push(parseCapture(CAPTURE_PREFIX + d)),
+        onStop: (cb) => (stopCb = cb)
+      },
+      g as unknown as typeof globalThis
+    )
+    const md = new MediaDevices()
+    return {
+      reports,
+      gum: (tracks) => {
+        next = tracks
+        return md.getUserMedia()
+      },
+      tick: () => [...intervals.values()].forEach((f) => f()),
+      timers: () => intervals.size,
+      stop: (kinds) => stopCb(kinds)
+    }
+  }
+
+  test('a voice call is seen, and its end when the page stops the track itself', async () => {
+    const s = setup()
+    const mic = new FakeTrack('audio')
+    await s.gum([mic])
+    expect(s.reports.at(-1)).toEqual({ camera: false, mic: true, screen: false })
+    expect(s.timers()).toBe(1)
+    mic.stop() // fires no event
+    s.tick()
+    expect(s.reports.at(-1)).toEqual(NO_CAPTURE)
+    expect(s.timers()).toBe(0) // nothing live: no timer left running
+  })
+  test('the wrapped function still reads as native', () => {
+    setup()
+    // a Proxy over a function keeps its name; bot checks that look at it see nothing new
+    class M {
+      getUserMedia(): void {}
+    }
+    const g = { MediaDevices: M } as unknown as typeof globalThis
+    captureShim({ report: () => {}, onStop: () => {} }, g)
+    expect(M.prototype.getUserMedia.name).toBe('getUserMedia')
+  })
+  test('a screen share is told from a camera', async () => {
+    const s = setup()
+    await s.gum([new FakeTrack('video', 'monitor')])
+    expect(s.reports.at(-1)).toEqual({ camera: false, mic: false, screen: true })
+  })
+  test('a clone keeps the mic on after the original is stopped', async () => {
+    const s = setup()
+    const mic = new FakeTrack('audio')
+    await s.gum([mic])
+    const copy = (FakeTrack.prototype.clone as () => FakeTrack).call(mic)
+    mic.stop()
+    s.tick()
+    expect(s.reports.at(-1)?.mic).toBe(true)
+    copy.stop()
+    s.tick()
+    expect(s.reports.at(-1)).toEqual(NO_CAPTURE)
+  })
+  test('stopping a kind from Panes ends those tracks only, and the page hears ended', async () => {
+    const s = setup()
+    const mic = new FakeTrack('audio')
+    const cam = new FakeTrack('video')
+    let heard = false
+    mic.addEventListener('ended', () => (heard = true))
+    await s.gum([mic, cam])
+    s.stop(['mic'])
+    expect(heard).toBe(true)
+    expect(cam.readyState).toBe('live')
+    expect(s.reports.at(-1)).toEqual({ camera: true, mic: false, screen: false })
+  })
+  test('reports only changes', async () => {
+    const s = setup()
+    await s.gum([new FakeTrack('audio')])
+    const n = s.reports.length
+    s.tick()
+    s.tick()
+    expect(s.reports.length).toBe(n)
   })
 })

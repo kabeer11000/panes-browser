@@ -15,8 +15,7 @@ import {
   type OpenExternalPermissionRequest,
   type Session,
   type Streams,
-  type WebContents,
-  type WebFrameMain
+  type WebContents
 } from 'electron'
 import { join } from 'path'
 import {
@@ -40,13 +39,12 @@ import {
   type SiteGrant
 } from '@shared/permissions'
 import {
-  CAPTURE_SCRIPT,
   captureKindsOf,
   mergeSources,
   nextSharePass,
   SHARE_REFRESH_MS,
   shareAudio,
-  stopCaptureScript,
+  type CaptureKind,
   type SharePass
 } from '@shared/capture'
 import type {
@@ -79,14 +77,15 @@ function osBlocked(kinds: readonly PermKind[]): 'camera' | 'microphone' | null {
   return null
 }
 
-/** From now on, have the frame tell its tab when it is capturing the camera, microphone or screen. */
-function watchCapture(frame: WebFrameMain | null | undefined): void {
-  if (frame && !frame.isDestroyed()) void frame.executeJavaScript(CAPTURE_SCRIPT).catch(() => {})
-}
-
-/** The frames of a page that asked from `url` (the page itself, or a call widget inside it). */
-function framesAt(wc: WebContents, url: string): WebFrameMain[] {
-  return wc.mainFrame.framesInSubtree.filter((f) => f.url === url)
+/** End what a page captures of these kinds, in every frame (see captureShim): the page sees it as the user ending it. */
+export function stopCaptureIn(wc: WebContents, kinds: readonly CaptureKind[]): void {
+  for (const f of wc.mainFrame.framesInSubtree) {
+    try {
+      f.send('capture:stop', kinds)
+    } catch {
+      // a frame going away
+    }
+  }
 }
 
 const SOURCE_ATTEMPTS = 3
@@ -350,9 +349,6 @@ export class PermissionManager {
       }
       const finish = (granted: boolean): void => {
         this.tell(wc, store, origin, kinds, granted)
-        if (granted && captureKindsOf(kinds).length > 0) {
-          for (const f of framesAt(wc, details.requestingUrl)) watchCapture(f)
-        }
         cb(granted)
       }
       // Sharing the screen is consented to in the picker, every time, so a stored Allow or no answer both go on
@@ -415,7 +411,6 @@ export class PermissionManager {
         void this.pickScreen(origin, request.audioRequested, wc ?? null).then((streams) => {
           if (wc) this.picking.delete(wc.id)
           if (wc) this.tell(wc, store, origin, ['screen'], !!streams)
-          if (streams) watchCapture(frame)
           reply(streams)
         })
       },
@@ -685,9 +680,7 @@ export class PermissionManager {
       // A blocked camera, microphone or screen share stops now, as in Chrome, rather than at the next reload.
       const stop = captureKindsOf(change.kinds.filter((k) => store.get(origin, k) === 'block'))
       if (stop.length === 0) continue
-      for (const f of wc.mainFrame.framesInSubtree) {
-        void f.executeJavaScript(stopCaptureScript(stop)).catch(() => {})
-      }
+      stopCaptureIn(wc, stop)
     }
     // Questions the change answers are settled now, instead of asking what was just decided.
     for (const p of [...this.queue]) {

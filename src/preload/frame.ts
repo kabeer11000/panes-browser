@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import { PASSKEY_SHIM } from '@shared/passkeys'
 import { notifyShim } from '@shared/notify'
+import { captureShim } from '@shared/capture'
 
 // Every frame of every tab, at document start, in the page's own world (see shared/passkeys.ts).
 webFrame.executeJavaScript(PASSKEY_SHIM).catch(() => undefined)
@@ -126,6 +127,21 @@ function pipShim(bridge: { pip: (exit: boolean) => Promise<boolean> }): void {
 }
 
 if (/^https?:$/.test(location.protocol)) {
+  try {
+    // passed itself, run from its source text in the page's world (see notifyShim below)
+    contextBridge.executeInMainWorld({
+      func: captureShim,
+      args: [
+        {
+          report: (data: string) => ipcRenderer.send('capture:report', data),
+          onStop: (cb: (kinds: string[]) => void) =>
+            void ipcRenderer.on('capture:stop', (_e, kinds: string[]) => cb(kinds))
+        }
+      ]
+    })
+  } catch {
+    // a frame torn down as it started
+  }
   try {
     contextBridge.executeInMainWorld({
       // run from its source text in the page's world, so it is passed itself (a wrapper would call a name that

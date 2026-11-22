@@ -599,6 +599,10 @@ function createWindow(): void {
   )
   ipcMain.on('pip:toggle', () => tabs.togglePip())
   ipcMain.handle('pip:page', (e, exit: unknown) => tabs.pagePip(e.sender, exit === true))
+  ipcMain.on('capture:report', (e, data: unknown) => {
+    if (typeof data === 'string' && data.length < 200)
+      tabs.captureReport(e.sender, e.senderFrame, data)
+  })
   ipcMain.on('notify:report', (e, data: unknown) => {
     if (typeof data === 'string' && data.length < 4000) tabs.notifyReport(e.sender, data)
   })

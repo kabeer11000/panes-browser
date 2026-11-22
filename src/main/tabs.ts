@@ -14,8 +14,10 @@ import {
   type MenuItemConstructorOptions,
   type MouseWheelInputEvent,
   type Session,
-  type WebContents
+  type WebContents,
+  type WebFrameMain
 } from 'electron'
+import { stopCaptureIn } from './permissions'
 import { writeFileSync } from 'fs'
 import { pathToFileURL } from 'url'
 import {
@@ -38,8 +40,8 @@ import {
   NO_CAPTURE,
   NO_HOLD,
   isCapturing,
+  CAPTURE_PREFIX,
   parseCapture,
-  stopCaptureScript,
   sameCapture,
   type CaptureHold,
   type CaptureKind,
@@ -143,6 +145,8 @@ const THUMB_INTERVAL_MS = 2500
 const SNAPSHOT_TIMEOUT_MS = 250 // overlays open without waiting longer than this for snapshots
 /** After dom-ready, a freshly loaded page is revealed once it has drawn content, or after this long at most. */
 const HOLD_AFTER_READY_MS = 800
+/** While a tab shows a capture, how often it looks again for frames that went away without saying so. */
+const CAPTURE_RECHECK_MS = 2000
 /**
  * Resolves two frames after the page's first contentful paint (at once if that is past): what a browser waits for
  * before it swaps the old picture for a new page (paint holding), so the page is never seen drawing itself in.
@@ -2251,12 +2255,27 @@ export class TabManager {
   private showCapture(tab: Tab, was = tab.capture): void {
     if (tab.captureTimer) clearTimeout(tab.captureTimer)
     tab.captureTimer = null
-    if (!liveContents(tab)) return
+    const wc = liveContents(tab)
+    if (!wc || wc.isDestroyed()) {
+      // no page any more (unloaded, closed): nothing can be capturing, whatever was last reported
+      tab.captureFrames.clear()
+      tab.captureHold = NO_HOLD
+      tab.capture = NO_HOLD.shown
+      if (!sameCapture(was, tab.capture)) this.refresh()
+      return
+    }
+    // A frame that is gone reports nothing more: a call widget's iframe taken out of the page (no navigation, so
+    // nothing else clears it) left its last "on" standing, and the call badge stuck until something else reported.
+    const alive = new Set(wc.mainFrame.framesInSubtree.map((f) => f.frameTreeNodeId))
+    for (const node of tab.captureFrames.keys())
+      if (!alive.has(node)) tab.captureFrames.delete(node)
     const reported = mergeCapture(tab.captureFrames.values())
     const { hold, settleIn } = holdCapture(tab.captureHold, reported, Date.now())
     tab.captureHold = hold
     tab.capture = hold.shown
-    if (settleIn !== null) tab.captureTimer = setTimeout(() => this.showCapture(tab), settleIn)
+    // while something shows, look again now and then for frames that went away without a word
+    const next = settleIn ?? (isCapturing(hold.shown) ? CAPTURE_RECHECK_MS : null)
+    if (next !== null) tab.captureTimer = setTimeout(() => this.showCapture(tab), next)
     if (!sameCapture(was, hold.shown)) this.refresh()
   }
 
@@ -2307,13 +2326,25 @@ export class TabManager {
     this.refresh()
   }
 
+  /** What a frame of a page captures now, as its preload reports it (see shared/capture.ts captureShim). */
+  captureReport(wc: WebContents, frame: WebFrameMain | null, data: string): void {
+    const state = parseCapture(CAPTURE_PREFIX + data)
+    const node = frame && !frame.isDestroyed() ? frame.frameTreeNodeId : undefined
+    if (!state || node === undefined) return
+    for (const t of this.tabs.values()) {
+      if (liveContents(t) !== wc) continue
+      t.captureFrames.set(node, state)
+      this.showCapture(t)
+      return
+    }
+  }
+
   /** End what a page captures (the Stop sharing button): its tracks are stopped, which the page sees as the user ending it. */
   stopCapture(id: number, kinds: CaptureKind[]): void {
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
     if (!wc) return
-    for (const f of wc.mainFrame.framesInSubtree)
-      void f.executeJavaScript(stopCaptureScript(kinds)).catch(() => {})
+    stopCaptureIn(wc, kinds)
   }
 
   toggleMute(id: number): void {
@@ -3404,19 +3435,9 @@ export class TabManager {
           : '#ffffff'
       )
     })
-    // Capture is reported per frame (a call widget can be an iframe). A page's capture ends with its document,
-    // so it is cleared when a new one commits (not when a navigation merely starts: a download or a 204 never
-    // replaces the page, which goes on capturing), and a frame's when that frame is replaced or removed.
-    wc.on('console-message', (e) => {
-      const state = parseCapture(e.message)
-      if (!state) return
-      const live = new Set(wc.mainFrame.framesInSubtree.map((f) => f.frameTreeNodeId))
-      for (const node of tab.captureFrames.keys()) {
-        if (!live.has(node)) tab.captureFrames.delete(node)
-      }
-      tab.captureFrames.set(e.frame.frameTreeNodeId, state)
-      this.showCapture(tab)
-    })
+    // Capture is reported per frame (a call widget can be an iframe; see captureReport). A page's capture ends with
+    // its document, so it is cleared when a new one commits (not when a navigation merely starts: a download or a
+    // 204 never replaces the page, which goes on capturing), and a frame's when that frame is replaced or removed.
     wc.on('did-frame-navigate', (_e, _url, _code, _status, isMainFrame, processId, routingId) => {
       const was = tab.capture
       if (isMainFrame) {

@@ -149,68 +149,87 @@ export function mergeSources(
   return out
 }
 
-/** Script that ends what a page captures of the given kinds (see `window.__panesCapture` below). */
-export const stopCaptureScript = (kinds: readonly CaptureKind[]): string =>
-  `typeof window.__panesCapture === 'function' && window.__panesCapture(${JSON.stringify(kinds)})`
-
 /**
- * Installed in a frame only once it has been allowed to use the camera, microphone or screen, never before: a
- * wrapped getUserMedia is something bot checks can see, and an ordinary page has no reason to carry one. It
- * wraps getUserMedia and getDisplayMedia, follows the tracks they hand out, and reports which kinds are live.
- * A page that calls track.stop() fires no event, so live tracks are looked at once a second. The page's own
- * behaviour is untouched. `window.__panesCapture(kinds)` ends the tracks of those kinds, for when access is
- * blocked while in use; it fires `ended` on them as the browser itself does, so the page's UI follows.
+ * Follows what a page captures (camera, microphone, screen) and tells main (`report` gets the JSON that follows
+ * CAPTURE_PREFIX, sent only when it changes), for the tab's call and sharing badges. Run by the frame preload in the
+ * page's world at document start, in every frame: put in later (as it was, once the site had been allowed), it
+ * missed the page's first request, already under way, and an audio-only call (nothing shown in a video element) was
+ * never seen at all. getUserMedia and getDisplayMedia are wrapped on the prototype in a Proxy, so they still read as
+ * native; tracks they hand out, and clones of those, are followed. A page that calls track.stop() fires no event, so
+ * while anything is live it is looked at once a second (no timer otherwise). `onStop(kinds)` ends the tracks of
+ * those kinds (access blocked while in use, the Stop sharing button), firing `ended` as the browser does, so the
+ * page's own UI follows.
+ *
+ * Self-contained (no imports or outer names): Electron runs it from its source text.
  */
-export const CAPTURE_SCRIPT = `(() => {
-  const md = navigator.mediaDevices
-  if (!md || window.__panesCapture) return
-  const live = new Set()
+export function captureShim(
+  bridge: { report: (data: string) => void; onStop: (cb: (kinds: string[]) => void) => void },
+  g: typeof globalThis = globalThis
+): void {
+  const proto = g.MediaDevices?.prototype
+  if (!proto) return
+  const live = new Set<MediaStreamTrack>()
   let last = ''
-  const kindOf = (t) =>
-    t.kind === 'audio' ? 'mic' : t.getSettings && t.getSettings().displaySurface ? 'screen' : 'camera'
-  const report = () => {
+  let timer: ReturnType<typeof setInterval> | undefined
+  const kindOf = (t: MediaStreamTrack): 'mic' | 'screen' | 'camera' =>
+    t.kind === 'audio'
+      ? 'mic'
+      : (t.getSettings?.() as { displaySurface?: string } | undefined)?.displaySurface
+        ? 'screen'
+        : 'camera'
+  const report = (): void => {
     const now = { camera: false, mic: false, screen: false }
     for (const t of [...live]) {
-      if (t.readyState === 'ended') { live.delete(t); continue }
-      now[kindOf(t)] = true
+      if (t.readyState === 'ended') live.delete(t)
+      else now[kindOf(t)] = true
     }
     const text = JSON.stringify(now)
-    if (text !== last) { last = text; console.debug('${CAPTURE_PREFIX}' + text) }
+    if (text !== last) {
+      last = text
+      bridge.report(text)
+    }
+    if (live.size > 0 && timer === undefined) timer = g.setInterval(report, 1000)
+    else if (live.size === 0 && timer !== undefined) {
+      g.clearInterval(timer)
+      timer = undefined
+    }
   }
-  const watch = (t) => {
+  const watch = (t: MediaStreamTrack): void => {
     if (live.has(t)) return
     live.add(t)
     t.addEventListener('ended', report)
   }
-  window.__panesCapture = (kinds) => {
+  for (const name of ['getUserMedia', 'getDisplayMedia'] as const) {
+    const original = proto[name]
+    if (typeof original !== 'function') continue
+    proto[name] = new Proxy(original, {
+      apply: (target, self, args) =>
+        (Reflect.apply(target, self, args) as Promise<MediaStream>).then((stream) => {
+          for (const t of stream.getTracks()) watch(t)
+          report()
+          return stream
+        })
+    })
+  }
+  const track = g.MediaStreamTrack?.prototype
+  if (track && typeof track.clone === 'function') {
+    track.clone = new Proxy(track.clone, {
+      apply: (target, self: MediaStreamTrack, args) => {
+        const copy = Reflect.apply(target, self, args) as MediaStreamTrack
+        if (live.has(self)) {
+          watch(copy)
+          report()
+        }
+        return copy
+      }
+    })
+  }
+  bridge.onStop((kinds) => {
     for (const t of [...live]) {
       if (!kinds.includes(kindOf(t)) || t.readyState === 'ended') continue
       t.stop()
       t.dispatchEvent(new Event('ended'))
     }
     report()
-  }
-  for (const name of ['getUserMedia', 'getDisplayMedia']) {
-    const original = md[name]
-    if (typeof original !== 'function') continue
-    md[name] = function (...args) {
-      return original.apply(this, args).then((stream) => {
-        for (const t of stream.getTracks()) watch(t)
-        report()
-        return stream
-      })
-    }
-  }
-  // The page's own first request was already under way when this was installed, so also look at what is playing
-  // in media elements (a track with a device id is ours, a remote one has none).
-  const scan = () => {
-    for (const el of document.querySelectorAll('video, audio')) {
-      const s = el.srcObject
-      if (!s || typeof s.getTracks !== 'function') continue
-      for (const t of s.getTracks()) if (t.readyState === 'live' && t.getSettings && t.getSettings().deviceId) watch(t)
-    }
-  }
-  scan()
-  report()
-  setInterval(() => { scan(); if (live.size > 0) report() }, 1000)
-})()`
+  })
+}
