@@ -80,7 +80,8 @@ describe('recentOthers', () => {
 })
 
 describe('keptRecent', () => {
-  const at = (...ids: number[]): { id: number; usedAt: number }[] => ids.map((id, i) => ({ id, usedAt: 100 - i }))
+  const at = (...ids: number[]): { id: number; usedAt: number }[] =>
+    ids.map((id, i) => ({ id, usedAt: 100 - i }))
   test('a closed tab is replaced by the next most recent, keeping the order', () => {
     // row was [1, 2, 3, 4]; 3 closed; 5 is the most recent tab not shown
     expect(keptRecent([1, 2, 3, 4], at(5, 1, 2, 4, 6), 1, () => true)).toEqual([1, 2, 4, 5])
@@ -93,5 +94,37 @@ describe('keptRecent', () => {
   })
   test('shrinks only when there is nothing left to show', () => {
     expect(keptRecent([1, 2, 3], at(1, 3), 1, () => true)).toEqual([1, 3])
+  })
+  test('a tab opened after the row was last used joins at the left; the last one makes room', () => {
+    const tabs = [...at(1, 2, 3, 4), { id: 9, usedAt: 0, openedAt: 200 }]
+    expect(keptRecent([1, 2, 3, 4], tabs, 3, () => true)).toEqual([9, 1, 2, 3])
+  })
+  test('the open tab never makes room, even last in the row', () => {
+    const tabs = [...at(1, 2, 3, 4), { id: 9, usedAt: 0, openedAt: 200 }]
+    expect(keptRecent([1, 2, 3, 4], tabs, 4, () => true)).toEqual([9, 1, 2, 4])
+  })
+  test('the open tab being in use now does not keep a newly opened one out', () => {
+    const tabs = [
+      { id: 1, usedAt: 500 },
+      ...at(2, 3, 4).map((t) => ({ ...t })),
+      { id: 9, usedAt: 0, openedAt: 200 }
+    ]
+    expect(keptRecent([1, 2, 3, 4], tabs, 1, () => true)).toEqual([9, 1, 2, 3])
+  })
+  test('a tab opened before the row was last used does not barge in', () => {
+    const tabs = [...at(1, 2, 3, 4), { id: 9, usedAt: 0, openedAt: 50 }]
+    expect(keptRecent([1, 2, 3, 4], tabs, 1, () => true)).toEqual([1, 2, 3, 4])
+  })
+})
+
+describe('recentOthers, opened tabs', () => {
+  test('a tab opened in the background counts as recent from when it opened', () => {
+    const tabs = [
+      { id: 1, usedAt: 10 },
+      { id: 2, usedAt: 30 },
+      { id: 3, usedAt: 0, openedAt: 40 },
+      { id: 4, usedAt: 0, openedAt: 0 }
+    ]
+    expect(recentOthers(tabs, -1, () => true, 4)).toEqual([3, 2, 1, 4])
   })
 })

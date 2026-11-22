@@ -4426,6 +4426,7 @@ export function Canvas({
             url: `https://site${i % 17}.example/page${i}`,
             title: `Benchmark page ${i} about topic ${i % 9}`,
             usedAt: Date.now() - i * 10 * 60_000,
+            openedAt: 0,
             favicon: null,
             loading: false,
             private: false,
@@ -4794,14 +4795,15 @@ export function Canvas({
   // the tab strip, after the recent tabs: a tab with something new that is not among them yet (two at most)
   // what plays is first in the strip already: it is not listed again among the tabs
   const nowPlaying = playing[0]?.id
-  const withWaiting = (row: number[]): number[] => [
-    ...row.filter((id) => id !== nowPlaying || id === expanded?.id),
+  // the board's row skips it; the preview's row is kept in place, so a tab never vanishes from it on switching away
+  const withWaiting = (row: number[], keep = false): number[] => [
+    ...row.filter((id) => keep || id !== nowPlaying || id === expanded?.id),
     ...waiting
       .map((w) => w.id)
       .filter((id) => !row.includes(id) && id !== nowPlaying && named(id))
       .slice(0, 2)
   ]
-  const previewRow = withWaiting(strip)
+  const previewRow = withWaiting(strip, true)
   // on the board, no page is open: the tabs used last, then what waits
   const boardRow = withWaiting(
     recentOthers(

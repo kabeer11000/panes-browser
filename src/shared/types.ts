@@ -53,6 +53,8 @@ export interface TabInfo {
   unloaded: boolean
   /** When it was last on screen or open in the canvas preview (ms since epoch; 0: never): what the board's recent-use glow goes by. */
   usedAt: number
+  /** When it was opened this run (ms since epoch); 0 for a tab restored from the last run. */
+  openedAt: number
   /** The page is currently making sound. */
   audible: boolean
   /** Its media plays (sound or not, muted or not): what a play/pause button shows. Asked of the page itself. */

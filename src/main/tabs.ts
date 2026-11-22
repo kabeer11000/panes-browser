@@ -291,6 +291,8 @@ interface Tab {
   warmSize: { width: number; height: number } | null
   /** Last time it was on screen, kept across restarts (lastShownAt restarts with Panes): what pre-loading goes by. */
   usedAt: number
+  /** When it was opened this run (ms since epoch); 0 for a restored tab. */
+  openedAt: number
   /** Where the first load went, so the tab has an address while the page has not committed yet. */
   firstUrl: string
   /** What is new in the tab since the person last looked (see shared/attention). */
@@ -632,6 +634,7 @@ export class TabManager {
         pip: this.pip.tabId === id,
         unloaded: t.unloaded,
         usedAt: t.usedAt,
+        openedAt: t.openedAt,
         audible: this.sounding(t, wc),
         muted: wc.audioMuted,
         attention: attention.get(id) ?? NO_ATTENTION,
@@ -1126,6 +1129,8 @@ export class TabManager {
       warming: false,
       warmSize: null,
       usedAt: 0,
+      // a restored tab is not new: only one opened now counts as recent from its opening (the recent tabs rows)
+      openedAt: lazy ? 0 : Date.now(),
       firstUrl: ''
     }
     this.tabs.set(id, tab)
