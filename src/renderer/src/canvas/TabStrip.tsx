@@ -74,7 +74,6 @@ export function StripTab({
   )
 }
 
-/** What plays (or a call), first in the strip: a moving level, its name (to go to it), and play or pause. */
 /** What the playing pill and the island need of a tab: a tab of this space, or one of any space (PlayingTab). */
 type Playable = Pick<
   TabInfo,
@@ -118,6 +117,7 @@ function usePlayToggle(t: Playable): [boolean, () => void] {
   return [playing, toggle]
 }
 
+/** What plays (or a call), first in the strip: a moving level, its name (to go to it), play or pause, and mute. */
 export function StripPlaying({
   t,
   here = false,
@@ -199,6 +199,27 @@ export function StripPlaying({
         )}
         <span className="cv-strip-play-title">{title}</span>
       </button>
+      <PlayControls t={t} title={title} call={call} playing={playing} toggle={toggle} />
+    </span>
+  )
+}
+
+/** Play or pause (not for a call: it has no media to pause) and mute, for one tab: the pill's and each list row's. */
+function PlayControls({
+  t,
+  title,
+  call,
+  playing,
+  toggle
+}: {
+  t: Playable
+  title: string
+  call: boolean
+  playing: boolean
+  toggle: () => void
+}): React.JSX.Element {
+  return (
+    <>
       {!call && (
         <button
           type="button"
@@ -210,7 +231,16 @@ export function StripPlaying({
           {playing ? <MiniPauseIcon /> : <MiniPlayIcon />}
         </button>
       )}
-    </span>
+      <button
+        type="button"
+        className="cv-strip-play-btn"
+        aria-label={t.muted ? `Unmute ${title}` : `Mute ${title}`}
+        title={t.muted ? 'Unmute' : 'Mute'}
+        onClick={() => window.api.toggleMute(t.id)}
+      >
+        <SpeakerIcon muted={t.muted} />
+      </button>
+    </>
   )
 }
 
@@ -362,26 +392,7 @@ function IslandRow({
           </span>
         )}
       </button>
-      {!call && (
-        <button
-          type="button"
-          className="cv-strip-play-btn"
-          aria-label={playing ? `Pause ${title}` : `Play ${title}`}
-          title={playing ? 'Pause' : 'Play'}
-          onClick={toggle}
-        >
-          {playing ? <MiniPauseIcon /> : <MiniPlayIcon />}
-        </button>
-      )}
-      <button
-        type="button"
-        className="cv-strip-play-btn"
-        aria-label={t.muted ? `Unmute ${title}` : `Mute ${title}`}
-        title={t.muted ? 'Unmute' : 'Mute'}
-        onClick={() => window.api.toggleMute(t.id)}
-      >
-        <SpeakerIcon muted={t.muted} />
-      </button>
+      <PlayControls t={t} title={title} call={call} playing={playing} toggle={toggle} />
       {!playing && !t.audible && !call && (
         <button
           type="button"
