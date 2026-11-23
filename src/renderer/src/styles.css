@@ -1850,6 +1850,177 @@ button {
 .space-popover.down .space-pop-scroll {
   max-height: calc(100vh - 90px);
 }
+/* the space's settings (SpacePopover, #9): the space on top, then grouped rows as in macOS / iOS settings */
+.space-popover.spg {
+  width: 330px;
+}
+.spg .space-pop-scroll {
+  padding: 0 0 12px;
+}
+.spg-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 16px 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sc) 30%, transparent), transparent);
+  border-radius: var(--r-6) var(--r-6) 0 0;
+}
+.spg-avatar {
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: none;
+  transition: scale 0.15s var(--ease);
+}
+.spg-avatar:hover {
+  scale: 1.05;
+}
+.spg-avatar:focus-visible {
+  outline: var(--ring);
+  outline-offset: 3px;
+}
+.spg-name {
+  width: 100%;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+.spg-name:hover {
+  background: var(--surface-hover);
+}
+.spg-name:focus-visible {
+  outline: none;
+  background: var(--surface-active);
+}
+.spg-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-dim);
+  font-size: 12.5px;
+}
+.spg-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34c759;
+}
+.spg-icons {
+  margin-top: 6px;
+  width: 100%;
+}
+.spg-sect {
+  padding: 12px 16px 6px;
+  color: var(--fg-dim);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.spg-group {
+  margin: 0 12px;
+  border-radius: 12px;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+.spg-group + .spg-group {
+  margin-top: 12px;
+}
+.spg-pad {
+  padding: 10px 12px;
+}
+.spg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+}
+.spg-row + .spg-row,
+.spg-custom + .spg-row,
+.spg-row + .spg-custom {
+  box-shadow: inset 0 1px 0 var(--border);
+}
+.spg-label {
+  flex: 1;
+  min-width: 0;
+}
+.spg-link {
+  color: var(--fg-dim);
+}
+.spg-link:hover {
+  color: var(--fg);
+  background: var(--surface-hover);
+}
+.spg-danger {
+  color: #ff6b6b;
+}
+.spg-danger:hover {
+  background: color-mix(in srgb, #ff6b6b 12%, transparent);
+}
+.spg-swatches {
+  display: flex;
+  gap: 7px;
+}
+.spg-swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+}
+.spg-swatch.on {
+  box-shadow:
+    0 0 0 2px var(--popover-bg),
+    0 0 0 4px var(--fg);
+}
+.spg-swatch.custom {
+  background: conic-gradient(#ff4d4d, #ffd24d, #4dff88, #4dd2ff, #6b4dff, #ff4dd2, #ff4d4d);
+}
+.spg-custom {
+  padding: 12px;
+}
+.spg-seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+.spg-seg button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12.5px;
+}
+.spg-seg button.on {
+  background: var(--popover-bg);
+  color: var(--fg);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+}
+.spg button:focus-visible {
+  outline: var(--ring);
+  outline-offset: -2px;
+}
 .sp-divider {
   height: 1px;
   margin: 14px -14px 2px;
