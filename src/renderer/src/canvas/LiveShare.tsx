@@ -97,6 +97,36 @@ function LivePointers({
 }
 
 /** A watcher's side: the host's tab, live, and driving it once let. */
+/** The live panel's margin from the window's edges, and its bar's height (canvas.css .live-view, .cv-panel-head). */
+const VIEW_MARGIN = 8
+const VIEW_BAR = 34
+/** The room the live picture could fill: the window less the panel's margin and bar (CSS pixels). */
+function viewRoom(): { w: number; h: number } {
+  return {
+    w: Math.max(200, window.innerWidth - 2 * VIEW_MARGIN),
+    h: Math.max(150, window.innerHeight - 2 * VIEW_MARGIN - VIEW_BAR)
+  }
+}
+/**
+ * The panel around the picture at the picture's own shape, as big as the room allows, centred: never bars beside it.
+ * null (the whole room) until the picture's size is known.
+ */
+export function fitPanel(
+  room: { w: number; h: number },
+  pic: { w: number; h: number } | null
+): React.CSSProperties | null {
+  if (!pic || !(pic.w > 0 && pic.h > 0)) return null
+  const k = Math.min(room.w / pic.w, room.h / pic.h)
+  const w = Math.round(pic.w * k)
+  const h = Math.round(pic.h * k) + VIEW_BAR
+  return {
+    width: w,
+    height: h,
+    left: Math.round((room.w - w) / 2) + VIEW_MARGIN,
+    top: Math.round((room.h + VIEW_BAR - h) / 2) + VIEW_MARGIN
+  }
+}
+
 function LiveViewer({
   spaceId,
   host,
@@ -134,6 +164,17 @@ function LiveViewer({
   const stage = useRef<HTMLDivElement>(null)
   /** Tells the host how big the picture is shown here (device pixels), so it sends no more than that. */
   const sendSize = useRef<() => void>(() => undefined)
+  /** Calls made to the host so far: one more when the line drops while they still show it. */
+  const [tries, setTry] = useState(0)
+  /** The picture's own size: the panel takes its shape, so there are no bars beside it. */
+  const [pic, setPic] = useState<{ w: number; h: number } | null>(null)
+  const [room, setRoom] = useState(viewRoom)
+  useEffect(() => {
+    const on = (): void => setRoom(viewRoom())
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
+  const fitted = fitPanel(room, pic)
   useEffect(() => {
     const el = stage.current
     if (!el) return
@@ -141,22 +182,21 @@ function LiveViewer({
     const send = (): void => {
       const ch = ctl.current
       if (ch?.readyState !== 'open') return
+      // the room it could fill (the window, less its margin and bar), not the picture's own box: out of the host's
+      // sight their tab takes this shape, and the picture then grows to fill it
       const d = window.devicePixelRatio || 1
-      const msg: LiveControl = {
-        k: 'size',
-        w: Math.round(el.clientWidth * d),
-        h: Math.round(el.clientHeight * d)
-      }
+      const room = viewRoom()
+      const msg: LiveControl = { k: 'size', w: Math.round(room.w * d), h: Math.round(room.h * d) }
       ch.send(JSON.stringify(msg))
     }
     sendSize.current = send
-    const ro = new ResizeObserver(() => {
+    const later = (): void => {
       window.clearTimeout(t)
       t = window.setTimeout(send, 250)
-    })
-    ro.observe(el)
+    }
+    window.addEventListener('resize', later)
     return () => {
-      ro.disconnect()
+      window.removeEventListener('resize', later)
       window.clearTimeout(t)
     }
   }, [])
@@ -196,8 +236,14 @@ function LiveViewer({
       }
     }
     pc.onicecandidate = (e) => e.candidate && send({ k: 'ice', c: e.candidate.toJSON() as never })
+    // the line dropped (sleep, a network change) while they still show it: call again, quietly
+    let redial = 0
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') setState('gone')
+      window.clearTimeout(redial)
+      if (pc.connectionState === 'failed')
+        redial = window.setTimeout(() => setTry((n) => n + 1), 800)
+      else if (pc.connectionState === 'disconnected')
+        redial = window.setTimeout(() => setTry((n) => n + 1), 4000)
     }
     const off = window.api.share.onSignal(async (sid, from, data) => {
       if (sid !== spaceId || from !== hostRtc) return
@@ -208,7 +254,13 @@ function LiveViewer({
         await pc.setLocalDescription(await pc.createAnswer())
         send({ k: 'sdp', sdp: pc.localDescription!.toJSON() as never })
       } else if (sig.k === 'ice') await pc.addIceCandidate(sig.c).catch(() => undefined)
-      else if (sig.k === 'bye') setState('gone')
+      // their picture restarted (or the host's Panes did): call again; if they really stopped, this panel goes
+      // with their live tab (LiveShare)
+      else if (sig.k === 'bye') {
+        setState('connecting')
+        window.clearTimeout(redial)
+        redial = window.setTimeout(() => setTry((n) => n + 1), 1200)
+      }
     })
     // the relay's ICE servers (TURN when it has a key) before anything is gathered; hello once they are in
     let dead = false
@@ -232,8 +284,9 @@ function LiveViewer({
       pc.close()
       ctl.current = null
       mv.current = null
+      window.clearTimeout(redial)
     }
-  }, [spaceId, hostRtc])
+  }, [spaceId, hostRtc, tries])
 
   const say = (msg: LiveControl, fast = false): void => {
     const ch = fast && mv.current?.readyState === 'open' ? mv.current : ctl.current
@@ -302,7 +355,12 @@ function LiveViewer({
 
   // in the body, not the board's top bar: over every bar and toast of the board, as the preview is
   return createPortal(
-    <div className="live-view" role="dialog" aria-label={`${host.name}'s tab, live`}>
+    <div
+      className="live-view"
+      role="dialog"
+      aria-label={`${host.name}'s tab, live`}
+      style={fitted ?? undefined}
+    >
       {/* the preview's own slim bar (Expanded.tsx): whose page it is in the address pill, then only what a watcher
           can do: drive (when let), sound, close */}
       <header className="cv-panel-head live-head">
@@ -443,7 +501,17 @@ function LiveViewer({
           input({ t: 'key', key: e.key, up: true, mods: mods(e) })
         }}
       >
-        <video ref={attach} muted={!sound} playsInline />
+        <video
+          ref={attach}
+          muted={!sound}
+          playsInline
+          onResize={(e) =>
+            setPic({ w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })
+          }
+          onLoadedMetadata={(e) =>
+            setPic({ w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })
+          }
+        />
         {state === 'live' && (
           <LivePointers sinkRef={ptrSink} video={video} host={host} people={people} />
         )}

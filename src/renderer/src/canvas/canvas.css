@@ -4878,7 +4878,14 @@
   background: rgb(var(--tone) / 0.24);
 }
 .cv-share-btn.on.live {
-  --tone: 52 199 89;
+  /* connected is the normal state: a quiet capsule, the state only in a small muted dot */
+  --tone: 120 190 155;
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 10%, transparent);
+}
+.cv-share-btn.on.live:hover {
+  background: color-mix(in srgb, var(--fg) 11%, transparent);
 }
 .cv-share-btn.on:is(.connecting, .syncing) {
   --tone: 255 179 64;
@@ -4901,7 +4908,7 @@
   animation: cv-share-halo 1.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
 }
 [data-scheme='light'] .cv-share-btn.on.live {
-  --tone: 22 137 62;
+  --tone: 46 140 98;
 }
 [data-scheme='light'] .cv-share-btn.on:is(.connecting, .syncing) {
   --tone: 178 106 0;
@@ -4916,15 +4923,6 @@
   height: 7px;
   border-radius: 50%;
   background: rgb(var(--tone));
-}
-/* live: a soft halo leaves the dot now and then (transform and opacity only) */
-.cv-share-btn.on.live .cv-share-dot::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: rgb(var(--tone));
-  animation: cv-share-halo 2.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
 }
 @keyframes cv-share-halo {
   0% {
@@ -5141,8 +5139,8 @@
   background: color-mix(in srgb, var(--fg) 14%, transparent);
 }
 .live-btn.on {
-  background: rgb(52 199 89 / 0.18);
-  color: #34c759;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--fg);
 }
 .live-btn:focus-visible {
   outline: var(--ring);
@@ -5275,10 +5273,6 @@
   height: 100%;
   object-fit: contain;
   display: block;
-}
-.live-stage.driving {
-  cursor: default;
-  box-shadow: inset 0 0 0 2px #34c759;
 }
 .live-wait {
   position: absolute;

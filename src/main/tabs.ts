@@ -144,7 +144,11 @@ import { JsonStore } from './store'
  * A tab painting out of sight: its own slot's size, or (shown live, with the watchers' shape known) that shape at the
  * slot's width, so their picture has no bars. Kept between sane bounds.
  */
-function parkedSize(width: number, height: number, aspect?: number): { width: number; height: number } {
+function parkedSize(
+  width: number,
+  height: number,
+  aspect?: number
+): { width: number; height: number } {
   if (!aspect) return { width, height }
   return { width, height: Math.round(Math.min(2400, Math.max(400, width / aspect))) }
 }
@@ -1552,9 +1556,14 @@ export class TabManager {
 
   /** A tab's title as it shows (its page's, or the one it was saved with while unloaded); '' when unknown. */
   /** A tab's address as it is now (null: no such tab, it closed). */
-  tabUrl(id: number): string | null {
+  /**
+   * A tab's address as it is now, for a shared space's room: null when there is no such tab, or it is not a normal tab
+   * of that space now (a board's card ids are tab ids from when it was saved, and ids start again each launch: an old
+   * card's id can name another space's tab, which must never reach the room).
+   */
+  tabUrl(id: number, spaceId: number): string | null {
     const t = this.tabs.get(id)
-    if (!t) return null
+    if (!t || t.spaceId !== spaceId || t.private || t.tor) return null
     const wc = t.unloaded ? null : liveContents(t)
     return t.pending?.url || wc?.getURL() || t.firstUrl
   }
@@ -4233,6 +4242,7 @@ export class TabManager {
     if (on && (!t || t.private || t.tor)) return false
     if (on) {
       this.liveShared.add(id)
+      if (t!.rest === 'frozen') this.thaw(t!) // a frozen page sends no frames: the watchers would see it stopped
       this.ensureLoaded(id, t!)
     } else {
       this.liveShared.delete(id)
@@ -4967,6 +4977,7 @@ export class TabManager {
             wc.isDevToolsOpened() ||
             this.pipId === id ||
             this.fullscreenId === id ||
+            this.liveShared.has(id) || // shown live to a shared space: unloaded or frozen, everyone's picture stops
             isCapturing(t.capture)), // in a call: unloading it would hang up
         host,
         inActiveSpace: t.spaceId === this.activeSpaceId,
