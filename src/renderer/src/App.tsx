@@ -53,6 +53,8 @@ import { Recover } from './Recover'
 import { LiveHosts } from './LiveHosts'
 import { narrowStep } from '@shared/narrow'
 
+/** The board's own search does not offer opening the board. */
+const ON_BOARD_HIDDEN = ['canvas']
 type Mode = 'grid' | 'stack' | 'search' | 'canvas' | null
 
 /** The all-tabs grid is switched off for now: no button, shortcut or palette entry opens it. */
@@ -1236,6 +1238,7 @@ function App(): React.JSX.Element {
                   engineName={SEARCH_ENGINES[settings.searchEngine].name}
                   variant="dropdown"
                   ai={settings.ai.enabled}
+                  hide={ON_BOARD_HIDDEN}
                   anchor={cvSearch.anchor}
                   initial={cvSearch.initial}
                   thumbs={thumbs}

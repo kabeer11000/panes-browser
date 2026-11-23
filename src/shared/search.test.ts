@@ -267,3 +267,20 @@ describe('actions with AI off', () => {
     expect(matchActions('chat', 50).map((a) => a.id)).toContain('chat')
   })
 })
+
+describe('actions hidden where they make no sense', () => {
+  const base = { tabs: [], activeId: null, local: [], remote: [], engineName: 'Google' }
+  test('on the board, "Canvas view" is not offered, typed or not', () => {
+    const typed = buildResults({ ...base, query: 'canvas', hide: ['canvas'] })
+    expect(typed.some((r) => r.actionId === 'canvas')).toBe(false)
+    const empty = buildResults({ ...base, query: '', hide: ['canvas'] })
+    const actions = empty.filter((r) => r.kind === 'action').map((r) => r.actionId)
+    expect(actions).not.toContain('canvas')
+    expect(actions).toHaveLength(3)
+  })
+  test('elsewhere it is', () => {
+    expect(buildResults({ ...base, query: 'canvas' }).some((r) => r.actionId === 'canvas')).toBe(
+      true
+    )
+  })
+})

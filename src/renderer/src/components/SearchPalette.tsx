@@ -52,6 +52,8 @@ interface Props {
   variant: Settings['searchStyle']
   /** AI is on: its actions (chat, ask about selection) are offered. */
   ai?: boolean
+  /** Actions not offered here (on the board: "Canvas view"). */
+  hide?: readonly string[]
   /** The address bar the popover grows out of (popover variant). */
   anchor: Anchor | null
   onClose: () => void
@@ -176,6 +178,7 @@ export function SearchPalette({
   engineName,
   variant,
   ai = true,
+  hide,
   anchor,
   onClose,
   onAction,
@@ -274,9 +277,10 @@ export function SearchPalette({
         semantic: effective.length >= 3 ? similar : [],
         engineName,
         now: openedAt,
-        ai
+        ai,
+        hide
       }),
-    [effective, tabs, active?.id, local, remote, similar, engineName, openedAt, ai]
+    [effective, tabs, active?.id, local, remote, similar, engineName, openedAt, ai, hide]
   )
   // before anything is typed: the tabs used last, as pictures, above the list (and not repeated in it)
   const recent = useMemo(
@@ -296,12 +300,17 @@ export function SearchPalette({
       id: 'join-invite',
       kind: 'action',
       actionId: 'join-invite',
-      title: typedInvite ? 'Join this shared space' : 'Join the shared space from the link you copied',
+      title: typedInvite
+        ? 'Join this shared space'
+        : 'Join the shared space from the link you copied',
       subtitle: 'A board you edit together, live',
       url: joinLink
     }
     // an invite typed or pasted is not a page to go to or a search
-    return [join, ...(typedInvite ? out.filter((r) => r.kind !== 'go' && r.kind !== 'search') : out)]
+    return [
+      join,
+      ...(typedInvite ? out.filter((r) => r.kind !== 'go' && r.kind !== 'search') : out)
+    ]
   }, [listed, recent, joinLink, typedInvite])
   /** A tab clearly meant by what was typed is first: Enter switches to it, so no site name is filled in. */
   const tabFirst = results[0]?.kind === 'tab' && !!effective

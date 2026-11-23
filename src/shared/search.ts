@@ -453,6 +453,8 @@ interface BuildInput {
   now?: number
   /** AI is on: the actions that use it are offered. */
   ai?: boolean
+  /** Actions that make no sense where the bar is open (the board's own: "Canvas view" while on the board). */
+  hide?: readonly string[]
 }
 
 /**
@@ -470,7 +472,8 @@ export function buildResults({
   engineName,
   maxLocal = 5,
   now = Date.now(),
-  ai = true
+  ai = true,
+  hide = []
 }: BuildInput): SearchResult[] {
   const q = query.trim()
   const results: SearchResult[] = []
@@ -542,7 +545,9 @@ export function buildResults({
   }
 
   // actions sit above the web's suggestions: a command you typed the name of is not buried under ten searches
-  const actions = matchActions(q, MAX_ACTIONS, ai)
+  const actions = matchActions(q, MAX_ACTIONS + hide.length, ai)
+    .filter((a) => !hide.includes(a.id))
+    .slice(0, MAX_ACTIONS)
   for (const a of actions) {
     results.push({
       id: `action:${a.id}`,
@@ -558,7 +563,7 @@ export function buildResults({
   }
 
   if (!q) {
-    for (const a of ACTIONS.slice(0, 3)) {
+    for (const a of ACTIONS.filter((x) => !hide.includes(x.id)).slice(0, 3)) {
       results.push({
         id: `action:${a.id}`,
         kind: 'action',

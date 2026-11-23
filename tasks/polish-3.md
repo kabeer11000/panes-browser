@@ -82,7 +82,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       the state arrives in 2-10 ms; tab view worst frame 33 ms, board open worst 83 ms (React, dev mode). One switch
       once took a 3.8 s React render (right after 25 tabs were opened, still loading); not reproduced since, fresh
       or warm. Next: the same on the user's real profile (a trace of the slow switch).
-- [ ] Search popover offers "canvas mode" while the board is already open.
+- [x] Search popover offers "canvas mode" while the board is already open: the board's search hides it (typed or
+      not; search.test.ts).
 - [ ] Now playing play/pause: one click sometimes leaves the wrong state (YouTube). Trace mediaPlay and the playing flag.
 - [ ] Switching between tabs with different page zoom shifts the layout (zoom badge appears/goes): no shift, tab view and preview.
 - [ ] Board: "open link side by side" reworked: its animations are poor and it is not fun to use (user 2026-11-22).
