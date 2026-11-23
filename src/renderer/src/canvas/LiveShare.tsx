@@ -29,7 +29,9 @@ type Peer = { pc: RTCPeerConnection; ctl: RTCDataChannel | null; mv: RTCDataChan
 function useLiveHost(
   spaceId: number,
   tabId: number | null,
-  people: SharePerson[]
+  people: SharePerson[],
+  /** The shared tab is muted here: the host's own playback of its sound is quiet (see `ear`). */
+  muted: boolean
 ): {
   watching: number
   asking: SharePerson | null
@@ -43,6 +45,8 @@ function useLiveHost(
   const [askingId, setAskingId] = useState<number | null>(null)
   const [driverId, setDriverId] = useState<number | null>(null)
   const driverRef = useRef<number | null>(null)
+  const earRef = useRef<HTMLAudioElement | null>(null)
+  const mutedRef = useRef(muted)
 
   useEffect(() => {
     if (tabId === null || !window.api.share) return
@@ -67,25 +71,41 @@ function useLiveHost(
     const grab = async (): Promise<MediaStream | null> => {
       const source = await window.api.canvas.streamSource?.(tabId)
       if (!source || dead) return null
-      const s = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'tab',
-            chromeMediaSourceId: source,
-            maxWidth: 1920,
-            maxHeight: 1080,
-            maxFrameRate: 30
-          }
+      const video = {
+        mandatory: {
+          chromeMediaSource: 'tab',
+          chromeMediaSourceId: source,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          maxFrameRate: 30
         }
-      } as unknown as MediaStreamConstraints)
+      }
+      const audio = { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: source } }
+      const ask = (withSound: boolean): Promise<MediaStream> =>
+        navigator.mediaDevices.getUserMedia({
+          audio: withSound ? audio : false,
+          video
+        } as unknown as MediaStreamConstraints)
+      // the tab's sound too (watch-together); a picture alone if sound cannot be had
+      const s = await ask(true).catch(() => ask(false))
       if (dead) {
         s.getTracks().forEach((t) => t.stop())
         return null
       }
       if (stream && stream !== s) stream.getTracks().forEach((t) => t.stop())
       stream = s
+      hear(s)
       return s
+    }
+    // Capturing a tab's sound takes it off the host's speakers (measured: the output fell to silence), so the host
+    // hears it again from the captured track, once: no echo, no doubling. Quiet while the tab is muted.
+    const ear = new Audio()
+    earRef.current = ear
+    ear.muted = mutedRef.current
+    const hear = (s: MediaStream): void => {
+      const tracks = s.getAudioTracks()
+      ear.srcObject = tracks.length ? new MediaStream(tracks) : null
+      if (tracks.length) void ear.play().catch(() => undefined)
     }
     const send = (to: number, sig: LiveSignal): void =>
       window.api.share!.signal(spaceId, to, JSON.stringify(sig))
@@ -185,9 +205,16 @@ function useLiveHost(
       setAskingId(null)
       setDriverId(null)
       driverRef.current = null
+      ear.pause()
+      ear.srcObject = null
+      earRef.current = null
       if (stream) stream.getTracks().forEach((t) => t.stop())
     }
   }, [spaceId, tabId])
+  useEffect(() => {
+    mutedRef.current = muted
+    if (earRef.current) earRef.current.muted = muted
+  }, [muted])
 
   const say = (to: number, msg: LiveControl): void => {
     const ch = peers.current.get(to)?.ctl
@@ -236,6 +263,9 @@ function LiveViewer({
   const mv = useRef<RTCDataChannel | null>(null)
   const [state, setState] = useState<'connecting' | 'live' | 'gone'>('connecting')
   const [control, setControl] = useState<'none' | 'asked' | 'yes' | 'no'>('none')
+  /** The host's tab's sound, on unless turned off here (only while it has any). */
+  const [sound, setSound] = useState(true)
+  const [hasSound, setHasSound] = useState(false)
   const hostRtc = host.rtc
 
   useEffect(() => {
@@ -245,6 +275,7 @@ function LiveViewer({
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
     pc.ontrack = (e) => {
       const v = video.current
+      if (e.track.kind === 'audio') setHasSound(true)
       if (v && e.streams[0]) {
         v.srcObject = e.streams[0]
         void v.play().catch(() => undefined)
@@ -353,6 +384,17 @@ function LiveViewer({
                 : 'Ask for control'}
           </button>
         )}
+        {hasSound && (
+          <button
+            type="button"
+            className={'live-btn' + (sound ? '' : ' off')}
+            aria-pressed={sound}
+            title={sound ? 'Turn their tab’s sound off' : 'Turn their tab’s sound on'}
+            onClick={() => setSound((v) => !v)}
+          >
+            {sound ? 'Sound on' : 'Sound off'}
+          </button>
+        )}
         <button type="button" className="live-close" aria-label="Stop watching" onClick={onClose}>
           &times;
         </button>
@@ -391,7 +433,7 @@ function LiveViewer({
           input({ t: 'key', key: e.key, up: true, mods: mods(e) })
         }}
       >
-        <video ref={video} muted playsInline />
+        <video ref={video} muted={!sound} playsInline />
         {state !== 'live' && (
           <p className="live-wait">
             {state === 'gone' ? `${host.name} stopped showing it.` : 'Connecting to their tab…'}
@@ -411,6 +453,7 @@ export function LiveShare({
   shared,
   people,
   liveTab,
+  liveMuted = false,
   myName,
   onStop
 }: {
@@ -419,10 +462,12 @@ export function LiveShare({
   people: SharePerson[]
   /** The tab this person shows live here, if any. */
   liveTab: number | null
+  /** That tab is muted here. */
+  liveMuted?: boolean
   myName: string
   onStop: () => void
 }): React.JSX.Element | null {
-  const host = useLiveHost(spaceId, shared ? liveTab : null, people)
+  const host = useLiveHost(spaceId, shared ? liveTab : null, people, liveMuted)
   const [watchingId, setWatchingId] = useState<number | null>(null)
   if (!shared) return null
   const showing = people.filter((p) => p.live && p.rtc)

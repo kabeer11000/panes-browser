@@ -5998,6 +5998,7 @@ export function Canvas({
             shared={!!thisSpace?.shared}
             people={presence.people}
             liveTab={liveTab}
+            liveMuted={!!tabs.find((t) => t.id === liveTab)?.muted}
             myName={presence.me?.name ?? 'Someone'}
             onStop={() => showLive(null)}
           />

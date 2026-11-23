@@ -107,14 +107,16 @@ People without Panes join from any browser in a light web version that is also P
       panel (WebRTC, STUN, signalled through the relay sealed); ask for control, host lets/declines, takes back, stops.
       Pointer, clicks, wheel, keys injected with sendInputEvent (fractions of the page, validated in main). Tested two
       Panes on the relay: 1920x1080, remote clicks and typing landed, take back blocked input, stop closed the panel.
-- [ ] 7b. Sound (the tab's audio track, watch-together); the host hears no echo.
+- [x] 7b. Sound: the tab's audio goes with the picture. Capture takes a tab's sound off the host's speakers (measured:
+      peak 0.05 -> 0), so the host plays the captured track back once (0.05 again, no doubling), quiet while the tab is
+      muted; watchers hear it with a Sound on/off toggle. Checked on two Panes over the relay: B received 0.05.
 - [ ] 7c. TURN (Cloudflare, decided) for networks where no direct path is found; today STUN only.
 - [~] 7d. Guard rails: DONE no typing into the host's password fields by the driver (keys and chars dropped while
       any frame's focus is a password input; checked: none reached it, typing elsewhere kept order). OPEN: file pickers and downloads stay the
       host's; a visible "Ana is driving" on the host's tab itself, not only in the board's bar.
-- [~] 7e. Capture restarts: DONE a tab whose capture was refused (file: pages are) is captured again on the next
+- [x] 7e. Capture restarts: DONE a tab whose capture was refused (file: pages are) is captured again on the next
       hello, and watchers who asked meanwhile are offered to every 2 s once it works (they said hello once and sat on
-      "Connecting"). http navigations kept capturing in tests. OPEN: not yet run on two Panes over the relay.
+      "Connecting"). Two Panes over the relay: B waited on a file: page, went live 1.0 s after the tab went to http.
 - [ ] 7f. Smoothness bar: measure glass-to-glass latency (timestamp page, two Panes), adaptive size to the viewer's
       panel, 60 fps when the page moves; the driver's own pointer drawn locally at once.
 - [ ] 7g. Watch from the web board (people without Panes).
