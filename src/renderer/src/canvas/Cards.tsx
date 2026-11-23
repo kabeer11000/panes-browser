@@ -17,6 +17,7 @@ import { sameModel, type CardModel } from './model'
 import { AnswerText } from './Expanded'
 import { Favicon } from './Img'
 import { Pic } from './Pic'
+import { parseInline, toggleMark } from '@shared/noteMarks'
 import { useBoardLod } from './boardLod'
 import { LiveTab } from './LiveTab'
 import {
@@ -767,6 +768,23 @@ interface NoteProps {
   first?: string | null
 }
 
+/** A note's text with its **bold**, _italic_ and ~~struck~~ words drawn (shared/noteMarks.ts). */
+function Inline({ text }: { text: string }): React.JSX.Element {
+  return (
+    <>
+      {parseInline(text).map((r, i) => {
+        let el: React.ReactNode = r.t
+        if (r.s) el = <s>{el}</s>
+        if (r.i) el = <em>{el}</em>
+        if (r.b) el = <strong>{el}</strong>
+        return <span key={i}>{el}</span>
+      })}
+    </>
+  )
+}
+
+const NOTE_MARK_KEYS: Record<string, '**' | '_' | '~~'> = { b: '**', i: '_', x: '~~' }
+
 export const NoteView = memo(function NoteView({
   note,
   selected,
@@ -816,7 +834,8 @@ export const NoteView = memo(function NoteView({
       onDoubleClick={() => onEdit(note.id)}
     >
       <div className="cv-note-measure" ref={measure} aria-hidden="true">
-        {text || 'Double-click to write'}
+        {/* writing shows the markers as typed; at rest they are drawn (and take less room) */}
+        {text ? editing ? text : <Inline text={text} /> : 'Double-click to write'}
         {'\u200b'}
       </div>
       {editing ? (
@@ -831,7 +850,20 @@ export const NoteView = memo(function NoteView({
           onKeyDown={(e) => {
             e.stopPropagation()
             // Esc ends typing and keeps what was typed (the note stays selected)
-            if (e.key === 'Escape') e.currentTarget.blur()
+            if (e.key === 'Escape') return e.currentTarget.blur()
+            // Ctrl+B bold, Ctrl+I italic, Ctrl+Shift+X struck through, as in Figma
+            const key = e.key.toLowerCase()
+            const marker =
+              (e.ctrlKey || e.metaKey) && !e.altKey && (key === 'x' ? e.shiftKey : !e.shiftKey)
+                ? NOTE_MARK_KEYS[key]
+                : undefined
+            if (!marker) return
+            e.preventDefault()
+            const t = e.currentTarget
+            const r = toggleMark(t.value, t.selectionStart, t.selectionEnd, marker)
+            t.value = r.value.slice(0, 600)
+            t.setSelectionRange(r.start, r.end)
+            setDraft(t.value)
           }}
           onBlur={(e) => {
             setDraft(null)
@@ -839,7 +871,13 @@ export const NoteView = memo(function NoteView({
           }}
         />
       ) : (
-        <p>{note.text || <span className="cv-note-empty">Double-click to write</span>}</p>
+        <p>
+          {note.text ? (
+            <Inline text={note.text} />
+          ) : (
+            <span className="cv-note-empty">Double-click to write</span>
+          )}
+        </p>
       )}
       {!editing &&
         (['e', 's', 'se'] as const).map((d) => (

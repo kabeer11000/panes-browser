@@ -57,7 +57,9 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       267 ms, 469 ms of JPEG encoding (cards' small copies made as they flew into view) and 458 ms of GC on the main
       thread. Small copies are now encoded in a worker (pics.ts, shrinkWorker.ts) and cards out of sight at both ends
       of a move are not animated: worst frame 100 ms (one React render of the moved cards, dev mode), GC 96 ms.
-- [ ] Notes and text on the board: Ctrl+B / Ctrl+I and the like (Figma-like), font size.
+- [~] Notes and text on the board: Ctrl+B / Ctrl+I and the like (Figma-like), font size. DONE for notes: Ctrl+B bold,
+      Ctrl+I italic, Ctrl+Shift+X struck (markdown markers in the text, drawn on the board and the web board;
+      shared/noteMarks.ts). Checked with real keys. OPEN: text labels and shapes; a font size control.
 - [x] Certificate interstitial "Proceed (unsafe)": verified on self-signed.badssl.com (c249b32).
 - [x] Tooltips go under the web contents: preview and tab view (sidebar). 25/25 clear in a sweep. (7dcff39)
 - [x] Preview notifications list under the page (offscreen page canvas) + Escape closed the preview. (7dcff39)

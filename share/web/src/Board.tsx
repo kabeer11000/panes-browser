@@ -9,6 +9,7 @@ import {
   type Viewport
 } from '@shared/ai/canvas'
 import { isShape, shapePath, type ShapeKind } from '@shared/ai/canvasMarks'
+import { parseInline } from '@shared/noteMarks'
 import type { Person } from './room'
 
 /**
@@ -87,7 +88,15 @@ function Note({
           }}
         />
       ) : (
-        <p>{text}</p>
+        <p>
+          {parseInline(text).map((r, i) => {
+            let el: React.ReactNode = r.t
+            if (r.s) el = <s>{el}</s>
+            if (r.i) el = <em>{el}</em>
+            if (r.b) el = <strong>{el}</strong>
+            return <span key={i}>{el}</span>
+          })}
+        </p>
       )}
     </div>
   )
