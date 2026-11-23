@@ -111,7 +111,7 @@ function viewRoom(): { w: number; h: number } {
  * The panel around the picture at the picture's own shape, as big as the room allows, centred: never bars beside it.
  * null (the whole room) until the picture's size is known.
  */
-export function fitPanel(
+function fitPanel(
   room: { w: number; h: number },
   pic: { w: number; h: number } | null
 ): React.CSSProperties | null {
