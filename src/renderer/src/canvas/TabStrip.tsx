@@ -81,7 +81,11 @@ export function StripPlaying({
 }): React.JSX.Element {
   const call = isCapturing(t.capture)
   const sounding = call || (t.audible && !t.muted)
-  const playing = !!(t.playing ?? t.audible)
+  // what the page said after a click, until the tab's own state catches up (it is asked of the page, a moment later):
+  // without it the button showed the old state for a beat, and a second click undid the first
+  const [said, setSaid] = useState<{ paused: boolean; n: number } | null>(null)
+  const clicks = useRef(0)
+  const playing = said ? !said.paused : !!(t.playing ?? t.audible)
   const title =
     t.private || t.tor ? 'Private tab' : t.aiTitle || t.title || (call ? 'Call' : 'Playing')
   return (
@@ -122,7 +126,15 @@ export function StripPlaying({
           aria-label={playing ? `Pause ${title}` : `Play ${title}`}
           title={playing ? 'Pause' : 'Play'}
           onClick={() =>
-            void window.api.mediaPlay?.(t.id, playing ? 'pause' : 'play').catch(() => undefined)
+            void window.api
+              .mediaPlay?.(t.id, playing ? 'pause' : 'play')
+              .then((r) => {
+                if (!r) return
+                const n = ++clicks.current
+                setSaid({ paused: r.paused, n })
+                window.setTimeout(() => setSaid((x) => (x?.n === n ? null : x)), 3000)
+              })
+              .catch(() => undefined)
           }
         >
           {playing ? <MiniPauseIcon /> : <MiniPlayIcon />}

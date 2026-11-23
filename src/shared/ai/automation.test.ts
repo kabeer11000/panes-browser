@@ -159,6 +159,43 @@ describe('media and scroll_to', () => {
     })
     expect(none).toEqual({ ok: false })
   })
+  test('pause stops everything playing (the video and a preview beside it); play brings back what it stopped', async () => {
+    const make = (w: number): Record<string, unknown> => ({
+      paused: false,
+      ended: false,
+      muted: w < 400,
+      volume: 1,
+      currentTime: 10,
+      duration: 100,
+      playbackRate: 1,
+      isConnected: true,
+      play() {
+        this.paused = false
+        return Promise.resolve()
+      },
+      pause() {
+        this.paused = true
+      },
+      getBoundingClientRect: () => ({ width: w, height: w / 2 })
+    })
+    const preview = make(320)
+    const main = make(1280)
+    const doc = { querySelectorAll: () => [preview, main] }
+    const run = (a: Parameters<typeof MEDIA_SCRIPT>[0]): Promise<{ paused: boolean }> =>
+      new Function('document', `return ${MEDIA_SCRIPT(a, 0)}`)(doc)
+    expect((await run('pause')).paused).toBe(true)
+    expect(main.paused).toBe(true)
+    expect(preview.paused).toBe(true)
+    expect((await run('play')).paused).toBe(false)
+    expect(main.paused).toBe(false)
+    // toggling with nothing remembered plays the main media, not the small one
+    main.pause()
+    preview.pause()
+    ;(globalThis as Record<string, unknown>).__panesPaused = []
+    await run('toggle')
+    expect(main.paused).toBe(false)
+    expect(preview.paused).toBe(true)
+  })
   test('scroll_to finds the comment area, else the smallest element with the words', () => {
     let shown = ''
     const el = (id: string, text: string): object => ({

@@ -289,13 +289,24 @@ export const MEDIA_SCRIPT = (action: MediaAction, amount: number): string => `((
   const amt = ${JSON.stringify(amount)}
   const media = [...document.querySelectorAll('video, audio')]
   const area = (m) => { const r = m.getBoundingClientRect(); return r.width * r.height }
-  const el = media.find((m) => !m.paused && !m.ended) ?? media.sort((a, b) => area(b) - area(a))[0]
+  const live = media.filter((m) => !m.paused && !m.ended)
+  // the page's main media: what plays (the largest of it), else the largest there is
+  const el = live.sort((a, b) => area(b) - area(a))[0] ?? [...media].sort((a, b) => area(b) - area(a))[0]
   if (!el) return { ok: false }
   const done = (p) => Promise.resolve(p).catch(() => undefined)
+  // Pause stops everything playing (a muted hover preview or an ad beside the video used to be the one paused, the
+  // video playing on); Play brings back what Pause stopped, else the main media.
+  const pauseAll = () => { globalThis.__panesPaused = live.slice(); for (const m of live) m.pause() }
+  const playBack = async () => {
+    const back = (globalThis.__panesPaused || []).filter((m) => m.isConnected && m.paused)
+    globalThis.__panesPaused = []
+    if (back.length) for (const m of back) await done(m.play())
+    else await done(el.play())
+  }
   const work = async () => {
-    if (act === 'play') await done(el.play())
-    else if (act === 'pause') el.pause()
-    else if (act === 'toggle') { if (el.paused) await done(el.play()); else el.pause() }
+    if (act === 'play') await playBack()
+    else if (act === 'pause') pauseAll()
+    else if (act === 'toggle') { if (live.length) pauseAll(); else await playBack() }
     else if (act === 'mute') el.muted = true
     else if (act === 'unmute') { el.muted = false; if (el.volume === 0) el.volume = 1 }
     else if (act === 'skip') el.currentTime = Math.max(0, Math.min(el.duration || 1e9, el.currentTime + amt))
@@ -304,7 +315,8 @@ export const MEDIA_SCRIPT = (action: MediaAction, amount: number): string => `((
   }
   return work().then(() => ({
     ok: true,
-    paused: el.paused,
+    // paused while nothing on the page plays any more
+    paused: !media.some((m) => !m.paused && !m.ended),
     muted: el.muted,
     time: Math.round(el.currentTime),
     duration: Number.isFinite(el.duration) ? Math.round(el.duration) : null,

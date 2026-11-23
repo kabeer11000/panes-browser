@@ -89,7 +89,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       or warm. Next: the same on the user's real profile (a trace of the slow switch).
 - [x] Search popover offers "canvas mode" while the board is already open: the board's search hides it (typed or
       not; search.test.ts).
-- [ ] Now playing play/pause: one click sometimes leaves the wrong state (YouTube). Trace mediaPlay and the playing flag.
+- [~] Now playing play/pause: one click sometimes leaves the wrong state (YouTube). Two causes found: Pause stopped the
+      first playing element (a muted hover preview or an ad), the video playing on; and the strip's button showed main's
+      flag, asked of the page a beat later, so a second click undid the first. Now Pause stops everything playing and
+      Play brings it back (automation.test.ts), and the strip shows the page's answer at once. Not yet tried on YouTube.
 - [x] Switching between tabs with different page zoom shifts the layout (zoom badge appears/goes): no shift, tab view and preview.
       Fixed in d3cbf02 (what comes and goes sits left of the tabs in the preview header); the tab view shows no badge.
 - [ ] Board: "open link side by side" reworked: its animations are poor and it is not fun to use (user 2026-11-22).
