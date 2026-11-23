@@ -3100,6 +3100,8 @@ export class TabManager {
     const prevTab = prevId !== null ? this.tabs.get(prevId) : undefined
     if (prevTab && changed) prevTab.usedAt = Date.now()
     if (t) t.usedAt = Date.now()
+    // the window's recent rows go by these times: it hears them now, not with whatever changes next
+    if (changed) this.pushSoon()
     if (id !== null && t) {
       this.ensureLoaded(id, t)
       t.awaiting = false

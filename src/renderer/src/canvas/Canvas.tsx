@@ -4979,9 +4979,16 @@ export function Canvas({
   const boardTabs = tabs.filter((t) => !t.private && !t.tor)
   const boardWant = keptBoardRow(boardSeats, boardTabs, named)
   if (boardWant.join(',') !== boardSeats.join(',')) setBoardSeats(boardWant)
+  // the page the preview showed before this one: it stays in the row, the way back (see keptRecent)
+  const openId = expanded?.id ?? null
+  const [trail, setTrail] = useState<{ open: number | null; left: number | null }>({
+    open: null,
+    left: null
+  })
+  if (trail.open !== openId) setTrail({ open: openId, left: openId === null ? null : trail.open })
   // and the preview's starts where the board's was, so opening a tab from it moves nothing either
   const stripWant = expanded
-    ? keptRecent(strip.length ? strip : boardSeats, tabs, expanded.id, named)
+    ? keptRecent(strip.length ? strip : boardSeats, tabs, expanded.id, named, trail.left)
     : []
   if (stripWant.join(',') !== strip.join(',')) setStrip(stripWant)
   // the tab strip, after the recent tabs: a tab with something new that is not among them yet (two at most)

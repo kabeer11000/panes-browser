@@ -91,7 +91,8 @@ export function seated(
   const incoming = want.filter((id) => !prev.includes(id))
   const fresh = incoming.filter(isNew)
   const rest = incoming.filter((id) => !isNew(id))
-  for (let i = 0; i < seats.length && rest.length > 0; i++) if (seats[i] === null) seats[i] = rest.shift()!
+  for (let i = 0; i < seats.length && rest.length > 0; i++)
+    if (seats[i] === null) seats[i] = rest.shift()!
   const row = [...fresh, ...seats.filter((id): id is number => id !== null), ...rest]
   while (row.length > n) {
     const last = row.findLastIndex((id) => id !== keep)
@@ -103,13 +104,16 @@ export function seated(
 
 /**
  * The preview's recent tabs row (see seated): the open tab and the ones used last, each in its seat. A tab opened
- * after everything in the row was last used is the newest: it joins at the left.
+ * after everything in the row was last used is the newest: it joins at the left. `left`, the page the preview was
+ * just showing, always stays in the row (the way back is one click, as Ctrl+Tab's last tab), whatever the tabs' times
+ * say at this moment (they reach the window a beat after the switch).
  */
 export function keptRecent(
   row: readonly number[],
   tabs: readonly RecentTab[],
   open: number,
-  onBoard: (id: number) => boolean
+  onBoard: (id: number) => boolean,
+  left?: number | null
 ): number[] {
   const byId = new Map(tabs.map((t) => [t.id, t]))
   const alive = row.filter((id) => byId.has(id))
@@ -119,7 +123,11 @@ export function keptRecent(
     ...alive.filter((id) => id !== open).map((id) => recency(byId.get(id)!))
   )
   const isNew = (id: number): boolean => (byId.get(id)?.openedAt ?? 0) > newest
-  const want = [open, ...recentOthers(tabs, open, onBoard, RECENT_IN_PREVIEW)]
+  const back = left != null && left !== open && byId.has(left) && onBoard(left) ? left : null
+  const others = recentOthers(tabs, open, onBoard, RECENT_IN_PREVIEW + 1).filter(
+    (id) => id !== back
+  )
+  const want = [open, ...(back !== null ? [back] : []), ...others].slice(0, RECENT_IN_PREVIEW + 1)
   return seated(row, want, isNew, RECENT_IN_PREVIEW + 1, open)
 }
 
@@ -130,7 +138,10 @@ export function keptBoardRow(
   onBoard: (id: number) => boolean
 ): number[] {
   const byId = new Map(tabs.map((t) => [t.id, t]))
-  const newest = Math.max(0, ...row.filter((id) => byId.has(id)).map((id) => recency(byId.get(id)!)))
+  const newest = Math.max(
+    0,
+    ...row.filter((id) => byId.has(id)).map((id) => recency(byId.get(id)!))
+  )
   const isNew = (id: number): boolean => (byId.get(id)?.openedAt ?? 0) > newest
   return seated(row, recentOthers(tabs, -1, onBoard, RECENT_ON_BOARD), isNew, RECENT_ON_BOARD)
 }

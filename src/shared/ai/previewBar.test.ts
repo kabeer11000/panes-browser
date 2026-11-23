@@ -103,7 +103,9 @@ describe('keptRecent', () => {
   })
   test('picking a tab in the row moves nothing (it was the reorder the user saw)', () => {
     // 3 was open, the person picks 1: 1 is now the most recent, 3 the next; every tab keeps its seat
-    expect(keptRecent([3, 1, 2, 4], [...at(1, 3, 2, 4), { id: 5, usedAt: 1 }], 1, () => true)).toEqual([3, 1, 2, 4])
+    expect(
+      keptRecent([3, 1, 2, 4], [...at(1, 3, 2, 4), { id: 5, usedAt: 1 }], 1, () => true)
+    ).toEqual([3, 1, 2, 4])
   })
   test('shrinks only when there is nothing left to show', () => {
     expect(keptRecent([1, 2, 3], at(1, 3), 1, () => true)).toEqual([1, 3])
@@ -178,5 +180,33 @@ describe('keptBoardRow', () => {
       { id: 7, usedAt: 0, openedAt: 99 }
     ]
     expect(keptBoardRow([1, 2], tabs, () => true)).toEqual([7, 1, 2])
+  })
+})
+
+describe('keptRecent: the page just left stays in the row (the way back)', () => {
+  // times as the window saw them: the page left still looks old (its new time reaches the window a beat later)
+  const tabs = [
+    { id: 1, usedAt: 9000 },
+    { id: 8, usedAt: 8000 },
+    { id: 7, usedAt: 7000 },
+    { id: 6, usedAt: 6000 },
+    { id: 5, usedAt: 100 },
+    { id: 2, usedAt: 9500 }
+  ]
+  test('switching from 5 to 2 keeps 5, even though its time is old', () => {
+    expect(keptRecent([1, 8, 7, 5], tabs, 2, () => true, 5)).toContain(5)
+  })
+  test('without the page left, the old behaviour (5 goes)', () => {
+    expect(keptRecent([1, 8, 7, 5], tabs, 2, () => true)).not.toContain(5)
+  })
+  test('a page left that closed, or has no card, is not kept', () => {
+    expect(keptRecent([1, 8, 7, 5], tabs, 2, (id) => id !== 5, 5)).not.toContain(5)
+    expect(keptRecent([1, 8, 7, 5], tabs, 2, () => true, 42)).not.toContain(42)
+  })
+  test('the row stays four long and the open tab stays in it', () => {
+    const row = keptRecent([1, 8, 7, 5], tabs, 2, () => true, 5)
+    expect(row).toHaveLength(4)
+    expect(row).toContain(2)
+    expect(new Set(row).size).toBe(row.length)
   })
 })
