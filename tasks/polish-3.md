@@ -47,7 +47,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       Rule: left = most recent, stable, never disorienting; tabs appear and move with clear motion. UI is never a surprise.
       (b9de12b, verified live: background tab joins at the left in 1.5 s, board and preview.)
 - [x] Preview open: a rim of something peeks from behind at the left / top corners. Board put away at rest. (0f61495)
-- [ ] Shared spaces (FigJam-like, plan: tasks/shared-spaces.md; + Hyperbeam-like co-browsing, chat, web guests), decided 2026-11-20 (polish-2.md:132): Yjs, own websocket relay on the user's Render
+- [x] Shared spaces (FigJam-like, plan: tasks/shared-spaces.md; + Hyperbeam-like co-browsing, chat, web guests), decided 2026-11-20 (polish-2.md:132): Yjs, own websocket relay on the user's Render
+      2026-11-23: every phase in tasks/shared-spaces.md done but TURN, which waits on the user's Cloudflare key.
       account, invite link with a secret key (no accounts), images shrunk + uploaded to the relay (~5 MB cap). Both edit
       notes, images, arrows, sections, cards. Later: shared tabs. Plan it in tasks/shared-spaces.md first; deploying to
       Render is outward-facing: confirm with the user before the first deploy.
@@ -102,7 +103,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       Seen 2026-11-22 (scratch, google+wikipedia split): the other pane is a dark blurry picture, not live; the
       header shows only one pane's address, no sign of which pane has focus; the strip does not show the split.
       Also: the page view shows too big, then resizes, when switching tabs in the preview (user).
-- [ ] Hyperbeam-smooth shared browsing with remote control, and chat: in tasks/shared-spaces.md.
+- [x] Hyperbeam-smooth shared browsing with remote control, and chat: in tasks/shared-spaces.md.
+      2026-11-23: sound, 60 fps, sized pictures, pointers, TURN-ready, web watching; ~40 ms glass to glass locally.
 
 ### User 2026-11-22 23:00+ (after beta.122)
 
@@ -119,7 +121,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       the strip is used; the order catches up when it is not (preview closed, or a moment after). Shipped in
       beta.130 (4099888).
 - [x] Back went to about:blank after the first page (the identity priming load). Shipped in beta.129 (05ada01).
-- [ ] Mirrored tabs: pictures (the owner's snapshot, shrunk, encrypted, through the relay's blobs); later live.
+- [x] Mirrored tabs: pictures (the owner's snapshot, shrunk, encrypted, through the relay's blobs); later live.
+      Shared through the relay's blobs (main/share.ts); the web board shows them decrypted.
 - [ ] Mirrored tabs overlap the viewer's own tabs in the same section (both lay out from the same spots).
 - [ ] Board opened on a space switch stayed blank (stuck in .swap) in the parked test window; reopening fixed it.
       Check on a visible window whether it ever happens for real.
@@ -167,7 +170,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       "did you not redesign the settings popover").
 - [ ] Opening the preview is laggy (user, with pan/zoom/space-switch lag). Zoom renders fixed in 27938ed; preview
       open, pan and space switch not yet measured on a heavy board.
-- [ ] beta.121 left as a draft with only latest.yml (limit hit mid-release): finish it.
+- [x] beta.121 left as a draft with only latest.yml (limit hit mid-release): finish it.
+      Published since (checked 2026-11-23: not a draft).
 - [ ] Split view rework (45b4ae7) not verified on screen; split-board.md steps unchecked; the "page shows too big then
       resizes" placement fix not done.
 - Done in commits, unchecked above until now: site settings retheme + solid popovers (2b77b45, c4bc2b7, 09da048),
@@ -180,7 +184,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       to 62, its card gone).
 - [ ] Clicking a Windows notification (WhatsApp-style page) opens that tab.
 - [ ] Hover states on the strip's tabs, tab switchers, preview header buttons; header height 34 px.
-- [ ] Zoom / pinch / pan on the board: re-measure with scripts/perf-canvas.ts after the recent UI changes.
+- [x] Zoom / pinch / pan on the board: re-measure with scripts/perf-canvas.ts after the recent UI changes.
+      2026-11-23, built app: pan/zoom/drag p95 16.8 ms even at CPU x4.
 
 ## C. Web platform parity (plan, then build)
 
