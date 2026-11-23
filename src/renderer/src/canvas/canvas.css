@@ -4824,6 +4824,20 @@
 .cv-share-btn.on.refused {
   --tone: 255 99 89;
 }
+/* showing a tab live: the capsule turns red and pulses, as a recording light (hard to forget it is on) */
+.cv-share-btn.on.showing {
+  --tone: 255 59 48;
+  background: rgb(var(--tone) / 0.2);
+  box-shadow: inset 0 0 0 1px rgb(var(--tone) / 0.4);
+}
+.cv-share-btn.on.showing .cv-share-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgb(var(--tone));
+  animation: cv-share-halo 1.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
 [data-scheme='light'] .cv-share-btn.on.live {
   --tone: 22 137 62;
 }
@@ -4862,7 +4876,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cv-share-btn.on.live .cv-share-dot::after {
+  .cv-share-btn.on.live .cv-share-dot::after,
+  .cv-share-btn.on.showing .cv-share-dot::after {
     animation: none;
   }
 }
@@ -5293,4 +5308,18 @@
   .live-view {
     animation: none;
   }
+}
+
+/* a tab card shown live to the shared space (Cards.tsx LiveBadge) */
+.cv-live-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 16px;
+  box-shadow: 0 0 0 2px rgb(255 59 48 / 0.25);
 }

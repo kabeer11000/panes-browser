@@ -42,7 +42,11 @@ export function StatusChips({
             </>
           ) : (
             <>
-              <span>Live{v.watching > 0 ? ` · ${v.watching} watching` : ''}</span>
+              <span>
+                {v.watching > 0
+                  ? `Showing a tab live · ${v.watching} watching`
+                  : 'You’re showing a tab live'}
+              </span>
               <button type="button" onClick={v.stop}>
                 Stop
               </button>

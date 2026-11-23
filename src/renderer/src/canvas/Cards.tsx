@@ -17,6 +17,7 @@ import { sameModel, type CardModel } from './model'
 import { AnswerText } from './Expanded'
 import { Favicon } from './Img'
 import { Pic } from './Pic'
+import { useHostViews } from '@renderer/liveHost'
 import { parseInline, toggleMark } from '@shared/noteMarks'
 import { useBoardLod } from './boardLod'
 import { LiveTab } from './LiveTab'
@@ -308,6 +309,16 @@ const PlusGlyph = (): React.JSX.Element => (
  * Sound and video from the card itself: mute, and play or pause (shown while it plays, or on hover). The tab stays
  * where it is; nothing opens.
  */
+/** The tab shown live to a shared space: a red LIVE tag on its card, so it is never forgotten (liveHost.ts). */
+function LiveBadge({ tabId }: { tabId: number }): React.JSX.Element | null {
+  const live = useHostViews().some((v) => v.tabId === tabId)
+  return live ? (
+    <span className="cv-live-tag" title="Shown live to your shared space">
+      Live
+    </span>
+  ) : null
+}
+
 function MediaControls({ m }: { m: CardModel }): React.JSX.Element {
   // What the page answered to the last click, until the tab's own state (main asks the page what plays) moves:
   // any change of that is the truth from then on, so a pause made in the page itself is never hidden by an old
@@ -471,6 +482,7 @@ export const CardView = memo(
               </span>
             )}
             <div className="cv-badges">
+              {m.isTab && <LiveBadge tabId={m.id} />}
               <CallBadge call={m.ringing ? 'ringing' : null} />
               <CaptureBadge capture={{ camera: !!m.camera, mic: !!m.mic, screen: !!m.screen }} />
               {m.isTab && (m.audible || m.muted || m.kind === 'video') && <MediaControls m={m} />}

@@ -5743,3 +5743,18 @@ kbd {
   animation: scroll-fade linear both;
   animation-timeline: scroll(self block);
 }
+
+/* the tab shown live to a shared space (Sidebar.tsx): a small red tag, as a recording light */
+.tab-live {
+  flex: none;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 15px;
+}

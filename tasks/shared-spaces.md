@@ -146,3 +146,6 @@ People without Panes join from any browser in a light web version that is also P
       connection, 2 MB messages, 5 MB pictures; now also: pictures only for members of an existing room (asking never
       makes one), 100 MB of pictures a room (the oldest go), 60 pictures a minute a room, 30 new rooms an hour per
       address (Render's x-forwarded-for). Relay tests cover each.
+- [x] Live indicator clearer (user 2026-11-23: easy to forget): the capsule says Shared · just you / n here /
+      offline, and turns red and pulses as "Showing live · n watching" while a tab is shown; the tab wears a red LIVE
+      tag in the sidebar and on its card; the chrome chip says "You're showing a tab live". Checked in a dev copy.

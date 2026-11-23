@@ -34,6 +34,7 @@ import { TabGroupHeader } from './TabGroupHeader'
 import { TabFavicon } from './TabFavicon'
 import { WindowControls } from './WindowControls'
 import { useGlider } from '@renderer/hooks/useGlider'
+import { useHostViews } from '@renderer/liveHost'
 
 interface Props {
   tabs: TabInfo[]
@@ -115,6 +116,8 @@ export function Sidebar({
   onTaskView,
   onWheel
 }: Props): React.JSX.Element {
+  // the tab shown live to a shared space wears a LIVE tag, so it is never forgotten (liveHost.ts)
+  const liveTabs = new Set(useHostViews().map((v) => v.tabId))
   const group = layout ? leaves(layout) : []
   const [renamingGroup, setRenamingGroup] = useState<number | null>(null)
   useEffect(() => window.api.onRenameGroup(setRenamingGroup), [])
@@ -321,6 +324,11 @@ export function Sidebar({
                 {footBottom && <span className="trow-foot b" aria-hidden="true" />}
                 <TabFavicon tab={t} />
                 <TabTitle tab={t} className="tab-title" />
+                {liveTabs.has(t.id) && (
+                  <span className="tab-live" title="Shown live to your shared space">
+                    Live
+                  </span>
+                )}
                 {inSplit ? (
                   <button
                     className="tab-action split-on"
