@@ -3540,6 +3540,14 @@
   position: absolute;
   max-width: none;
 }
+/* someone's live tab on its card (LiveCardVideo): the whole card, the page's top first */
+.cv-live > video.cv-live-whole {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
 @media (prefers-reduced-motion: reduce) {
   .cv-live {
     transition: none;

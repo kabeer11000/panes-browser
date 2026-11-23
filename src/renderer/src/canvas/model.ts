@@ -38,6 +38,9 @@ export interface CardModel {
   ringing: boolean
   /** Someone else's tab they are showing live right now: their name (the card wears LIVE, and opens their picture). */
   liveBy?: string
+  /** Their live picture, while the card is on screen: their relay address and the space (see liveLine.ts). */
+  liveRtc?: number
+  liveSpace?: number
   /** Its page is using the camera, the microphone or sharing the screen (flags, so a tab push compares equal). */
   camera?: boolean
   mic?: boolean

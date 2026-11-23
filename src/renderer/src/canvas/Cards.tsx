@@ -1,3 +1,4 @@
+import { LiveCardVideo } from './LiveShare'
 import { memo, useEffect, useRef, useState, useLayoutEffect } from 'react'
 import {
   CARD_H,
@@ -434,6 +435,9 @@ export const CardView = memo(
           onLink={onLink}
           onAspect={onVideoAspect ? (ar) => onVideoAspect(m.id, ar) : undefined}
         />
+        {m.liveRtc !== undefined && m.liveSpace !== undefined && (
+          <LiveCardVideo spaceId={m.liveSpace} hostRtc={m.liveRtc} w={w} h={h} />
+        )}
         {live > 0 && m.isTab && (
           <LiveTab
             key={call ? 'call' : 'video'}

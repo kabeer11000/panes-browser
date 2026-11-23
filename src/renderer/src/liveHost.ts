@@ -157,12 +157,16 @@ export function useLiveHost(
     }
     const onCtl = (from: number, msg: LiveControl): void => {
       if (msg.k === 'size') {
+        fit(from, msg.w, msg.h)
+        // a card's size only makes the picture small; the tab takes a viewer's shape, never a card's
+        if (msg.card === true) {
+          sizes.delete(from)
+          return
+        }
         if (typeof msg.w === 'number' && typeof msg.h === 'number')
           sizes.set(from, { w: msg.w, h: msg.h })
-        fit(from, msg.w, msg.h)
         shape(from)
-      }
-      else if (msg.k === 'ask') setAskingId(from)
+      } else if (msg.k === 'ask') setAskingId(from)
       else if (msg.k === 'release' && driverRef.current === from) {
         driverRef.current = null
         setDriverId(null)

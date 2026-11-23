@@ -5,15 +5,9 @@ import { ChevronDownIcon, SpeakerIcon } from '@renderer/components/icons'
 import { holdOverlay, releaseOverlay } from '@renderer/overlay'
 import { useShareState } from '@renderer/components/useShare'
 import type { SharePerson } from '@shared/types'
-import {
-  ICE_SERVERS,
-  videoBox,
-  type LiveControl,
-  type LiveSignal,
-  type RemoteInput
-} from '@shared/share/live'
+import { videoBox, type LiveControl, type RemoteInput } from '@shared/share/live'
+import { takeLine, type LiveUser } from '@renderer/liveLine'
 import { Face } from '@renderer/components/ShareSection'
-import { parse } from '@renderer/liveHost'
 
 /**
  * A tab shown live in a shared space (tasks/shared-spaces.md, shared browsing), like Hyperbeam but with the host's own
@@ -142,17 +136,17 @@ function LiveViewer({
 }): React.JSX.Element {
   const ptrSink = useRef<(m: Ptr) => void>(() => undefined)
   const video = useRef<HTMLVideoElement>(null)
+  /** The line to the host, shared with their tab's cards on the board (liveLine.ts). */
+  const lineRef = useRef<ReturnType<typeof takeLine> | null>(null)
   // the picture outlives any one <video>: whichever is mounted gets it (a remount once left a live call showing black)
-  const stream = useRef<MediaStream | null>(null)
   const attach = useCallback((v: HTMLVideoElement | null): void => {
     video.current = v
-    if (v && stream.current && v.srcObject !== stream.current) {
-      v.srcObject = stream.current
+    const stream = lineRef.current?.line.stream
+    if (v && stream && v.srcObject !== stream) {
+      v.srcObject = stream
       void v.play().catch(() => undefined)
     }
   }, [])
-  const ctl = useRef<RTCDataChannel | null>(null)
-  const mv = useRef<RTCDataChannel | null>(null)
   const [state, setState] = useState<'connecting' | 'live' | 'gone'>('connecting')
   /** Still not through after a while: say so instead of "Connecting" for good. */
   const [slow, setSlow] = useState(false)
@@ -165,6 +159,10 @@ function LiveViewer({
     }
   }, [state])
   const [control, setControl] = useState<'none' | 'asked' | 'yes' | 'no'>('none')
+  const controlRef = useRef(control)
+  useEffect(() => {
+    controlRef.current = control
+  }, [control])
   /** The host's tab's sound, on unless turned off here (only while it has any). */
   const [sound, setSound] = useState(true)
   const [hasSound, setHasSound] = useState(false)
@@ -172,10 +170,6 @@ function LiveViewer({
   const [cursor, setCursor] = useState('default')
   const hostRtc = host.rtc
   const stage = useRef<HTMLDivElement>(null)
-  /** Tells the host how big the picture is shown here (device pixels), so it sends no more than that. */
-  const sendSize = useRef<() => void>(() => undefined)
-  /** Calls made to the host so far: one more when the line drops while they still show it. */
-  const [tries, setTry] = useState(0)
   /** The picture's own size: the panel takes its shape, so there are no bars beside it. */
   const [pic, setPic] = useState<{ w: number; h: number } | null>(null)
   const [room, setRoom] = useState(viewRoom)
@@ -185,124 +179,56 @@ function LiveViewer({
     return () => window.removeEventListener('resize', on)
   }, [])
   const fitted = fitPanel(room, pic)
+
   useEffect(() => {
-    const el = stage.current
-    if (!el) return
-    let t = 0
-    const send = (): void => {
-      const ch = ctl.current
-      if (ch?.readyState !== 'open') return
+    if (!window.api.share || !hostRtc) return
+    const user: LiveUser = {
+      changed: () => {
+        const l = lineRef.current?.line
+        if (!l) return
+        setState(l.state)
+        setHasSound(l.hasSound)
+        attach(video.current)
+      },
+      message: (msg) => {
+        if (msg.k === 'ptr') ptrSink.current(msg)
+        else if (msg.k === 'granted') setControl('yes')
+        else if (msg.k === 'denied') setControl('no')
+        else if (msg.k === 'revoked') setControl('none')
+        else if (msg.k === 'cur' && /^[a-z-]{1,24}$/.test(msg.c)) setCursor(msg.c)
+      },
       // the room it could fill (the window, less its margin and bar), not the picture's own box: out of the host's
       // sight their tab takes this shape, and the picture then grows to fill it
-      const d = window.devicePixelRatio || 1
-      const room = viewRoom()
-      const msg: LiveControl = { k: 'size', w: Math.round(room.w * d), h: Math.round(room.h * d) }
-      ch.send(JSON.stringify(msg))
+      size: () => {
+        const d = window.devicePixelRatio || 1
+        const r = viewRoom()
+        return { w: r.w * d, h: r.h * d }
+      }
     }
-    sendSize.current = send
+    const held = takeLine(spaceId, hostRtc, user)
+    lineRef.current = held
+    user.changed()
+    let t = 0
     const later = (): void => {
       window.clearTimeout(t)
-      t = window.setTimeout(send, 250)
+      t = window.setTimeout(held.sendSize, 250)
     }
     window.addEventListener('resize', later)
     return () => {
       window.removeEventListener('resize', later)
       window.clearTimeout(t)
+      // the line may stay up for the tab's card: driving ends with the viewer
+      const ch = held.line.ctl
+      if (controlRef.current === 'yes' && ch?.readyState === 'open')
+        ch.send(JSON.stringify({ k: 'release' } satisfies LiveControl))
+      held.release()
+      lineRef.current = null
     }
-  }, [])
-
-  useEffect(() => {
-    if (!window.api.share || !hostRtc) return
-    const send = (sig: LiveSignal): void =>
-      window.api.share!.signal(spaceId, hostRtc, JSON.stringify(sig))
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
-    pc.ontrack = (e) => {
-      if (e.track.kind === 'audio') setHasSound(true)
-      if (e.streams[0]) {
-        stream.current = e.streams[0]
-        attach(video.current)
-      }
-    }
-    pc.ondatachannel = (e) => {
-      const ch = e.channel
-      if (ch.label === 'ctl') {
-        ctl.current = ch
-        ch.onopen = () => sendSize.current()
-        ch.onmessage = (m) => {
-          const msg = parse<LiveControl>(String(m.data))
-          if (msg?.k === 'ptr') ptrSink.current(msg)
-          else if (msg?.k === 'granted') setControl('yes')
-          else if (msg?.k === 'denied') setControl('no')
-          else if (msg?.k === 'revoked') setControl('none')
-          else if (msg?.k === 'cur' && /^[a-z-]{1,24}$/.test(msg.c)) setCursor(msg.c)
-        }
-      } else if (ch.label === 'mv') {
-        mv.current = ch
-        ch.onmessage = (m) => {
-          const msg = parse<LiveControl>(String(m.data))
-          if (msg?.k === 'ptr') ptrSink.current(msg)
-        }
-      }
-    }
-    pc.onicecandidate = (e) => e.candidate && send({ k: 'ice', c: e.candidate.toJSON() as never })
-    // the line dropped (sleep, a network change) while they still show it: call again, quietly
-    let redial = 0
-    pc.onconnectionstatechange = () => {
-      window.clearTimeout(redial)
-      // live once the line is through, not when the track is announced: a call that never connects (networks that
-      // block a direct line) used to show "Live" over a black picture
-      if (pc.connectionState === 'connected') setState('live')
-      else if (pc.connectionState === 'failed') {
-        setState('connecting')
-        redial = window.setTimeout(() => setTry((n) => n + 1), 800)
-      } else if (pc.connectionState === 'disconnected')
-        redial = window.setTimeout(() => setTry((n) => n + 1), 4000)
-    }
-    const off = window.api.share.onSignal(async (sid, from, data) => {
-      if (sid !== spaceId || from !== hostRtc) return
-      const sig = parse<LiveSignal>(data)
-      if (!sig) return
-      if (sig.k === 'sdp' && sig.sdp.type === 'offer') {
-        await pc.setRemoteDescription(sig.sdp)
-        await pc.setLocalDescription(await pc.createAnswer())
-        send({ k: 'sdp', sdp: pc.localDescription!.toJSON() as never })
-      } else if (sig.k === 'ice') await pc.addIceCandidate(sig.c).catch(() => undefined)
-      // their picture restarted (or the host's Panes did): call again; if they really stopped, this panel goes
-      // with their live tab (LiveShare)
-      else if (sig.k === 'bye') {
-        setState('connecting')
-        window.clearTimeout(redial)
-        redial = window.setTimeout(() => setTry((n) => n + 1), 1200)
-      }
-    })
-    // the relay's ICE servers (TURN when it has a key) before anything is gathered; hello once they are in
-    let dead = false
-    void window.api.share
-      .ice(spaceId)
-      .catch(() => null)
-      .then((servers) => {
-        if (dead) return
-        if (servers)
-          try {
-            pc.setConfiguration({ iceServers: servers })
-          } catch {
-            // the built-in STUN stays
-          }
-        send({ k: 'hello' })
-      })
-    return () => {
-      dead = true
-      off()
-      send({ k: 'bye' })
-      pc.close()
-      ctl.current = null
-      mv.current = null
-      window.clearTimeout(redial)
-    }
-  }, [spaceId, hostRtc, tries])
+  }, [spaceId, hostRtc, attach])
 
   const say = (msg: LiveControl, fast = false): void => {
-    const ch = fast && mv.current?.readyState === 'open' ? mv.current : ctl.current
+    const l = lineRef.current?.line
+    const ch = fast && l?.mv?.readyState === 'open' ? l.mv : l?.ctl
     if (ch?.readyState === 'open') ch.send(JSON.stringify(msg))
   }
   const driving = control === 'yes'
@@ -547,6 +473,72 @@ function LiveViewer({
  * Live tabs on a shared board: the host's bar (who watches, who asks to drive, stop), the others' "watch" chips, and
  * the panel a watcher sees.
  */
+/**
+ * The card of a tab someone is showing live, on the others' boards: their picture playing on it, small and muted,
+ * while the card is on screen (Canvas gives it the host only then). It shares the viewer's line (liveLine.ts) and
+ * tells the host only how big the card is, so the picture is sent that small and their tab keeps its shape. The
+ * card's own picture shows until the first frame.
+ */
+export function LiveCardVideo({
+  spaceId,
+  hostRtc,
+  w,
+  h
+}: {
+  spaceId: number
+  hostRtc: number
+  /** The card's size on the board. */
+  w: number
+  h: number
+}): React.JSX.Element {
+  const video = useRef<HTMLVideoElement>(null)
+  const [on, setOn] = useState(false)
+  const size = useRef({ w, h })
+  const sendSize = useRef<() => void>(() => undefined)
+  useEffect(() => {
+    size.current = { w, h }
+    sendSize.current()
+  }, [w, h])
+  useEffect(() => {
+    if (!window.api.share) return
+    const v = video.current
+    let held: ReturnType<typeof takeLine> | null = null
+    const show = (): void => {
+      const stream = held?.line.stream
+      if (v && stream && v.srcObject !== stream) {
+        v.srcObject = stream
+        void v.play().catch(() => undefined)
+      }
+    }
+    held = takeLine(spaceId, hostRtc, {
+      changed: show,
+      size: () => {
+        const d = window.devicePixelRatio || 1
+        return { w: size.current.w * d, h: size.current.h * d, card: true }
+      }
+    })
+    sendSize.current = held.sendSize
+    show()
+    return () => {
+      sendSize.current = () => undefined
+      held?.release()
+      if (v) v.srcObject = null
+      setOn(false)
+    }
+  }, [spaceId, hostRtc])
+  return (
+    <div className={'cv-live' + (on ? ' on' : '')} aria-hidden="true">
+      <video
+        ref={video}
+        className="cv-live-whole"
+        muted
+        playsInline
+        onPlaying={() => setOn(true)}
+      />
+    </div>
+  )
+}
+
 export function LiveShare({
   spaceId,
   shared,

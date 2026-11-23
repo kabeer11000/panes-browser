@@ -703,7 +703,7 @@ export function Canvas({
   /** The pages others show live here, by page, to whom: their tabs' cards wear it (no separate "is showing" chip). */
   const liveHosts = new Map(
     presence.people.flatMap((p) =>
-      p.live && p.rtc ? [[samePage(p.live.url), p.name] as const] : []
+      p.live && p.rtc ? [[samePage(p.live.url), { name: p.name, rtc: p.rtc }] as const] : []
     )
   )
   useLayoutEffect(() => {
@@ -1050,12 +1050,17 @@ export function Canvas({
     // main takes fresh pictures only of the tabs on screen; told once the view has settled
     window.clearTimeout(inViewTimer.current)
     inViewTimer.current = window.setTimeout(() => {
-      const shown = new Set(
-        (stRef.current?.cards ?? [])
-          .filter((c) => c.id > 0 && c.x < view.x + view.w && c.x + (c.w ?? CARD_W) > view.x)
-          .filter((c) => c.y < view.y + view.h && c.y + (c.h ?? CARD_H) > view.y)
-          .map((c) => c.id)
+      const inSight = (stRef.current?.cards ?? []).filter(
+        (c) =>
+          (c.id > 0 || isMirror(c.id)) &&
+          c.x < view.x + view.w &&
+          c.x + (c.w ?? CARD_W) > view.x &&
+          c.y < view.y + view.h &&
+          c.y + (c.h ?? CARD_H) > view.y
       )
+      // this person's tabs (main pictures them); the others' tabs count as on screen here too (their live picture)
+      const shown = new Set(inSight.filter((c) => c.id > 0).map((c) => c.id))
+      const seen = new Set(inSight.map((c) => c.id))
       window.api.canvas.inView?.(spaceIdRef.current, [...shown])
       // cards zoomed in on, wider on screen than their pictures: sharper pictures of their pages (main takes them
       // one at a time, out of sight)
@@ -1071,7 +1076,7 @@ export function Canvas({
       }
       if (sharpen.length) window.api.canvas.sharpen?.(sharpen.slice(0, 8))
       setOnScreen((prev) =>
-        prev.size === shown.size && [...shown].every((i) => prev.has(i)) ? prev : shown
+        prev.size === seen.size && [...seen].every((i) => prev.has(i)) ? prev : seen
       )
     }, 300)
   }, [])
@@ -3687,6 +3692,8 @@ export function Canvas({
         : undefined
       : byId.get(card.id)
     if (!virtual && !tab) return null
+    // someone else's tab they are showing live now
+    const liveHost = isMirror(card.id) ? liveHosts.get(samePage(item?.url ?? '')) : undefined
     const base = {
       id: card.id,
       tor: false,
@@ -3695,7 +3702,10 @@ export function Canvas({
       asleep: !!tab?.unloaded,
       muted: !!tab?.muted,
       ringing: tab?.attention.call === 'ringing',
-      liveBy: isMirror(card.id) ? liveHosts.get(samePage(item?.url ?? '')) : undefined,
+      liveBy: liveHost?.name,
+      // the card plays their picture while it is on screen (one line with the viewer, see liveLine.ts)
+      liveRtc: liveHost && onScreen.has(card.id) ? liveHost.rtc : undefined,
+      liveSpace: liveHost ? spaceId : undefined,
       camera: !!tab?.capture.camera,
       mic: !!tab?.capture.mic,
       micMuted: !!tab?.capture.micMuted,

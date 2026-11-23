@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { downscaleFor, electronKey, parseRemoteInput, pointerOver, videoBox } from './live'
+import {
+  downscaleFor,
+  electronKey,
+  parseRemoteInput,
+  pointerOver,
+  sizeFor,
+  videoBox
+} from './live'
 
 describe('remote input from the person driving', () => {
   test('pointer events pass, clamped to the page', () => {
@@ -101,5 +108,29 @@ describe("the host's pointer over the live page", () => {
   test('null while the page is parked in the corner, painting for the watchers', () => {
     const parked = { x: 1297, y: 697, width: 1000, height: 600 }
     expect(pointerOver({ x: 100 + 1298, y: 50 + 698 }, content, parked, size)).toBeNull()
+  })
+})
+
+describe('sizeFor (one line shared by the viewer and the cards)', () => {
+  test("the viewer's size wins, and is never marked a card's", () => {
+    expect(
+      sizeFor([
+        { w: 400, h: 300, card: true },
+        { w: 1600, h: 900 },
+        { w: 2000, h: 2000, card: true }
+      ])
+    ).toEqual({ w: 1600, h: 900 })
+  })
+  test("cards only: the largest card's, marked a card's", () => {
+    expect(
+      sizeFor([
+        { w: 300, h: 200, card: true },
+        { w: 600, h: 400, card: true }
+      ])
+    ).toEqual({ w: 600, h: 400, card: true })
+  })
+  test('nothing sized (or zero sizes): nothing is sent', () => {
+    expect(sizeFor([])).toBeNull()
+    expect(sizeFor([null, { w: 0, h: 300, card: true }])).toBeNull()
   })
 })

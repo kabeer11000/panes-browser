@@ -31,8 +31,11 @@ export type LiveControl =
   | { k: 'revoked' }
   | { k: 'release' }
   | { k: 'input'; e: RemoteInput }
-  /** The watcher's picture size in device pixels: the host sends them no bigger (see `downscaleFor`). */
-  | { k: 'size'; w: number; h: number }
+  /**
+   * The watcher's picture size in device pixels: the host sends them no bigger (see `downscaleFor`). `card`: only a
+   * card on their board shows it, so the host's tab keeps its own shape.
+   */
+  | { k: 'size'; w: number; h: number; card?: boolean }
   /**
    * Someone's pointer over the live page, host to watchers (tab capture draws none): `who` 0 is the host, else the
    * driver's relay address; x null when it left the page.
@@ -139,4 +142,17 @@ export function pointerOver(
   const x = (cursor.x - content.x - view.x) / view.width
   const y = (cursor.y - content.y - view.y) / view.height
   return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null
+}
+
+/** The size a line to a live tab tells its host (see liveLine.ts): the viewer's, else the largest card's. */
+export function sizeFor(
+  sizes: Array<{ w: number; h: number; card?: boolean } | null>
+): { w: number; h: number; card?: boolean } | null {
+  const all = sizes.filter(
+    (s): s is { w: number; h: number; card?: boolean } => !!s && s.w > 0 && s.h > 0
+  )
+  const viewer = all.find((s) => !s.card)
+  if (viewer) return { w: viewer.w, h: viewer.h }
+  if (!all.length) return null
+  return all.reduce((a, b) => (b.w * b.h > a.w * a.h ? b : a))
 }
