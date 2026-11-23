@@ -130,7 +130,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       Shared through the relay's blobs (main/share.ts); the web board shows them decrypted.
 - [x] Mirrored tabs overlap the viewer's own tabs in the same section (both lay out from the same spots): readInto
       moves a mirror on one of the viewer's cards (or an earlier mirror) to the nearest free spot, the same each read.
-- [ ] Board opened on a space switch stayed blank (stuck in .swap) in the parked test window; reopening fixed it.
+- [x] Board opened on a space switch stayed blank (stuck in .swap) in the parked test window; reopening fixed it.
+      Reproduced: StrictMode's mount-time effect cleanup on the new board handed its own layer to holdLeaving, which
+      carried it off with the old board. A layer still in the page is now left alone (checked: 4 switches, each board
+      kept its surface and cards). Development builds only (StrictMode), but now safe either way.
       Check on a visible window whether it ever happens for real.
 - [x] Reopen closed tab (Ctrl+Shift+T) exactly where it was: Ctrl+W's close (beforeunload path) never recorded the
       tab at all (checked: example.com closed that way was not in closedUrls). Keep history (pageState: scroll,

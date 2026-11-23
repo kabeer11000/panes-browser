@@ -273,6 +273,9 @@ let swapOut: { wrap: HTMLDivElement; timer: number } | null = null
 function holdLeaving(l: HTMLDivElement): void {
   const host = liveRoot
   if (!swapping || performance.now() - swapping.at > 500 || !host || reducedMotion()) return
+  // A layer still in the page is a board still mounted: StrictMode runs a new board's effect cleanup once as it mounts,
+  // and taking that layer carried the new board's own surface off with the old one (a blank board after a switch).
+  if (l.isConnected) return
   swapOut?.wrap.remove()
   const wrap = document.createElement('div')
   wrap.className = 'cv-swapout'
