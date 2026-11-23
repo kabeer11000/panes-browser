@@ -141,7 +141,8 @@ if (state === 'published')
 
 const build = Math.floor(Date.now() / 1000)
 
-await $`bun run build`
+// the typecheck beside the build, not before it (it was a minute of waiting): a type error still stops the release
+await Promise.all([$`bun run typecheck`, $`bun run build:app`])
 if (carryFrom) {
   // the app alone (dist/win-unpacked, what the layer is made of): no installer is built
   await $`bunx electron-builder --win --dir --publish never ${`--config.extraMetadata.panesBuild=${build}`}`
@@ -166,19 +167,21 @@ if (missing.length) fail(`electron-builder did not produce ${missing.join(', ')}
  */
 const MAC_ARCHES = ['arm64', 'x64'] as const
 async function macLayers(publish: boolean): Promise<string[]> {
-  const made: string[] = []
-  for (const arch of MAC_ARCHES) {
-    const asar = `dist/mac/app-darwin-${arch}.asar`
-    const built = await $`bun scripts/mac-layer.ts --arch ${arch} --out ${asar}`.nothrow()
-    if (built.exitCode !== 0) {
-      console.log(`release: no Mac layer for ${arch} (scripts/mac-layer.ts said why, above)`)
-      continue
-    }
-    const out = `dist/layer-darwin-${arch}`
-    await $`bun scripts/release-layer.ts --asar ${asar} --target darwin-${arch} --out ${out} ${publish ? ['--publish'] : []}`
-    made.push(`darwin-${arch}`)
-  }
-  return made
+  // both at once (each has its own work, out and cache files): they were the slowest part of a release, in turn
+  const made = await Promise.all(
+    MAC_ARCHES.map(async (arch) => {
+      const asar = `dist/mac/app-darwin-${arch}.asar`
+      const built = await $`bun scripts/mac-layer.ts --arch ${arch} --out ${asar}`.nothrow()
+      if (built.exitCode !== 0) {
+        console.log(`release: no Mac layer for ${arch} (scripts/mac-layer.ts said why, above)`)
+        return null
+      }
+      const out = `dist/layer-darwin-${arch}`
+      await $`bun scripts/release-layer.ts --asar ${asar} --target darwin-${arch} --out ${out} ${publish ? ['--publish'] : []}`
+      return `darwin-${arch}`
+    })
+  )
+  return made.filter((m): m is string => m !== null)
 }
 
 if (dryRun) {
@@ -198,9 +201,10 @@ if (state === 'new') {
 }
 await $`gh release upload ${tag} --clobber ${installer}`
 await $`bun scripts/release-layer.ts --publish`
-const macs = await macLayers(true)
 
 // A release without app-layer.json gives existing users no update at all: check before anyone can see it.
+// Windows goes live as soon as its layer is up and checked; the Mac layers follow into the published release (a Mac
+// sees no update for those minutes, then its manifest is there). A release used to wait for both Mac layers first.
 const assets = (
   JSON.parse(await $`gh release view ${tag} --json assets`.text()) as { assets: { name: string }[] }
 ).assets.map((a) => a.name)
@@ -210,23 +214,32 @@ const manifest = JSON.parse(readFileSync('dist/layer/app-layer.json', 'utf8')) a
 }
 const layerFiles = [manifest.full.file, ...manifest.deltas.map((d) => d.file)]
 const expected = [...installer.map((f) => f.slice('dist/'.length)), 'app-layer.json', ...layerFiles]
-// the Mac layers made above, each with its own manifest and files
-for (const target of macs) {
-  const [platform, arch] = target.split('-')
-  const name = manifestName(platform, arch)
-  const m = JSON.parse(readFileSync(`dist/layer-${target}/${name}`, 'utf8')) as typeof manifest
-  const files = [m.full.file, ...m.deltas.map((d) => d.file)]
-  layerFiles.push(...files)
-  expected.push(name, ...files)
-}
 const absent = expected.filter((name) => !assets.includes(name))
 if (absent.length) fail(`${tag} stays a draft: missing ${absent.join(', ')}.`)
 
-// A reused draft still holds the layer files of the earlier attempt, which this manifest does not name.
+// A reused draft still holds the layer files of the earlier attempt, which this manifest does not name (Mac files
+// of an earlier attempt are replaced as the Mac layers upload with --clobber).
 const stale = assets.filter(
-  (n) => /^app-.*(\.asar\.gz|\.delta\.zst)$/.test(n) && !layerFiles.includes(n)
+  (n) =>
+    /^app-.*(\.asar\.gz|\.delta\.zst)$/.test(n) && !n.includes('darwin') && !layerFiles.includes(n)
 )
 for (const name of stale) await $`gh release delete-asset ${tag} ${name} --yes`
 
 await $`gh release edit ${tag} --draft=false --latest`
-console.log(`release: ${tag} is live.`)
+console.log(`release: ${tag} is live for Windows. Mac layers next.`)
+
+const macs = await macLayers(true)
+const after = (
+  JSON.parse(await $`gh release view ${tag} --json assets`.text()) as { assets: { name: string }[] }
+).assets.map((a) => a.name)
+for (const target of macs) {
+  const [platform, arch] = target.split('-')
+  const name = manifestName(platform, arch)
+  const m = JSON.parse(readFileSync(`dist/layer-${target}/${name}`, 'utf8')) as typeof manifest
+  const missingMac = [name, m.full.file, ...m.deltas.map((d) => d.file)].filter(
+    (f) => !after.includes(f)
+  )
+  if (missingMac.length)
+    console.log(`release: ${target} incomplete, missing ${missingMac.join(', ')}`)
+}
+console.log(`release: ${tag} is live (Mac: ${macs.join(', ') || 'none'}).`)
