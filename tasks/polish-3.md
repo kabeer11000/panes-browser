@@ -166,7 +166,9 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 
 ### Missed by the 21:04 session (said "logged", never written here; audit 2026-11-22 21:10)
 
-- [ ] Deleting a tab section / frame group sometimes flashes or stutters (user).
+- [x] Deleting a tab section / frame group sometimes flashes or stutters (user): the section went at once and its
+      cards hung loose until their tabs closed in main, then popped off. They now leave in the same step (checked: a
+      24-card section, nothing left 80 ms after Delete).
 - [ ] Board chrome is "too much, noisy": drag/resize handles, card buttons, general look should be refined and quiet
       (Figma / Apple level). Part of the cards redesign, but its own pass.
 - [ ] Space settings popover (SpacePopover): full redesign, same language as the new site settings panel (user asked

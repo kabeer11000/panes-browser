@@ -1991,6 +1991,11 @@ export function Canvas({
       .map((k) => k.slice(2))
       .filter((id) => !marksOf(s0 ?? emptyState()).find((m) => m.id === id)?.locked)
     const n = keys.filter((k) => k[0] === 'f' || k[0] === 'n').length + marks.length
+    // a deleted section's cards leave with it, in the same step: left to their tabs closing (in main, a moment later)
+    // they hung loose on the board where the section had been, then popped off
+    const leaving = new Set(
+      (s0?.cards ?? []).filter((c) => c.frame !== null && frames.has(c.frame)).map((c) => c.id)
+    )
     if (n > 0)
       edit(
         (s) => {
@@ -1999,6 +2004,7 @@ export function Canvas({
             if (k[0] === 'f') next = deleteFrame(next, k.slice(2))
             else if (k[0] === 'n') next = deleteNote(next, k.slice(2))
           }
+          if (leaving.size) next = { ...next, cards: next.cards.filter((c) => !leaving.has(c.id)) }
           return next
         },
         { undo: n === 1 ? 'Deleted 1 item' : `Deleted ${n} items` }
