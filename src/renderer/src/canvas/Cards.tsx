@@ -492,7 +492,14 @@ export const CardView = memo(
                 </span>
               )}
               <CallBadge call={m.ringing ? 'ringing' : null} />
-              <CaptureBadge capture={{ camera: !!m.camera, mic: !!m.mic, screen: !!m.screen }} />
+              <CaptureBadge
+                capture={{
+                  camera: !!m.camera,
+                  mic: !!m.mic,
+                  screen: !!m.screen,
+                  micMuted: !!m.micMuted
+                }}
+              />
               {m.isTab && (m.audible || m.muted || m.kind === 'video') && <MediaControls m={m} />}
               {m.current && (
                 <span className="card-current" title="Current tab" aria-hidden="true" />

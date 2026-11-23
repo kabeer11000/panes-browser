@@ -5,6 +5,7 @@ import { attentionLabel, badgeText, messageAge, type Grouped } from '@shared/att
 import { isCapturing } from '@shared/capture'
 import { SiteIcon } from '@renderer/components/SiteIcon'
 import { MiniPauseIcon, MiniPlayIcon } from './icons'
+import { CameraIcon, MicIcon, MicOffIcon, ScreenIcon } from '@renderer/components/icons'
 import type { CardModel } from './model'
 
 /**
@@ -80,7 +81,15 @@ export function StripPlaying({
   onHover?: (t: TabInfo | null) => void
 }): React.JSX.Element {
   const call = isCapturing(t.capture)
-  const sounding = call || (t.audible && !t.muted)
+  const c = t.capture
+  const sounding = t.audible && !t.muted
+  const callState = [
+    c.mic ? (c.micMuted ? 'mic muted' : 'mic on') : '',
+    c.camera ? 'camera on' : '',
+    c.screen ? 'sharing screen' : ''
+  ]
+    .filter(Boolean)
+    .join(', ')
   // what the page said after a click, until the tab's own state catches up (it is asked of the page, a moment later):
   // without it the button showed the old state for a beat, and a second click undid the first
   const [said, setSaid] = useState<{ paused: boolean; n: number } | null>(null)
@@ -99,11 +108,15 @@ export function StripPlaying({
             : here
               ? `Playing here: ${title}`
               : call
-                ? `In a call: ${title}`
+                ? `In a call: ${title} (${callState})`
                 : `Playing: ${title}`
         }
         aria-label={
-          here ? `Playing here: ${title}` : call ? `In a call: ${title}` : `Playing: ${title}`
+          here
+            ? `Playing here: ${title}`
+            : call
+              ? `In a call: ${title}, ${callState}`
+              : `Playing: ${title}`
         }
         aria-current={here || undefined}
         onPointerEnter={onHover ? () => onHover(t) : undefined}
@@ -112,11 +125,32 @@ export function StripPlaying({
           if (!here) onGo(t.id)
         }}
       >
-        <span className={'cv-eq' + (sounding ? '' : ' still')} aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
+        {call ? (
+          // what the call holds, as the page has it: a muted mic shows struck through
+          <span className="cv-strip-call" aria-hidden="true">
+            {c.mic && (
+              <span className={c.micMuted ? 'off' : 'on'}>
+                {c.micMuted ? <MicOffIcon /> : <MicIcon />}
+              </span>
+            )}
+            {c.camera && (
+              <span className="on">
+                <CameraIcon />
+              </span>
+            )}
+            {c.screen && (
+              <span className="on">
+                <ScreenIcon />
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className={'cv-eq' + (sounding ? '' : ' still')} aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        )}
         <span className="cv-strip-play-title">{title}</span>
       </button>
       {!call && (

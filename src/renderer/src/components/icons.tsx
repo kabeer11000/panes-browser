@@ -193,6 +193,13 @@ export const MicIcon = (): React.JSX.Element => (
     <path d="M3.8 7.8a4.2 4.2 0 0 0 8.4 0M8 12v2" />
   </Svg>
 )
+/** The microphone, muted: struck through. */
+export const MicOffIcon = (): React.JSX.Element => (
+  <Svg>
+    <rect x="6" y="2" width="4" height="7" rx="2" />
+    <path d="M3.8 7.8a4.2 4.2 0 0 0 8.4 0M8 12v2M2.5 2.5l11 11" />
+  </Svg>
+)
 export const ScreenIcon = (): React.JSX.Element => (
   <Svg>
     <rect x="2" y="3" width="12" height="8" rx="1.4" />

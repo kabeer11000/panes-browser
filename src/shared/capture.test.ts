@@ -15,6 +15,7 @@ import {
   shareAudio,
   shareTab,
   captureShim,
+  sameCapture,
   type CaptureState
 } from './capture'
 import type { ScreenSource } from './types'
@@ -165,6 +166,7 @@ describe('isCapturing', () => {
 describe('captureShim', () => {
   class FakeTrack {
     readyState: 'live' | 'ended' = 'live'
+    enabled = true
     private listeners: Array<() => void> = []
     constructor(
       readonly kind: 'audio' | 'video',
@@ -246,6 +248,17 @@ describe('captureShim', () => {
     expect(s.reports.at(-1)).toEqual(NO_CAPTURE)
     expect(s.timers()).toBe(0) // nothing live: no timer left running
   })
+  test('a call muting its mic (track disabled) is seen as a muted mic, still in the call', async () => {
+    const s = setup()
+    const mic = new FakeTrack('audio')
+    await s.gum([mic])
+    mic.enabled = false // what Meet and the like do on mute
+    s.tick()
+    expect(s.reports.at(-1)).toEqual({ camera: false, mic: true, screen: false, micMuted: true })
+    mic.enabled = true
+    s.tick()
+    expect(s.reports.at(-1)).toEqual({ camera: false, mic: true, screen: false })
+  })
   test('the wrapped function still reads as native', () => {
     setup()
     // a Proxy over a function keeps its name; bot checks that look at it see nothing new
@@ -294,5 +307,29 @@ describe('captureShim', () => {
     s.tick()
     s.tick()
     expect(s.reports.length).toBe(n)
+  })
+})
+
+describe('muted mic', () => {
+  const on = { camera: false, mic: true, screen: false }
+  const muted = { ...on, micMuted: true }
+  test('merged muted only when every frame holding the mic is muted', () => {
+    expect(mergeCapture([muted]).micMuted).toBe(true)
+    expect(mergeCapture([muted, on]).micMuted).toBeUndefined()
+    expect(mergeCapture([muted, NO_CAPTURE]).micMuted).toBe(true)
+  })
+  test('muting and unmuting show at once, and count as a change', () => {
+    const a = holdCapture(NO_HOLD, on, 0).hold
+    const b = holdCapture(a, muted, 10).hold
+    expect(b.shown.micMuted).toBe(true)
+    expect(sameCapture(a.shown, b.shown)).toBe(false)
+    expect(holdCapture(b, on, 20).hold.shown.micMuted).toBeUndefined()
+  })
+  test('a muted mic held through a gap stays muted', () => {
+    const a = holdCapture(NO_HOLD, muted, 0).hold
+    expect(holdCapture(a, NO_CAPTURE, 100).hold.shown).toEqual(muted)
+  })
+  test('parse ignores micMuted without a mic', () => {
+    expect(parseCapture(CAPTURE_PREFIX + '{"micMuted":true}')).toEqual(NO_CAPTURE)
   })
 })

@@ -4612,6 +4612,30 @@
 .cv-strip-play .cv-eq {
   color: var(--accent);
 }
+.cv-strip-call {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.cv-strip-call > span {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+}
+.cv-strip-call > span > svg {
+  width: 13px;
+  height: 13px;
+}
+/* live: the badge's red, as the tab's own call dot; muted: quiet */
+.cv-strip-call > .on {
+  color: var(--badge-bg);
+}
+.cv-strip-call > .off {
+  color: color-mix(in srgb, var(--fg) 50%, transparent);
+}
 .cv-strip-play-title {
   min-width: 0;
   overflow: hidden;

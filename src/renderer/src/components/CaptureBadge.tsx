@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { isCapturing, sameCapture, type CaptureState } from '@shared/capture'
-import { CameraIcon, MicIcon, ScreenIcon } from './icons'
+import { CameraIcon, MicIcon, MicOffIcon, ScreenIcon } from './icons'
 
 /**
  * Red marks on a tab whose page is using the camera, the microphone or sharing the screen. Every tab state push
@@ -12,7 +12,7 @@ export const CaptureBadge = memo(
     if (!isCapturing(capture)) return null
     const what = [
       capture.camera && 'the camera',
-      capture.mic && 'the microphone',
+      capture.mic && (capture.micMuted ? 'the microphone (muted)' : 'the microphone'),
       capture.screen && 'your screen'
     ].filter(Boolean)
     return (
@@ -23,7 +23,7 @@ export const CaptureBadge = memo(
         aria-label={`Using ${what.join(' and ')}`}
       >
         {capture.camera && <CameraIcon />}
-        {capture.mic && <MicIcon />}
+        {capture.mic && (capture.micMuted ? <MicOffIcon /> : <MicIcon />)}
         {capture.screen && <ScreenIcon />}
       </span>
     )

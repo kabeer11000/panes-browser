@@ -3693,6 +3693,7 @@ export function Canvas({
       liveBy: isMirror(card.id) ? liveHosts.get(samePage(item?.url ?? '')) : undefined,
       camera: !!tab?.capture.camera,
       mic: !!tab?.capture.mic,
+      micMuted: !!tab?.capture.micMuted,
       screen: !!tab?.capture.screen,
       attnCount: tab?.attention.count ?? 0,
       attnNew: !!tab && (tab.attention.unseen || tab.attention.count > 0),

@@ -7,8 +7,10 @@ export interface CaptureState {
   camera: boolean
   mic: boolean
   screen: boolean
+  /** The microphone is held but muted in the page (every live mic track disabled, as call sites mute). */
+  micMuted?: boolean
 }
-export type CaptureKind = keyof CaptureState
+export type CaptureKind = 'camera' | 'mic' | 'screen'
 
 const CAPTURE_KINDS: readonly CaptureKind[] = ['camera', 'mic', 'screen']
 
@@ -17,14 +19,20 @@ export const NO_CAPTURE: CaptureState = { camera: false, mic: false, screen: fal
 export const isCapturing = (c: CaptureState): boolean => c.camera || c.mic || c.screen
 
 export const sameCapture = (a: CaptureState, b: CaptureState): boolean =>
-  a.camera === b.camera && a.mic === b.mic && a.screen === b.screen
+  a.camera === b.camera && a.mic === b.mic && a.screen === b.screen && !a.micMuted === !b.micMuted
 
 /** The state in a console message, or null for any other message. */
 export function parseCapture(message: string): CaptureState | null {
   if (!message.startsWith(CAPTURE_PREFIX)) return null
   try {
     const v = JSON.parse(message.slice(CAPTURE_PREFIX.length)) as Partial<CaptureState>
-    return { camera: v.camera === true, mic: v.mic === true, screen: v.screen === true }
+    const mic = v.mic === true
+    return {
+      camera: v.camera === true,
+      mic,
+      screen: v.screen === true,
+      ...(mic && v.micMuted === true ? { micMuted: true } : {})
+    }
   } catch {
     return null
   }
@@ -32,8 +40,18 @@ export function parseCapture(message: string): CaptureState | null {
 
 /** What a page captures, from what each of its frames reports: a kind is live when any frame has it. */
 export function mergeCapture(states: Iterable<CaptureState>): CaptureState {
-  const out = { ...NO_CAPTURE }
-  for (const s of states) for (const k of CAPTURE_KINDS) out[k] ||= s[k]
+  const out: CaptureState = { ...NO_CAPTURE }
+  // muted only when every frame holding the mic has it muted
+  let live = 0
+  let muted = 0
+  for (const s of states) {
+    for (const k of CAPTURE_KINDS) out[k] ||= s[k]
+    if (s.mic) {
+      live++
+      if (s.micMuted) muted++
+    }
+  }
+  if (live > 0 && muted === live) out.micMuted = true
   return out
 }
 
@@ -61,7 +79,7 @@ export function holdCapture(
   reported: CaptureState,
   now: number
 ): { hold: CaptureHold; settleIn: number | null } {
-  const shown = { ...NO_CAPTURE }
+  const shown: CaptureState = { ...NO_CAPTURE }
   const offSince: CaptureHold['offSince'] = {}
   let settleIn: number | null = null
   for (const k of CAPTURE_KINDS) {
@@ -77,6 +95,9 @@ export function holdCapture(
     offSince[k] = since
     settleIn = settleIn === null ? left : Math.min(settleIn, left)
   }
+  // muting is shown at once (no hold): it is a state of a live mic, not a gap in one
+  if (shown.mic && reported.mic && reported.micMuted) shown.micMuted = true
+  else if (shown.mic && !reported.mic && prev.shown.micMuted) shown.micMuted = true
   // Keep the same object while nothing changed, so whoever renders it can tell by identity.
   return {
     hold: { shown: sameCapture(shown, prev.shown) ? prev.shown : shown, offSince },
@@ -178,11 +199,22 @@ export function captureShim(
         ? 'screen'
         : 'camera'
   const report = (): void => {
-    const now = { camera: false, mic: false, screen: false }
+    const now = { camera: false, mic: false, screen: false, micMuted: false }
+    let mics = 0
+    let mutedMics = 0
     for (const t of [...live]) {
       if (t.readyState === 'ended') live.delete(t)
-      else now[kindOf(t)] = true
+      else {
+        const k = kindOf(t)
+        now[k] = true
+        if (k === 'mic') {
+          mics++
+          // a call mutes by disabling its track (it stays live); the 1 s look below catches the change
+          if (!t.enabled) mutedMics++
+        }
+      }
     }
+    now.micMuted = mics > 0 && mutedMics === mics
     const text = JSON.stringify(now)
     if (text !== last) {
       last = text
