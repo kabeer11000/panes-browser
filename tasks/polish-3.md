@@ -161,8 +161,9 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       preview open and show the last tab, as navigation does; no reopen or glitch. (beta.125, ee11667: onBack.)
 - [ ] Split view in the board: still not the tab view's (user 23:04). Parked by the user for now.
 
-- [ ] PiP is broken (user 21:13, YouTube): opening PiP glitches the whole page, a little video sticks at the left
-      over the page. Must behave like Chrome/Brave: the video leaves for the PiP window, the page stays as it is.
+- [x] PiP is broken (user 21:13, YouTube): opening PiP glitches the whole page, a little video sticks at the left
+      over the page. Must behave like Chrome/Brave: the video leaves for the PiP window, the page stays as it is. Fixed in beta.122
+      (5e0f235: Chromium's own picture in picture) and beta.123 (6a9d64c: back to tab).
 - [x] Search popover forgets what was typed when it blurs (click away) and starts from scratch. Chrome-like: the
       text stays until Escape or navigation, in the preview's, the tab view's and the toolbar's search alike. Kept
       per bar and tab (SearchPalette drafts); Escape, a pick or a page change clears it. Checked with real keys and
