@@ -66,7 +66,9 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Space switcher unread bubble clipped. (8926016)
 - [ ] Frosted glass option: whole chrome (board strip, now playing, bottom toolbar, popovers) blurred/translucent
       when on; off automatically in Efficient/Performance mode. No such setting exists today. Measure GPU on pan/zoom.
-- [ ] Scroll fade gradients on every scrolling list, search popover included.
+- [x] Scroll fade gradients on every scrolling list, search popover included: one scroll-driven rule (styles.css) for
+      the tab list, search, spaces popover, board command list and space menu, notifications, chats. Fades only an
+      edge with more beyond it (checked on 63 tabs: top 0/28, middle 28/28, end 28/0); a short list gets none.
 - [ ] Notifications sometimes do not open from the strip. User likes the bell after all: reposition it, make it reliable.
       The bell shows always, even with nothing new (beta.113 feedback). Unread styling is "gross": redo it.
 - [x] open.spotify.com opens in its mobile layout (user agent? viewport?): the Electron user agent; spotify.com now

@@ -5691,3 +5691,55 @@ kbd {
   display: block;
   fill: currentColor;
 }
+
+/* ---- scroll fades: a list fades out at an edge that has more beyond it, and only there ----
+   Driven by the list's own scroll (a scroll-driven animation): at the top only the bottom edge fades, at the end only
+   the top, in between both. A list too short to scroll has no scroll timeline, so the animation does not run and it
+   gets no fade at all. */
+@property --fade-top {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-bottom {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes scroll-fade {
+  0% {
+    --fade-top: 0px;
+    --fade-bottom: 28px;
+  }
+  8% {
+    --fade-top: 28px;
+  }
+  92% {
+    --fade-bottom: 28px;
+  }
+  100% {
+    --fade-top: 28px;
+    --fade-bottom: 0px;
+  }
+}
+:is(
+  .tab-list,
+  .pal-list,
+  .space-pop-scroll,
+  .cv-cmd-list,
+  .cv-space-menu,
+  .cv-chat-list,
+  .cv-nc-list,
+  .chat-scroll,
+  .chat-history
+) {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--fade-top),
+    #000 calc(100% - var(--fade-bottom)),
+    transparent 100%
+  );
+  animation: scroll-fade linear both;
+  animation-timeline: scroll(self block);
+}
