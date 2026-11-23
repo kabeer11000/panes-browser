@@ -364,6 +364,8 @@ export interface PanesApi {
     /** Share a space: the invite link (null if it could not be shared). */
     start(spaceId: number): Promise<string | null>
     link(spaceId: number): Promise<string | null>
+    /** A new invite link: the old one stops working and everyone who had it is cut off. */
+    reset(spaceId: number): Promise<string | null>
     /** Join from an invite link: the new space's id, or null when it is not an invite. */
     join(link: string): Promise<number | null>
     stop(spaceId: number): void
@@ -388,6 +390,12 @@ export interface PanesApi {
     pageCursor(spaceId: number): Promise<string | null>
     /** The shape the watchers see the live tab in (width / height): while the host is not looking at it, it takes it. */
     liveAspect(spaceId: number, aspect: number): void
+    /**
+     * Ask this person whether someone may drive their live tab, on a card above every page (the permission card).
+     * True: let them. False: no, or the question was taken back (askDriveCancel: they left, or asked elsewhere).
+     */
+    askDrive(spaceId: number, name: string, color: string): Promise<boolean>
+    askDriveCancel(spaceId: number): void
     /** A shared space's chat (shared/share/chat.ts): the latest messages, and this person's id among the writers. */
     chat(spaceId: number): Promise<SpaceChat | null>
     onChat(cb: (spaceId: number, chat: SpaceChat) => void): () => void
@@ -1262,6 +1270,8 @@ export interface PermissionPromptState {
   blocked?: 'camera' | 'microphone'
   /** For opening an app: the name the system gives the app the link opens ("Zoom Meetings"). */
   app?: string
+  /** Someone in a shared space asks to drive the tab this person presents: their name and colour. */
+  drive?: { name: string; color: string }
 }
 
 export type PermissionAnswer =

@@ -118,6 +118,8 @@ export interface ShareDeps {
   setLiveAspect: (tabId: number, aspect: number) => void
   /** Bring the window up on a space's board (a chat notification was clicked). */
   openBoard: (spaceId: number) => void
+  /** Ask whether someone may drive the live tab, above every page (PermissionManager.askDrive). */
+  askDrive: (name: string, color: string) => { answer: Promise<boolean>; cancel: () => void }
 }
 
 export class ShareService {
@@ -149,21 +151,34 @@ export class ShareService {
     return me.id
   }
 
-  /** This person's tabs go into the room with their titles (see TabMirror). */
+  /**
+   * This person's shared tabs go into the room with their titles (see TabMirror): the cards they shared and the tab
+   * they show live, nothing else. The live tab goes even without a card yet (shown from the tab view).
+   */
   private tabsOut(spaceId: number): {
     by: string
     title: (id: number) => string
     pic: (id: number) => string | undefined
     url: (id: number) => string | null
     all: () => Array<{ id: number; url: string }>
+    live?: number
   } {
+    const live = this.rooms.get(spaceId)?.liveTab
     return {
       by: this.who,
       title: (id) => this.d.tabTitle(id),
       url: (id) => this.d.tabUrl(id, spaceId),
-      all: () => this.d.tabsOf(spaceId),
-      pic: (id) => this.sentPics.get(`${spaceId}:${id}`)?.id
+      all: () => this.d.tabsOf(spaceId).filter((t) => t.id === live),
+      pic: (id) => this.sentPics.get(`${spaceId}:${id}`)?.id,
+      live
     }
+  }
+
+  /** The cards of this person's tabs that go to the room: those shared, and the live one (with a card made for it). */
+  private sharedCards(room: Room, last: CanvasState): CanvasState['cards'] {
+    const live = room.liveTab
+    const s = live === undefined ? last : withTabs(last, this.d.tabsOf(room.spaceId).filter((t) => t.id === live))
+    return s.cards.filter((c) => c.shared || c.id === live)
   }
 
   /** This person's tabs' pictures sent to each room: by space and tab, the store id and when the picture was taken. */
@@ -185,8 +200,8 @@ export class ShareService {
     for (const room of this.rooms.values()) {
       if (room.status !== 'live' || !room.last) continue
       let changed = false
-      // a tab without a card yet (opened in the tab view) gets its picture sent too
-      for (const c of withTabs(room.last, this.d.tabsOf(room.spaceId)).cards) {
+      // only the tabs this person shared (and the live one): a private tab's picture never leaves the machine
+      for (const c of this.sharedCards(room, room.last)) {
         if (budget <= 0) break
         // only a normal tab of this space now (see TabManager.tabUrl): never another space's under an old card's id
         if (c.id <= 0 || c.private || this.d.tabUrl(c.id, room.spaceId) === null) continue
@@ -519,6 +534,16 @@ export class ShareService {
     return inviteLink(saved.relay, saved.room, secret)
   }
 
+  /**
+   * A new link: the space moves to a new room (its board goes with it) and the old link stops working. Everyone who
+   * had it is cut off (they keep their copy of the board, in the old room); people come back only with the new link.
+   */
+  reset(spaceId: number): string | null {
+    if (!this.rooms.has(spaceId)) return null
+    this.stop(spaceId)
+    return this.start(spaceId)
+  }
+
   /** The invite link of a shared space. */
   link(spaceId: number): string | null {
     const s = this.store.value.rooms[String(spaceId)]
@@ -591,16 +616,19 @@ export class ShareService {
     if (!room) return false
     if (room.liveTab !== undefined && room.liveTab !== tabId)
       this.d.setLiveShared(room.liveTab, false)
+    this.askDriveCancel(spaceId) // a question about the tab that was live goes with it
     if (tabId === null) {
       room.liveTab = undefined
       room.client.awareness.setLocalStateField('live', null)
       this.tell(room)
+      this.tabsMoved() // its card leaves the others' boards (unless it was shared as well)
       return true
     }
     if (!this.d.setLiveShared(tabId, true)) return false
     room.liveTab = tabId
     this.liveAnnounce(room)
     this.tell(room)
+    this.tabsMoved() // its card reaches the others' boards, where it plays
     return true
   }
 
@@ -679,6 +707,27 @@ export class ShareService {
     this.rooms.get(spaceId)?.client.awareness.setLocalStateField('cursor', at)
   }
 
+  /** The question to let someone drive, per space, while it waits (one at a time: a new one replaces it). */
+  private driveAsks = new Map<number, () => void>()
+
+  /** Ask this person whether someone may drive their live tab in a space. */
+  async askDrive(spaceId: number, name: string, color: string): Promise<boolean> {
+    const room = this.rooms.get(spaceId)
+    if (room?.liveTab === undefined) return false
+    this.driveAsks.get(spaceId)?.()
+    const q = this.d.askDrive(name, color)
+    this.driveAsks.set(spaceId, q.cancel)
+    const yes = await q.answer
+    if (this.driveAsks.get(spaceId) === q.cancel) this.driveAsks.delete(spaceId)
+    // still showing that tab: a yes for a show that ended lets no one in
+    return yes && this.rooms.get(spaceId)?.liveTab === room.liveTab
+  }
+
+  askDriveCancel(spaceId: number): void {
+    this.driveAsks.get(spaceId)?.()
+    this.driveAsks.delete(spaceId)
+  }
+
   /** A space deleted: its room is left. */
   forget(spaceId: number): void {
     if (this.store.value.rooms[String(spaceId)]) this.stop(spaceId)
@@ -696,6 +745,7 @@ export function registerShare(d: ShareDeps): ShareService {
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : -1)
   ipcMain.handle('share:start', (e, id: unknown) => (mine(e) ? svc.start(num(id)) : null))
   ipcMain.handle('share:link', (e, id: unknown) => (mine(e) ? svc.link(num(id)) : null))
+  ipcMain.handle('share:reset', (e, id: unknown) => (mine(e) ? svc.reset(num(id)) : null))
   ipcMain.handle('share:join', (e, link: unknown) =>
     mine(e) && typeof link === 'string' ? svc.join(link) : null
   )
@@ -709,6 +759,14 @@ export function registerShare(d: ShareDeps): ShareService {
   })
   ipcMain.on('share:took', (e, id: unknown, n: unknown) => {
     if (mine(e) && typeof n === 'number' && Number.isInteger(n) && n >= 0) svc.took(num(id), n)
+  })
+  ipcMain.handle('share:ask-drive', (e, id: unknown, name: unknown, color: unknown) =>
+    mine(e) && typeof name === 'string'
+      ? svc.askDrive(num(id), name, typeof color === 'string' && /^#[0-9a-f]{3,8}$/i.test(color) ? color : '#888')
+      : false
+  )
+  ipcMain.on('share:ask-drive-cancel', (e, id: unknown) => {
+    if (mine(e)) svc.askDriveCancel(num(id))
   })
   ipcMain.handle('share:show-live', (e, id: unknown, tab: unknown) =>
     mine(e) ? svc.showLive(num(id), typeof tab === 'number' ? tab : null) : false

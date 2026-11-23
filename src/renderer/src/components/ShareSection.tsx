@@ -102,6 +102,7 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
   const [copied, setCopied] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [resetting, setResetting] = useState(false)
   if (!window.api.share) return null
 
   const copy = async (link: string | null): Promise<void> => {
@@ -117,8 +118,11 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
       <div className="share-sec">
         <span className="tp-title">Share</span>
         <p className="share-note">
-          Work on this board together, live. Anyone with the link can join, in Panes or in their browser.
-          Everything is end-to-end encrypted.
+          Work on this board together, live, like a Figma file. Anyone with the link can join, in Panes or in
+          their browser. Everything is end-to-end encrypted.
+        </p>
+        <p className="share-note">
+          Your tabs stay private. Only the board is shared, plus any tab you choose to share or present.
         </p>
         <button
           type="button"
@@ -157,6 +161,10 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
           {people.length === 0 ? 'Only you, so far' : `${people.length + 1} here`}
         </span>
       </div>
+      <p className="share-note">
+        They see the board. Your tabs stay private: right-click one to share it or present it live, and you decide
+        if anyone may control it.
+      </p>
       {state && <NameField name={state.me.name} />}
       <div className="share-actions">
         <button
@@ -166,6 +174,23 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
         >
           {copied ? 'Link copied' : 'Copy invite link'}
         </button>
+        {resetting ? (
+          <button
+            type="button"
+            className="share-btn danger"
+            title="The old link stops working; everyone else is removed until you send them the new one"
+            onClick={async () => {
+              setResetting(false)
+              await copy(await window.api.share!.reset(space.id))
+            }}
+          >
+            New link, remove everyone
+          </button>
+        ) : (
+          <button type="button" className="share-btn quiet" onClick={() => setResetting(true)}>
+            Reset link
+          </button>
+        )}
         {stopping ? (
           <button
             type="button"

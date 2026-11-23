@@ -290,6 +290,21 @@ export class PermissionManager {
     })
   }
 
+  /**
+   * Someone in a shared space asks to drive the tab this person presents: the same card, above every page, whatever
+   * is on screen. Resolves true for Let them; `cancel` takes the question back (they left, or stopped asking).
+   */
+  askDrive(name: string, color: string): { answer: Promise<boolean>; cancel: () => void } {
+    const { pending, outcome } = this.enqueue(
+      { origin: '', kinds: [], drive: { name: name.slice(0, 40), color } },
+      null
+    )
+    return {
+      answer: outcome.then((o) => o.action === 'allow'),
+      cancel: () => pending.settle({ action: 'cancel' })
+    }
+  }
+
   /** Make the card's page now, so the first question shows at once instead of after a page loads. */
   warm(): void {
     if (!this.d.win.isDestroyed()) this.ensureView()

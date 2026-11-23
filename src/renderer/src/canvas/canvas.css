@@ -3410,33 +3410,40 @@
   position: relative;
 }
 .cv-space-title {
+  /* a capsule like Share beside it: the same height, plate and type, so the top bar reads as one row */
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 8px 0 4px;
+  gap: 7px;
+  height: 30px;
+  padding: 0 9px 0 4px;
   border: 0;
-  border-radius: 10px;
-  background: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 9%, transparent);
   color: var(--fg);
   font: inherit;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
   cursor: default;
   transition: background var(--dur-fast);
 }
 .cv-space-title:hover,
 .cv-space-title.on {
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.cv-space-title:focus-visible {
+  outline: var(--ring);
+  outline-offset: 2px;
 }
 .cv-space-name {
-  max-width: 220px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .cv-space-chev {
+  margin-left: -1px;
   color: var(--fg-dim);
   transition: rotate 0.18s var(--ease);
 }
@@ -3444,46 +3451,46 @@
   rotate: 180deg;
 }
 .cv-space-elsewhere {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #ff3b30;
 }
-.cv-space-menu {
+.cv-space-title-wrap > .cv-space-menu {
   position: absolute;
   left: 0;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   z-index: 30;
-  width: 300px;
-  padding: 6px;
+  width: 248px;
+  min-width: 0;
+  padding: 5px;
   border-radius: 14px;
   background: var(--popover-bg);
   box-shadow:
     0 0 0 1px var(--border),
-    0 18px 50px rgb(0 0 0 / 0.45);
+    0 14px 40px rgb(0 0 0 / 0.4);
   transform-origin: top left;
-  animation: pop-open 0.18s var(--ease) both;
+  animation: pop-open 0.16s var(--ease) both;
 }
-.cv-space-item {
+.cv-space-menu .cv-space-item {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
-  height: 40px;
-  padding: 0 8px;
+  height: 32px;
+  padding: 0 8px 0 6px;
   border: 0;
   border-radius: 9px;
   background: none;
   color: var(--fg);
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   text-align: left;
 }
-.cv-space-item:hover,
-.cv-space-item:focus-visible {
-  background: var(--surface-hover);
-}
-.cv-space-item.on {
+.cv-space-menu .cv-space-item:hover,
+.cv-space-menu .cv-space-item:focus-visible,
+.cv-space-menu .cv-space-item.on {
   background: var(--surface-hover);
 }
 .cv-space-item-name {
@@ -3492,49 +3499,48 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 560;
+  font-weight: 500;
 }
 .cv-space-item-meta {
   color: var(--fg-dim);
-  font-size: 12px;
+  font-size: 11.5px;
 }
 .cv-space-item-attn {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   background: #ff3b30;
   color: #fff;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 650;
 }
 .cv-space-item kbd {
   color: var(--fg-dim);
-  font:
-    11.5px ui-monospace,
-    'Cascadia Mono',
-    monospace;
+  font-family: inherit;
+  font-size: 11px;
+  opacity: 0.8;
 }
 .cv-space-check {
   color: var(--accent);
 }
-.cv-space-item.plain {
+.cv-space-menu .cv-space-item.plain {
   color: var(--fg-dim);
   font-weight: 500;
 }
-.cv-space-item.plain:hover {
+.cv-space-menu .cv-space-item.plain:hover {
   color: var(--fg);
 }
 .cv-space-plus {
-  width: 24px;
+  width: 20px;
   display: grid;
   place-items: center;
 }
 .cv-space-sep {
   height: 1px;
-  margin: 6px 4px;
+  margin: 5px 4px;
   background: var(--border);
 }
 .cv-hist-btn {
@@ -5081,38 +5087,34 @@
   font-style: normal;
   font-size: 11px;
 }
-/* someone asks to drive the tab shown live: beside the capsule only while it waits for an answer */
-.cv-share-ask {
-  position: absolute;
-  z-index: 3; /* over the chat and history buttons beside the capsule */
-  left: calc(100% + 6px);
-  top: 50%;
-  translate: 0 -50%;
+/* a tab this person presents in another space (ShareButton.tsx PresentingElsewhere): never forgotten */
+.cv-presenting {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   height: 30px;
   padding: 0 4px 0 12px;
   border-radius: 999px;
-  background: var(--popover-bg);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 10px 30px rgb(0 0 0 / 0.35);
+  background: rgb(255 59 48 / 0.14);
+  color: var(--fg);
   font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
-  animation: pop-open 0.18s var(--ease) both;
+  -webkit-app-region: no-drag;
 }
-.cv-share-ask button {
+.cv-presenting .cv-share-dot {
+  background: #ff3b30;
+}
+.cv-presenting button {
   height: 22px;
   padding: 0 10px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
-  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
 }
-.cv-share-ask button.primary {
-  background: var(--accent);
-  color: var(--accent-fg);
+.cv-presenting button:hover {
+  background: color-mix(in srgb, var(--fg) 16%, transparent);
 }
 /* the live tab's state and controls, at the top of the share popover */
 .cv-share-live {
@@ -5436,8 +5438,11 @@
 
 /* ---- a tab shown live in a shared space (LiveShare.tsx) ---- */
 .live-btn {
-  height: 22px;
-  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 11px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--fg) 9%, transparent);
   color: var(--fg);
@@ -5450,8 +5455,25 @@
   background: color-mix(in srgb, var(--fg) 14%, transparent);
 }
 .live-btn.on {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  color: var(--fg);
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.live-btn.on i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.live-btn:disabled {
+  opacity: 0.6;
+}
+/* driving: a ring round the picture, so it is plain that keys and clicks go to their page */
+.live-stage.driving::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 .live-btn:focus-visible {
   outline: var(--ring);
@@ -5598,6 +5620,24 @@
   .live-view {
     animation: none;
   }
+}
+
+/* this person's own tab they shared with the space (Cards.tsx): quiet, like the card's other marks */
+.cv-shared-tag {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  backdrop-filter: blur(6px);
+}
+.cv-shared-tag svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 /* a tab card shown live to the shared space (Cards.tsx LiveBadge) */

@@ -58,6 +58,50 @@ export function Permission(): React.JSX.Element | null {
     )
   }
 
+  if (state.drive) {
+    const first = state.drive.name.split(' ')[0]
+    return (
+      <div className="perm-root" ref={box} key={id}>
+        <div className="perm-card" role="alertdialog" aria-label={`${first} asks to control your tab`}>
+          <div className="perm-title perm-drive-title">
+            <span
+              className="perm-face"
+              style={{ background: state.drive.color }}
+              aria-hidden="true"
+            >
+              {first.slice(0, 1).toUpperCase()}
+            </span>
+            <span>
+              <b>{state.drive.name}</b> wants to control the tab you&apos;re presenting
+            </span>
+          </div>
+          <ul className="perm-drive-list">
+            <li>They can click, scroll and type in this one page.</li>
+            <li>Downloads, your clipboard, saved passwords and browser shortcuts stay yours.</li>
+            <li>Move your mouse over the tab to take control back at any time.</li>
+          </ul>
+          <div className="perm-actions">
+            <button
+              type="button"
+              className="perm-btn primary"
+              onClick={() => answer({ action: 'allow' })}
+            >
+              Let {first} control
+            </button>
+            <button
+              type="button"
+              className="perm-btn"
+              autoFocus
+              onClick={() => answer({ action: 'block' })}
+            >
+              No
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (blocked) {
     const what = blocked === 'camera' ? 'camera' : 'microphone'
     return (

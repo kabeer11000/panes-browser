@@ -20,6 +20,11 @@ export const CARD_MAX_W = 960
 export const CARD_MIN_H = 110
 export const CARD_MAX_H = 900
 export const GAP = 16
+/**
+ * Between rows of cards: more than between columns, since a page's title sits under its picture (CARD_UNDER) and
+ * must read as that picture's, not as the next row's.
+ */
+export const ROW_GAP = 30
 export const PAD = 24
 /** The room a section keeps above its cards. Its title sits outside, above its top edge, so this is the padding. */
 export const HEAD = PAD
@@ -39,8 +44,8 @@ export const SPLIT_LIP = 32
 export const SPLIT_INSET = 12
 export const SPLIT_CLEAR = PAD - SPLIT_INSET
 /** The extra room above a split's row (its lip and the clear space), and below it (its padding and clear space). */
-export const SPLIT_ROW_EXTRA = SPLIT_LIP + SPLIT_CLEAR - GAP
-export const SPLIT_ROW_BELOW = SPLIT_INSET + SPLIT_CLEAR - GAP
+export const SPLIT_ROW_EXTRA = SPLIT_LIP + SPLIT_CLEAR - ROW_GAP
+export const SPLIT_ROW_BELOW = SPLIT_INSET + SPLIT_CLEAR - ROW_GAP
 /** The same above a split in a section's first row, which has the section's padding above it instead of a gap. */
 export const SPLIT_TOP_EXTRA = SPLIT_LIP + SPLIT_CLEAR - HEAD
 /** How much wider a section holding a split is on each side (and lower, when the split is its last row): none. */
@@ -109,6 +114,8 @@ export interface CanvasCard {
   private: boolean
   /** Size: true when fitted to its video's shape, false when set by hand; missing: never sized. */
   fit?: boolean
+  /** A tab's card the person shared with their shared space: only these (and a tab shown live) reach the others. */
+  shared?: boolean
 }
 export interface CanvasNote extends Box {
   id: string
@@ -250,7 +257,7 @@ export function frameBox(n: number, cols = gridCols(n)): { w: number; h: number 
   const rows = Math.max(1, Math.ceil(n / cols))
   return {
     w: PAD * 2 + cols * CARD_W + (cols - 1) * GAP,
-    h: HEAD + rows * CARD_H + (rows - 1) * GAP + PAD
+    h: HEAD + rows * CARD_H + (rows - 1) * ROW_GAP + PAD
   }
 }
 
@@ -262,11 +269,11 @@ export function slotAt(f: Box, i: number): { x: number; y: number } {
   const cols = colsOf(f)
   return {
     x: f.x + PAD + (i % cols) * (CARD_W + GAP),
-    y: f.y + HEAD + Math.floor(i / cols) * (CARD_H + GAP)
+    y: f.y + HEAD + Math.floor(i / cols) * (CARD_H + ROW_GAP)
   }
 }
 
-const rowsHeight = (rows: number): number => HEAD + rows * CARD_H + (rows - 1) * GAP + PAD
+const rowsHeight = (rows: number): number => HEAD + rows * CARD_H + (rows - 1) * ROW_GAP + PAD
 
 /**
  * A spot for a box of `size` near `near` where it touches none of `obstacles` (with `gap` between). Looks outward
@@ -595,7 +602,7 @@ function freeSlot(
     others.some((c) => intersects(cardBox(c), { x: p.x, y: p.y, w: iw, h: ih }, -GAP / 2)) ||
     notesIn.some((n) => intersects(n, { x: p.x, y: p.y, w: iw, h: ih }, -GAP / 2))
   const cols = colsOf(f)
-  const cap = Math.max(1, Math.round((f.h - HEAD - PAD + GAP) / (CARD_H + GAP))) * cols
+  const cap = Math.max(1, Math.round((f.h - HEAD - PAD + ROW_GAP) / (CARD_H + ROW_GAP))) * cols
   const total = Math.max(cap, others.length + notesIn.length + 1) + cols
   let best = -1
   let bestD = Infinity
@@ -706,7 +713,7 @@ export function regridFrame(s: CanvasState, id: string, keepCols = false): Canva
   let ry = HEAD
   for (let r = 0; r < rows; r++) {
     rowY.push(ry)
-    ry += rowH[r] + GAP
+    ry += rowH[r] + ROW_GAP
   }
   // each row with a split in it is set lower, and every row below follows (lower again past the split's outline)
   const lower = (row: number): number =>
@@ -730,7 +737,7 @@ export function regridFrame(s: CanvasState, id: string, keepCols = false): Canva
     h:
       HEAD +
       rowH.reduce((a, b) => a + b, 0) +
-      (rows - 1) * GAP +
+      (rows - 1) * ROW_GAP +
       PAD +
       lower(rows - 1) +
       (splitRows.has(rows - 1) ? SPLIT_SIDE : 0)
@@ -1131,11 +1138,11 @@ export function tidy(
     let ry = HEAD
     for (let r = 0; r < rows; r++) {
       rowY.push(ry)
-      ry += rowH[r] + GAP
+      ry += rowH[r] + ROW_GAP
     }
     return {
       w: PAD * 2 + colW.reduce((a, b) => a + b, 0) + (cols - 1) * GAP,
-      h: HEAD + rowH.reduce((a, b) => a + b, 0) + (rows - 1) * GAP + PAD,
+      h: HEAD + rowH.reduce((a, b) => a + b, 0) + (rows - 1) * ROW_GAP + PAD,
       cols,
       colX,
       rowY
@@ -1174,6 +1181,7 @@ export function tidy(
       if (sz?.w !== undefined) card.w = sz.w
       if (sz?.h !== undefined) card.h = sz.h
       if (c?.fit !== undefined) card.fit = c.fit
+      if (c?.shared && !card.private) card.shared = true // a tidy never unshares a tab
       cards.set(id, card)
     })
   }

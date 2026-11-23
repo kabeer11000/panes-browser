@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { Space } from '@shared/types'
 import { Face, ShareSection } from '@renderer/components/ShareSection'
 import { useShareState } from '@renderer/components/useShare'
-import { useHostView } from '@renderer/liveHost'
+import { useHostView, useHostViews } from '@renderer/liveHost'
 import { useDismiss } from './useDismiss'
 
 /**
@@ -70,17 +70,6 @@ export function ShareButton({ space }: { space: Space | undefined }): React.JSX.
           'Share'
         )}
       </button>
-      {showing?.asking && (
-        <div className="cv-share-ask" role="alert">
-          <span>{showing.asking.name.split(' ')[0]} wants to drive</span>
-          <button type="button" className="primary" onClick={showing.allow}>
-            Let them
-          </button>
-          <button type="button" onClick={showing.deny}>
-            No
-          </button>
-        </div>
-      )}
       {open && (
         <div className="cv-share-pop" role="dialog" aria-label={`Share ${space.name}`}>
           {showing && (
@@ -88,8 +77,8 @@ export function ShareButton({ space }: { space: Space | undefined }): React.JSX.
               <span className="cv-share-dot" aria-hidden="true" />
               <span className="cv-share-live-what">
                 {showing.driver
-                  ? `${showing.driver.name.split(' ')[0]} is driving`
-                  : `Showing a tab live${showing.watching ? ` · ${showing.watching} watching` : ''}`}
+                  ? `${showing.driver.name.split(' ')[0]} is controlling your tab`
+                  : `Presenting a tab${showing.watching ? ` · ${showing.watching} watching` : ''}`}
               </span>
               {showing.driver && (
                 <button type="button" onClick={showing.takeBack}>
@@ -105,5 +94,36 @@ export function ShareButton({ space }: { space: Space | undefined }): React.JSX.
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * A tab this person presents in another space than the one on screen: always said, with Stop, so a live tab is never
+ * forgotten behind a space switch (the space's own one is in its Share capsule).
+ */
+export function PresentingElsewhere({ spaceId }: { spaceId: number }): React.JSX.Element | null {
+  const elsewhere = useHostViews().filter((v) => v.spaceId !== spaceId)
+  if (!elsewhere.length) return null
+  return (
+    <>
+      {elsewhere.map((v) => (
+        <div key={v.spaceId} className="cv-presenting" role="status">
+          <span className="cv-share-dot" aria-hidden="true" />
+          <span>
+            {v.driver
+              ? `${v.driver.name.split(' ')[0]} is controlling your tab in ${v.spaceName}`
+              : `Presenting in ${v.spaceName}${v.watching ? ` · ${v.watching} watching` : ''}`}
+          </span>
+          {v.driver && (
+            <button type="button" onClick={v.takeBack}>
+              Take back
+            </button>
+          )}
+          <button type="button" onClick={v.stop}>
+            Stop
+          </button>
+        </div>
+      ))}
+    </>
   )
 }

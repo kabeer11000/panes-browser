@@ -136,8 +136,10 @@ export function writeDiff(
     pic?: (id: number) => string | undefined
     /** Each tab's address now, null once closed (the board's card may be older than the tab). */
     url?: (id: number) => string | null
-    /** All this person's normal tabs in the space: those without a card yet go too (see withTabs). */
+    /** Tabs to send that have no card yet (the one shown live, opened away from the board: see withTabs). */
     all?: () => Array<{ id: number; url: string }>
+    /** The tab shown live: it goes to the others whether or not its card was shared. */
+    live?: number
   }
 ): void {
   const was = prev ? sharedOf(prev) : null
@@ -164,14 +166,16 @@ export function writeDiff(
         tabs.by,
         tabs.title,
         tabs.pic,
-        tabs.url
+        tabs.url,
+        tabs.live
       )
   }, origin)
 }
 
 /**
- * This person's tabs into the document, as they are now: each one's card (private and Tor tabs never), and none of
- * theirs that is gone. Reconciled whole each time, not diffed: tab ids start again when Panes does, and the last
+ * This person's shared tabs into the document, as they are now: each card they shared, and the one shown live (private
+ * and Tor tabs never), and none of theirs that is gone or no longer shared. Tabs are private until shared: the others
+ * never see a tab of someone's they were not given. Reconciled whole each time, not diffed: tab ids start again when Panes does, and the last
  * run's would otherwise stay on everyone's board.
  */
 function writeTabs(
@@ -180,11 +184,13 @@ function writeTabs(
   by: string,
   title: (id: number) => string,
   pic?: (id: number) => string | undefined,
-  urlOf?: (id: number) => string | null
+  urlOf?: (id: number) => string | null,
+  live?: number
 ): void {
   const map = doc.getMap<TabMirror>('tabs')
   const mine = new Set<string>()
   for (const board of s.cards) {
+    if (!board.shared && board.id !== live) continue
     const url = urlOf ? urlOf(board.id) : board.url
     if (url === null) continue // closed: it goes from the others' boards below
     const c = url === board.url ? board : { ...board, url }

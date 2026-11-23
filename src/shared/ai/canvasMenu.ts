@@ -61,6 +61,8 @@ export interface CardFacts {
   ai?: boolean
   /** In a shared space: it can be shown live to everyone ('start'), or it is ('stop'); missing: not offered. */
   live?: 'start' | 'stop'
+  /** In a shared space: the tab can be shared with everyone ('start'), or it is ('stop'); missing: not offered. */
+  share?: 'start' | 'stop'
 }
 
 export function cardMenu(f: CardFacts): MenuEntry[] {
@@ -71,13 +73,17 @@ export function cardMenu(f: CardFacts): MenuEntry[] {
     { id: 'live', label: 'Open live', disabled: !f.canLive },
     { id: 'pop', label: 'Pop out as a tab', disabled: !f.canPop },
     ...(f.split ? [{ id: 'unsplit', label: 'Unsplit' }] : []),
-    ...(f.live
+    ...(f.share || f.live ? ['sep' as const] : []),
+    ...(f.share
       ? [
           {
-            id: 'share-live',
-            label: f.live === 'stop' ? 'Stop showing it live' : 'Show it live to everyone'
+            id: 'share-tab',
+            label: f.share === 'stop' ? 'Stop sharing' : 'Share with everyone'
           }
         ]
+      : []),
+    ...(f.live
+      ? [{ id: 'share-live', label: f.live === 'stop' ? 'Stop presenting' : 'Present live' }]
       : []),
     'sep',
     ...(f.media

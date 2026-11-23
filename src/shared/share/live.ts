@@ -156,3 +156,23 @@ export function sizeFor(
   if (!all.length) return null
   return all.reduce((a, b) => (b.w * b.h > a.w * a.h ? b : a))
 }
+
+/** Keys with Ctrl (or Cmd) the driver may press: editing inside the page. Everything else stays with the host. */
+const EDIT_KEYS = new Set([
+  'a', 'c', 'x', 'z', 'y',
+  'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+  'Backspace', 'Delete', 'Home', 'End'
+])
+/** Keys the driver may press with no modifier but Shift (F-keys open devtools, reload, fullscreen: host only). */
+const BLOCKED_PLAIN = /^F\d{1,2}$/
+
+/**
+ * Whether a key from the person driving reaches the page. They drive the page, never the host's browser or computer:
+ * no browser shortcuts (new tab, close, address bar, devtools), no Alt combinations, and no pasting (Ctrl+V would
+ * hand them the host's clipboard). Copying and undo inside the page are fine.
+ */
+export function driverKeyAllowed(key: string, mods: ReadonlyArray<string>): boolean {
+  if (mods.includes('alt') || mods.includes('meta')) return false
+  if (mods.includes('control')) return EDIT_KEYS.has(key.length === 1 ? key.toLowerCase() : key)
+  return !BLOCKED_PLAIN.test(key) && key !== 'ContextMenu'
+}

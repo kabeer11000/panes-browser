@@ -59,7 +59,7 @@ export function BoardSpaces({
         }}
       >
         {active && (
-          <SpaceAvatar color={active.color} color2={active.color2} icon={active.icon} size={26} />
+          <SpaceAvatar color={active.color} color2={active.color2} icon={active.icon} size={22} />
         )}
         <span className="cv-space-name">{active?.name ?? 'Space'}</span>
         {elsewhere && (
@@ -67,12 +67,12 @@ export function BoardSpaces({
         )}
         <svg
           className="cv-space-chev"
-          width="12"
-          height="12"
+          width="10"
+          height="10"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2.6"
+          strokeWidth="2.8"
           strokeLinecap="round"
           strokeLinejoin="round"
           aria-hidden="true"
@@ -106,7 +106,7 @@ export function BoardSpaces({
                   setEditing(s.id)
                 }}
               >
-                <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={24} />
+                <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={20} />
                 <span className="cv-space-item-name">{s.name}</span>
                 {s.shared && <span className="cv-space-item-meta">Shared</span>}
                 {sound?.playing && <span className="cv-space-item-meta">Playing</span>}
@@ -116,8 +116,8 @@ export function BoardSpaces({
                 {on ? (
                   <svg
                     className="cv-space-check"
-                    width="15"
-                    height="15"
+                    width="13"
+                    height="13"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"

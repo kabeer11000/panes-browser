@@ -149,3 +149,30 @@ People without Panes join from any browser in a light web version that is also P
 - [x] Live indicator clearer (user 2026-11-23: easy to forget): the capsule says Shared · just you / n here /
       offline, and turns red and pulses as "Showing live · n watching" while a tab is shown; the tab wears a red LIVE
       tag in the sidebar and on its card; the chrome chip says "You're showing a tab live". Checked in a dev copy.
+
+## Rethink, 2026-11-24 (user: "as easy as sharing a Figma board", safe, always in control)
+
+Decided with the user:
+- Tabs are private until shared: right-click a tab card > Share to board (a page card the others see), or Present
+  (live). Nothing mirrors on its own. Fixes the duplicated cards at the root (a tab opened from someone's card
+  mirrored back to them).
+- Drive: guest asks, host allows from a card above every page (the permission card's view). Full drive, but downloads
+  started by the driver are cancelled, browser shortcuts and the host's clipboard (Ctrl+V) never reach them, password
+  fields stay closed, middle click is dropped. The host moving their own mouse over the tab takes control back.
+- Joining: the link lets people in; the host can Reset link (a new room: everyone else is cut off).
+
+Plan:
+- [x] 1 private tabs: `shared` flag on a tab's card; only shared/live tabs go to the room (doc.ts, share.ts, Canvas menu)
+- [x] 2 drive guard: key allow-list (shared/share/live.ts, tested), no middle click, download block, mouse take-back
+- [x] 3 drive request in the permission card (above pages); board/status ask chips removed
+- [x] 4 viewer: full panel like the preview (no reshaping loop), page views stand aside while it is open
+- [x] 5 space switcher: compact pill matching the top bar
+- [x] 6 share popover: what is shared / what stays private, Reset link
+- [x] Presenting in another space: the sidebar keeps "<name> has control · <space>" with Take back and Stop
+- [x] Card titles no longer run into the row below (ROW_GAP in shared/ai/canvas.ts)
+
+Checked on two dev copies (A presents, B watches): private by default, Share with everyone, live picture on B,
+ask/allow drive, Ctrl+T/Ctrl+W/F12 refused from the guest, guest click plays the video, downloads refused right after
+guest input, Reset link in the popover. Test note: two `bun run dev` copies both bind port 5173 (one IPv4, one IPv6)
+and windows then load modules from both servers (duplicate liveHost, "Connecting" forever). Give the second copy its
+own renderer port.

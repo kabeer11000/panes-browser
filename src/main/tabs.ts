@@ -66,7 +66,7 @@ import {
 } from '@shared/attention'
 import { NOTIFY_PREFIX, parseNotify } from '@shared/notify'
 import type { WorkerNote } from '@shared/swNotify'
-import { electronKey, pointerOver, type RemoteInput } from '@shared/share/live'
+import { driverKeyAllowed, electronKey, pointerOver, type RemoteInput } from '@shared/share/live'
 import { ESC_SCRIPT, isPreviewEsc } from '@shared/previewEsc'
 import { TaskbarAttention } from './attention'
 import { dumpableTabs, type TabDump } from '@shared/dumps'
@@ -222,6 +222,8 @@ const OPEN_EXTERNALLY = new Set(['mailto:', 'tel:'])
 /** Tor is left running this long after the last Tor tab closes. */
 const TOR_IDLE_MS = 5 * 60_000
 /** How long a message about something that just happened stays in the window. */
+/** A download this soon after the driver's last input is theirs (see refuseDrivenDownload). */
+const DRIVEN_DOWNLOAD_MS = 4000
 const NOTICE_MS = 4000
 
 /**
@@ -444,6 +446,17 @@ export class TabManager {
     if (popup && popup !== this.win && !this.popupsShown.has(wc)) popup.close()
   }
 
+  /**
+   * A download that the person driving a live tab started (input from them in the last few seconds): refused, and the
+   * host told. Files land on the host's computer, so only the host starts them. True when it was refused.
+   */
+  refuseDrivenDownload(): boolean {
+    const now = Date.now()
+    const driven = [...this.liveDrivenAt.values()].some((at) => now - at < DRIVEN_DOWNLOAD_MS)
+    if (driven) this.say('Blocked a download started by the person driving your tab')
+    return driven
+  }
+
   /** Pop-up windows that have shown a page of their own (see downloadStarted). */
   private popupsShown = new WeakSet<WebContents>()
 
@@ -575,6 +588,8 @@ export class TabManager {
   private quicFailures: Array<{ host: string; at: number }> = []
   /** Tabs shown live to the others in a shared space (main/share.ts): they keep painting wherever they are. */
   private liveShared = new Set<number>()
+  /** When the person driving a live tab last sent input to it: a download it starts then is theirs, and refused. */
+  private liveDrivenAt = new Map<number, number>()
   /** Each live tab's remote input, in order: a key waits on the password check, and a click after it waits too. */
   private liveInputs = new Map<number, Promise<void>>()
   /** Per live tab: the mouse buttons the driver holds (a drag or a text selection needs them on every move). */
@@ -4377,6 +4392,7 @@ export class TabManager {
       this.ensureLoaded(id, t!)
     } else {
       this.liveShared.delete(id)
+      this.liveDrivenAt.delete(id)
       this.liveInputs.delete(id)
       this.liveButtons.delete(id)
       this.liveRightAt.delete(id)
@@ -4435,6 +4451,11 @@ export class TabManager {
   }
 
   remoteInput(id: number, ev: RemoteInput): void {
+    // the driver drives the page, never the host's browser: no browser shortcuts, no paste of the host's clipboard,
+    // no middle click (a new tab in the host's browser)
+    if (ev.t === 'key' && !driverKeyAllowed(ev.key, ev.mods)) return
+    if ((ev.t === 'down' || ev.t === 'up') && ev.b === 'middle') return
+    this.liveDrivenAt.set(id, Date.now())
     // the pointer at once (a click, a drag, a scroll must not wait behind keys); keys in order, after their check
     if (ev.t !== 'key' && ev.t !== 'char') return void this.applyRemoteInput(id, ev)
     const next = (this.liveInputs.get(id) ?? Promise.resolve()).then(() =>

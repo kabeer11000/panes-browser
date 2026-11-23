@@ -98,15 +98,19 @@ export class DownloadManager {
     for (const d of this.store.value.items) {
       if (d.state === 'progressing' || d.state === 'paused') d.state = 'interrupted'
     }
-    session.on('will-download', (_e, item, wc) =>
+    session.on('will-download', (e, item, wc) => {
+      if (this.refuse()) return e.preventDefault()
       this.track(item, {
         title: wc?.getTitle() ?? '',
         url: wc?.getURL() ?? '',
         mime: item.getMimeType(),
         hints: wc && this.wantHints() ? readHints(wc) : undefined
       })
-    )
+    })
   }
+
+  /** Set by the tabs: a download the person driving a shared live tab started is refused (it never starts). */
+  refuse: () => boolean = () => false
 
   /**
    * Private and Tor tabs' downloads: saved where the others go (or asked, as set), but never listed, since the list is

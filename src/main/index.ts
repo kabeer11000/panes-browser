@@ -249,7 +249,10 @@ function createWindow(): void {
   downloads.attachUnlisted(torSession)
   // a tab opened only to fetch a file closes once the download starts (tabs is made below; it is there by then)
   for (const s of [tabSession, privateSession, torSession])
-    s.on('will-download', (_e, _item, wc) => setImmediate(() => tabs.downloadStarted(wc)))
+    s.on('will-download', (e, _item, wc) => {
+      if (!e.defaultPrevented) setImmediate(() => tabs.downloadStarted(wc))
+    })
+  downloads.refuse = () => tabs.refuseDrivenDownload()
   const passwords = new PasswordStore()
   const passwordPopover = registerPasswordIpc(win, passwords)
   const adblock = new Adblock(tabSession)
@@ -322,6 +325,7 @@ function createWindow(): void {
     pointerIn: (id) => tabs.pointerIn(id),
     cursorIn: (id) => tabs.liveCursor(id),
     setLiveAspect: (id, aspect) => tabs.setLiveAspect(id, aspect),
+    askDrive: (name, color) => permissionManager.askDrive(name, color),
     openBoard: (id) => {
       if (win.isDestroyed()) return
       if (win.isMinimized()) win.restore()

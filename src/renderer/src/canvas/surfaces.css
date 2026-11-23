@@ -682,8 +682,7 @@
 }
 .cv .cv-bar,
 .cv .cv-strip.board,
-.cv .cv-strip-bellbox,
-.cv .cv-spaces {
+.cv .cv-strip-bellbox {
   background: var(--chrome);
   box-shadow: var(--chrome-edge);
   backdrop-filter: none;
@@ -697,7 +696,7 @@
 }
 [data-glass='on']:not([data-fx='low'])
   .cv
-  :is(.cv-bar, .cv-strip.board, .cv-strip-bellbox, .cv-spaces) {
+  :is(.cv-bar, .cv-strip.board, .cv-strip-bellbox) {
   backdrop-filter: blur(22px) saturate(1.6);
 }
 [data-glass='on']:not([data-fx='low'])
@@ -705,67 +704,6 @@
   :is(.cv-nc, .cv-chat, .cv-share-pop, .cv-ctx, .cv-space-menu) {
   background: var(--glass-pop);
   backdrop-filter: blur(28px) saturate(1.6);
-}
-
-/* ---- the spaces: the one you are in (its face and name) until pointed at; then the others slide out beside it ---- */
-.cv .cv-spaces .space-chip:not(.active) {
-  width: 0;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  opacity: 0;
-  /* clipped while it slides, but not its unread bubble, which hangs just outside the face */
-  overflow: clip;
-  overflow-clip-margin: 10px;
-  pointer-events: none;
-  transition:
-    width 0.24s var(--ease),
-    opacity 0.18s;
-}
-.cv .cv-spaces:is(:hover, :focus-within) .space-chip:not(.active) {
-  width: 28px;
-  opacity: 1;
-  pointer-events: auto;
-}
-.cv .cv-spaces:is(:hover, :focus-within) .space-chip.add {
-  width: 24px;
-}
-.cv .cv-spaces .space-caption::before {
-  opacity: 0;
-  transition: opacity 0.18s;
-}
-.cv .cv-spaces:is(:hover, :focus-within) .space-caption::before {
-  opacity: 1;
-}
-/* Nothing moves under the pointer: the space you are in and its name keep their place, and the others slide out
-   after the name (before it, pointing at the name pushed it away from the click). The hairline goes with them. */
-.cv .cv-spaces .space-chip.active {
-  order: -2;
-}
-.cv .cv-spaces .space-caption {
-  order: -1;
-  margin-left: 2px;
-}
-/* at rest the name ends where its text does: the pencil and the room for the others come with the pointer (they
-   grow to the right, so nothing left of them moves) */
-.cv .cv-spaces:is(:hover, :focus-within, :has(.space-caption.on)) .space-caption {
-  margin-right: 6px;
-}
-.cv .cv-spaces:not(:hover, :focus-within, :has(.space-caption.on)) .space-caption-edit {
-  display: none;
-}
-.cv .cv-spaces:not(:hover, :focus-within, :has(.space-caption.on)) .space-row {
-  gap: 0;
-}
-.cv .cv-spaces .space-caption::before {
-  left: auto;
-  right: -4px;
-}
-/* solid always (see-through, the board showed through it: the user, twice); quiet by being small, not faded */
-/* collapsed, the faces of the others are not there to fade: they are full strength when they show */
-.cv .cv-spaces .space-chip:not(.active):not(.add) .sav {
-  opacity: 1;
-  scale: 1;
 }
 
 /* ---- the tab strip: every tab answers the pointer (a soft fill), the open one sits on the pill ---- */

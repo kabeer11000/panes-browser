@@ -4834,6 +4834,9 @@ kbd {
   align-items: stretch;
   margin: 0 0 6px;
 }
+.status-chip button {
+  white-space: nowrap;
+}
 .sidebar-inner .status-chip {
   white-space: normal;
   height: auto;
@@ -5753,7 +5756,12 @@ kbd {
 }
 .share-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+}
+/* the invite on a row of its own; resetting and stopping, quieter, under it */
+.share-actions > .share-btn:first-child {
+  flex-basis: 100%;
 }
 .share-btn {
   flex: 1;

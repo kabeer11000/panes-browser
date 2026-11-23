@@ -19,7 +19,7 @@ import {
   emptyState,
   boardIsEmpty,
   linkedSections,
-  GAP,
+  ROW_GAP,
   regridFrame,
   unsizeFrame,
   fitFrames,
@@ -528,7 +528,7 @@ describe('regridFrame row heights', () => {
     const out = regridFrame(s, 'f1')
     const ys = [...new Set(out.cards.map((c) => c.y))].sort((a, b) => a - b)
     expect(ys.length).toBeGreaterThan(1)
-    expect(ys[1] - ys[0]).toBe(170 + GAP)
+    expect(ys[1] - ys[0]).toBe(170 + ROW_GAP)
   })
 })
 

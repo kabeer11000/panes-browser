@@ -124,3 +124,28 @@ body {
 .perm-actions button:active {
   scale: var(--press);
 }
+
+/* someone asks to drive the tab this person presents (shared spaces) */
+.perm-drive-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.perm-face {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.perm-drive-list {
+  margin: 0;
+  padding: 0 0 0 18px;
+  color: var(--fg-dim);
+  font-size: var(--fs-s);
+  line-height: 1.5;
+}

@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { downscaleFor, electronKey, parseRemoteInput, pointerOver, sizeFor, videoBox } from './live'
+import {
+  downscaleFor,
+  driverKeyAllowed,
+  electronKey,   parseRemoteInput,
+  pointerOver,
+  sizeFor,
+  videoBox
+} from './live'
 
 describe('remote input from the person driving', () => {
   test('pointer events pass, clamped to the page', () => {
@@ -125,5 +132,28 @@ describe('sizeFor (one line shared by the viewer and the cards)', () => {
   test('nothing sized (or zero sizes): nothing is sent', () => {
     expect(sizeFor([])).toBeNull()
     expect(sizeFor([null, { w: 0, h: 300, card: true }])).toBeNull()
+  })
+})
+
+describe('what the driver may press', () => {
+  test('typing, editing and moving about in the page pass', () => {
+    for (const k of ['a', 'Z', ' ', 'Enter', 'Backspace', 'Tab', 'ArrowDown', 'Escape'])
+      expect(driverKeyAllowed(k, [])).toBe(true)
+    expect(driverKeyAllowed('A', ['shift'])).toBe(true)
+    for (const k of ['a', 'c', 'x', 'z', 'y', 'ArrowLeft', 'Backspace'])
+      expect(driverKeyAllowed(k, ['control'])).toBe(true)
+    expect(driverKeyAllowed('Z', ['control', 'shift'])).toBe(true)
+  })
+
+  test("the host's browser, clipboard and computer stay the host's", () => {
+    // new tab, close tab, address bar, find, print, save, reload, devtools, history
+    for (const k of ['t', 'w', 'l', 'f', 'p', 's', 'r', 'h', 'n', 'Tab', 'q'])
+      expect(driverKeyAllowed(k, ['control'])).toBe(false)
+    expect(driverKeyAllowed('v', ['control'])).toBe(false) // would paste the host's clipboard
+    expect(driverKeyAllowed('I', ['control', 'shift'])).toBe(false)
+    expect(driverKeyAllowed('ArrowLeft', ['alt'])).toBe(false)
+    expect(driverKeyAllowed('F4', ['alt'])).toBe(false)
+    expect(driverKeyAllowed('r', ['meta'])).toBe(false)
+    for (const k of ['F5', 'F11', 'F12', 'ContextMenu']) expect(driverKeyAllowed(k, [])).toBe(false)
   })
 })

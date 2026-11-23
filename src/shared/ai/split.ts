@@ -7,6 +7,7 @@ import {
   freeSpot,
   seatSplit,
   GAP,
+  ROW_GAP,
   HEAD,
   SPLIT_INSET,
   SPLIT_LIP,
@@ -106,7 +107,7 @@ const together = (s: CanvasState, ids: number[]): boolean => {
   const above = s.cards
     .filter((c) => c.frame === first.frame && !ids.includes(c.id) && c.y + hOf(c) <= first.y + 0.5)
     .map((c) => c.y + hOf(c))
-  const top = above.length ? Math.max(...above) + GAP : home ? home.y + HEAD : first.y
+  const top = above.length ? Math.max(...above) + ROW_GAP : home ? home.y + HEAD : first.y
   if (first.y - top < (above.length ? SPLIT_ROW_EXTRA : SPLIT_TOP_EXTRA) - 0.5) return false
   // the section is widened round it
   if (home && Math.min(...cs.map((c) => c!.x)) - home.x < PAD + SPLIT_SIDE - 0.5) return false
@@ -118,7 +119,7 @@ const together = (s: CanvasState, ids: number[]): boolean => {
   // nothing reaches into its row (a member grown taller than the row was laid out for)
   if (others.some((c) => c.y < bottom - 0.5 && c.y + hOf(c) > first.y + 0.5)) return false
   const below = others.filter((c) => c.y >= bottom - 0.5).map((c) => c.y)
-  return !below.length || Math.min(...below) - bottom >= GAP + SPLIT_ROW_BELOW - 0.5
+  return !below.length || Math.min(...below) - bottom >= ROW_GAP + SPLIT_ROW_BELOW - 0.5
 }
 
 const placed = (s: CanvasState, ids: number[], at: { x: number; y: number }): boolean => {

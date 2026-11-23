@@ -11,6 +11,7 @@ const card = (id: number, url: string, x = 0, extra: Partial<CanvasCard> = {}): 
   frame: 'f1',
   manual: true,
   private: false,
+  shared: true, // the person shared it (tabs are private until shared: see 'tabs are private until shared')
   ...extra
 })
 const withCards = (cards: CanvasCard[]): CanvasState => ({ ...emptyState('b'), cards })
@@ -196,24 +197,20 @@ test("a tab closed or moved on away from the board: the others' copy follows wit
   ])
 })
 
-describe('tabs without a card yet (opened in the tab view, board never opened)', () => {
-  test('reach the others at once, after the board, overlapping nothing', () => {
+describe('the live tab without a card yet (shown from the tab view, board never opened)', () => {
+  test('reaches the others at once, after the board, overlapping nothing', () => {
     const [a, b] = pair()
     const board = withCards([card(7, 'https://a.example/', 40)])
     writeDiff(a, null, board, undefined, {
       by: 'ana',
       title: titles,
-      all: () => [
-        { id: 7, url: 'https://a.example/' },
-        { id: 9, url: 'https://new.example/' },
-        { id: 10, url: 'https://other.example/' }
-      ]
+      all: () => [{ id: 9, url: 'https://new.example/' }],
+      live: 9
     })
     const seen = readInto(b, emptyState('x'), 'ben')
     expect(seen.cards.map((c) => c.url).sort()).toEqual([
       'https://a.example/',
-      'https://new.example/',
-      'https://other.example/'
+      'https://new.example/'
     ])
     const old = seen.cards.find((c) => c.url === 'https://a.example/')!
     for (const c of seen.cards.filter((x) => x !== old)) {
@@ -250,11 +247,37 @@ describe('tabs without a card yet (opened in the tab view, board never opened)',
   test('a tab that closes goes from the others too', () => {
     const [a, b] = pair()
     let tabs = [{ id: 9, url: 'https://new.example/' }]
-    const out = { by: 'ana', title: titles, all: () => tabs }
+    const out = { by: 'ana', title: titles, all: () => tabs, live: 9 }
     writeDiff(a, null, emptyState('b'), undefined, out)
     expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(1)
     tabs = []
     writeDiff(a, emptyState('b'), emptyState('b'), undefined, out)
+    expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
+  })
+})
+
+describe('tabs are private until shared', () => {
+  test("a tab never shared and not live never reaches the others; sharing sends it, unsharing takes it back", () => {
+    const [a, b] = pair()
+    const priv = withCards([card(7, 'https://bank.example/', 0, { shared: false })])
+    const out = { by: 'ana', title: titles, all: () => [{ id: 8, url: 'https://mail.example/' }] }
+    writeDiff(a, null, priv, undefined, out)
+    expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
+    const shared = withCards([card(7, 'https://bank.example/', 0, { shared: true })])
+    writeDiff(a, priv, shared, undefined, out)
+    expect(readInto(b, emptyState('x'), 'ben').cards.map((c) => c.url)).toEqual([
+      'https://bank.example/'
+    ])
+    writeDiff(a, shared, priv, undefined, out)
+    expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
+  })
+
+  test('the live tab goes while it is live, shared or not, and leaves when the show ends', () => {
+    const [a, b] = pair()
+    const board = withCards([card(7, 'https://a.example/', 0, { shared: false })])
+    writeDiff(a, null, board, undefined, { by: 'ana', title: titles, live: 7 })
+    expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(1)
+    writeDiff(a, board, board, undefined, { by: 'ana', title: titles })
     expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
   })
 })

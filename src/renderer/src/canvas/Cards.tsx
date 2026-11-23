@@ -504,6 +504,20 @@ export const CardView = memo(
             )}
             <div className="cv-badges">
               {m.isTab && <LiveBadge tabId={m.id} />}
+              {m.sharedOut && (
+                <span
+                  className="cv-shared-tag"
+                  role="img"
+                  aria-label="Shared with everyone in this space"
+                  title="Shared with everyone in this space. Right-click to stop sharing"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                    <circle cx="6" cy="5.5" r="2.4" />
+                    <path d="M1.8 13c.5-2.4 2.2-3.7 4.2-3.7s3.7 1.3 4.2 3.7" />
+                    <path d="M10.6 3.4a2.3 2.3 0 0 1 0 4.3M12 9.6c1.2.5 2 1.6 2.3 3.4" />
+                  </svg>
+                </span>
+              )}
               {m.liveBy && (
                 <span
                   className="cv-live-tag"

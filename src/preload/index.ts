@@ -126,6 +126,7 @@ const api: PanesApi = {
   share: {
     start: (id) => ipcRenderer.invoke('share:start', id),
     link: (id) => ipcRenderer.invoke('share:link', id),
+    reset: (id) => ipcRenderer.invoke('share:reset', id),
     join: (link) => ipcRenderer.invoke('share:join', link),
     stop: (id) => ipcRenderer.send('share:stop', id),
     state: (id) => ipcRenderer.invoke('share:state', id),
@@ -139,6 +140,8 @@ const api: PanesApi = {
     pointer: (id) => ipcRenderer.invoke('share:pointer', id),
     pageCursor: (id) => ipcRenderer.invoke('share:page-cursor', id),
     liveAspect: (id, aspect) => ipcRenderer.send('share:live-aspect', id, aspect),
+    askDrive: (id, name, color) => ipcRenderer.invoke('share:ask-drive', id, name, color),
+    askDriveCancel: (id) => ipcRenderer.send('share:ask-drive-cancel', id),
     chat: (id) => ipcRenderer.invoke('share:chat', id),
     onChat: (cb) => subscribe<[number, SpaceChat]>('share:chat', cb),
     say: (id, text) => ipcRenderer.send('share:say', id, text),

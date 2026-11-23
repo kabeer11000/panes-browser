@@ -48,35 +48,26 @@ export function StatusChips({
       {live.map((v) => (
         <div key={`live${v.spaceId}`} className="status-chip live" role="status">
           <span className="status-dot live" aria-hidden="true" />
-          {v.asking ? (
+          {/* a request to drive is answered on the card above the page (main's permission card) */}
+          {v.driver ? (
             <>
-              <span>{v.asking.name} asks to drive</span>
-              <button type="button" className="primary" onClick={v.allow}>
-                Let them
-              </button>
-              <button type="button" onClick={v.deny}>
-                No
-              </button>
-            </>
-          ) : v.driver ? (
-            <>
-              <span>{v.driver.name} is driving</span>
-              <button type="button" onClick={v.takeBack}>
+              <span>
+                {v.driver.name.split(' ')[0]} has control
+                {v.spaceId === space?.id ? '' : ` · ${v.spaceName}`}
+              </span>
+              <button type="button" className="primary" onClick={v.takeBack}>
                 Take back
               </button>
             </>
           ) : (
-            <>
-              <span>
-                {v.watching > 0
-                  ? `Showing a tab live · ${v.watching} watching`
-                  : 'You’re showing a tab live'}
-              </span>
-              <button type="button" onClick={v.stop}>
-                Stop
-              </button>
-            </>
+            <span>
+              {v.spaceId === space?.id ? 'Presenting' : `Presenting in ${v.spaceName}`}
+              {v.watching > 0 ? ` · ${v.watching} watching` : ''}
+            </span>
           )}
+          <button type="button" onClick={v.stop}>
+            Stop
+          </button>
         </div>
       ))}
       {notice && (

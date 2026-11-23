@@ -141,7 +141,7 @@ import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
 import { boardMoving, onBoardMotion } from './boardMotion'
 import { RemoteCursors } from './Presence'
-import { ShareButton } from './ShareButton'
+import { PresentingElsewhere, ShareButton } from './ShareButton'
 import { BoardSpaces } from './BoardSpaces'
 import { SpaceChat } from './SpaceChat'
 import { LiveShare } from './LiveShare'
@@ -3655,7 +3655,7 @@ export function Canvas({
   }
 
   // ---- what each card shows ----
-  const modelFor = (card: { id: number }): CardModel | null => {
+  const modelFor = (card: { id: number; shared?: boolean }): CardModel | null => {
     if (!st) return null
     const virtual = isVirtual(card.id)
     const item: CanvasItem | undefined = virtual ? st.items[String(card.id)] : undefined
@@ -3676,6 +3676,7 @@ export function Canvas({
       muted: !!tab?.muted,
       ringing: tab?.attention.call === 'ringing',
       liveBy: liveHost?.name,
+      sharedOut: !virtual && !!card.shared && !!thisSpace?.shared,
       // the card plays their picture while it is on screen (one line with the viewer, see liveLine.ts)
       liveRtc: liveHost && onScreen.has(card.id) ? liveHost.rtc : undefined,
       liveSpace: liveHost ? spaceId : undefined,
@@ -5326,6 +5327,12 @@ export function Canvas({
               ? liveTab === id
                 ? 'stop'
                 : 'start'
+              : undefined,
+          share:
+            thisSpace?.shared && m.isTab && web && !priv
+              ? card?.shared
+                ? 'stop'
+                : 'start'
               : undefined
         }),
         (act) => {
@@ -5334,6 +5341,14 @@ export function Canvas({
           else if (act === 'pop') leaveRef.current(id)
           else if (act === 'unsplit') window.api.unsplit()
           else if (act === 'share-live') showLive(liveTab === id ? null : id)
+          else if (act === 'share-tab')
+            edit(
+              (s) => ({
+                ...s,
+                cards: s.cards.map((c) => (c.id === id ? { ...c, shared: !c.shared } : c))
+              }),
+              { undo: card?.shared ? 'Stop sharing' : 'Share' }
+            )
           else if (act === 'play')
             void window.api.mediaPlay?.(m.id, m.playing ? 'pause' : 'play').catch(() => undefined)
           else if (act === 'mute') window.api.toggleMute(m.id)
@@ -6056,6 +6071,7 @@ export function Canvas({
             <BoardSpaces spaces={spaces} activeSpaceId={spaceId} />
           </div>
           <ShareButton space={thisSpace} />
+          <PresentingElsewhere spaceId={spaceId} />
           <LiveShare
             spaceId={spaceId}
             shared={!!thisSpace?.shared}

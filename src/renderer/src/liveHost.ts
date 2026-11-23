@@ -50,6 +50,8 @@ export function useLiveHost(
   /** The tab takes the new driver's shape (set by the call effect, which knows the sizes). */
   const shapeRef = useRef<() => void>(() => undefined)
   const mutedRef = useRef(muted)
+  /** Take control back from the driver (set below, where `say` is). */
+  const takeBackRef = useRef<() => void>(() => undefined)
 
   useEffect(() => {
     if (tabId === null || !window.api.share) return
@@ -201,6 +203,13 @@ export function useLiveHost(
       void window.api.share.pointer(spaceId).then((at) => {
         const key = at ? `${at.x.toFixed(4)},${at.y.toFixed(4)}` : ''
         if (dead || key === lastPtr) return
+        // the host moving their own mouse over the tab takes it back at once: they are always in control (the
+        // driver's input never moves the host's pointer, so any move here is the host's)
+        const was = lastPtr
+        if (at && was && driverRef.current !== null) {
+          const [px, py] = was.split(',').map(Number)
+          if (Math.hypot(at.x - px, at.y - py) > 0.01) takeBackRef.current()
+        }
         lastPtr = key
         pointTo({ k: 'ptr', who: 0, x: at ? at.x : null, y: at ? at.y : 0 })
       })
@@ -306,9 +315,7 @@ export function useLiveHost(
   // the driver left the space (not just their picture): leave to drive ends
   const driverHere = driverId === null || people.some((p) => p.rtc === driverId)
   useEffect(() => {
-    if (driverHere) return
-    driverRef.current = null
-    setDriverId(null)
+    if (!driverHere) driverRef.current = null // their input is refused from now on; `driver` below shows none
   }, [driverHere])
   useEffect(() => {
     mutedRef.current = muted
@@ -319,36 +326,66 @@ export function useLiveHost(
     const ch = peers.current.get(to)?.ctl
     if (ch?.readyState === 'open') ch.send(JSON.stringify(msg))
   }
+  const takeBack = (): void => {
+    if (driverRef.current !== null) say(driverRef.current, { k: 'revoked' })
+    driverRef.current = null
+    setDriverId(null)
+  }
+  useEffect(() => {
+    takeBackRef.current = takeBack
+  })
   const byRtc = (id: number | null): SharePerson | null =>
     id === null ? null : (people.find((p) => p.rtc === id) ?? null)
+  const allow = (): void => {
+    if (askingId === null) return
+    if (driverRef.current !== null) say(driverRef.current, { k: 'revoked' })
+    driverRef.current = askingId
+    setDriverId(askingId)
+    say(askingId, { k: 'granted' })
+    setAskingId(null)
+    shapeRef.current()
+  }
+  const deny = (): void => {
+    if (askingId !== null) say(askingId, { k: 'denied' })
+    setAskingId(null)
+  }
+  const answerRef = useRef({ allow, deny })
+  useEffect(() => {
+    answerRef.current = { allow, deny }
+  })
+  // The question goes to the permission card (main), above every page and in every space: a prompt in the board or
+  // the chrome was hidden behind the page views. Taken back when they stop asking or leave.
+  const asker = byRtc(askingId)
+  const askerName = asker?.name ?? null
+  const askerColor = asker?.color ?? '#888'
+  useEffect(() => {
+    if (askingId === null || askerName === null || !window.api.share?.askDrive) return
+    let live = true
+    void window.api.share.askDrive(spaceId, askerName, askerColor).then((yes) => {
+      if (!live) return
+      if (yes) answerRef.current.allow()
+      else answerRef.current.deny()
+    })
+    return () => {
+      live = false
+      window.api.share?.askDriveCancel(spaceId)
+    }
+  }, [spaceId, askingId, askerName, askerColor])
   return {
     watching,
-    asking: byRtc(askingId),
-    driver: byRtc(driverId),
-    allow: () => {
-      if (askingId === null) return
-      if (driverRef.current !== null) say(driverRef.current, { k: 'revoked' })
-      driverRef.current = askingId
-      setDriverId(askingId)
-      say(askingId, { k: 'granted' })
-      setAskingId(null)
-      shapeRef.current()
-    },
-    deny: () => {
-      if (askingId !== null) say(askingId, { k: 'denied' })
-      setAskingId(null)
-    },
-    takeBack: () => {
-      if (driverRef.current !== null) say(driverRef.current, { k: 'revoked' })
-      driverRef.current = null
-      setDriverId(null)
-    }
+    asking: asker,
+    driver: driverHere ? byRtc(driverId) : null,
+    allow,
+    deny,
+    takeBack
   }
 }
 
 /** What a live tab's host shows and can do, for the board's bar and the status chips. */
 export interface HostView {
   spaceId: number
+  /** The space's name, to say where it is shown when this person is in another space. */
+  spaceName: string
   tabId: number
   watching: number
   asking: SharePerson | null

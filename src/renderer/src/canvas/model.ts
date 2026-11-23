@@ -38,6 +38,8 @@ export interface CardModel {
   ringing: boolean
   /** Someone else's tab they are showing live right now: their name (the card wears LIVE, and opens their picture). */
   liveBy?: string
+  /** This person's own tab they shared with their shared space: the others see it (a small mark says so). */
+  sharedOut?: boolean
   /** Their live picture, while the card is on screen: their relay address and the space (see liveLine.ts). */
   liveRtc?: number
   liveSpace?: number

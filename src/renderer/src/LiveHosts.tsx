@@ -6,12 +6,14 @@ function LiveHost({
   spaceId,
   tabId,
   people,
-  muted
+  muted,
+  spaceName
 }: {
   spaceId: number
   tabId: number
   people: SharePerson[]
   muted: boolean
+  spaceName: string
 }): null {
   const h = useLiveHost(spaceId, tabId, people, muted)
   const latest = useRef(h)
@@ -22,6 +24,7 @@ function LiveHost({
   useEffect(() => {
     const view: HostView = {
       spaceId,
+      spaceName,
       tabId,
       watching,
       asking,
@@ -32,7 +35,7 @@ function LiveHost({
       stop: () => void window.api.share?.showLive(spaceId, null)
     }
     publish([...hostViewsNow().filter((v) => v.spaceId !== spaceId), view])
-  }, [spaceId, tabId, watching, asking, driver])
+  }, [spaceId, spaceName, tabId, watching, asking, driver])
   useEffect(() => () => publish(hostViewsNow().filter((v) => v.spaceId !== spaceId)), [spaceId])
   return null
 }
@@ -78,6 +81,7 @@ export function LiveHosts({
             tabId={s.liveTab}
             people={s.people}
             muted={!!tab?.muted}
+            spaceName={spaces.find((x) => x.id === id)?.name ?? 'a shared space'}
           />
         )
       })}

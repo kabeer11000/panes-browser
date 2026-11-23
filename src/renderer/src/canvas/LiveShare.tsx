@@ -101,25 +101,7 @@ function viewRoom(): { w: number; h: number } {
     h: Math.max(150, window.innerHeight - 2 * VIEW_MARGIN - VIEW_BAR)
   }
 }
-/**
- * The panel around the picture at the picture's own shape, as big as the room allows, centred: never bars beside it.
- * null (the whole room) until the picture's size is known.
- */
-function fitPanel(
-  room: { w: number; h: number },
-  pic: { w: number; h: number } | null
-): React.CSSProperties | null {
-  if (!pic || !(pic.w > 0 && pic.h > 0)) return null
-  const k = Math.min(room.w / pic.w, room.h / pic.h)
-  const w = Math.round(pic.w * k)
-  const h = Math.round(pic.h * k) + VIEW_BAR
-  return {
-    width: w,
-    height: h,
-    left: Math.round((room.w - w) / 2) + VIEW_MARGIN,
-    top: Math.round((room.h + VIEW_BAR - h) / 2) + VIEW_MARGIN
-  }
-}
+const stop = (e: React.SyntheticEvent): void => e.stopPropagation()
 
 function LiveViewer({
   spaceId,
@@ -170,15 +152,12 @@ function LiveViewer({
   const [cursor, setCursor] = useState('default')
   const hostRtc = host.rtc
   const stage = useRef<HTMLDivElement>(null)
-  /** The picture's own size: the panel takes its shape, so there are no bars beside it. */
-  const [pic, setPic] = useState<{ w: number; h: number } | null>(null)
-  const [room, setRoom] = useState(viewRoom)
+  // The page views are native and paint over the window's own UI: while the viewer is open they stand aside as
+  // pictures, wherever it was opened from (the board's preview, the tab view), so every click lands on the picture.
   useEffect(() => {
-    const on = (): void => setRoom(viewRoom())
-    window.addEventListener('resize', on)
-    return () => window.removeEventListener('resize', on)
+    void holdOverlay('live-watch')
+    return () => void releaseOverlay('live-watch')
   }, [])
-  const fitted = fitPanel(room, pic)
 
   useEffect(() => {
     if (!window.api.share || !hostRtc) return
@@ -232,6 +211,7 @@ function LiveViewer({
     if (ch?.readyState === 'open') ch.send(JSON.stringify(msg))
   }
   const driving = control === 'yes'
+  const hostFirst = host.name.split(' ')[0]
   // Esc puts it away, as it does the preview (not while driving: then keys are for their page)
   useEffect(() => {
     if (driving) return
@@ -298,7 +278,21 @@ function LiveViewer({
       className="live-view"
       role="dialog"
       aria-label={`${host.name}'s tab, live`}
-      style={fitted ?? undefined}
+      // Portaled to the body, but React still bubbles its events up the component tree to the board (which renders
+      // it): the board took the pointer on every press (its release never reached the picture: clicks went "under"
+      // it) and panned and selected under every move. Nothing in here is the board's.
+      onPointerDown={stop}
+      onPointerMove={stop}
+      onPointerUp={stop}
+      onMouseDown={stop}
+      onMouseUp={stop}
+      onClick={stop}
+      onDoubleClick={stop}
+      onWheel={stop}
+      onContextMenu={stop}
+      onKeyDown={stop}
+      onKeyUp={stop}
+      onDragStart={stop}
     >
       {/* the preview's own slim bar (Expanded.tsx): whose page it is in the address pill, then only what a watcher
           can do: drive (when let), sound, close */}
@@ -324,42 +318,31 @@ function LiveViewer({
             <button
               type="button"
               className="live-btn on"
-              title="You are driving their tab. Click to let go."
+              title={`You are controlling ${host.name}'s tab. Click to give it back.`}
               onClick={() => {
                 say({ k: 'release' })
                 setControl('none')
               }}
             >
-              Driving · Let go
+              <i aria-hidden="true" />
+              You&apos;re in control · Give back
             </button>
           ) : (
             <button
               type="button"
-              className={'cv-hbtn live-drive' + (control === 'asked' ? ' asked' : '')}
+              className="live-btn"
               disabled={state !== 'live' || control === 'asked'}
-              aria-label="Ask to drive"
-              title={
-                control === 'asked'
-                  ? `Asked ${host.name}…`
-                  : control === 'no'
-                    ? `${host.name} said no. Ask again`
-                    : `Ask ${host.name} to let you drive their tab`
-              }
+              title={`Ask ${host.name} to let you click and type in their tab`}
               onClick={() => {
                 say({ k: 'ask', name: myName })
                 setControl('asked')
               }}
             >
-              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  d="M3.5 2.2 12.6 8l-4 .9 2.2 4.4-1.6.8-2.2-4.4-3 2.7z"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              {control === 'asked' && <span>Asked</span>}
+              {control === 'asked'
+                ? `Waiting for ${hostFirst}…`
+                : control === 'no'
+                  ? `${hostFirst} said no · Ask again`
+                  : 'Ask to control'}
             </button>
           )}
           {hasSound && (
@@ -388,8 +371,12 @@ function LiveViewer({
       <div
         ref={stage}
         className={'live-stage' + (driving ? ' driving' : '')}
+        style={
+          driving
+            ? ({ cursor, '--pc': host.color } as React.CSSProperties)
+            : undefined
+        }
         tabIndex={driving ? 0 : -1}
-        style={driving ? { cursor } : undefined}
         onPointerMove={(e) => {
           if (!driving) return
           const p = at(e, held.current > 0)
@@ -440,17 +427,7 @@ function LiveViewer({
           input({ t: 'key', key: e.key, up: true, mods: mods(e) })
         }}
       >
-        <video
-          ref={attach}
-          muted={!sound}
-          playsInline
-          onResize={(e) =>
-            setPic({ w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })
-          }
-          onLoadedMetadata={(e) =>
-            setPic({ w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })
-          }
-        />
+        <video ref={attach} muted={!sound} playsInline disablePictureInPicture />
         {state === 'live' && (
           <LivePointers sinkRef={ptrSink} video={video} host={host} people={people} />
         )}
@@ -590,12 +567,6 @@ export function LiveWatchPanel({
     w?.spaceId === spaceId
       ? st?.people.find((p) => p.id === w.personId && p.live && p.rtc)
       : undefined
-  const on = !!host
-  useEffect(() => {
-    if (!on) return
-    void holdOverlay('live-watch')
-    return () => void releaseOverlay('live-watch')
-  }, [on])
   if (!host || !st) return null
   return (
     <LiveViewer
