@@ -3400,29 +3400,142 @@
   position: relative;
 }
 /* the row on a quiet plate of its own, so it reads on any board colour; the name sits after the avatars */
+/* the space's name as the board's title (BoardSpaces.tsx, #8): no box; a faint ground only under the pointer or
+   while its list is open */
 .cv-spaces {
   display: flex;
   align-items: center;
-  height: 32px;
-  padding: 0 3px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--popover-bg) 70%, transparent);
-  box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 10%, transparent);
 }
-.cv-spaces .space-switcher,
-.cv-spaces .space-row {
+.cv-space-title-wrap {
+  position: relative;
+}
+.cv-space-title {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 4px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: default;
+  transition: background var(--dur-fast);
 }
-.cv-spaces .space-chip {
-  width: 28px;
-  height: 28px;
+.cv-space-title:hover,
+.cv-space-title.on {
+  background: var(--surface-hover);
 }
-.cv-spaces .space-caption {
-  margin-left: 2px;
-  max-width: 180px;
-  height: 26px;
+.cv-space-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-space-chev {
+  color: var(--fg-dim);
+  transition: rotate 0.18s var(--ease);
+}
+.cv-space-title.on .cv-space-chev {
+  rotate: 180deg;
+}
+.cv-space-elsewhere {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff3b30;
+}
+.cv-space-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: 300px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 18px 50px rgb(0 0 0 / 0.45);
+  transform-origin: top left;
+  animation: pop-open 0.18s var(--ease) both;
+}
+.cv-space-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+.cv-space-item:hover,
+.cv-space-item:focus-visible {
+  background: var(--surface-hover);
+}
+.cv-space-item.on {
+  background: var(--surface-hover);
+}
+.cv-space-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 560;
+}
+.cv-space-item-meta {
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+.cv-space-item-attn {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+}
+.cv-space-item kbd {
+  color: var(--fg-dim);
+  font:
+    11.5px ui-monospace,
+    'Cascadia Mono',
+    monospace;
+}
+.cv-space-check {
+  color: var(--accent);
+}
+.cv-space-item.plain {
+  color: var(--fg-dim);
+  font-weight: 500;
+}
+.cv-space-item.plain:hover {
+  color: var(--fg);
+}
+.cv-space-plus {
+  width: 24px;
+  display: grid;
+  place-items: center;
+}
+.cv-space-sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--border);
 }
 .cv-hist-btn {
   display: grid;
@@ -4512,44 +4625,6 @@
   padding-right: 120px;
   border-bottom: 0;
   border-top: 1px solid color-mix(in srgb, var(--fg) 7%, transparent);
-}
-
-/* on the board: "new space" is a light afterthought at the row's end, and a hairline sets the name apart */
-.cv-spaces .space-chip.add {
-  width: 24px;
-  height: 24px;
-  background: none;
-  color: var(--fg-dim);
-  opacity: 0.7;
-}
-.cv-spaces .space-chip.add:hover {
-  opacity: 1;
-  background: var(--surface-hover);
-}
-.cv-spaces .space-caption {
-  position: relative;
-  margin-left: 6px;
-}
-.cv-spaces .space-caption::before {
-  content: '';
-  position: absolute;
-  left: -4px;
-  top: 6px;
-  bottom: 6px;
-  width: 1px;
-  background: color-mix(in srgb, var(--fg) 12%, transparent);
-}
-/* the space you are in stands forward; the others wait, a little smaller, until pointed at */
-.cv-spaces .space-chip:not(.active):not(.add) .sav {
-  opacity: 0.55;
-  scale: 0.86;
-  transition:
-    opacity 0.15s,
-    scale 0.2s var(--ease);
-}
-.cv-spaces .space-chip:not(.active):not(.add):hover .sav {
-  opacity: 1;
-  scale: 1;
 }
 
 /* ---- the tab strip (TabStrip.tsx): the same row on the board (top centre) and in the preview's header ---- */

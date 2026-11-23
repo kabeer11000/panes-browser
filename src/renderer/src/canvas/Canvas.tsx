@@ -142,6 +142,7 @@ import type { CardModel } from './model'
 import { boardMoving, onBoardMotion } from './boardMotion'
 import { RemoteCursors } from './Presence'
 import { ShareButton } from './ShareButton'
+import { BoardSpaces } from './BoardSpaces'
 import { SpaceChat } from './SpaceChat'
 import { LiveShare } from './LiveShare'
 import { usePresence } from '@renderer/components/useShare'
@@ -158,8 +159,6 @@ import { AskDock } from './AskDock'
 import { Marks } from './Marks'
 import { CommandMenu, type Command } from './CommandMenu'
 import { UndoHistory } from './UndoHistory'
-import { SpaceSwitcher } from '@renderer/components/SpaceSwitcher'
-import { useSpaceDir } from '@renderer/hooks/useSpaceDir'
 import { boardDigest } from '@shared/ai/canvasDigest'
 import {
   addPreset,
@@ -630,7 +629,6 @@ export function Canvas({
   useLayoutEffect(() => {
     spaceIdRef.current = spaceId
   }, [spaceId])
-  const spaceDir = useSpaceDir(spaces, spaceId)
   const [sel, setSelState] = useState<Set<string>>(new Set())
   const selRef = useRef(sel)
   const [tool, setTool] = useState<Tool>('select')
@@ -6071,16 +6069,9 @@ export function Canvas({
         >
           {/* the board is the whole window (no top bar under it): the window's own buttons live here */}
           {window.api.platform !== 'darwin' && <WindowControls />}
-          {/* the spaces as everywhere else: a click switches, the name opens this space's settings */}
+          {/* the space's name is the board's title: a click lists the spaces, with this one's settings */}
           <div className="cv-spaces">
-            <SpaceSwitcher
-              spaces={spaces}
-              activeSpaceId={spaceId}
-              placement="down"
-              caption
-              dir={spaceDir}
-              size={24}
-            />
+            <BoardSpaces spaces={spaces} activeSpaceId={spaceId} />
           </div>
           <ShareButton space={thisSpace} />
           <LiveShare

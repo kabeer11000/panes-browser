@@ -41,7 +41,7 @@ export function SpacePopover({
     const onDown = (e: globalThis.PointerEvent): void => {
       const t = e.target as HTMLElement
       // Chips open this popover, so a press on one must not also close it.
-      if (!ref.current?.contains(t) && !t.closest('.space-chip')) onClose()
+      if (!ref.current?.contains(t) && !t.closest('.space-chip, .cv-space-title')) onClose()
     }
     window.addEventListener('keydown', onKey)
     window.addEventListener('pointerdown', onDown)

@@ -123,3 +123,10 @@ found: empty board space). The foreground check guards keys, not clicks.
 - Prefer a test window placed where nothing of the user's is, and never click into the user's windows.
 - The parked test copy (PANES_OFFSCREEN) is unfocusable by design: real keys never reach it. Real-key tests need a
   visible copy with its own profile.
+
+## Check what is already done before working an item (2026-11-23)
+Worked GitHub issues #1, #2, #20, #21 as open when they had already been fixed earlier the same day (the issues were
+filed from stale polish-3 items; TURN was set up at 16:41). User was angry: "did u fix stuff that was already fixed".
+Before starting any listed item: grep .remember/today-*.md and `git log --since=<filing date>` for it, and reproduce
+it on current main. If it does not reproduce, say so and close it with the commit that fixed it; do not write a
+"safety net" change unless asked.
