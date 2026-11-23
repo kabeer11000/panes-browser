@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { hasMarks, parseInline, toggleMark } from './noteMarks'
+import { hasMarks, markFor, parseInline, toggleMark } from './noteMarks'
 
 describe('bold, italic and struck words in a note', () => {
   test('markers become styles', () => {
@@ -59,5 +59,31 @@ describe('Ctrl+B and Ctrl+I while writing', () => {
   })
   test('nothing selected: a pair with the caret between', () => {
     expect(toggleMark('ab', 1, 1, '~~')).toEqual({ value: 'a~~~~b', start: 3, end: 3 })
+  })
+})
+
+describe('markFor (the formatting keys in notes, labels and shapes)', () => {
+  const k = (
+    key: string,
+    mods: Partial<Record<'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey', boolean>> = {}
+  ) => ({
+    key,
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+    ...mods
+  })
+  test('Ctrl+B, Ctrl+I and Ctrl+Shift+X (Cmd on a Mac)', () => {
+    expect(markFor(k('b', { ctrlKey: true }))).toBe('**')
+    expect(markFor(k('I', { metaKey: true }))).toBe('_')
+    expect(markFor(k('X', { ctrlKey: true, shiftKey: true }))).toBe('~~')
+  })
+  test('cut, plain letters, Alt and Shift with B or I are left alone', () => {
+    expect(markFor(k('x', { ctrlKey: true }))).toBeUndefined()
+    expect(markFor(k('b'))).toBeUndefined()
+    expect(markFor(k('b', { ctrlKey: true, altKey: true }))).toBeUndefined()
+    expect(markFor(k('b', { ctrlKey: true, shiftKey: true }))).toBeUndefined()
+    expect(markFor(k('a', { ctrlKey: true }))).toBeUndefined()
   })
 })

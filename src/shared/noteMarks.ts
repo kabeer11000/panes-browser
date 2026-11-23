@@ -118,3 +118,20 @@ export function toggleMark(
     end: e + n
   }
 }
+
+/** Ctrl+B bold, Ctrl+I italic, Ctrl+Shift+X struck through, as in Figma: the marker each puts round the selection. */
+export const MARK_KEYS: Record<string, '**' | '_' | '~~'> = { b: '**', i: '_', x: '~~' }
+
+/** The marker a key press asks for (see MARK_KEYS), if any. */
+export function markFor(e: {
+  key: string
+  ctrlKey: boolean
+  metaKey: boolean
+  altKey: boolean
+  shiftKey: boolean
+}): '**' | '_' | '~~' | undefined {
+  const key = e.key.toLowerCase()
+  return (e.ctrlKey || e.metaKey) && !e.altKey && (key === 'x' ? e.shiftKey : !e.shiftKey)
+    ? MARK_KEYS[key]
+    : undefined
+}

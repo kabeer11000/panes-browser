@@ -1,4 +1,5 @@
 import { LiveCardVideo } from './LiveShare'
+import { Inline } from './Inline'
 import { memo, useEffect, useRef, useState, useLayoutEffect } from 'react'
 import {
   CARD_H,
@@ -19,7 +20,7 @@ import { AnswerText } from './Expanded'
 import { Favicon } from './Img'
 import { Pic } from './Pic'
 import { useHostViews } from '@renderer/liveHost'
-import { parseInline, toggleMark } from '@shared/noteMarks'
+import { markFor, toggleMark } from '@shared/noteMarks'
 import { useBoardLod } from './boardLod'
 import { LiveTab } from './LiveTab'
 import {
@@ -799,23 +800,6 @@ interface NoteProps {
   first?: string | null
 }
 
-/** A note's text with its **bold**, _italic_ and ~~struck~~ words drawn (shared/noteMarks.ts). */
-function Inline({ text }: { text: string }): React.JSX.Element {
-  return (
-    <>
-      {parseInline(text).map((r, i) => {
-        let el: React.ReactNode = r.t
-        if (r.s) el = <s>{el}</s>
-        if (r.i) el = <em>{el}</em>
-        if (r.b) el = <strong>{el}</strong>
-        return <span key={i}>{el}</span>
-      })}
-    </>
-  )
-}
-
-const NOTE_MARK_KEYS: Record<string, '**' | '_' | '~~'> = { b: '**', i: '_', x: '~~' }
-
 export const NoteView = memo(function NoteView({
   note,
   selected,
@@ -883,11 +867,7 @@ export const NoteView = memo(function NoteView({
             // Esc ends typing and keeps what was typed (the note stays selected)
             if (e.key === 'Escape') return e.currentTarget.blur()
             // Ctrl+B bold, Ctrl+I italic, Ctrl+Shift+X struck through, as in Figma
-            const key = e.key.toLowerCase()
-            const marker =
-              (e.ctrlKey || e.metaKey) && !e.altKey && (key === 'x' ? e.shiftKey : !e.shiftKey)
-                ? NOTE_MARK_KEYS[key]
-                : undefined
+            const marker = markFor(e)
             if (!marker) return
             e.preventDefault()
             const t = e.currentTarget

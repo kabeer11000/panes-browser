@@ -13,6 +13,8 @@ import {
   type ShapeKind
 } from '@shared/ai/canvasMarks'
 import { heightFor, textInset } from '@shared/ai/canvasText'
+import { markFor, toggleMark } from '@shared/noteMarks'
+import { Inline } from './Inline'
 
 const col = (c: number): string => `var(--m${((c % 8) + 8) % 8})`
 const fillOf = (m: CanvasMark): string =>
@@ -300,6 +302,7 @@ function Label({
       >
         {editing ? (
           <div
+            key="edit"
             ref={inner}
             className="cv-mt-in"
             contentEditable="plaintext-only"
@@ -326,18 +329,56 @@ function Label({
               if (e.key === 'Escape') {
                 e.preventDefault()
                 done()
+                return
               }
+              // Ctrl+B bold, Ctrl+I italic, Ctrl+Shift+X struck through, as in notes
+              const marker = markFor(e)
+              if (!marker) return
+              e.preventDefault()
+              if (formatSelection(e.currentTarget, marker)) fitRef.current()
             }}
             onBlur={done}
           />
         ) : (
-          <div ref={inner} className="cv-mt-in">
-            {m.text}
+          // its own element, not the one typed in (React would add the words beside what the typing left there)
+          <div key="show" ref={inner} className="cv-mt-in">
+            <Inline text={m.text ?? ''} />
           </div>
         )}
       </div>
     </foreignObject>
   )
+}
+
+/**
+ * Bold, italic or struck through on what is selected in a label being typed (see toggleMark): within one run of text
+ * the markers just outside the selection count too, so the same key takes them off again; across lines, the selected
+ * text is wrapped as it is. The selection stays on the text. False when nothing is selected.
+ */
+function formatSelection(el: HTMLElement, marker: '**' | '_' | '~~'): boolean {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false
+  const range = sel.getRangeAt(0)
+  if (!el.contains(range.commonAncestorContainer)) return false
+  const node = range.startContainer
+  if (node === range.endContainer && node instanceof Text) {
+    const r = toggleMark(node.data, range.startOffset, range.endOffset, marker)
+    if (r.value.length > MARK_TEXT_MAX) return false
+    node.data = r.value
+    const next = document.createRange()
+    next.setStart(node, r.start)
+    next.setEnd(node, r.end)
+    sel.removeAllRanges()
+    sel.addRange(next)
+    // a change made here, not typed: said like typing, for whatever follows the label's text
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText' }))
+    return true
+  }
+  const text = sel.toString()
+  const r = toggleMark(text, 0, text.length, marker)
+  if (el.innerText.length - text.length + r.value.length > MARK_TEXT_MAX) return false
+  document.execCommand('insertText', false, r.value)
+  return true
 }
 
 /**
