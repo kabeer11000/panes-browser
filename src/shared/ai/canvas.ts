@@ -566,8 +566,10 @@ const dropIfEmpty = (s: CanvasState, id: string | null): CanvasState => {
   if (count === 0 && !f.pinned && f.kind !== 'user') {
     return { ...s, frames: s.frames.filter((x) => x.id !== id) }
   }
-  // what is left closes up into a tidy grid, in reading order (a section sized by hand keeps its shape)
-  if (count > 0 && !f.sized) return regridFrame(s, id)
+  // what is left closes up into a tidy grid, in reading order (a section sized by hand keeps its shape). A new grid
+  // can be wider than the old one (a tall column becoming two): what it now covers is pushed aside, or the next
+  // section's cards end up under its own
+  if (count > 0 && !f.sized) return makeRoom(regridFrame(s, id), id)
   return shrinkFrame(s, id)
 }
 

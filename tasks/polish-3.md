@@ -159,8 +159,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       text stays until Escape or navigation, in the preview's, the tab view's and the toolbar's search alike. Kept
       per bar and tab (SearchPalette drafts); Escape, a pick or a page change clears it. Checked with real keys and
       clicks: typed, clicked away, reopened with it; Escape, reopened with the address.
-- [ ] Board: tab cards still sometimes land on top of each other (user 21:09, after makeRoom fix of beta.103). Trace
-      where new/synced tab cards get placed (syncTabs, placeItem, reconcileSaved) and what skips makeRoom.
+- [x] Board: tab cards still sometimes land on top of each other (user 21:09, after makeRoom fix of beta.103). Trace
+      where new/synced tab cards get placed (syncTabs, placeItem, reconcileSaved) and what skips makeRoom. Found by a
+      seeded walk (canvas.overlap.test.ts): a section re-gridded after a tab closed (a column becoming two) covered the
+      next one; dropIfEmpty now makes room. Clean over 3000 runs.
 
 ### Missed by the 21:04 session (said "logged", never written here; audit 2026-11-22 21:10)
 
@@ -183,7 +185,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 
 - [x] Delete key closes the selected tab cards on the board: checked live 2026-11-23 (a card selected, Delete: 63 tabs
       to 62, its card gone).
-- [ ] Clicking a Windows notification (WhatsApp-style page) opens that tab.
+- [~] Clicking a Windows notification (WhatsApp-style page) opens that tab: wired (frame preload's click report and
+      the worker toasts call showFromNotification); a click on a real toast not tested here (needs the screen).
 - [ ] Hover states on the strip's tabs, tab switchers, preview header buttons; header height 34 px.
 - [x] Zoom / pinch / pan on the board: re-measure with scripts/perf-canvas.ts after the recent UI changes.
       2026-11-23, built app: pan/zoom/drag p95 16.8 ms even at CPU x4.
