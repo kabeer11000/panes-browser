@@ -222,6 +222,8 @@ const GAIN_KEY = 'panes.touchpadGain'
 const AI_OFF_SEEN = 'panes.aiOffSeen'
 /** Instant find with a single match opens it after this pause in typing (ms). */
 const QUICK_OPEN_MS = 400
+/** How long a tab asked for on the board waits for its card before the board makes way for the tab itself. */
+const SHOW_CARD_WAIT = 1500
 /** A gesture held for the preview (see heldByPreview) with no touchpad frame for this long has ended unseen. */
 const HELD_STALE_MS = 400
 import { MAX_K, MIN_K, useViewport } from './useViewport'
@@ -1755,6 +1757,7 @@ export function Canvas({
       window.api.canvas.onShowTab((id) => {
         showTab.current = { id, at: Date.now() }
         showNowRef.current()
+        window.setTimeout(() => showNowRef.current(), SHOW_CARD_WAIT)
       }),
     []
   )
@@ -1820,6 +1823,7 @@ export function Canvas({
       if (open !== null && group.includes(id) && group.includes(open)) return
       showTab.current = { id, at: Date.now() }
       showNowRef.current()
+      window.setTimeout(() => showNowRef.current(), SHOW_CARD_WAIT)
     }
     window.addEventListener('panes:canvas-show', show)
     return () => window.removeEventListener('panes:canvas-show', show)
@@ -3899,8 +3903,19 @@ export function Canvas({
       showTab.current = null
       return
     }
-    const card = stRef.current?.cards.find((c) => c.id === want.id)
-    if (!card) return // its card comes with the next sync of the tabs
+    const s0 = stRef.current
+    // a tab that holds an item's live page (a web result, an assistant's page) has no card of its own: that item's
+    const backed = Object.entries(s0?.items ?? {}).find(([, it]) => it.tab === want.id)?.[0]
+    const card = s0?.cards.find((c) => c.id === want.id || String(c.id) === backed)
+    if (!card) {
+      // its card comes with the next sync of the tabs; one that has not come by now never will (a tab of another
+      // space, a private one, one the board does not show): the tab itself, off the board, instead of nothing at all
+      if (Date.now() - want.at >= SHOW_CARD_WAIT && tabsRef.current.some((t) => t.id === want.id)) {
+        showTab.current = null
+        leaveRef.current(want.id)
+      }
+      return
+    }
     showTab.current = null
     if (expandedNow.current === card.id) return // already open in the preview
     const v = reveal(cardBox(card)) // the card's place once the board has glided to it
