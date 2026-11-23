@@ -5270,6 +5270,8 @@
 }
 .live-stage {
   position: relative;
+  user-select: none; /* a drag on the picture selects in their page, never in this one */
+  touch-action: none;
   flex: 1;
   min-height: 0;
   background: #000;

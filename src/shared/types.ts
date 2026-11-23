@@ -358,6 +358,10 @@ export interface PanesApi {
     ice(spaceId: number): Promise<RTCIceServer[] | null>
     /** Where the pointer is over this person's live tab on screen, as page fractions (null: not over it). */
     pointer(spaceId: number): Promise<{ x: number; y: number } | null>
+    /** The live tab's page cursor (a CSS cursor name), for whoever drives it. */
+    pageCursor(spaceId: number): Promise<string | null>
+    /** The shape the watchers see the live tab in (width / height): while the host is not looking at it, it takes it. */
+    liveAspect(spaceId: number, aspect: number): void
     /** A shared space's chat (shared/share/chat.ts): the latest messages, and this person's id among the writers. */
     chat(spaceId: number): Promise<SpaceChat | null>
     onChat(cb: (spaceId: number, chat: SpaceChat) => void): () => void

@@ -312,6 +312,8 @@ function createWindow(): void {
     liveInfo: (id) => tabs.liveInfo(id),
     remoteInput: (id, ev) => tabs.remoteInput(id, ev),
     pointerIn: (id) => tabs.pointerIn(id),
+    cursorIn: (id) => tabs.liveCursor(id),
+    setLiveAspect: (id, aspect) => tabs.setLiveAspect(id, aspect),
     openBoard: (id) => {
       if (win.isDestroyed()) return
       if (win.isMinimized()) win.restore()

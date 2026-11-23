@@ -38,6 +38,8 @@ export type LiveControl =
    * driver's relay address; x null when it left the page.
    */
   | { k: 'ptr'; who: number; x: number | null; y: number }
+  /** The page's mouse cursor under the driver's pointer (a CSS cursor name), host to driver. */
+  | { k: 'cur'; c: string }
 
 const num = (v: unknown, lo: number, hi: number): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null

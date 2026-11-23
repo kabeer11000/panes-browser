@@ -183,6 +183,7 @@ function LiveViewer({
           else if (msg?.k === 'granted') setControl('yes')
           else if (msg?.k === 'denied') setControl('no')
           else if (msg?.k === 'revoked') setControl('none')
+          else if (msg?.k === 'cur' && /^[a-z-]{1,24}$/.test(msg.c)) setCursor(msg.c)
         }
       } else if (ch.label === 'mv') {
         mv.current = ch
@@ -247,16 +248,41 @@ function LiveViewer({
     return () => window.removeEventListener('keydown', onKey)
   }, [driving, onClose])
   /** A pointer on the video as fractions of the page (null outside the picture, in its letterbox). */
-  const at = (e: { clientX: number; clientY: number }): { x: number; y: number } | null => {
+  /** A pointer on the video as fractions of the page: null outside the picture, or held to its edge (`clamp`). */
+  const at = (
+    e: { clientX: number; clientY: number },
+    clamp = false
+  ): { x: number; y: number } | null => {
     const v = video.current
     if (!v) return null
     const r = v.getBoundingClientRect()
     const box = videoBox(r, { width: v.videoWidth, height: v.videoHeight })
     const x = (e.clientX - r.left - box.x) / box.width
     const y = (e.clientY - r.top - box.y) / box.height
+    if (clamp) return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) }
     return x < 0 || y < 0 || x > 1 || y > 1 ? null : { x, y }
   }
-  const input = (e: RemoteInput, fast = false): void => say({ k: 'input', e }, fast)
+  // Everything the pointer does goes in one ordered line (a press, the moves of a drag, the release), the moves and
+  // the scrolling gathered to one a frame: a click never overtakes the move before it, and nothing floods the line.
+  const input = (e: RemoteInput): void => say({ k: 'input', e })
+  const pend = useRef<{ move?: { x: number; y: number }; wheel?: RemoteInput & { t: 'wheel' } }>({})
+  const frame = useRef(0)
+  const flush = (): void => {
+    cancelAnimationFrame(frame.current)
+    frame.current = 0
+    const p = pend.current
+    pend.current = {}
+    if (p.move) input({ t: 'move', ...p.move })
+    if (p.wheel) input(p.wheel)
+  }
+  const soon = (): void => {
+    frame.current ||= requestAnimationFrame(flush)
+  }
+  useEffect(() => () => cancelAnimationFrame(frame.current), [])
+  /** Buttons the driver holds on the picture (a drag): its moves and release count even past the picture's edge. */
+  const held = useRef(0)
+  /** The page's own cursor under the pointer (the host says it): a hand on links, a bar on text. */
+  const [cursor, setCursor] = useState('default')
   const button = (b: number): 'left' | 'middle' | 'right' =>
     b === 1 ? 'middle' : b === 2 ? 'right' : 'left'
   const site = ((): string => {
@@ -365,24 +391,44 @@ function LiveViewer({
         ref={stage}
         className={'live-stage' + (driving ? ' driving' : '')}
         tabIndex={driving ? 0 : -1}
+        style={driving ? { cursor } : undefined}
         onPointerMove={(e) => {
-          const p = driving && at(e)
-          if (p) input({ t: 'move', ...p }, true)
+          if (!driving) return
+          const p = at(e, held.current > 0)
+          if (!p) return
+          pend.current.move = p
+          soon()
         }}
         onPointerDown={(e) => {
           const p = driving && at(e)
           if (!p) return
           e.currentTarget.focus()
+          e.currentTarget.setPointerCapture(e.pointerId) // a drag keeps its pointer past the picture's edge
+          flush()
+          held.current++
           input({ t: 'down', ...p, b: button(e.button), n: e.detail || 1 })
         }}
         onPointerUp={(e) => {
-          const p = driving && at(e)
-          if (p) input({ t: 'up', ...p, b: button(e.button), n: e.detail || 1 })
+          if (!driving || held.current === 0) return
+          flush()
+          held.current--
+          input({ t: 'up', ...at(e, true)!, b: button(e.button), n: e.detail || 1 })
         }}
         onWheel={(e) => {
           const p = driving && at(e)
-          if (p) input({ t: 'wheel', ...p, dx: e.deltaX, dy: e.deltaY }, true)
+          if (!p) return
+          // lines and pages as pixels (a mouse wheel says lines; a touchpad, pixels)
+          const k = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1
+          const w = pend.current.wheel
+          pend.current.wheel = {
+            t: 'wheel',
+            ...p,
+            dx: (w?.dx ?? 0) + e.deltaX * k,
+            dy: (w?.dy ?? 0) + e.deltaY * k
+          }
+          soon()
         }}
+        onDragStart={(e) => e.preventDefault()}
         onContextMenu={(e) => driving && e.preventDefault()}
         onKeyDown={(e) => {
           if (!driving) return

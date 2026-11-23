@@ -139,6 +139,16 @@ import type { ActiveSite } from './sites'
 import type { SpaceStore } from './spaces'
 import { JsonStore } from './store'
 
+/** How long a live tab's "is a password field focused" answer holds before keys ask again (a click resets it). */
+/**
+ * A tab painting out of sight: its own slot's size, or (shown live, with the watchers' shape known) that shape at the
+ * slot's width, so their picture has no bars. Kept between sane bounds.
+ */
+function parkedSize(width: number, height: number, aspect?: number): { width: number; height: number } {
+  if (!aspect) return { width, height }
+  return { width, height: Math.round(Math.min(2400, Math.max(400, width / aspect))) }
+}
+const PW_CHECK_MS = 400
 const THUMB_WIDTH = 800
 const CANVAS_THUMB_WIDTH = 480 // pictures taken for the canvas are small at once: about 30 KB each
 /** See the tab's dom-ready: no part of a web page can drag the window. */
@@ -546,6 +556,16 @@ export class TabManager {
   private liveShared = new Set<number>()
   /** Each live tab's remote input, in order: a key waits on the password check, and a click after it waits too. */
   private liveInputs = new Map<number, Promise<void>>()
+  /** Per live tab: the mouse buttons the driver holds (a drag or a text selection needs them on every move). */
+  private liveButtons = new Map<number, Set<'left' | 'right' | 'middle'>>()
+  /** Per live tab: when the driver last pressed the right button (that page's menu is theirs, not a native one here). */
+  private liveRightAt = new Map<number, number>()
+  /** Per live tab: the shape the watchers see it in. Out of the host's sight it takes that shape, so it fills theirs. */
+  private liveAspect = new Map<number, number>()
+  /** Per live tab: whether a password field had the focus, asked at most every PW_CHECK_MS (typing is not slowed). */
+  private livePw = new Map<number, { at: number; yes: boolean }>()
+  /** Each page's mouse cursor as it last said (a driver sees the page's own: a hand on links, a bar on text). */
+  private cursorOf = new WeakMap<WebContents, string>()
   /** Tabs closed, newest last, as they were (Ctrl+Shift+T brings the last back so). */
   /** The preview's page is stepped aside for a popover over it (see setLiveAside). */
   private liveAside = false
@@ -3470,8 +3490,11 @@ export class TabManager {
               ? {
                   x: w - 3,
                   y: h - 3,
-                  width: Math.max(800, pageRect?.width ?? w),
-                  height: Math.max(600, pageRect?.height ?? h)
+                  ...parkedSize(
+                    Math.max(800, pageRect?.width ?? w),
+                    Math.max(600, pageRect?.height ?? h),
+                    sharedLive ? this.liveAspect.get(id) : undefined
+                  )
                 }
               : placed && this.overlay && !liveFull
                 ? { ...placed, x: PARKED_X }
@@ -3676,43 +3699,46 @@ export class TabManager {
         this.send('ui:find-result', { active: r.activeMatchOrdinal, matches: r.matches })
       }
     })
+    wc.on('cursor-changed', (_e, type) => this.cursorOf.set(wc, type))
     wc.on('context-menu', (_e, params) =>
-      showContextMenu(this.win, wc, params, {
-        openTab: (u) =>
-          tab.tor
-            ? this.create(u, true, this.activeSpaceId, undefined, true, true)
-            : tab.private
-              ? this.newPrivateTab(u)
-              : this.create(u),
-        openPrivate: (u) => this.newPrivateTab(u),
-        onBoard: this.canvasMode,
-        openSplit: (u) => {
-          // on the board: beside the page in the preview (it then shows the two side by side), not the tab view's
-          const base = this.canvasMode ? id : this.activeId
-          const nid = this.create(u, false)
-          if (base !== null) {
-            this.activate(base)
-            this.splitWith(nid)
-          }
-        },
-        pip: () => this.togglePip(),
-        print: () => this.printPage(),
-        // chat never reads a private or Tor tab, so there is nothing to ask about there
-        // AI turned off: no "Ask AI" in the page's menu (it would open a conversation that cannot answer)
-        askAi:
-          tab.private || tab.tor || !this.deps.settings.get().ai.enabled
-            ? null
-            : (text) => this.askAi(text),
-        explain:
-          tab.private ||
-          tab.tor ||
-          !this.deps.settings.get().ai.enabled ||
-          !this.deps.settings.get().ai.selectionAsk
-            ? null
-            : () => this.onAskSelection?.(),
-        circle: () => this.onCircle?.(),
-        searchUrl: (t) => this.deps.settings.searchUrl() + encodeURIComponent(t)
-      })
+      [...this.liveRightAt].some(([, at]) => Date.now() - at < 600)
+        ? undefined // the driver's right click: no native menu on the host's screen, where they cannot see it
+        : showContextMenu(this.win, wc, params, {
+            openTab: (u) =>
+              tab.tor
+                ? this.create(u, true, this.activeSpaceId, undefined, true, true)
+                : tab.private
+                  ? this.newPrivateTab(u)
+                  : this.create(u),
+            openPrivate: (u) => this.newPrivateTab(u),
+            onBoard: this.canvasMode,
+            openSplit: (u) => {
+              // on the board: beside the page in the preview (it then shows the two side by side), not the tab view's
+              const base = this.canvasMode ? id : this.activeId
+              const nid = this.create(u, false)
+              if (base !== null) {
+                this.activate(base)
+                this.splitWith(nid)
+              }
+            },
+            pip: () => this.togglePip(),
+            print: () => this.printPage(),
+            // chat never reads a private or Tor tab, so there is nothing to ask about there
+            // AI turned off: no "Ask AI" in the page's menu (it would open a conversation that cannot answer)
+            askAi:
+              tab.private || tab.tor || !this.deps.settings.get().ai.enabled
+                ? null
+                : (text) => this.askAi(text),
+            explain:
+              tab.private ||
+              tab.tor ||
+              !this.deps.settings.get().ai.enabled ||
+              !this.deps.settings.get().ai.selectionAsk
+                ? null
+                : () => this.onAskSelection?.(),
+            circle: () => this.onCircle?.(),
+            searchUrl: (t) => this.deps.settings.searchUrl() + encodeURIComponent(t)
+          })
     )
     wc.on('enter-html-full-screen', () => this.setFullscreen(id))
     wc.on('leave-html-full-screen', () => this.setFullscreen(null))
@@ -4211,6 +4237,10 @@ export class TabManager {
     } else {
       this.liveShared.delete(id)
       this.liveInputs.delete(id)
+      this.liveButtons.delete(id)
+      this.liveRightAt.delete(id)
+      this.liveAspect.delete(id)
+      this.livePw.delete(id)
     }
     const wc = t && liveContents(t)
     if (wc && !wc.isDestroyed())
@@ -4250,7 +4280,22 @@ export class TabManager {
    * Someone the person let take control of a tab shown live (main/share.ts) moved, clicked, scrolled or typed: done to
    * the page as if here. Positions come as fractions of the page, so the two need not be the same size.
    */
+  setLiveAspect(id: number, aspect: number): void {
+    if (!this.liveShared.has(id) || Math.abs((this.liveAspect.get(id) ?? 0) - aspect) < 0.02) return
+    this.liveAspect.set(id, aspect)
+    this.applyVisibility()
+  }
+
+  /** The live tab's page cursor (CSS name, as Chromium says it), for whoever drives it. */
+  liveCursor(id: number): string {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    return (wc && !wc.isDestroyed() && this.cursorOf.get(wc)) || 'default'
+  }
+
   remoteInput(id: number, ev: RemoteInput): void {
+    // the pointer at once (a click, a drag, a scroll must not wait behind keys); keys in order, after their check
+    if (ev.t !== 'key' && ev.t !== 'char') return void this.applyRemoteInput(id, ev)
     const next = (this.liveInputs.get(id) ?? Promise.resolve()).then(() =>
       this.applyRemoteInput(id, ev)
     )
@@ -4277,29 +4322,51 @@ export class TabManager {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
     if (!t || !wc || wc.isDestroyed()) return
-    if ((ev.t === 'key' || ev.t === 'char') && (await this.passwordFocused(wc))) return
+    if (ev.t === 'key' || ev.t === 'char') {
+      const pw = this.livePw.get(id)
+      let yes = pw?.yes ?? false
+      if (!pw || Date.now() - pw.at > PW_CHECK_MS) {
+        yes = await this.passwordFocused(wc)
+        this.livePw.set(id, { at: Date.now(), yes })
+      }
+      if (yes) return
+    }
     if (wc.isDestroyed() || !this.liveShared.has(id)) return
     const { width, height } = t.view.getBounds()
     const at = (v: number, size: number): number => Math.round(Math.min(1, Math.max(0, v)) * size)
+    let held = this.liveButtons.get(id)
+    if (!held) this.liveButtons.set(id, (held = new Set()))
     switch (ev.t) {
       case 'move':
       case 'down':
-      case 'up':
+      case 'up': {
+        const b = ev.b ?? 'left'
+        if (ev.t === 'down') {
+          held.add(b)
+          this.livePw.delete(id) // a click may move the focus: the next key asks again
+          if (b === 'right') this.liveRightAt.set(id, Date.now())
+        }
+        if (ev.t === 'up') held.delete(b)
         wc.sendInputEvent({
           type: ev.t === 'move' ? 'mouseMove' : ev.t === 'down' ? 'mouseDown' : 'mouseUp',
           x: at(ev.x, width),
           y: at(ev.y, height),
-          button: ev.b ?? 'left',
-          clickCount: ev.n ?? 1
+          // a move with a button held is a drag (selecting text, a slider, a scrollbar)
+          button: ev.t === 'move' ? ([...held][0] ?? 'left') : b,
+          clickCount: ev.n ?? 1,
+          modifiers: [...held].map((h) => `${h}buttondown` as const)
         })
         break
+      }
       case 'wheel':
         wc.sendInputEvent({
           type: 'mouseWheel',
           x: at(ev.x, width),
           y: at(ev.y, height),
           deltaX: -ev.dx,
-          deltaY: -ev.dy
+          deltaY: -ev.dy,
+          canScroll: true,
+          hasPreciseScrollingDeltas: true
         })
         break
       case 'key':

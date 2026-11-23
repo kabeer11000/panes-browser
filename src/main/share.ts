@@ -110,6 +110,10 @@ export interface ShareDeps {
   remoteInput: (tabId: number, ev: RemoteInput) => void
   /** Where the pointer is over that tab on screen (fractions of its page), or null. */
   pointerIn: (tabId: number) => { x: number; y: number } | null
+  /** That tab's page cursor (CSS name). */
+  cursorIn: (tabId: number) => string
+  /** The shape the watchers see that tab in (width / height). */
+  setLiveAspect: (tabId: number, aspect: number) => void
   /** Bring the window up on a space's board (a chat notification was clicked). */
   openBoard: (spaceId: number) => void
 }
@@ -652,6 +656,12 @@ export class ShareService {
     if (room) sayIn(room.doc, this.me, text, LOCAL)
   }
 
+  /** The live tab's page cursor, for the driver (null when nothing is shown live). */
+  pageCursor(spaceId: number): string | null {
+    const room = this.rooms.get(spaceId)
+    return room?.liveTab !== undefined ? this.d.cursorIn(room.liveTab) : null
+  }
+
   /** Where the host's pointer is over their live tab in this space, for the watchers (null: not over it). */
   pointer(spaceId: number): { x: number; y: number } | null {
     const room = this.rooms.get(spaceId)
@@ -700,6 +710,14 @@ export function registerShare(d: ShareDeps): ShareService {
   ipcMain.handle('share:live-tab', (e, id: unknown) => (mine(e) ? svc.liveTabOf(num(id)) : null))
   ipcMain.handle('share:ice', (e, id: unknown) => (mine(e) ? svc.iceServers(num(id)) : null))
   ipcMain.handle('share:pointer', (e, id: unknown) => (mine(e) ? svc.pointer(num(id)) : null))
+  ipcMain.on('share:live-aspect', (e, id: unknown, aspect: unknown) => {
+    if (!mine(e) || typeof aspect !== 'number' || !(aspect > 0.3 && aspect < 4)) return
+    const tab = svc.liveTabOf(num(id))
+    if (tab !== null) d.setLiveAspect(tab, aspect)
+  })
+  ipcMain.handle('share:page-cursor', (e, id: unknown) =>
+    mine(e) ? svc.pageCursor(num(id)) : null
+  )
   ipcMain.handle('share:chat', (e, id: unknown) => (mine(e) ? svc.chat(num(id)) : null))
   ipcMain.on('share:say', (e, id: unknown, text: unknown) => {
     if (mine(e) && typeof text === 'string') svc.say(num(id), text)

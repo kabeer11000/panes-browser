@@ -47,6 +47,8 @@ export function useLiveHost(
   const [driverId, setDriverId] = useState<number | null>(null)
   const driverRef = useRef<number | null>(null)
   const earRef = useRef<HTMLAudioElement | null>(null)
+  /** The tab takes the new driver's shape (set by the call effect, which knows the sizes). */
+  const shapeRef = useRef<() => void>(() => undefined)
   const mutedRef = useRef(muted)
 
   useEffect(() => {
@@ -115,11 +117,15 @@ export function useLiveHost(
       .then((s) => s ?? ICE_SERVERS)
     const send = (to: number, sig: LiveSignal): void =>
       window.api.share!.signal(spaceId, to, JSON.stringify(sig))
-    const drop = (from: number): void => {
+    /**
+     * A watcher's call ends. `keep`: they only closed the picture or are calling again, so leave to drive stays
+     * theirs (it goes when the host takes it back, or they leave the space): reopening it used to lose control.
+     */
+    const drop = (from: number, keep = false): void => {
       waiting.delete(from)
       peers.current.get(from)?.pc.close()
       peers.current.delete(from)
-      if (driverRef.current === from) {
+      if (!keep && driverRef.current === from) {
         driverRef.current = null
         setDriverId(null)
       }
@@ -140,8 +146,22 @@ export function useLiveHost(
       p.encodings[0].scaleResolutionDownBy = scale
       void peer.video.setParameters(p).catch(() => undefined)
     }
+    /** Each watcher's picture size; the driver's shape (else the last told) is the one the tab takes out of sight. */
+    const sizes = new Map<number, { w: number; h: number }>()
+    const shape = (from: number): void => {
+      const s = sizes.get(driverRef.current ?? from)
+      if (s && s.w > 0 && s.h > 0) window.api.share?.liveAspect?.(spaceId, s.w / s.h)
+    }
+    shapeRef.current = (): void => {
+      if (driverRef.current !== null) shape(driverRef.current)
+    }
     const onCtl = (from: number, msg: LiveControl): void => {
-      if (msg.k === 'size') fit(from, msg.w, msg.h)
+      if (msg.k === 'size') {
+        if (typeof msg.w === 'number' && typeof msg.h === 'number')
+          sizes.set(from, { w: msg.w, h: msg.h })
+        fit(from, msg.w, msg.h)
+        shape(from)
+      }
       else if (msg.k === 'ask') setAskingId(from)
       else if (msg.k === 'release' && driverRef.current === from) {
         driverRef.current = null
@@ -161,7 +181,18 @@ export function useLiveHost(
     }
     // the host's own pointer over the page, about 30 times a second while anyone watches (tab capture draws none)
     let lastPtr = ''
+    let lastCur = ''
     const pointer = window.setInterval(() => {
+      // the page's cursor to the driver as it changes (a hand on a link, a bar on text)
+      const driver = driverRef.current
+      if (driver !== null && window.api.share?.pageCursor)
+        void window.api.share.pageCursor(spaceId).then((c) => {
+          if (dead || !c || c === lastCur) return
+          const ch = peers.current.get(driver)?.ctl
+          if (ch?.readyState !== 'open') return
+          lastCur = c
+          ch.send(JSON.stringify({ k: 'cur', c }))
+        })
       if (peers.current.size === 0 || !window.api.share?.pointer) return
       void window.api.share.pointer(spaceId).then((at) => {
         const key = at ? `${at.x.toFixed(4)},${at.y.toFixed(4)}` : ''
@@ -172,7 +203,7 @@ export function useLiveHost(
     }, 33)
     /** A call to one watcher, carrying the tab's picture and the two control channels. */
     const offer = async (from: number, s: MediaStream): Promise<void> => {
-      drop(from)
+      drop(from, true)
       const pc = new RTCPeerConnection({ iceServers: await ice })
       const peer: Peer = { pc, ctl: null, mv: null, video: null, scale: 1 }
       peers.current.set(from, peer)
@@ -180,12 +211,25 @@ export function useLiveHost(
       for (const track of s.getTracks()) {
         const sender = pc.addTrack(track, s)
         if (track.kind === 'video') peer.video = sender
-        // smooth, not sharp: frames keep coming when the network is tight
+        // smooth, not sharp: frames keep coming when the network is tight. WebRTC's congestion control adapts the
+        // rate under these ceilings (and `fit` the size): plenty on a good line, less as it tightens.
         const p = sender.getParameters()
         p.degradationPreference = 'maintain-framerate'
+        if (track.kind === 'video' && p.encodings?.[0]) {
+          p.encodings[0].maxBitrate = 8_000_000
+          p.encodings[0].maxFramerate = 60
+          p.encodings[0].priority = 'high'
+          p.encodings[0].networkPriority = 'high'
+        }
         void sender.setParameters(p).catch(() => undefined)
       }
       peer.ctl = pc.createDataChannel('ctl', { ordered: true })
+      // the driver calling again (they closed the picture and opened it): still theirs to drive
+      peer.ctl.onopen = () => {
+        if (driverRef.current !== from) return
+        peer.ctl?.send(JSON.stringify({ k: 'granted' }))
+        lastCur = '' // and the cursor again
+      }
       peer.mv = pc.createDataChannel('mv', { ordered: false, maxRetransmits: 0 })
       for (const ch of [peer.ctl, peer.mv])
         ch.onmessage = (e) => {
@@ -231,7 +275,7 @@ export function useLiveHost(
           .get(from)
           ?.pc.addIceCandidate(sig.c)
           .catch(() => undefined)
-      } else if (sig.k === 'bye') drop(from)
+      } else if (sig.k === 'bye') drop(from, true)
     })
     const all = peers.current
     return () => {
@@ -255,6 +299,13 @@ export function useLiveHost(
       if (stream) stream.getTracks().forEach((t) => t.stop())
     }
   }, [spaceId, tabId])
+  // the driver left the space (not just their picture): leave to drive ends
+  const driverHere = driverId === null || people.some((p) => p.rtc === driverId)
+  useEffect(() => {
+    if (driverHere) return
+    driverRef.current = null
+    setDriverId(null)
+  }, [driverHere])
   useEffect(() => {
     mutedRef.current = muted
     if (earRef.current) earRef.current.muted = muted
@@ -277,6 +328,7 @@ export function useLiveHost(
       setDriverId(askingId)
       say(askingId, { k: 'granted' })
       setAskingId(null)
+      shapeRef.current()
     },
     deny: () => {
       if (askingId !== null) say(askingId, { k: 'denied' })
