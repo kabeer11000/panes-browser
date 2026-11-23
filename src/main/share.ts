@@ -95,6 +95,8 @@ export interface ShareDeps {
   setLiveShared: (tabId: number, on: boolean) => boolean
   liveInfo: (tabId: number) => { url: string; title: string } | null
   remoteInput: (tabId: number, ev: RemoteInput) => void
+  /** Where the pointer is over that tab on screen (fractions of its page), or null. */
+  pointerIn: (tabId: number) => { x: number; y: number } | null
 }
 
 export class ShareService {
@@ -588,6 +590,12 @@ export class ShareService {
     if (room?.liveTab !== undefined) this.d.remoteInput(room.liveTab, ev)
   }
 
+  /** Where the host's pointer is over their live tab in this space, for the watchers (null: not over it). */
+  pointer(spaceId: number): { x: number; y: number } | null {
+    const room = this.rooms.get(spaceId)
+    return room?.liveTab !== undefined ? this.d.pointerIn(room.liveTab) : null
+  }
+
   /** Where this person's pointer is on the board (board coordinates), or null when it left. */
   cursor(spaceId: number, at: { x: number; y: number } | null): void {
     this.rooms.get(spaceId)?.client.awareness.setLocalStateField('cursor', at)
@@ -629,6 +637,7 @@ export function registerShare(d: ShareDeps): ShareService {
   )
   ipcMain.handle('share:live-tab', (e, id: unknown) => (mine(e) ? svc.liveTabOf(num(id)) : null))
   ipcMain.handle('share:ice', (e, id: unknown) => (mine(e) ? svc.iceServers(num(id)) : null))
+  ipcMain.handle('share:pointer', (e, id: unknown) => (mine(e) ? svc.pointer(num(id)) : null))
   ipcMain.on('share:signal', (e, id: unknown, to: unknown, data: unknown) => {
     if (mine(e) && typeof data === 'string') svc.signal(num(id), num(to), data)
   })

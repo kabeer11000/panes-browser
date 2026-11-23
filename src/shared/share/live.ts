@@ -33,6 +33,11 @@ export type LiveControl =
   | { k: 'input'; e: RemoteInput }
   /** The watcher's picture size in device pixels: the host sends them no bigger (see `downscaleFor`). */
   | { k: 'size'; w: number; h: number }
+  /**
+   * Someone's pointer over the live page, host to watchers (tab capture draws none): `who` 0 is the host, else the
+   * driver's relay address; x null when it left the page.
+   */
+  | { k: 'ptr'; who: number; x: number | null; y: number }
 
 const num = (v: unknown, lo: number, hi: number): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null
@@ -98,7 +103,7 @@ export function videoBox(
   return { x: (el.width - width) / 2, y: (el.height - height) / 2, width, height }
 }
 
-/** STUN for finding a direct path; TURN (relaying when none is found) is phase 7's next step. */
+/** STUN for finding a direct path: what a live tab uses when its relay cannot hand out its own (with TURN). */
 export const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'stun:stun.l.google.com:19302' }
@@ -113,4 +118,23 @@ export function downscaleFor(src: { w: number; h: number }, box: { w: number; h:
   if (!(src.w > 0 && src.h > 0 && box.w > 0 && box.h > 0)) return 1
   const s = Math.max(src.w / box.w, src.h / box.h)
   return s <= 1.1 ? 1 : Math.min(8, Math.round(s * 4) / 4)
+}
+
+type Rect = { x: number; y: number; width: number; height: number }
+/**
+ * The pointer over a tab's view, as fractions of its page: `cursor` in screen points, `content` the window's content
+ * area on screen, `view` the tab's view inside it, `size` the content area's size. Null when the pointer is not over
+ * the view, or the view is parked out of sight (painting in the window's corner for watchers, see main/tabs.ts).
+ */
+export function pointerOver(
+  cursor: { x: number; y: number },
+  content: { x: number; y: number },
+  view: Rect,
+  size: { w: number; h: number }
+): { x: number; y: number } | null {
+  if (view.width < 50 || view.height < 50) return null
+  if (view.x + view.width / 2 > size.w || view.y + view.height / 2 > size.h) return null
+  const x = (cursor.x - content.x - view.x) / view.width
+  const y = (cursor.y - content.y - view.y) / view.height
+  return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null
 }

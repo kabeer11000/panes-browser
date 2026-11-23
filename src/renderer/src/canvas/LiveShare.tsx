@@ -16,18 +16,96 @@ import { parse, useHostView } from '@renderer/liveHost'
  * there), and one watcher at a time may drive it when the host lets them.
  */
 
+type Ptr = Extract<LiveControl, { k: 'ptr' }>
+
+/**
+ * The host's and the driver's pointers over the live picture (tab capture draws no cursor): named arrows, placed by
+ * the picture's box inside the video. Its own state, so only it redraws at the pointers' rate.
+ */
+function LivePointers({
+  sinkRef,
+  video,
+  host,
+  people
+}: {
+  sinkRef: React.RefObject<(m: Ptr) => void>
+  video: React.RefObject<HTMLVideoElement | null>
+  host: SharePerson
+  people: SharePerson[]
+}): React.JSX.Element {
+  const [at, setAt] = useState<Record<number, { x: number; y: number; t: number }>>({})
+  useEffect(() => {
+    sinkRef.current = (m) =>
+      setAt((cur) => {
+        const next = { ...cur }
+        if (m.x === null) delete next[m.who]
+        else next[m.who] = { x: m.x, y: m.y, t: Date.now() }
+        return next
+      })
+    // a driver's pointer that stopped coming (they let go, or left the picture) goes after a while; the host's stays
+    // until it leaves the page (it is sent only as it moves)
+    const sweep = window.setInterval(
+      () =>
+        setAt((cur) => {
+          const now = Date.now()
+          const keep = Object.entries(cur).filter(([who, p]) => who === '0' || now - p.t < 5000)
+          return keep.length === Object.keys(cur).length ? cur : Object.fromEntries(keep)
+        }),
+      1000
+    )
+    return () => {
+      window.clearInterval(sweep)
+      sinkRef.current = () => undefined
+    }
+  }, [sinkRef])
+  const v = video.current
+  if (!v || !v.videoWidth) return <></>
+  const box = videoBox(
+    { width: v.clientWidth, height: v.clientHeight },
+    { width: v.videoWidth, height: v.videoHeight }
+  )
+  return (
+    <>
+      {Object.entries(at).map(([who, p]) => {
+        const person = who === '0' ? host : people.find((q) => q.rtc === Number(who))
+        return (
+          <div
+            key={who}
+            className="live-ptr"
+            style={
+              {
+                transform: `translate(${v.offsetLeft + box.x + p.x * box.width}px, ${v.offsetTop + box.y + p.y * box.height}px)`,
+                '--pc': person?.color ?? '#888'
+              } as React.CSSProperties
+            }
+            aria-hidden="true"
+          >
+            <svg width="16" height="18" viewBox="0 0 16 18">
+              <path d="M1 1l13 7.5-6 1.2L5.2 16z" />
+            </svg>
+            <span>{person?.name ?? 'Someone'}</span>
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
 /** A watcher's side: the host's tab, live, and driving it once let. */
 function LiveViewer({
   spaceId,
   host,
+  people,
   myName,
   onClose
 }: {
   spaceId: number
   host: SharePerson
+  people: SharePerson[]
   myName: string
   onClose: () => void
 }): React.JSX.Element {
+  const ptrSink = useRef<(m: Ptr) => void>(() => undefined)
   const video = useRef<HTMLVideoElement>(null)
   const ctl = useRef<RTCDataChannel | null>(null)
   const mv = useRef<RTCDataChannel | null>(null)
@@ -88,11 +166,18 @@ function LiveViewer({
         ch.onopen = () => sendSize.current()
         ch.onmessage = (m) => {
           const msg = parse<LiveControl>(String(m.data))
-          if (msg?.k === 'granted') setControl('yes')
+          if (msg?.k === 'ptr') ptrSink.current(msg)
+          else if (msg?.k === 'granted') setControl('yes')
           else if (msg?.k === 'denied') setControl('no')
           else if (msg?.k === 'revoked') setControl('none')
         }
-      } else if (ch.label === 'mv') mv.current = ch
+      } else if (ch.label === 'mv') {
+        mv.current = ch
+        ch.onmessage = (m) => {
+          const msg = parse<LiveControl>(String(m.data))
+          if (msg?.k === 'ptr') ptrSink.current(msg)
+        }
+      }
     }
     pc.onicecandidate = (e) => e.candidate && send({ k: 'ice', c: e.candidate.toJSON() as never })
     pc.onconnectionstatechange = () => {
@@ -250,6 +335,9 @@ function LiveViewer({
         }}
       >
         <video ref={video} muted={!sound} playsInline />
+        {state === 'live' && (
+          <LivePointers sinkRef={ptrSink} video={video} host={host} people={people} />
+        )}
         {state !== 'live' && (
           <p className="live-wait">
             {state === 'gone' ? `${host.name} stopped showing it.` : 'Connecting to their tab…'}
@@ -348,6 +436,7 @@ export function LiveShare({
           key={watched.id}
           spaceId={spaceId}
           host={watched}
+          people={people}
           myName={myName}
           onClose={() => setWatchingId(null)}
         />

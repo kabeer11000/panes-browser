@@ -124,11 +124,12 @@ People without Panes join from any browser in a light web version that is also P
 - [x] 7e. Capture restarts: DONE a tab whose capture was refused (file: pages are) is captured again on the next
       hello, and watchers who asked meanwhile are offered to every 2 s once it works (they said hello once and sat on
       "Connecting"). Two Panes over the relay: B waited on a file: page, went live 1.0 s after the tab went to http.
-- [~] 7f. Smoothness: measured on two Panes on one machine (one clock; a page flipping black/white, the viewer's video
+- [x] 7f. Smoothness: measured on two Panes on one machine (one clock; a page flipping black/white, the viewer's video
       sampled per frame): glass-to-glass median 40 ms, p90 53 ms. A moving page reached 54 fps (was 30: capture capped
       at 30, now 60). Each watcher tells the host its picture size and gets no bigger (a 1233x622 panel at 1.25x got
-      1280x720, not 1920x1080). OPEN: pointers. Tab capture draws no cursor, so watchers see neither the host's nor the
-      driver's pointer: send them over the data channel and draw them with names (the driver's own drawn locally).
+      1280x720, not 1920x1080). Pointers: tab capture draws none, so the host sends its own (over the page, window
+      focused, ~30/s while anyone watches) and relays the driver's to the other watchers, drawn as named arrows. Three
+      Panes on the relay: C saw B's pointer at exactly where B moved it (0.30, 0.60); B sees none of its own.
 - [ ] 7g. Watch from the web board (people without Panes).
 - [ ] 8. Chat (Panes + web).
 - [ ] 9. Room expiry, limits, abuse.

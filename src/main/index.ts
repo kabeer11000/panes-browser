@@ -303,7 +303,8 @@ function createWindow(): void {
     thumbAt: (id) => tabs.thumbAt(id),
     setLiveShared: (id, on) => tabs.setLiveShared(id, on),
     liveInfo: (id) => tabs.liveInfo(id),
-    remoteInput: (id, ev) => tabs.remoteInput(id, ev)
+    remoteInput: (id, ev) => tabs.remoteInput(id, ev),
+    pointerIn: (id) => tabs.pointerIn(id)
   })
   canvas.onSave = (spaceId, state) => share.onLocalSave(spaceId, state)
   // an invite link, however it is opened (typed, clicked, from another app): the space is joined and shown

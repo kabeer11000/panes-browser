@@ -7,6 +7,7 @@ import {
   Notification,
   nativeTheme,
   powerMonitor,
+  screen,
   shell,
   webFrameMain,
   WebContentsView,
@@ -64,7 +65,7 @@ import {
 } from '@shared/attention'
 import { NOTIFY_PREFIX, parseNotify } from '@shared/notify'
 import type { WorkerNote } from '@shared/swNotify'
-import { electronKey, type RemoteInput } from '@shared/share/live'
+import { electronKey, pointerOver, type RemoteInput } from '@shared/share/live'
 import { ESC_SCRIPT, isPreviewEsc } from '@shared/previewEsc'
 import { TaskbarAttention } from './attention'
 import { dumpableTabs, type TabDump } from '@shared/dumps'
@@ -4152,6 +4153,25 @@ export class TabManager {
       wc.setBackgroundThrottling(!on && id !== this.activeId && !this.streaming.has(id))
     this.applyVisibility()
     return true
+  }
+
+  /**
+   * Where the person's pointer is over a tab shown live, as fractions of its page; null when it is not over the page
+   * on screen (tab capture draws no cursor, so the host's window sends it to the watchers itself).
+   */
+  pointerIn(id: number): { x: number; y: number } | null {
+    const t = this.tabs.get(id)
+    if (!t || this.win.isDestroyed() || !this.win.isFocused() || !t.view.getVisible()) return null
+    const [w, h] = this.win.getContentSize()
+    return pointerOver(
+      screen.getCursorScreenPoint(),
+      this.win.getContentBounds(),
+      t.view.getBounds(),
+      {
+        w,
+        h
+      }
+    )
   }
 
   /** The tab's address and title, for those it is shown to. */

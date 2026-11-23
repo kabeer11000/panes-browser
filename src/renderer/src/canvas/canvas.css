@@ -5047,6 +5047,44 @@
   background: color-mix(in srgb, var(--fg) 9%, transparent);
   color: var(--fg);
 }
+/* the host's and the driver's pointers over the live picture (LiveShare.tsx: tab capture draws no cursor) */
+.live-ptr {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  pointer-events: none;
+  transition: transform 60ms linear;
+  will-change: transform;
+}
+.live-ptr svg {
+  flex: none;
+  margin: -1px 0 0 -1px;
+  fill: var(--pc);
+  stroke: #fff;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35));
+}
+.live-ptr span {
+  margin-top: 12px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--pc);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-ptr {
+    transition: none;
+  }
+}
 .live-stage {
   position: relative;
   flex: 1;

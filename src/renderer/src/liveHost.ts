@@ -146,9 +146,30 @@ export function useLiveHost(
       else if (msg.k === 'release' && driverRef.current === from) {
         driverRef.current = null
         setDriverId(null)
-      } else if (msg.k === 'input' && driverRef.current === from)
+      } else if (msg.k === 'input' && driverRef.current === from) {
         window.api.share!.input(spaceId, msg.e)
+        // the driver's pointer to everyone else watching (the driver sees their own)
+        const e = msg.e
+        if (e.t === 'move' || e.t === 'down') pointTo({ k: 'ptr', who: from, x: e.x, y: e.y }, from)
+      }
     }
+    /** A pointer to every watcher but one, on the fast channel (a late one is dropped, not queued). */
+    const pointTo = (msg: LiveControl, except?: number): void => {
+      const data = JSON.stringify(msg)
+      for (const [to, p] of peers.current)
+        if (to !== except && p.mv?.readyState === 'open') p.mv.send(data)
+    }
+    // the host's own pointer over the page, about 30 times a second while anyone watches (tab capture draws none)
+    let lastPtr = ''
+    const pointer = window.setInterval(() => {
+      if (peers.current.size === 0 || !window.api.share?.pointer) return
+      void window.api.share.pointer(spaceId).then((at) => {
+        const key = at ? `${at.x.toFixed(4)},${at.y.toFixed(4)}` : ''
+        if (dead || key === lastPtr) return
+        lastPtr = key
+        pointTo({ k: 'ptr', who: 0, x: at ? at.x : null, y: at ? at.y : 0 })
+      })
+    }, 33)
     /** A call to one watcher, carrying the tab's picture and the two control channels. */
     const offer = async (from: number, s: MediaStream): Promise<void> => {
       drop(from)
@@ -217,6 +238,7 @@ export function useLiveHost(
       dead = true
       off()
       window.clearInterval(retry)
+      window.clearInterval(pointer)
       waiting.clear()
       for (const [to, p] of all) {
         send(to, { k: 'bye' })

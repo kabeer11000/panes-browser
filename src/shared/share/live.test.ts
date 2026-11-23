@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { downscaleFor, electronKey, parseRemoteInput, videoBox } from './live'
+import { downscaleFor, electronKey, parseRemoteInput, pointerOver, videoBox } from './live'
 
 describe('remote input from the person driving', () => {
   test('pointer events pass, clamped to the page', () => {
@@ -81,5 +81,25 @@ describe('a live picture no bigger than it is shown', () => {
     expect(downscaleFor({ w: 1920, h: 1080 }, { w: 640, h: 2000 })).toBe(3)
     expect(downscaleFor({ w: 1920, h: 1080 }, { w: 1100, h: 700 })).toBe(1.75)
     expect(downscaleFor({ w: 1920, h: 1080 }, { w: 20, h: 20 })).toBe(8)
+  })
+})
+
+describe("the host's pointer over the live page", () => {
+  const content = { x: 100, y: 50 }
+  const view = { x: 240, y: 40, width: 1000, height: 600 }
+  const size = { w: 1300, h: 700 }
+  test('as fractions of the page when over it', () => {
+    expect(pointerOver({ x: 100 + 240 + 500, y: 50 + 40 + 150 }, content, view, size)).toEqual({
+      x: 0.5,
+      y: 0.25
+    })
+  })
+  test('null off the page: over the sidebar, or past its edge', () => {
+    expect(pointerOver({ x: 120, y: 200 }, content, view, size)).toBeNull()
+    expect(pointerOver({ x: 100 + 240 + 1001, y: 200 }, content, view, size)).toBeNull()
+  })
+  test('null while the page is parked in the corner, painting for the watchers', () => {
+    const parked = { x: 1297, y: 697, width: 1000, height: 600 }
+    expect(pointerOver({ x: 100 + 1298, y: 50 + 698 }, content, parked, size)).toBeNull()
   })
 })
