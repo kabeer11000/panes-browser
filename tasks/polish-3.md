@@ -199,7 +199,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       to 62, its card gone).
 - [~] Clicking a Windows notification (WhatsApp-style page) opens that tab: wired (frame preload's click report and
       the worker toasts call showFromNotification); a click on a real toast not tested here (needs the screen).
-- [ ] Hover states on the strip's tabs, tab switchers, preview header buttons; header height 34 px.
+- [x] Hover states on the strip's tabs, tab switchers, preview header buttons; header height 34 px. (In place: the
+      header is 34 px; :hover on .cv-hbtn, .cv-recent buttons, the playing chip and the bell. Checked 2026-11-23.)
 - [x] Zoom / pinch / pan on the board: re-measure with scripts/perf-canvas.ts after the recent UI changes.
       2026-11-23, built app: pan/zoom/drag p95 16.8 ms even at CPU x4.
 
@@ -243,7 +244,7 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       the build deterministic, re-measure delta size and release time. Also why each Mac layer takes ~3 min.
       Found 2026-11-23: the build is deterministic enough (beta.143 to .144: 46 files, 3.3 MB changed); the delta was
       not. zstd at level 19 kept match tables too small to find a 130 MB dictionary again. hashLog 26 + chainLog 27:
-      17.6 MB to 32 KB, same decoder. Live in beta.147's Mac layers (17-32 KB); Windows from the next release.
+      17.6 MB to 32 KB, same decoder. Live in beta.147's Mac layers (17-32 KB) and beta.148's Windows ones (19-34 KB).
 - [~] First open / load time (user 21:15: "needs to be nearly instant"): measure packaged cold and warm start (startup-trace), find the next big cost.
       Measured 2026-11-23 (beta.142 build, fresh profile, PANES_TRACE_STARTUP): page loaded at 639 ms cold, 420-486 ms
       warm. Lock at ~132 ms (Electron's own start), main setup ~110 ms, the interface page 200-270 ms (900 KB of JS
