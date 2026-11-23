@@ -434,7 +434,7 @@ export class ShareService {
   }
 
   private stateOf(room: Room): ShareState {
-    return { status: room.status, people: room.people, me: this.me }
+    return { status: room.status, people: room.people, me: this.me, liveTab: room.liveTab ?? null }
   }
 
   state(spaceId: number): ShareState | null {
@@ -544,11 +544,13 @@ export class ShareService {
     if (tabId === null) {
       room.liveTab = undefined
       room.client.awareness.setLocalStateField('live', null)
+      this.tell(room)
       return true
     }
     if (!this.d.setLiveShared(tabId, true)) return false
     room.liveTab = tabId
     this.liveAnnounce(room)
+    this.tell(room)
     return true
   }
 

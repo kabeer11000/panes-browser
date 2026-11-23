@@ -50,6 +50,7 @@ import { promptBox } from '@shared/anchor'
 import { chromeVars } from '@shared/color'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 import { Recover } from './Recover'
+import { LiveHosts } from './LiveHosts'
 import { narrowStep } from '@shared/narrow'
 
 type Mode = 'grid' | 'stack' | 'search' | 'canvas' | null
@@ -916,6 +917,8 @@ function App(): React.JSX.Element {
       }
       style={{ '--sidebar-w': pushed ? 'var(--sidebar-full)' : '0px' } as React.CSSProperties}
     >
+      {/* tabs shown live in shared spaces keep going away from the board (LiveHosts.tsx) */}
+      <LiveHosts spaces={spaces} tabs={tabs} />
       <aside className="sidebar" inert={!showSidebar}>
         {!board && (
           <Sidebar

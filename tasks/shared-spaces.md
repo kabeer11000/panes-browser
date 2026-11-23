@@ -111,9 +111,12 @@ People without Panes join from any browser in a light web version that is also P
       peak 0.05 -> 0), so the host plays the captured track back once (0.05 again, no doubling), quiet while the tab is
       muted; watchers hear it with a Sound on/off toggle. Checked on two Panes over the relay: B received 0.05.
 - [ ] 7c. TURN (Cloudflare, decided) for networks where no direct path is found; today STUN only.
-- [~] 7d. Guard rails: DONE no typing into the host's password fields by the driver (keys and chars dropped while
-      any frame's focus is a password input; checked: none reached it, typing elsewhere kept order). OPEN: file pickers and downloads stay the
-      host's; a visible "Ana is driving" on the host's tab itself, not only in the board's bar.
+- [x] 7d. Guard rails: no typing into the host's password fields by the driver (keys and chars dropped while any
+      frame's focus is a password input). File pickers and downloads stay the host's by construction: they open as
+      native dialogs and the download shelf on the host's screen, outside the captured tab. The host side now lives in
+      the window (LiveHosts.tsx), not the board: a live tab keeps going while its host browses away from the board, and
+      the window's status chip says "Live · n watching", "Ana asks to drive [Let them] [No]", "Ana is driving [Take
+      back]". Checked on two Panes over the relay with A's board closed.
 - [x] 7e. Capture restarts: DONE a tab whose capture was refused (file: pages are) is captured again on the next
       hello, and watchers who asked meanwhile are offered to every 2 s once it works (they said hello once and sat on
       "Connecting"). Two Panes over the relay: B waited on a file: page, went live 1.0 s after the tab went to http.

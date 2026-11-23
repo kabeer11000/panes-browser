@@ -125,6 +125,8 @@ export interface ShareState {
   status: 'connecting' | 'syncing' | 'live' | 'offline' | 'refused'
   people: SharePerson[]
   me: { name: string; color: string }
+  /** The tab this person shows live in the space, if any (its host side runs in the window, LiveHosts.tsx). */
+  liveTab: number | null
 }
 
 /** A boost: how one site's pages are restyled in one space. Colour, type, hidden parts and your own CSS. */

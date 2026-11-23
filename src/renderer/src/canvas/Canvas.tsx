@@ -689,18 +689,9 @@ export function Canvas({
     sharedRef.current = !!thisSpace?.shared
   })
   const presence = usePresence(spaceId, !!thisSpace?.shared)
-  /** The tab this person shows live in this shared space (LiveShare), if any. */
-  const [liveTab, setLiveTab] = useState<number | null>(null)
-  useEffect(() => {
-    let alive = true
-    void window.api.share?.liveTab(spaceId).then((t) => alive && setLiveTab(t))
-    return () => {
-      alive = false
-    }
-  }, [spaceId])
-  const showLive = (tabId: number | null): void => {
-    void window.api.share?.showLive(spaceId, tabId).then((ok) => ok && setLiveTab(tabId))
-  }
+  /** The tab this person shows live in this shared space (LiveShare), if any: main pushes it with the share state. */
+  const liveTab = presence.liveTab
+  const showLive = (tabId: number | null): void => void window.api.share?.showLive(spaceId, tabId)
   const bootRef = useRef('')
   const tries = useRef(new Map<string, number>())
   const conn = useRef<ConnectorsHandle>(null)
@@ -5998,7 +5989,6 @@ export function Canvas({
             shared={!!thisSpace?.shared}
             people={presence.people}
             liveTab={liveTab}
-            liveMuted={!!tabs.find((t) => t.id === liveTab)?.muted}
             myName={presence.me?.name ?? 'Someone'}
             onStop={() => showLive(null)}
           />

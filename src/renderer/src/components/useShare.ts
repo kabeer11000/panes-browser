@@ -33,6 +33,8 @@ export function usePresence(
 ): {
   people: SharePerson[]
   me: { name: string; color: string } | null
+  /** The tab this person shows live in the space, if any (as main says: the board, the chips and menus agree). */
+  liveTab: number | null
   point: (at: { x: number; y: number } | null) => void
 } {
   const state = useShareState(spaceId, shared)
@@ -49,5 +51,10 @@ export function usePresence(
       pending.current = undefined
     })
   }
-  return { people: state?.people ?? NOBODY, me: state?.me ?? null, point }
+  return {
+    people: state?.people ?? NOBODY,
+    me: state?.me ?? null,
+    liveTab: state?.liveTab ?? null,
+    point
+  }
 }

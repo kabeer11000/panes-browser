@@ -4631,9 +4631,25 @@ kbd {
 .status-dot.busy {
   animation: capture-pulse 1.4s ease-in-out infinite;
 }
+/* a tab shown live in a shared space (LiveHosts.tsx): a red dot, the host's answers beside it */
+.status-dot.live {
+  background: #ff3b30;
+  animation: capture-pulse 1.8s ease-in-out infinite;
+}
+.status-chip.live button {
+  margin-right: 0;
+}
+.status-chip.live button:last-child {
+  margin-right: -4px;
+}
+.status-chip.live button:not(.primary) {
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  color: var(--fg);
+}
 @media (prefers-reduced-motion: reduce) {
   .status-chip,
-  .status-dot.busy {
+  .status-dot.busy,
+  .status-dot.live {
     animation: none;
   }
 }
