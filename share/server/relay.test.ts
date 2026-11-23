@@ -6,7 +6,7 @@ import { join } from 'path'
 import * as Y from 'yjs'
 import { ShareClient, type ShareStatus } from '../../src/shared/share/client'
 import { newRoom, roomKeys } from '../../src/shared/share/crypto'
-import { startRelay } from './relay'
+import { startRelay, STUN_SERVERS } from './relay'
 
 let relay: { stop: () => void; port: number }
 let dir: string
@@ -197,5 +197,110 @@ describe('relay + clients', () => {
     const denied = await fetch(`${url}/blob/${room.room}/${id}?token=${'A'.repeat(43)}`)
     expect(denied.status).toBe(403)
     a.c.destroy()
+  })
+})
+
+describe('ICE servers for shared browsing', () => {
+  test('room members get STUN when no TURN key is set; strangers and unknown rooms get nothing', async () => {
+    const room = newRoom()
+    const { token } = await roomKeys(room.room, room.secret)
+    const before = await fetch(`${url}/ice/${room.room}`, { headers: { 'x-token': token } })
+    expect(before.status).toBe(403) // the room does not exist yet, and asking does not make it
+    const a = join_(room)
+    await until(() => a.status() === 'live', 'a live')
+    const ok = await fetch(`${url}/ice/${room.room}`, { headers: { 'x-token': token } })
+    expect(ok.status).toBe(200)
+    expect(((await ok.json()) as { iceServers: unknown }).iceServers).toEqual(STUN_SERVERS)
+    const denied = await fetch(`${url}/ice/${room.room}?token=${'A'.repeat(43)}`)
+    expect(denied.status).toBe(403)
+    a.c.destroy()
+  })
+
+  test('with a TURN key: Cloudflare credentials, asked once and shared, port 53 left out, STUN if it fails', async () => {
+    const tdir = mkdtempSync(join(tmpdir(), 'panes-relay-turn-'))
+    let asked = 0
+    let fail = false
+    const seen: Array<{ url: string; auth: string | null; body: string }> = []
+    const fake = (async (u: string | URL | Request, init?: RequestInit) => {
+      asked++
+      seen.push({
+        url: String(u),
+        auth: new Headers(init?.headers).get('authorization'),
+        body: String(init?.body)
+      })
+      if (fail) return new Response('nope', { status: 500 })
+      return Response.json(
+        {
+          iceServers: [
+            { urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.cloudflare.com:53'] },
+            {
+              urls: [
+                'turn:turn.cloudflare.com:3478?transport=udp',
+                'turn:turn.cloudflare.com:53?transport=udp'
+              ],
+              username: 'u',
+              credential: 'c'
+            }
+          ]
+        },
+        { status: 201 }
+      )
+    }) as typeof fetch
+    const r = startRelay({
+      port: 0,
+      dataDir: tdir,
+      turn: { keyId: 'key1', token: 'tok' },
+      fetchTurn: fake
+    })
+    const base = `http://127.0.0.1:${r.port}`
+    const room = newRoom()
+    const { token } = await roomKeys(room.room, room.secret)
+    const doc = new Y.Doc()
+    let st: ShareStatus = 'connecting'
+    const c = new ShareClient({
+      relay: base,
+      room: room.room,
+      secret: room.secret,
+      doc,
+      onStatus: (x) => (st = x)
+    })
+    await until(() => st === 'live', 'live on the TURN relay')
+    const ice = async (): Promise<RTCIceServer[]> =>
+      (
+        (await (
+          await fetch(`${base}/ice/${room.room}`, { headers: { 'x-token': token } })
+        ).json()) as {
+          iceServers: RTCIceServer[]
+        }
+      ).iceServers
+    const [one, two] = await Promise.all([ice(), ice()])
+    expect(one).toEqual([
+      { urls: ['stun:stun.cloudflare.com:3478'] },
+      { urls: ['turn:turn.cloudflare.com:3478?transport=udp'], username: 'u', credential: 'c' }
+    ])
+    expect(two).toEqual(one)
+    expect(await ice()).toEqual(one)
+    expect(asked).toBe(1)
+    expect(seen[0].url).toBe(
+      'https://rtc.live.cloudflare.com/v1/turn/keys/key1/credentials/generate-ice-servers'
+    )
+    expect(seen[0].auth).toBe('Bearer tok')
+    expect(JSON.parse(seen[0].body)).toEqual({ ttl: 86400 })
+    c.destroy()
+    r.stop()
+    // a relay whose Cloudflare call fails still answers, with STUN
+    fail = true
+    const r2 = startRelay({
+      port: 0,
+      dataDir: tdir,
+      turn: { keyId: 'key1', token: 'tok' },
+      fetchTurn: fake
+    })
+    const got = await fetch(`http://127.0.0.1:${r2.port}/ice/${room.room}`, {
+      headers: { 'x-token': token }
+    })
+    expect(((await got.json()) as { iceServers: unknown }).iceServers).toEqual(STUN_SERVERS)
+    r2.stop()
+    rmSync(tdir, { recursive: true, force: true })
   })
 })

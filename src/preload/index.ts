@@ -131,6 +131,7 @@ const api: PanesApi = {
     clipboardInvite: () => ipcRenderer.invoke('share:clipboard'),
     showLive: (id, tab) => ipcRenderer.invoke('share:show-live', id, tab),
     liveTab: (id) => ipcRenderer.invoke('share:live-tab', id),
+    ice: (id) => ipcRenderer.invoke('share:ice', id),
     signal: (id, to, data) => ipcRenderer.send('share:signal', id, to, data),
     onSignal: (cb) => subscribe<[number, number, string]>('share:signal', cb),
     input: (id, event) => ipcRenderer.send('share:input', id, event),

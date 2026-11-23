@@ -110,7 +110,11 @@ People without Panes join from any browser in a light web version that is also P
 - [x] 7b. Sound: the tab's audio goes with the picture. Capture takes a tab's sound off the host's speakers (measured:
       peak 0.05 -> 0), so the host plays the captured track back once (0.05 again, no doubling), quiet while the tab is
       muted; watchers hear it with a Sound on/off toggle. Checked on two Panes over the relay: B received 0.05.
-- [ ] 7c. TURN (Cloudflare, decided) for networks where no direct path is found; today STUN only.
+- [~] 7c. TURN (Cloudflare): DONE in code. The relay's GET /ice/<room> (room members only, never makes a room) hands
+      out Cloudflare's short-lived credentials (one set shared, renewed every 6 h, port 53 dropped, STUN if Cloudflare
+      fails); Panes asks it for each live tab (host and watcher), STUN when the relay cannot say. Tested (relay tests).
+      OPEN (user): create a TURN key in Cloudflare (Realtime > TURN) and set TURN_KEY_ID and TURN_KEY_API_TOKEN on the
+      Render service.
 - [x] 7d. Guard rails: no typing into the host's password fields by the driver (keys and chars dropped while any
       frame's focus is a password input). File pickers and downloads stay the host's by construction: they open as
       native dialogs and the download shelf on the host's screen, outside the captured tab. The host side now lives in

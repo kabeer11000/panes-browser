@@ -554,6 +554,11 @@ export class ShareService {
     return true
   }
 
+  /** ICE servers for a live tab's calls in this space, from its relay (STUN, and TURN when the relay has a key). */
+  async iceServers(spaceId: number): Promise<RTCIceServer[] | null> {
+    return (await this.rooms.get(spaceId)?.client.iceServers()) ?? null
+  }
+
   liveTabOf(spaceId: number): number | null {
     return this.rooms.get(spaceId)?.liveTab ?? null
   }
@@ -623,6 +628,7 @@ export function registerShare(d: ShareDeps): ShareService {
     mine(e) ? svc.showLive(num(id), typeof tab === 'number' ? tab : null) : false
   )
   ipcMain.handle('share:live-tab', (e, id: unknown) => (mine(e) ? svc.liveTabOf(num(id)) : null))
+  ipcMain.handle('share:ice', (e, id: unknown) => (mine(e) ? svc.iceServers(num(id)) : null))
   ipcMain.on('share:signal', (e, id: unknown, to: unknown, data: unknown) => {
     if (mine(e) && typeof data === 'string') svc.signal(num(id), num(to), data)
   })

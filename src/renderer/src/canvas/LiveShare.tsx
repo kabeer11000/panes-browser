@@ -79,8 +79,23 @@ function LiveViewer({
       } else if (sig.k === 'ice') await pc.addIceCandidate(sig.c).catch(() => undefined)
       else if (sig.k === 'bye') setState('gone')
     })
-    send({ k: 'hello' })
+    // the relay's ICE servers (TURN when it has a key) before anything is gathered; hello once they are in
+    let dead = false
+    void window.api.share
+      .ice(spaceId)
+      .catch(() => null)
+      .then((servers) => {
+        if (dead) return
+        if (servers)
+          try {
+            pc.setConfiguration({ iceServers: servers })
+          } catch {
+            // the built-in STUN stays
+          }
+        send({ k: 'hello' })
+      })
     return () => {
+      dead = true
       off()
       send({ k: 'bye' })
       pc.close()

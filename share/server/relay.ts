@@ -6,7 +6,8 @@
  * A room is made by the first person to come with its token; after that the token must match (only its hash is
  * kept). Rooms nobody has opened for ROOM_DAYS are deleted.
  *
- * Run: bun share/server/relay.ts   (PORT, DATA_DIR, WEB_DIR from the environment)
+ * Run: bun share/server/relay.ts   (PORT, DATA_DIR, WEB_DIR, and TURN_KEY_ID + TURN_KEY_API_TOKEN for Cloudflare TURN,
+ * from the environment)
  */
 import { Database } from 'bun:sqlite'
 import { mkdirSync } from 'fs'
@@ -37,7 +38,23 @@ export interface RelayOptions {
   dataDir: string
   /** The built web board (share/web/dist): served at /s/<room>. */
   webDir?: string
+  /**
+   * A Cloudflare TURN key (Realtime > TURN): GET /ice/<room> hands its short-lived credentials to people in a room, for
+   * shared browsing where no direct path between two people is found. Without it, STUN only.
+   */
+  turn?: { keyId: string; token: string }
+  /** For tests: what the TURN credentials are fetched with. */
+  fetchTurn?: typeof fetch
 }
+
+/** What everyone gets with no TURN key, and alongside it. */
+export const STUN_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.cloudflare.com:3478' },
+  { urls: 'stun:stun.l.google.com:19302' }
+]
+/** How long TURN credentials last, and how long one set is handed out before fresh ones are asked for. */
+const TURN_TTL = 86400
+const TURN_REUSE = 6 * 3600_000
 
 interface Conn {
   room: string
@@ -88,6 +105,47 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
     q.touch.run(now, room)
     return true
   }
+  /** Whether a token belongs to a room that exists (never makes one). */
+  const member = (room: string, token: string): boolean =>
+    ROOM_RE.test(room) && TOKEN_RE.test(token) && q.room.get(room)?.token === sha256(token)
+
+  // one set of TURN credentials, shared by every room until it is TURN_REUSE old (they last TURN_TTL)
+  let turnSet: { servers: RTCIceServer[]; at: number } | null = null
+  let turnAsk: Promise<RTCIceServer[] | null> | null = null
+  async function iceServers(): Promise<RTCIceServer[]> {
+    if (!o.turn) return STUN_SERVERS
+    if (turnSet && Date.now() - turnSet.at < TURN_REUSE) return turnSet.servers
+    turnAsk ??= (async () => {
+      try {
+        const res = await (o.fetchTurn ?? fetch)(
+          `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(o.turn!.keyId)}/credentials/generate-ice-servers`,
+          {
+            method: 'POST',
+            headers: {
+              authorization: `Bearer ${o.turn!.token}`,
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify({ ttl: TURN_TTL })
+          }
+        )
+        if (!res.ok) return null
+        const got = ((await res.json()) as { iceServers?: RTCIceServer[] }).iceServers
+        if (!Array.isArray(got) || got.length === 0) return null
+        // port 53 is blocked by browsers (Cloudflare's note): it would only time out
+        const servers = got
+          .map((s) => ({ ...s, urls: [s.urls].flat().filter((u) => !/:53(\?|$)/.test(u)) }))
+          .filter((s) => s.urls.length > 0)
+        turnSet = { servers, at: Date.now() }
+        return servers
+      } catch {
+        return null
+      } finally {
+        turnAsk = null
+      }
+    })()
+    // Cloudflare unreachable: the last set while it lasts, else STUN (direct paths still work)
+    return (await turnAsk) ?? turnSet?.servers ?? STUN_SERVERS
+  }
 
   // who is in each room now
   const rooms = new Map<string, Map<number, ServerWebSocket<Conn>>>()
@@ -112,6 +170,15 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
       const url = new URL(req.url)
       const parts = url.pathname.split('/').filter(Boolean)
       if (url.pathname === '/health') return new Response('ok')
+      // ICE servers for shared browsing (STUN, and TURN when a key is set), to people in the room only
+      if (parts[0] === 'ice' && parts.length === 2) {
+        const token = req.headers.get('x-token') ?? url.searchParams.get('token') ?? ''
+        if (!member(parts[1], token)) return new Response('not allowed', { status: 403 })
+        return Response.json(
+          { iceServers: await iceServers() },
+          { headers: { 'cache-control': 'no-store' } }
+        )
+      }
       // the WebSocket of a room
       if (parts[0] === 'sync' && parts.length === 2) {
         const room = parts[1]
@@ -233,7 +300,11 @@ if (import.meta.main) {
   const r = startRelay({
     port: Number(process.env.PORT ?? 8787),
     dataDir: process.env.DATA_DIR ?? join(import.meta.dir, '.data'),
-    webDir: process.env.WEB_DIR ?? join(import.meta.dir, '..', 'web', 'dist')
+    webDir: process.env.WEB_DIR ?? join(import.meta.dir, '..', 'web', 'dist'),
+    turn:
+      process.env.TURN_KEY_ID && process.env.TURN_KEY_API_TOKEN
+        ? { keyId: process.env.TURN_KEY_ID, token: process.env.TURN_KEY_API_TOKEN }
+        : undefined
   })
   console.log(`relay: listening on ${r.port}`)
 }

@@ -347,6 +347,8 @@ export interface PanesApi {
     showLive(spaceId: number, tabId: number | null): Promise<boolean>
     /** The tab this person shows live in a space, if any. */
     liveTab(spaceId: number): Promise<number | null>
+    /** ICE servers for live tab calls in a shared space (its relay's STUN and TURN); null: use the built-in STUN. */
+    ice(spaceId: number): Promise<RTCIceServer[] | null>
     /** A WebRTC signal to someone in the room (by their relay address), and the ones that come. */
     signal(spaceId: number, to: number, data: string): void
     onSignal(cb: (spaceId: number, from: number, data: string) => void): () => void

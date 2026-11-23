@@ -102,6 +102,24 @@ export class ShareClient {
     }
   }
 
+  /**
+   * The ICE servers the room's relay hands out for shared browsing: STUN, and Cloudflare TURN (short-lived
+   * credentials) when the relay has a key. Null when it cannot be asked (an older relay, offline).
+   */
+  async iceServers(): Promise<RTCIceServer[] | null> {
+    const { token } = await this.keys
+    try {
+      const res = await fetch(`${this.o.relay.replace(/\/+$/, '')}/ice/${this.o.room}`, {
+        headers: { 'x-token': token }
+      })
+      if (!res.ok) return null
+      const got = ((await res.json()) as { iceServers?: unknown }).iceServers
+      return Array.isArray(got) && got.length > 0 ? (got as RTCIceServer[]) : null
+    } catch {
+      return null
+    }
+  }
+
   /** Leave: the document stays as it is (the caller keeps it), others see this person go. */
   destroy(): void {
     this.closed = true

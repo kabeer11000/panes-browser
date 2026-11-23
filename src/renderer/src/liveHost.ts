@@ -101,6 +101,10 @@ export function useLiveHost(
       ear.srcObject = tracks.length ? new MediaStream(tracks) : null
       if (tracks.length) void ear.play().catch(() => undefined)
     }
+    // the relay's ICE servers (STUN, and TURN when it has a key), asked once for this live tab
+    const ice = (window.api.share.ice?.(spaceId) ?? Promise.resolve(null))
+      .catch(() => null)
+      .then((s) => s ?? ICE_SERVERS)
     const send = (to: number, sig: LiveSignal): void =>
       window.api.share!.signal(spaceId, to, JSON.stringify(sig))
     const drop = (from: number): void => {
@@ -125,7 +129,7 @@ export function useLiveHost(
     /** A call to one watcher, carrying the tab's picture and the two control channels. */
     const offer = async (from: number, s: MediaStream): Promise<void> => {
       drop(from)
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+      const pc = new RTCPeerConnection({ iceServers: await ice })
       const peer: Peer = { pc, ctl: null, mv: null }
       peers.current.set(from, peer)
       setWatching(peers.current.size)
