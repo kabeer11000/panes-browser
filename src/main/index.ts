@@ -309,6 +309,11 @@ function createWindow(): void {
     createSpace: () => tabs.createSpace(),
     tabTitle: (id) => tabs.tabTitle(id),
     tabUrl: (id, spaceId) => tabs.tabUrl(id, spaceId),
+    tabsOf: (spaceId) =>
+      tabs
+        .canvasTabs(spaceId)
+        .filter((t) => !t.private && !t.tor)
+        .map(({ id, url }) => ({ id, url })),
     thumbOf: (id) => tabs.thumbOf(id),
     thumbAt: (id) => tabs.thumbAt(id),
     setLiveShared: (id, on) => tabs.setLiveShared(id, on),
@@ -999,7 +1004,7 @@ function createWindow(): void {
   // the test driver reaches these over the main process inspector (scripts/drive.ts main)
   if (offscreenTest)
     Object.assign(globalThis, {
-      panesTest: { win, tabs, spaces, settings, permissions, loadAi, updater, gestures }
+      panesTest: { win, tabs, spaces, settings, permissions, loadAi, updater, gestures, share }
     })
   win.on('close', () => tabs.shutdown())
   win.on('ready-to-show', () => {

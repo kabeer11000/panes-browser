@@ -13,6 +13,9 @@
  */
 import * as Y from 'yjs'
 import {
+  boundsOf,
+  CARD_H,
+  CARD_W,
   cardBox,
   freeSpot,
   intersects,
@@ -133,6 +136,8 @@ export function writeDiff(
     pic?: (id: number) => string | undefined
     /** Each tab's address now, null once closed (the board's card may be older than the tab). */
     url?: (id: number) => string | null
+    /** All this person's normal tabs in the space: those without a card yet go too (see withTabs). */
+    all?: () => Array<{ id: number; url: string }>
   }
 ): void {
   const was = prev ? sharedOf(prev) : null
@@ -152,7 +157,15 @@ export function writeDiff(
       }
       if (before) for (const id of before.keys()) if (!after.has(id)) map.delete(id)
     }
-    if (tabs) writeTabs(doc, next, tabs.by, tabs.title, tabs.pic, tabs.url)
+    if (tabs)
+      writeTabs(
+        doc,
+        tabs.all ? withTabs(next, tabs.all()) : next,
+        tabs.by,
+        tabs.title,
+        tabs.pic,
+        tabs.url
+      )
   }, origin)
 }
 
@@ -185,6 +198,37 @@ function writeTabs(
     if (!same(map.get(key), v)) map.set(key, v)
   }
   for (const [key, v] of map) if (v.by === by && !mine.has(key)) map.delete(key)
+}
+
+/**
+ * The board with a loose card for each of this person's tabs in the space that has none yet: a card is only made when
+ * the board itself is open (see syncTabs), so a tab opened in the tab view would reach the others only once its owner
+ * opened their board. Placed after what is on the board, in free space, in tab order. Only for what goes to the
+ * room: the owner's own board lays the tab out its way when it next opens (the mirror follows it then).
+ */
+export function withTabs(s: CanvasState, tabs: Array<{ id: number; url: string }>): CanvasState {
+  const have = new Set(s.cards.map((c) => c.id))
+  const fresh = tabs.filter((t) => t.id > 0 && !have.has(t.id) && /^https?:/i.test(t.url))
+  if (!fresh.length) return s
+  const taken: Box[] = [...s.cards.map(cardBox), ...s.frames, ...s.notes]
+  const b = boundsOf(taken)
+  let near = b ? { x: b.x + b.w + 48, y: b.y } : { x: 0, y: 0 }
+  const cards = [...s.cards]
+  for (const t of fresh) {
+    const at = freeSpot({ w: CARD_W, h: CARD_H }, taken, near, 16)
+    const card: CanvasCard = {
+      id: t.id,
+      url: t.url,
+      ...at,
+      frame: null,
+      manual: false,
+      private: false
+    }
+    cards.push(card)
+    taken.push(cardBox(card))
+    near = { x: at.x + CARD_W + 16, y: at.y }
+  }
+  return { ...s, cards }
 }
 
 /** A kind's entities from the document, in order (ties, from two people at once, by id). */

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as Y from 'yjs'
 import { emptyState, type CanvasCard, type CanvasState } from '../ai/canvas'
-import { isMirror, mirrorId, readInto, samePage, writeDiff } from './doc'
+import { isMirror, mirrorId, readInto, samePage, withTabs, writeDiff } from './doc'
 
 const card = (id: number, url: string, x = 0, extra: Partial<CanvasCard> = {}): CanvasCard => ({
   id,
@@ -194,4 +194,67 @@ test("a tab closed or moved on away from the board: the others' copy follows wit
   expect(readInto(b, emptyState('x'), 'ben').cards.map((c) => c.url)).toEqual([
     'https://c.example/'
   ])
+})
+
+describe('tabs without a card yet (opened in the tab view, board never opened)', () => {
+  test('reach the others at once, after the board, overlapping nothing', () => {
+    const [a, b] = pair()
+    const board = withCards([card(7, 'https://a.example/', 40)])
+    writeDiff(a, null, board, undefined, {
+      by: 'ana',
+      title: titles,
+      all: () => [
+        { id: 7, url: 'https://a.example/' },
+        { id: 9, url: 'https://new.example/' },
+        { id: 10, url: 'https://other.example/' }
+      ]
+    })
+    const seen = readInto(b, emptyState('x'), 'ben')
+    expect(seen.cards.map((c) => c.url).sort()).toEqual([
+      'https://a.example/',
+      'https://new.example/',
+      'https://other.example/'
+    ])
+    const old = seen.cards.find((c) => c.url === 'https://a.example/')!
+    for (const c of seen.cards.filter((x) => x !== old)) {
+      expect(c.x).toBeGreaterThan(old.x)
+      expect(c.frame).toBeNull()
+    }
+    expect(seen.items[String(seen.cards.find((c) => c.url.includes('new'))!.id)]).toMatchObject({
+      title: 'Tab 9'
+    })
+  })
+
+  test('the board itself is not changed, and a tab already on it is not doubled', () => {
+    const board = withCards([card(7, 'https://a.example/', 40)])
+    expect(withTabs(board, [{ id: 7, url: 'https://a.example/' }])).toBe(board)
+    const s = withTabs(board, [
+      { id: 7, url: 'https://a.example/' },
+      { id: 8, url: 'https://b.example/' },
+      { id: 9, url: 'https://c.example/' }
+    ])
+    expect(board.cards).toHaveLength(1)
+    expect(s.cards.map((c) => c.id)).toEqual([7, 8, 9])
+    const [, x, y] = s.cards
+    expect(x.x + 240 <= y.x || y.x + 240 <= x.x || x.y + 300 <= y.y || y.y + 300 <= x.y).toBe(true)
+  })
+
+  test('pages that are not web pages stay home; an empty board starts at the origin', () => {
+    const s = withTabs(emptyState('b'), [
+      { id: 1, url: 'panes://settings/' },
+      { id: 2, url: 'https://x.example/' }
+    ])
+    expect(s.cards.map((c) => [c.id, c.x, c.y])).toEqual([[2, 0, 0]])
+  })
+
+  test('a tab that closes goes from the others too', () => {
+    const [a, b] = pair()
+    let tabs = [{ id: 9, url: 'https://new.example/' }]
+    const out = { by: 'ana', title: titles, all: () => tabs }
+    writeDiff(a, null, emptyState('b'), undefined, out)
+    expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(1)
+    tabs = []
+    writeDiff(a, emptyState('b'), emptyState('b'), undefined, out)
+    expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
+  })
 })

@@ -25,7 +25,7 @@ import { emptyState, type CanvasState } from '@shared/ai/canvas'
 import { ShareClient, type ShareStatus } from '@shared/share/client'
 import { inviteLink, newRoom, parseInvite } from '@shared/share/crypto'
 import { chatOf, sayIn, watchChat, type ChatMessage } from '@shared/share/chat'
-import { isEmptyDoc, readInto, sharedSeq, writeDiff } from '@shared/share/doc'
+import { isEmptyDoc, readInto, sharedSeq, withTabs, writeDiff } from '@shared/share/doc'
 import type { SharePerson, ShareState } from '@shared/types'
 import { parseRemoteInput, type RemoteInput } from '@shared/share/live'
 import { JsonStore } from './store'
@@ -101,6 +101,8 @@ export interface ShareDeps {
   tabTitle: (tabId: number) => string
   /** A tab's address now; null once it has closed. */
   tabUrl: (tabId: number, spaceId: number) => string | null
+  /** The space's normal tabs (no private or Tor ones), in tab order. */
+  tabsOf: (spaceId: number) => Array<{ id: number; url: string }>
   /** A tab's picture (a JPEG data address) and when it was taken; null and 0 when it has none. */
   thumbOf: (tabId: number) => string | null
   thumbAt: (tabId: number) => number
@@ -153,11 +155,13 @@ export class ShareService {
     title: (id: number) => string
     pic: (id: number) => string | undefined
     url: (id: number) => string | null
+    all: () => Array<{ id: number; url: string }>
   } {
     return {
       by: this.who,
       title: (id) => this.d.tabTitle(id),
       url: (id) => this.d.tabUrl(id, spaceId),
+      all: () => this.d.tabsOf(spaceId),
       pic: (id) => this.sentPics.get(`${spaceId}:${id}`)?.id
     }
   }
@@ -181,7 +185,8 @@ export class ShareService {
     for (const room of this.rooms.values()) {
       if (room.status !== 'live' || !room.last) continue
       let changed = false
-      for (const c of room.last.cards) {
+      // a tab without a card yet (opened in the tab view) gets its picture sent too
+      for (const c of withTabs(room.last, this.d.tabsOf(room.spaceId)).cards) {
         if (budget <= 0) break
         // only a normal tab of this space now (see TabManager.tabUrl): never another space's under an old card's id
         if (c.id <= 0 || c.private || this.d.tabUrl(c.id, room.spaceId) === null) continue
