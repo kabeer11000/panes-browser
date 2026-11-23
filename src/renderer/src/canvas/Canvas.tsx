@@ -851,13 +851,6 @@ export function Canvas({
   /** The board's strip has its notifications list open. */
   const [boardInbox, setBoardInbox] = useState(false)
   /** A tab picked in the strip (recent, new or playing): its card, opened live. */
-  const openWaiting = (id: number): void => {
-    const c = stRef.current?.cards.find((x) => x.id === id)
-    if (!c) return
-    if (expandedRef.current) return switchPreview(id, true)
-    reveal(cardBox(c))
-    expandRef.current(id, true)
-  }
   const calls = useMemo(
     () => new Set(tabs.filter((t) => isCapturing(t.capture)).map((t) => t.id)),
     [tabs]
@@ -1828,6 +1821,14 @@ export function Canvas({
     window.addEventListener('panes:canvas-show', show)
     return () => window.removeEventListener('panes:canvas-show', show)
   }, [])
+  // A tab picked in the strip (a notification, a recent tab, what is playing). In the preview it takes the preview's
+  // place; on the board it opens like a tab asked for (see showNow): its card may not be there yet (the board still
+  // loading, the tab only just opened), and a click then did nothing.
+  const openWaiting = (id: number): void => {
+    if (expandedRef.current && stRef.current?.cards.some((x) => x.id === id))
+      return switchPreview(id, true)
+    window.dispatchEvent(new CustomEvent('panes:canvas-show', { detail: { id } }))
+  }
 
   // ---- keep up with the tabs ----
   const sig =
