@@ -88,7 +88,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Search popover offers "canvas mode" while the board is already open: the board's search hides it (typed or
       not; search.test.ts).
 - [ ] Now playing play/pause: one click sometimes leaves the wrong state (YouTube). Trace mediaPlay and the playing flag.
-- [ ] Switching between tabs with different page zoom shifts the layout (zoom badge appears/goes): no shift, tab view and preview.
+- [x] Switching between tabs with different page zoom shifts the layout (zoom badge appears/goes): no shift, tab view and preview.
+      Fixed in d3cbf02 (what comes and goes sits left of the tabs in the preview header); the tab view shows no badge.
 - [ ] Board: "open link side by side" reworked: its animations are poor and it is not fun to use (user 2026-11-22).
       Split view in the preview: no extra toolbar per pane; each pane's tab actions slide out at its right edge on
       hover (like the downloads bin), and the whole flow is reworked: the context menu item, its wording, the motion.
@@ -169,7 +170,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 
 ### Audit of the earlier session's asks (2026-11-22, from the 17:27 transcript): unverified live
 
-- [ ] Delete key closes the selected tab cards on the board (read-only check only).
+- [x] Delete key closes the selected tab cards on the board: checked live 2026-11-23 (a card selected, Delete: 63 tabs
+      to 62, its card gone).
 - [ ] Clicking a Windows notification (WhatsApp-style page) opens that tab.
 - [ ] Hover states on the strip's tabs, tab switchers, preview header buttons; header height 34 px.
 - [ ] Zoom / pinch / pan on the board: re-measure with scripts/perf-canvas.ts after the recent UI changes.
