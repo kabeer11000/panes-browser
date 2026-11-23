@@ -137,5 +137,9 @@ People without Panes join from any browser in a light web version that is also P
       Panes on the relay: C saw B's pointer at exactly where B moved it (0.30, 0.60); B sees none of its own.
 - [x] 7g. Watch from the web board: a live tab's pill, the picture and sound (1280x720 to a web guest), pointers,
       ask for control and drive (A's chip showed the web guest asking; let in, it drove).
-- [ ] 8. Chat (Panes + web).
+- [x] 8. Chat (Panes + web): messages in the room's document (shared/share/chat.ts, sealed like the board, the
+      latest 500 kept, checked on read); a chat button with an unread count on the board's top bar and the same panel
+      on the web board. Checked: A's message reached B and the web, the web's answer reached A, B's button counted 2
+      unread and cleared once read. Someone else's message is a system notification while Panes is not in front
+      (click: that space's board); the toast itself not yet seen on screen.
 - [ ] 9. Room expiry, limits, abuse.

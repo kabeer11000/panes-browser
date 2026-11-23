@@ -142,6 +142,7 @@ import type { CardModel } from './model'
 import { boardMoving, onBoardMotion } from './boardMotion'
 import { PresenceFaces, RemoteCursors } from './Presence'
 import { ShareButton } from './ShareButton'
+import { SpaceChat } from './SpaceChat'
 import { LiveShare } from './LiveShare'
 import { usePresence } from '@renderer/components/useShare'
 import { READER } from './model'
@@ -5984,6 +5985,7 @@ export function Canvas({
           </div>
           <PresenceFaces people={presence.people} />
           <ShareButton space={thisSpace} />
+          <SpaceChat spaceId={spaceId} shared={!!thisSpace?.shared} />
           <LiveShare
             spaceId={spaceId}
             shared={!!thisSpace?.shared}

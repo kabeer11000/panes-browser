@@ -120,6 +120,13 @@ export interface SharePerson {
   live: { title: string; url: string } | null
 }
 
+/** A shared space's chat as the window gets it. */
+export interface SpaceChat {
+  messages: import('./share/chat').ChatMessage[]
+  /** This person's id among the writers (their own messages are drawn on the right). */
+  me: number
+}
+
 /** How a shared space is doing. */
 export interface ShareState {
   status: 'connecting' | 'syncing' | 'live' | 'offline' | 'refused'
@@ -351,6 +358,10 @@ export interface PanesApi {
     ice(spaceId: number): Promise<RTCIceServer[] | null>
     /** Where the pointer is over this person's live tab on screen, as page fractions (null: not over it). */
     pointer(spaceId: number): Promise<{ x: number; y: number } | null>
+    /** A shared space's chat (shared/share/chat.ts): the latest messages, and this person's id among the writers. */
+    chat(spaceId: number): Promise<SpaceChat | null>
+    onChat(cb: (spaceId: number, chat: SpaceChat) => void): () => void
+    say(spaceId: number, text: string): void
     /** A WebRTC signal to someone in the room (by their relay address), and the ones that come. */
     signal(spaceId: number, to: number, data: string): void
     onSignal(cb: (spaceId: number, from: number, data: string) => void): () => void

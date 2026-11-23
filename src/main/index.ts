@@ -304,7 +304,15 @@ function createWindow(): void {
     setLiveShared: (id, on) => tabs.setLiveShared(id, on),
     liveInfo: (id) => tabs.liveInfo(id),
     remoteInput: (id, ev) => tabs.remoteInput(id, ev),
-    pointerIn: (id) => tabs.pointerIn(id)
+    pointerIn: (id) => tabs.pointerIn(id),
+    openBoard: (id) => {
+      if (win.isDestroyed()) return
+      if (win.isMinimized()) win.restore()
+      win.show()
+      win.focus()
+      if (id !== spaces.activeId()) tabs.switchSpace(id)
+      if (!tabs.inCanvas()) win.webContents.send('ui:command', 'toggle-canvas')
+    }
   })
   canvas.onSave = (spaceId, state) => share.onLocalSave(spaceId, state)
   // an invite link, however it is opened (typed, clicked, from another app): the space is joined and shown

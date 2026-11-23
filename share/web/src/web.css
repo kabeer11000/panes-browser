@@ -470,6 +470,153 @@ input {
   pointer-events: none;
 }
 
+/* ---- chat ---- */
+.wb-chat-host {
+  position: relative;
+}
+.wb-chat-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--shadow);
+  color: var(--dim);
+  cursor: pointer;
+}
+.wb-chat-btn:hover,
+.wb-chat-btn.on {
+  color: var(--fg);
+}
+.wb-chat-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 18px;
+}
+.wb-chat {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  display: flex;
+  flex-direction: column;
+  width: min(340px, calc(100vw - 24px));
+  height: min(500px, calc(100vh - 90px));
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 24px 60px -16px rgb(0 0 0 / 0.45);
+  animation: wb-in 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.wb-chat header {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.wb-chat header span {
+  color: var(--dim);
+  font-size: 12px;
+}
+.wb-chat-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 12px 10px;
+}
+.wb-chat-empty {
+  margin: 40px 12px;
+  color: var(--dim);
+  font-size: 13px;
+  text-align: center;
+}
+.wb-chat-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 2px;
+}
+.wb-chat-msg.first {
+  margin-top: 10px;
+}
+.wb-chat-msg.mine {
+  align-items: flex-end;
+}
+.wb-chat-who {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 4px 3px;
+  font-size: 12px;
+}
+.wb-chat-who time {
+  color: var(--dim);
+  font-size: 11px;
+}
+.wb-chat-msg p {
+  max-width: 85%;
+  margin: 0;
+  padding: 7px 12px;
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wb-chat-msg.mine p {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.wb-chat-say {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 8px 8px 8px 12px;
+  border-top: 1px solid var(--line);
+}
+.wb-chat-say textarea {
+  flex: 1;
+  max-height: 110px;
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 16px;
+  outline: none;
+  resize: none;
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  field-sizing: content;
+}
+.wb-chat-say button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  cursor: pointer;
+}
+.wb-chat-say button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 /* ---- watching a live tab ---- */
 .wb-watch {
   position: fixed;
@@ -628,7 +775,8 @@ input {
 }
 @media (prefers-reduced-motion: reduce) {
   .wb-dot,
-  .wb-watch {
+  .wb-watch,
+  .wb-chat {
     animation: none;
   }
   .wb-cursor,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Y from 'yjs'
 import { emptyState, type CanvasState } from '@shared/ai/canvas'
+import { sayIn, watchChat, type ChatMessage } from '@shared/share/chat'
 import { ShareClient, type ShareStatus } from '@shared/share/client'
 import { readInto, sharedSeq, writeDiff } from '@shared/share/doc'
 
@@ -41,6 +42,10 @@ export interface Room {
   state: CanvasState
   people: Person[]
   meta: { name: string; color: string }
+  /** The room's chat, oldest first, and this guest's id among the writers. */
+  chat: ChatMessage[]
+  meId: number
+  say: (text: string) => void
   /** Change the board (a note added or edited): written to the room as one update. */
   edit: (fn: (s: CanvasState) => CanvasState) => void
   /** This guest's pointer on the board (board coordinates), or null when it left. */
@@ -87,6 +92,8 @@ export function useRoom(room: string, secret: string, me: { name: string; color:
   const [state, setState] = useState<CanvasState>(() => emptyState())
   const [who, setWho] = useState<Person[]>([])
   const [meta, setMeta] = useState({ name: 'Shared space', color: '' })
+  const [chat, setChat] = useState<ChatMessage[]>([])
+  const [meId, setMeId] = useState(0)
   const conn = useRef<{ doc: Y.Doc; client: ShareClient } | null>(null)
   /** What this guest's own board holds besides the room's (its id counter): kept across edits. */
   const base = useRef<CanvasState>(emptyState())
@@ -140,6 +147,8 @@ export function useRoom(room: string, secret: string, me: { name: string; color:
       })
     }
     doc.on('update', redraw)
+    const stopChat = watchChat(doc, setChat)
+    setMeId(doc.clientID)
     const onAware = (): void => setWho(people(client, doc.clientID))
     client.awareness.on('change', onAware)
     client.awareness.setLocalStateField('user', meRef.current)
@@ -148,6 +157,7 @@ export function useRoom(room: string, secret: string, me: { name: string; color:
       alive = false
       cancelAnimationFrame(frame)
       doc.off('update', redraw)
+      stopChat()
       client.awareness.off('change', onAware)
       client.destroy()
       conn.current = null
@@ -165,6 +175,12 @@ export function useRoom(room: string, secret: string, me: { name: string; color:
       state,
       people: who,
       meta,
+      chat,
+      meId,
+      say: (text) => {
+        const c = conn.current
+        if (c) sayIn(c.doc, meRef.current, text)
+      },
       edit: (fn) => {
         const c = conn.current
         if (!c) return
@@ -199,6 +215,6 @@ export function useRoom(room: string, secret: string, me: { name: string; color:
       },
       iceServers: async () => (await conn.current?.client.iceServers()) ?? null
     }),
-    [status, state, who, meta]
+    [status, state, who, meta, chat, meId]
   )
 }

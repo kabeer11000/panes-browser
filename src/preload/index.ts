@@ -13,6 +13,7 @@ import type {
   PasswordPrompt,
   PreviewKey,
   ShareState,
+  SpaceChat,
   UiCommand
 } from '@shared/types'
 import type { CanvasState } from '@shared/ai/canvas'
@@ -133,6 +134,9 @@ const api: PanesApi = {
     liveTab: (id) => ipcRenderer.invoke('share:live-tab', id),
     ice: (id) => ipcRenderer.invoke('share:ice', id),
     pointer: (id) => ipcRenderer.invoke('share:pointer', id),
+    chat: (id) => ipcRenderer.invoke('share:chat', id),
+    onChat: (cb) => subscribe<[number, SpaceChat]>('share:chat', cb),
+    say: (id, text) => ipcRenderer.send('share:say', id, text),
     signal: (id, to, data) => ipcRenderer.send('share:signal', id, to, data),
     onSignal: (cb) => subscribe<[number, number, string]>('share:signal', cb),
     input: (id, event) => ipcRenderer.send('share:input', id, event),

@@ -7,7 +7,15 @@
  * The room's secret never leaves this file: it is kept encrypted by the system (safeStorage) in its own store, never
  * on the space (spaces are sent to the window whole). The space only says that it is shared.
  */
-import { app, clipboard, ipcMain, nativeImage, safeStorage, type BrowserWindow } from 'electron'
+import {
+  app,
+  clipboard,
+  ipcMain,
+  nativeImage,
+  Notification,
+  safeStorage,
+  type BrowserWindow
+} from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { userInfo } from 'os'
@@ -16,6 +24,7 @@ import * as Y from 'yjs'
 import { emptyState, type CanvasState } from '@shared/ai/canvas'
 import { ShareClient, type ShareStatus } from '@shared/share/client'
 import { inviteLink, newRoom, parseInvite } from '@shared/share/crypto'
+import { chatOf, sayIn, watchChat, type ChatMessage } from '@shared/share/chat'
 import { isEmptyDoc, readInto, sharedSeq, writeDiff } from '@shared/share/doc'
 import type { SharePerson, ShareState } from '@shared/types'
 import { parseRemoteInput, type RemoteInput } from '@shared/share/live'
@@ -97,6 +106,8 @@ export interface ShareDeps {
   remoteInput: (tabId: number, ev: RemoteInput) => void
   /** Where the pointer is over that tab on screen (fractions of its page), or null. */
   pointerIn: (tabId: number) => { x: number; y: number } | null
+  /** Bring the window up on a space's board (a chat notification was clicked). */
+  openBoard: (spaceId: number) => void
 }
 
 export class ShareService {
@@ -304,6 +315,27 @@ export class ShareService {
       if (origin !== LOCAL) this.applySoon(room)
     })
     doc.getMap('meta').observe(() => this.onMeta(room))
+    // the room's chat, to the window as it changes (shared/share/chat.ts); someone else's new message is a
+    // notification while the window is not in front (the history already there when the room opens is not)
+    let heard: string | null | undefined
+    watchChat(doc, (messages) => {
+      if (!this.d.win.isDestroyed())
+        this.d.win.webContents.send('share:chat', spaceId, { messages, me: doc.clientID })
+      const latest = messages.at(-1)
+      const before = heard
+      heard = latest?.id ?? null
+      if (before === undefined || !latest || latest.id === before || latest.by === doc.clientID)
+        return
+      if (this.d.win.isDestroyed() || this.d.win.isFocused() || !Notification.isSupported()) return
+      const space = this.d.spaces.get(spaceId)
+      const n = new Notification({
+        title: space ? `${latest.name} in ${space.name}` : latest.name,
+        body: latest.text.slice(0, 240),
+        silent: false
+      })
+      n.on('click', () => this.d.openBoard(spaceId))
+      n.show()
+    })
     this.rooms.set(spaceId, room)
     return room
   }
@@ -590,6 +622,18 @@ export class ShareService {
     if (room?.liveTab !== undefined) this.d.remoteInput(room.liveTab, ev)
   }
 
+  /** A shared space's chat: the latest messages, and this person's id in them (theirs are drawn on the right). */
+  chat(spaceId: number): { messages: ChatMessage[]; me: number } | null {
+    const room = this.rooms.get(spaceId)
+    return room ? { messages: chatOf(room.doc), me: room.doc.clientID } : null
+  }
+
+  /** Say something in a shared space's chat, as this person. */
+  say(spaceId: number, text: string): void {
+    const room = this.rooms.get(spaceId)
+    if (room) sayIn(room.doc, this.me, text, LOCAL)
+  }
+
   /** Where the host's pointer is over their live tab in this space, for the watchers (null: not over it). */
   pointer(spaceId: number): { x: number; y: number } | null {
     const room = this.rooms.get(spaceId)
@@ -638,6 +682,10 @@ export function registerShare(d: ShareDeps): ShareService {
   ipcMain.handle('share:live-tab', (e, id: unknown) => (mine(e) ? svc.liveTabOf(num(id)) : null))
   ipcMain.handle('share:ice', (e, id: unknown) => (mine(e) ? svc.iceServers(num(id)) : null))
   ipcMain.handle('share:pointer', (e, id: unknown) => (mine(e) ? svc.pointer(num(id)) : null))
+  ipcMain.handle('share:chat', (e, id: unknown) => (mine(e) ? svc.chat(num(id)) : null))
+  ipcMain.on('share:say', (e, id: unknown, text: unknown) => {
+    if (mine(e) && typeof text === 'string') svc.say(num(id), text)
+  })
   ipcMain.on('share:signal', (e, id: unknown, to: unknown, data: unknown) => {
     if (mine(e) && typeof data === 'string') svc.signal(num(id), num(to), data)
   })

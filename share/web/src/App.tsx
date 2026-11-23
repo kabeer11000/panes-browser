@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Board } from './Board'
+import { Chat } from './Chat'
 import { loadMe, useRoom } from './room'
 import { Watch } from './Watch'
 import { GET_PANES, room, secret } from './link'
@@ -120,6 +121,7 @@ export function App(): React.JSX.Element {
             />
           </label>
         </div>
+        <Chat messages={r.chat} me={r.meId} onSay={r.say} />
         <div className="wb-actions">
           <a className="wb-btn quiet" href={GET_PANES} rel="noopener">
             Get Panes
