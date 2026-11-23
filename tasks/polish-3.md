@@ -140,8 +140,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 
 - [ ] PiP is broken (user 21:13, YouTube): opening PiP glitches the whole page, a little video sticks at the left
       over the page. Must behave like Chrome/Brave: the video leaves for the PiP window, the page stays as it is.
-- [ ] Search popover forgets what was typed when it blurs (click away) and starts from scratch. Chrome-like: the
-      text stays until Escape or navigation, in the preview's, the tab view's and the toolbar's search alike.
+- [x] Search popover forgets what was typed when it blurs (click away) and starts from scratch. Chrome-like: the
+      text stays until Escape or navigation, in the preview's, the tab view's and the toolbar's search alike. Kept
+      per bar and tab (SearchPalette drafts); Escape, a pick or a page change clears it. Checked with real keys and
+      clicks: typed, clicked away, reopened with it; Escape, reopened with the address.
 - [ ] Board: tab cards still sometimes land on top of each other (user 21:09, after makeRoom fix of beta.103). Trace
       where new/synced tab cards get placed (syncTabs, placeItem, reconcileSaved) and what skips makeRoom.
 

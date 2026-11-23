@@ -172,6 +172,12 @@ const KIND_LABEL: Partial<Record<SearchResult['kind'], string>> = {
  * and the list opens beneath it); as a dialog it sits in the middle of the page.
  * Enter opens in this tab, Alt+Enter in a new tab, Ctrl+Enter beside the current tab.
  */
+/**
+ * What was typed and left, per bar and tab: clicking away keeps it, as Chrome's address bar does, until Escape, a
+ * pick, or the page moving on. Kept for this run of the window only.
+ */
+const drafts = new Map<string, string>()
+
 export function SearchPalette({
   tabs,
   active,
@@ -188,6 +194,14 @@ export function SearchPalette({
   thumbs
 }: Props): React.JSX.Element {
   const [openedAt] = useState(() => Date.now())
+  const draftKey = `${onPick ? 'board' : variant}:${active?.id ?? 'none'}:${active?.url ?? ''}`
+  /** Closed on purpose (Escape, a pick): what was typed is not kept. */
+  const finished = useRef(false)
+  const done = (): void => {
+    finished.current = true
+    drafts.delete(draftKey)
+    onClose()
+  }
   const [shown, setShown] = useState(initial ?? active?.url ?? '') // what the input displays, completion included
   const [typed, setTyped] = useState('') // what the user actually typed
   const [dirty, setDirty] = useState(false) // the prefilled address is not a search until edited
@@ -221,16 +235,33 @@ export function SearchPalette({
     const input = inputRef.current
     // what was typed straight after Ctrl+T, before this was here, is the start of the search
     const ahead = takeTypeAhead()
-    if (input && ahead) {
-      input.value = ahead
-      input.setSelectionRange(ahead.length, ahead.length)
-      setTyped(ahead)
-      setShown(ahead)
+    // what was typed here before and left (clicked away from) comes back, caret at its end
+    const left = !ahead && !initial ? drafts.get(draftKey) : undefined
+    const start = ahead || left
+    if (input && start) {
+      input.value = start
+      input.setSelectionRange(start.length, start.length)
+      setTyped(start)
+      setShown(start)
       setDirty(true)
-      setForward(true)
+      setForward(!!ahead)
     } else input?.select()
     window.api.aiWarm() // the meaning search is ready by the first keystroke
   }, [])
+
+  const typedRef = useRef({ typed, dirty })
+  useEffect(() => {
+    typedRef.current = { typed, dirty }
+  })
+  useEffect(
+    () => () => {
+      const { typed: t, dirty: d } = typedRef.current
+      if (finished.current) return
+      if (d && t.trim()) drafts.set(draftKey, t)
+      else drafts.delete(draftKey)
+    },
+    [draftKey]
+  )
 
   useEffect(() => {
     let alive = true
@@ -347,16 +378,20 @@ export function SearchPalette({
   const switchTo = (id: number): void => {
     if (onPickTab) onPickTab(id)
     else window.api.activateTab(id)
-    onClose()
+    done()
   }
   const run = (r: SearchResult | undefined, how: 'current' | 'tab' | 'split'): void => {
     const text = shown.trim()
     // the space is joined and shown (main: the same as an invite link opened any other way)
     if (r?.actionId === 'join-invite' && r.url) {
       window.api.navigate(r.url)
-      return onClose()
+      return done()
     }
-    if (r?.kind === 'action') return onAction(r.actionId as string) // the same in the canvas as on a tab
+    if (r?.kind === 'action') {
+      finished.current = true
+      drafts.delete(draftKey)
+      return onAction(r.actionId as string) // the same in the canvas as on a tab
+    }
     if (onPick && r?.kind === 'tab' && onPickTab) return switchTo(r.tabId as number)
     if (onPick) {
       const picked = !r
@@ -367,18 +402,18 @@ export function SearchPalette({
             ? text
             : (r.url ?? r.title)
       if (picked) onPick(picked)
-      return onClose()
+      return done()
     }
     if (!r) {
       if (text) window.api.navigate(text) // nothing matched: treat the text as an address or search
-      return onClose()
+      return done()
     }
     if (r.kind === 'tab') return switchTo(r.tabId as number)
     const target = r.kind === 'go' || r.kind === 'search' ? text : (r.url ?? r.title)
     if (how === 'tab') window.api.createTab(target)
     else if (how === 'split') window.api.openInSplit(target)
     else window.api.navigate(target)
-    onClose()
+    done()
   }
 
   /** Put text in the field (the input is uncontrolled), leaving the list as it is. */
@@ -423,7 +458,7 @@ export function SearchPalette({
       setTyped(text)
       setDirty(true)
     } else if (e.key === 'Escape') {
-      return onClose()
+      return done()
     } else {
       return
     }
