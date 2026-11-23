@@ -128,6 +128,8 @@ function LiveViewer({
   /** The host's tab's sound, on unless turned off here (only while it has any). */
   const [sound, setSound] = useState(true)
   const [hasSound, setHasSound] = useState(false)
+  /** The page's own cursor under the pointer (the host says it): a hand on links, a bar on text. */
+  const [cursor, setCursor] = useState('default')
   const hostRtc = host.rtc
   const stage = useRef<HTMLDivElement>(null)
   /** Tells the host how big the picture is shown here (device pixels), so it sends no more than that. */
@@ -281,8 +283,7 @@ function LiveViewer({
   useEffect(() => () => cancelAnimationFrame(frame.current), [])
   /** Buttons the driver holds on the picture (a drag): its moves and release count even past the picture's edge. */
   const held = useRef(0)
-  /** The page's own cursor under the pointer (the host says it): a hand on links, a bar on text. */
-  const [cursor, setCursor] = useState('default')
+
   const button = (b: number): 'left' | 'middle' | 'right' =>
     b === 1 ? 'middle' : b === 2 ? 'right' : 'left'
   const site = ((): string => {
