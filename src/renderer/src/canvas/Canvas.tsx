@@ -1340,6 +1340,19 @@ export function Canvas({
     }
     const moves: Array<{ el: HTMLElement; key: string; dx: number; dy: number; order: number }> = []
     const born: HTMLElement[] = []
+    // What is out of sight where it starts and where it lands is not animated: it moves unseen, and each animated
+    // card is a layer of its own for the compositor to raster (Tidy moving 120 cards held frames of 100+ ms).
+    const v = vp.get()
+    const { w: vw, h: vh } = size()
+    const margin = 160 / v.k
+    const sight = {
+      l: -v.x / v.k - margin,
+      t: -v.y / v.k - margin,
+      r: (vw - v.x) / v.k + margin,
+      b: (vh - v.y) / v.k + margin
+    }
+    const seen = (x: number, y: number, w: number, h: number): boolean =>
+      x < sight.r && x + w > sight.l && y < sight.b && y + h > sight.t
     root.current
       .querySelectorAll<HTMLElement>('[data-cid],[data-fid],[data-nid],[data-splitbox]')
       .forEach((el) => {
@@ -1377,6 +1390,9 @@ export function Canvas({
         const dx = from.x - to.x
         const dy = from.y - to.y
         if (dx === 0 && dy === 0) return
+        const w = el.offsetWidth
+        const h = el.offsetHeight
+        if (!seen(to.x, to.y, w, h) && !seen(from.x, from.y, w, h)) return
         moves.push({ el, key, dx, dy, order: turnOf(el) * 1e7 + to.y * 1e3 + to.x / 1e3 })
       })
     // a group moves without overshoot (smooth); staggered, the later ones are quicker so all land together
@@ -4594,6 +4610,19 @@ export function Canvas({
           }
           return s1
         }),
+      // every card out of its section, spread about: a board for Tidy to arrange
+      scatter: () =>
+        edit((s0) => ({
+          ...s0,
+          frames: [],
+          cards: s0.cards.map((c, i) => ({
+            ...c,
+            frame: null,
+            manual: false,
+            x: (i * 733) % 4200,
+            y: (i * 397) % 2600
+          }))
+        })),
       state: () => stRef.current,
       firstMs: () => firstMsRef.current,
       mounted: () => root.current?.querySelectorAll('[data-cid]').length ?? 0,

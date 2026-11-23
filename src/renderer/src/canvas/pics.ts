@@ -1,4 +1,5 @@
 import { Lru } from '@shared/lru'
+import ShrinkWorker from './shrinkWorker?worker&inline'
 
 /**
  * Card pictures that never flash. An <img> put on the page decodes its picture after it is shown, so a card that comes
@@ -43,6 +44,39 @@ function slot(): Promise<() => void> {
   })
 }
 
+// small copies are encoded in a worker (shrinkWorker.ts); inlined, so it starts from the packaged file:// page too
+let worker: Worker | null | undefined
+let asked = 0
+const answers = new Map<number, (blob: Blob | null) => void>()
+function encoder(): Worker | null {
+  if (worker !== undefined) return worker
+  try {
+    worker = new ShrinkWorker()
+    worker.onmessage = (e: MessageEvent<{ id: number; blob: Blob | null }>) => {
+      answers.get(e.data.id)?.(e.data.blob)
+      answers.delete(e.data.id)
+    }
+  } catch {
+    worker = null // no worker: encoded here, as before
+  }
+  return worker
+}
+
+async function encode(bmp: ImageBitmap): Promise<Blob | null> {
+  const w = encoder()
+  if (w) {
+    const id = ++asked
+    return new Promise((resolve) => {
+      answers.set(id, resolve)
+      w.postMessage({ id, bmp }, [bmp])
+    })
+  }
+  const c = new OffscreenCanvas(bmp.width, bmp.height)
+  c.getContext('2d')?.drawImage(bmp, 0, 0)
+  bmp.close()
+  return c.convertToBlob({ type: 'image/jpeg', quality: 0.8 })
+}
+
 async function shrink(src: string, img: HTMLImageElement): Promise<void> {
   if (small.has(src)) return
   const w = img.naturalWidth
@@ -54,16 +88,15 @@ async function shrink(src: string, img: HTMLImageElement): Promise<void> {
   const sw = SMALL_W
   const sh = Math.max(1, Math.round((h * sw) / w))
   try {
+    // decoded and shrunk off the main thread; encoded in the worker
     const bmp = await createImageBitmap(img, {
       resizeWidth: sw,
       resizeHeight: sh,
       resizeQuality: 'medium'
     })
-    const c = new OffscreenCanvas(sw, sh)
-    c.getContext('2d')?.drawImage(bmp, 0, 0)
-    bmp.close()
-    const blob = await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 })
-    small.set(src, URL.createObjectURL(blob))
+    const blob = await encode(bmp)
+    if (small.has(src)) return
+    small.set(src, blob ? URL.createObjectURL(blob) : src)
   } catch {
     small.set(src, src) // a picture from another site cannot be read back: it is its own small copy
   }

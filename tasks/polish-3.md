@@ -53,7 +53,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       Render is outward-facing: confirm with the user before the first deploy.
 - [ ] Usage analytics (user decided 2026-11-22): self-hosted endpoint, asked on first run (welcome), domains included.
       Actions, screens, durations, version/OS/RAM tier, perf timings, site domains. Never contents, typed text, passwords.
-- [ ] Tidy freezes the whole PC for a second, even without AI: make it efficient (measure; worker/WASM if needed).
+- [x] Tidy freezes the whole PC for a second, even without AI: measured on 120 scattered cards (dev build): frames of
+      267 ms, 469 ms of JPEG encoding (cards' small copies made as they flew into view) and 458 ms of GC on the main
+      thread. Small copies are now encoded in a worker (pics.ts, shrinkWorker.ts) and cards out of sight at both ends
+      of a move are not animated: worst frame 100 ms (one React render of the moved cards, dev mode), GC 96 ms.
 - [ ] Notes and text on the board: Ctrl+B / Ctrl+I and the like (Figma-like), font size.
 - [x] Certificate interstitial "Proceed (unsafe)": verified on self-signed.badssl.com (c249b32).
 - [x] Tooltips go under the web contents: preview and tab view (sidebar). 25/25 clear in a sweep. (7dcff39)
