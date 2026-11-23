@@ -70,8 +70,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Scroll fade gradients on every scrolling list, search popover included: one scroll-driven rule (styles.css) for
       the tab list, search, spaces popover, board command list and space menu, notifications, chats. Fades only an
       edge with more beyond it (checked on 63 tabs: top 0/28, middle 28/28, end 28/0); a short list gets none.
-- [ ] Notifications sometimes do not open from the strip. User likes the bell after all: reposition it, make it reliable.
+- [~] Notifications sometimes do not open from the strip. User likes the bell after all: reposition it, make it reliable.
       The bell shows always, even with nothing new (beta.113 feedback). Unread styling is "gross": redo it.
+      2026-11-23: nothing new, the bell is faint (full when pointed at); something new, a soft accent tint and the count
+      in the accent, no red blob. Not opening: not reproduced (open/close goes through one toggle).
 - [x] open.spotify.com opens in its mobile layout (user agent? viewport?): the Electron user agent; spotify.com now
       gets the Chrome identity (shared/identity.ts). Checked: desktop player, Your Library sidebar, no "Open App".
 - [x] Card host pill (top of a card) shows sometimes, not others: make it reliable. (e4d901c)
@@ -179,8 +181,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Deleting a tab section / frame group sometimes flashes or stutters (user): the section went at once and its
       cards hung loose until their tabs closed in main, then popped off. They now leave in the same step (checked: a
       24-card section, nothing left 80 ms after Delete).
-- [ ] Board chrome is "too much, noisy": drag/resize handles, card buttons, general look should be refined and quiet
-      (Figma / Apple level). Part of the cards redesign, but its own pass.
+- [~] Board chrome is "too much, noisy": drag/resize handles, card buttons, general look should be refined and quiet
+      (Figma / Apple level). Part of the cards redesign, but its own pass. 2026-11-23: card buttons and the hover corner
+      appear after 150 ms of resting, not on passing (a pointer crossing the board no longer flashes them). Handles were
+      already selection-only but for one corner. The rest waits for the cards redesign.
 - [ ] Space settings popover (SpacePopover): full redesign, same language as the new site settings panel (user asked
       "did you not redesign the settings popover").
 - [ ] Opening the preview is laggy (user, with pan/zoom/space-switch lag). Zoom renders fixed in 27938ed; preview

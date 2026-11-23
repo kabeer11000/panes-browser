@@ -199,7 +199,12 @@ export function StripInbox({
       <button
         type="button"
         key={ring}
-        className={'cv-strip-bell' + (open ? ' on' : '') + (ring ? ' ring' : '')}
+        className={
+          'cv-strip-bell' +
+          (open ? ' on' : '') +
+          (ring ? ' ring' : '') +
+          (waiting.length ? ' has' : ' quiet')
+        }
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`Notifications: ${said}`}

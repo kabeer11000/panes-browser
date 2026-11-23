@@ -784,6 +784,34 @@
   color: var(--fg);
   background: color-mix(in srgb, var(--fg) 8%, transparent);
 }
+/* nothing new: the bell is there, but hardly (it comes up when pointed at); something new: a soft tint and the
+   count in the accent, no red blob */
+.cv-strip-bell.quiet {
+  opacity: 0.45;
+  transition:
+    opacity 0.2s,
+    background 0.15s,
+    color 0.15s;
+}
+.cv-strip-bell.quiet:hover,
+.cv-strip-bell.quiet.on {
+  opacity: 1;
+}
+.cv-strip-bell.has {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.cv-strip-bell.has:hover,
+.cv-strip-bell.has.on {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.cv-strip-bell.has > b {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 11.5px;
+}
 .cv-strip-bell:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;

@@ -797,7 +797,12 @@
   opacity: 0;
   transition: opacity var(--dur-fast);
 }
-.cv-card:hover .cv-acts,
+/* shown on resting, not on passing: a pointer crossing the board does not flash every card's buttons on its way
+   (they appear after a beat, and go at once) */
+.cv-card:hover .cv-acts {
+  opacity: 1;
+  transition-delay: 0.15s;
+}
 .cv-acts:focus-within {
   opacity: 1;
 }
@@ -3580,6 +3585,10 @@
 .cv-card.sel .cv-crz.se,
 .cv-card:hover .cv-crz.se {
   opacity: 1;
+}
+/* the hover corner, like the buttons, after a beat (a selected card's are there at once) */
+.cv-card:not(.sel):hover .cv-crz.se {
+  transition-delay: 0.15s;
 }
 .cv-crz.n {
   left: 10px;
