@@ -221,8 +221,11 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 
 ## D. Speed
 
-- [ ] Off the main thread wherever it is a transparent gain (user 2026-11-22): workers for Tidy/clustering, image decode,
+- [~] Off the main thread wherever it is a transparent gain (user 2026-11-22): workers for Tidy/clustering, image decode,
       JSON parse of big state, search ranking; measure each with a long-task trace before and after.
+      2026-11-23: card pictures' small copies are encoded in a worker (Tidy: 470 ms encoding + 460 ms GC gone from the
+      interface thread); clustering measured cheap in main (no worker needed); tab pictures no longer go through IPC
+      as base64. Left: JSON of big state, search ranking (not measured as slow yet).
 
 - [x] Releases are slow and Mac updates heavy: each Mac layer's deltas are ~17 MB (Windows ~180 KB, beta.122), so
       something in the Mac asar changes every build. Diff two consecutive dist/mac asars (file list + hashes), make
