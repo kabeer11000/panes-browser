@@ -85,7 +85,7 @@ Still to do:
 
 # Small cards
 
-- [ ] `website/` is packed into the app (`website\index.html` is inside `app.asar`); exclude it in `electron-builder.yml` `files`.
+- [x] `website/` is packed into the app (`website\index.html` is inside `app.asar`); exclude it in `electron-builder.yml` `files`. (checked 2026-11-23: not in app.asar; the files list is an allow-list)
 
 # Private windows, Tor and Snowflake (planned, not started)
 
