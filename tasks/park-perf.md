@@ -38,7 +38,9 @@ DevTools port (scratch scripts: zoom-check, zoom-fps, trace-zoom, layers). Done 
       only when another movement is likely, or raster at the coming scale ahead.
 - [ ] The `.lod` class restyle at settle (about 55 ms of style recalc): scope its selectors (a `:has()` rule may
       widen the invalidation).
-- [ ] Keep the last few opened pages warm (not discarded) so going back is instant, within the memory budget.
-- [ ] Prerender the likely next page from the search or command menu (Speculation Rules in the tab's session).
+- [x] Keep the last few opened pages warm (not discarded) so going back is instant, within the memory budget.
+      (MemoryPolicy.keepWarm in shared/memory.ts: the pages used last stay loaded, memory running short takes them last.)
+- [~] Prerender the likely next page from the search or command menu (Speculation Rules in the tab's session).
+      Deferred: Electron's support for Chromium prerendering is not dependable; tabs already start on hover intent.
 - [x] Measure the built app, not only dev (React dev mode doubles render costs in the profiles). 2026-11-23:
       perf-canvas on the beta.139 build (pan/zoom/drag p95 16.8 ms at CPU x4), startup traced on beta.142.
