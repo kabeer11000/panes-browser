@@ -10,7 +10,8 @@ import {
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import { getDomain, getHostname } from 'tldts'
-import { Engine, FilterSet } from 'adblock-rs'
+import type { Engine } from 'adblock-rs'
+import { adblockRs } from './nativeAdblock'
 import bundledResources from '../../resources/adblock-resources.json?asset'
 import buildEngine from './adblockWorker?nodeWorker'
 import type { BuildInput, BuiltEngines } from './adblockWorker'
@@ -198,6 +199,7 @@ export class Adblock {
   private use([all, firstParty, resources]: [ArrayBuffer, ArrayBuffer, string]): void {
     const parsed = JSON.parse(resources) as unknown[]
     const load = (data: ArrayBuffer): Engine => {
+      const { Engine, FilterSet } = adblockRs()
       const engine = new Engine(new FilterSet())
       engine.deserialize(data)
       engine.useResources(parsed)
