@@ -1901,10 +1901,26 @@ export function Expanded({
                   return (
                     <>
                       {own}
-                      {/* a strip tab dragged over the page: dropped on it, it opens beside it */}
+                      {/* a strip tab dragged over the page: the split it would make, as tab view shows it (the
+                          pages' pictures at their new sizes; the live page is parked meanwhile), and the page's hit
+                          area. Places nothing: the live pages follow once the split is made. */}
                       {drag && tab !== undefined && (
                         <div className="cv-live-split cv-drop-only">
-                          <div className="pane-hit" data-tab-id={tab} style={{ inset: 0 }} />
+                          <Panes
+                            tabs={allTabs}
+                            activeId={tab}
+                            layout={null}
+                            preview={
+                              drag.target?.kind === 'pane'
+                                ? applyDrop(null, drag.id, drag.target.tabId, drag.target.edge)
+                                : undefined
+                            }
+                            thumbs={thumbs}
+                            dragId={drag.id}
+                            onHeaderPointerDown={() => undefined}
+                            report={() => undefined}
+                            onHold={() => undefined}
+                          />
                         </div>
                       )}
                     </>
