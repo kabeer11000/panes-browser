@@ -99,10 +99,15 @@ People without Panes join from any browser in a light web version that is also P
       person counts in a block of their own (idBlock).
 - [x] 2. Relay MVP (`share/server`): sync + awareness + log, end-to-end encrypted from the start; local run; test
       with two headless clients. (crypto.ts, wire.ts, client.ts, share/server/relay.ts; 9 end-to-end tests)
-- [ ] 3. Panes client: share a space, join by link, live board sync, cursors. Two scratch instances side by side.
-- [ ] 4. Deploy relay to Render (confirm first). Invite links work across machines.
-- [ ] 5. Pictures: shrink + upload blobs; tab cards as shared page links.
-- [ ] 6. Web board MVP: view, cursors, notes, Get Panes.
+- [x] 3. Panes client: share a space, join by link, live board sync, cursors. Two scratch instances side by side
+      (used throughout the 7b-7f tests: A shares, B and C join by link, edits and cursors flow).
+- [x] 4. Deploy relay to Render (b689b67): panes-share.onrender.com; pushing share/** deploys it.
+- [x] 5. Pictures: shrink + upload blobs (sealed, main/share.ts putBlob/getBlob); tab cards as shared page links
+      (mirrors: the web board shows them as link cards with their pictures).
+- [x] 6. Web board (share/web, Vite + React, built into share/web/public, served by the relay at /s/<room>): the
+      board live (sections, cards, notes, marks), pan and zoom, everyone's pointers, the guest's own name and pointer
+      in the room, notes added and edited, Open in Panes and Get Panes. Checked in headless Edge against a Panes room:
+      the same board, A saw the guest, its rename and pointer, and its note.
 - [x] 7a. Shared browsing in Panes (52d8ce1, beta.132): card menu "Show it live to everyone"; watchers open a live
       panel (WebRTC, STUN, signalled through the relay sealed); ask for control, host lets/declines, takes back, stops.
       Pointer, clicks, wheel, keys injected with sendInputEvent (fractions of the page, validated in main). Tested two
@@ -130,6 +135,7 @@ People without Panes join from any browser in a light web version that is also P
       1280x720, not 1920x1080). Pointers: tab capture draws none, so the host sends its own (over the page, window
       focused, ~30/s while anyone watches) and relays the driver's to the other watchers, drawn as named arrows. Three
       Panes on the relay: C saw B's pointer at exactly where B moved it (0.30, 0.60); B sees none of its own.
-- [ ] 7g. Watch from the web board (people without Panes).
+- [x] 7g. Watch from the web board: a live tab's pill, the picture and sound (1280x720 to a web guest), pointers,
+      ask for control and drive (A's chip showed the web guest asking; let in, it drove).
 - [ ] 8. Chat (Panes + web).
 - [ ] 9. Room expiry, limits, abuse.
