@@ -36,6 +36,8 @@ export interface CardModel {
   asleep?: boolean
   muted: boolean
   ringing: boolean
+  /** Someone else's tab they are showing live right now: their name (the card wears LIVE, and opens their picture). */
+  liveBy?: string
   /** Its page is using the camera, the microphone or sharing the screen (flags, so a tab push compares equal). */
   camera?: boolean
   mic?: boolean

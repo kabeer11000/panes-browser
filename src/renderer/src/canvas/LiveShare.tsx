@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useWatching, watchLive } from '@renderer/liveWatch'
+import { ChevronDownIcon, SpeakerIcon } from '@renderer/components/icons'
+import { holdOverlay, releaseOverlay } from '@renderer/overlay'
+import { useShareState } from '@renderer/components/useShare'
 import type { SharePerson } from '@shared/types'
 import {
   ICE_SERVERS,
@@ -107,6 +112,15 @@ function LiveViewer({
 }): React.JSX.Element {
   const ptrSink = useRef<(m: Ptr) => void>(() => undefined)
   const video = useRef<HTMLVideoElement>(null)
+  // the picture outlives any one <video>: whichever is mounted gets it (a remount once left a live call showing black)
+  const stream = useRef<MediaStream | null>(null)
+  const attach = useCallback((v: HTMLVideoElement | null): void => {
+    video.current = v
+    if (v && stream.current && v.srcObject !== stream.current) {
+      v.srcObject = stream.current
+      void v.play().catch(() => undefined)
+    }
+  }, [])
   const ctl = useRef<RTCDataChannel | null>(null)
   const mv = useRef<RTCDataChannel | null>(null)
   const [state, setState] = useState<'connecting' | 'live' | 'gone'>('connecting')
@@ -151,11 +165,10 @@ function LiveViewer({
       window.api.share!.signal(spaceId, hostRtc, JSON.stringify(sig))
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
     pc.ontrack = (e) => {
-      const v = video.current
       if (e.track.kind === 'audio') setHasSound(true)
-      if (v && e.streams[0]) {
-        v.srcObject = e.streams[0]
-        void v.play().catch(() => undefined)
+      if (e.streams[0]) {
+        stream.current = e.streams[0]
+        attach(video.current)
         setState('live')
       }
     }
@@ -224,6 +237,15 @@ function LiveViewer({
     if (ch?.readyState === 'open') ch.send(JSON.stringify(msg))
   }
   const driving = control === 'yes'
+  // Esc puts it away, as it does the preview (not while driving: then keys are for their page)
+  useEffect(() => {
+    if (driving) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [driving, onClose])
   /** A pointer on the video as fractions of the page (null outside the picture, in its letterbox). */
   const at = (e: { clientX: number; clientY: number }): { x: number; y: number } | null => {
     const v = video.current
@@ -237,6 +259,13 @@ function LiveViewer({
   const input = (e: RemoteInput, fast = false): void => say({ k: 'input', e }, fast)
   const button = (b: number): 'left' | 'middle' | 'right' =>
     b === 1 ? 'middle' : b === 2 ? 'right' : 'left'
+  const site = ((): string => {
+    try {
+      return new URL(host.live?.url ?? '').hostname.replace(/^www\./, '')
+    } catch {
+      return ''
+    }
+  })()
   const mods = (e: React.KeyboardEvent): Array<'shift' | 'control' | 'alt' | 'meta'> => [
     ...(e.shiftKey ? (['shift'] as const) : []),
     ...(e.ctrlKey ? (['control'] as const) : []),
@@ -244,61 +273,94 @@ function LiveViewer({
     ...(e.metaKey ? (['meta'] as const) : [])
   ]
 
-  return (
+  // in the body, not the board's top bar: over every bar and toast of the board, as the preview is
+  return createPortal(
     <div className="live-view" role="dialog" aria-label={`${host.name}'s tab, live`}>
-      <div className="live-head">
-        <Face name={host.name} color={host.color} size={22} />
-        <div className="live-what">
-          <b>{host.name}&rsquo;s tab</b>
-          <span>{host.live?.title || host.live?.url}</span>
+      {/* the preview's own slim bar (Expanded.tsx): whose page it is in the address pill, then only what a watcher
+          can do: drive (when let), sound, close */}
+      <header className="cv-panel-head live-head">
+        <div className="cv-hzone cv-hzone-l">
+          <div className="cv-panel-title" title={host.live?.url}>
+            <span className="cv-panel-icon">
+              <Face name={host.name} color={host.color} size={16} />
+            </span>
+            <strong>{host.live?.title || host.live?.url}</strong>
+            <span>
+              {host.name}
+              {site ? ` · ${site}` : ''}
+            </span>
+          </div>
+          <span className={'live-badge ' + state}>
+            <i aria-hidden="true" />
+            {state === 'live' ? 'Live' : state === 'gone' ? 'Ended' : 'Connecting'}
+          </span>
         </div>
-        <span className={'live-badge ' + state}>
-          <i aria-hidden="true" />
-          {state === 'live' ? 'Live' : state === 'gone' ? 'Ended' : 'Connecting'}
-        </span>
-        {driving ? (
+        <div className="cv-hzone cv-hzone-r">
+          {driving ? (
+            <button
+              type="button"
+              className="live-btn on"
+              title="You are driving their tab. Click to let go."
+              onClick={() => {
+                say({ k: 'release' })
+                setControl('none')
+              }}
+            >
+              Driving · Let go
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={'cv-hbtn live-drive' + (control === 'asked' ? ' asked' : '')}
+              disabled={state !== 'live' || control === 'asked'}
+              aria-label="Ask to drive"
+              title={
+                control === 'asked'
+                  ? `Asked ${host.name}…`
+                  : control === 'no'
+                    ? `${host.name} said no. Ask again`
+                    : `Ask ${host.name} to let you drive their tab`
+              }
+              onClick={() => {
+                say({ k: 'ask', name: myName })
+                setControl('asked')
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M3.5 2.2 12.6 8l-4 .9 2.2 4.4-1.6.8-2.2-4.4-3 2.7z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {control === 'asked' && <span>Asked</span>}
+            </button>
+          )}
+          {hasSound && (
+            <button
+              type="button"
+              className="cv-hbtn"
+              aria-pressed={sound}
+              aria-label={sound ? 'Mute their tab' : 'Unmute their tab'}
+              title={sound ? 'Mute their tab' : 'Unmute their tab'}
+              onClick={() => setSound((v) => !v)}
+            >
+              <SpeakerIcon muted={!sound} />
+            </button>
+          )}
           <button
             type="button"
-            className="live-btn on"
-            onClick={() => {
-              say({ k: 'release' })
-              setControl('none')
-            }}
+            className="cv-hbtn"
+            aria-label="Stop watching"
+            title="Stop watching (Esc)"
+            onClick={onClose}
           >
-            You are driving &middot; Let go
+            <ChevronDownIcon />
           </button>
-        ) : (
-          <button
-            type="button"
-            className="live-btn"
-            disabled={state !== 'live' || control === 'asked'}
-            onClick={() => {
-              say({ k: 'ask', name: myName })
-              setControl('asked')
-            }}
-          >
-            {control === 'asked'
-              ? 'Asked…'
-              : control === 'no'
-                ? 'Ask again for control'
-                : 'Ask for control'}
-          </button>
-        )}
-        {hasSound && (
-          <button
-            type="button"
-            className={'live-btn' + (sound ? '' : ' off')}
-            aria-pressed={sound}
-            title={sound ? 'Turn their tab’s sound off' : 'Turn their tab’s sound on'}
-            onClick={() => setSound((v) => !v)}
-          >
-            {sound ? 'Sound on' : 'Sound off'}
-          </button>
-        )}
-        <button type="button" className="live-close" aria-label="Stop watching" onClick={onClose}>
-          &times;
-        </button>
-      </div>
+        </div>
+      </header>
       <div
         ref={stage}
         className={'live-stage' + (driving ? ' driving' : '')}
@@ -334,7 +396,7 @@ function LiveViewer({
           input({ t: 'key', key: e.key, up: true, mods: mods(e) })
         }}
       >
-        <video ref={video} muted={!sound} playsInline />
+        <video ref={attach} muted={!sound} playsInline />
         {state === 'live' && (
           <LivePointers sinkRef={ptrSink} video={video} host={host} people={people} />
         )}
@@ -344,7 +406,8 @@ function LiveViewer({
           </p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -377,7 +440,10 @@ export function LiveShare({
     deny: () => view?.deny(),
     takeBack: () => view?.takeBack()
   }
-  const [watchingId, setWatchingId] = useState<number | null>(null)
+  const w = useWatching()
+  const watchingId = w?.spaceId === spaceId ? w.personId : null
+  const setWatchingId = (id: number | null): void =>
+    watchLive(id === null ? null : { spaceId, personId: id })
   if (!shared) return null
   const showing = people.filter((p) => p.live && p.rtc)
   const watched = showing.find((p) => p.id === watchingId) ?? null
@@ -413,24 +479,6 @@ export function LiveShare({
           </button>
         </div>
       )}
-      {showing.length > 0 && !watched && (
-        <div className="live-invites">
-          {showing.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              className="live-invite"
-              onClick={() => setWatchingId(p.id)}
-            >
-              <Face name={p.name} color={p.color} size={18} />
-              <span>
-                {p.name} is showing <b>{p.live!.title || p.live!.url}</b>
-              </span>
-              <em>Watch</em>
-            </button>
-          ))}
-        </div>
-      )}
       {watched && (
         <LiveViewer
           key={watched.id}
@@ -442,5 +490,41 @@ export function LiveShare({
         />
       )}
     </>
+  )
+}
+
+/**
+ * Watching someone's live tab away from the board (tab view): the same viewer, opened from the window's Watch chip
+ * (StatusChips). The page views are native and would sit over it, so they give way to their pictures meanwhile.
+ */
+export function LiveWatchPanel({
+  spaceId,
+  shared
+}: {
+  spaceId: number
+  shared: boolean
+}): React.JSX.Element | null {
+  const w = useWatching()
+  const st = useShareState(spaceId, shared)
+  const host =
+    w?.spaceId === spaceId
+      ? st?.people.find((p) => p.id === w.personId && p.live && p.rtc)
+      : undefined
+  const on = !!host
+  useEffect(() => {
+    if (!on) return
+    void holdOverlay('live-watch')
+    return () => void releaseOverlay('live-watch')
+  }, [on])
+  if (!host || !st) return null
+  return (
+    <LiveViewer
+      key={host.id}
+      spaceId={spaceId}
+      host={host}
+      people={st.people}
+      myName={st.me?.name ?? 'Someone'}
+      onClose={() => watchLive(null)}
+    />
   )
 }

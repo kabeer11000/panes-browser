@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import * as Y from 'yjs'
 import { emptyState, type CanvasCard, type CanvasState } from '../ai/canvas'
-import { isMirror, mirrorId, readInto, writeDiff } from './doc'
+import { isMirror, mirrorId, readInto, samePage, writeDiff } from './doc'
 
 const card = (id: number, url: string, x = 0, extra: Partial<CanvasCard> = {}): CanvasCard => ({
   id,
@@ -142,4 +142,56 @@ describe('tabs shared as mirrors', () => {
     const after = readInto(b, emptyState('x'), 'ben', () => 'data:image/jpeg;base64,xx')
     expect(after.items[String(after.cards[0].id)].image).toBe('data:image/jpeg;base64,xx')
   })
+})
+
+describe('a page shows once on a shared board', () => {
+  test("opening someone's tab here: their mirror gives way to one's own card, on both boards", () => {
+    const [a, b] = pair()
+    const anas = withCards([card(7, 'https://www.youtube.com/watch?v=x#t=3', 40)])
+    writeDiff(a, null, anas, undefined, { by: 'ana', title: titles })
+    // Ben opened Ana's tab: a tab of his own now, same page
+    const bens = withCards([card(2, 'https://youtube.com/watch?v=x', 600)])
+    writeDiff(b, null, bens, undefined, { by: 'ben', title: titles })
+    expect(readInto(b, bens, 'ben').cards.map((c) => c.id)).toEqual([2])
+    expect(readInto(a, anas, 'ana').cards.map((c) => c.id)).toEqual([7])
+  })
+
+  test('two others with the same page: one card, the same one on every board', () => {
+    const [a, b] = pair()
+    writeDiff(a, null, withCards([card(1, 'https://example.com/')]), undefined, {
+      by: 'ana',
+      title: titles
+    })
+    writeDiff(a, null, withCards([card(5, 'https://example.com')]), undefined, {
+      by: 'cat',
+      title: titles
+    })
+    const seen = readInto(b, emptyState('x'), 'ben').cards
+    expect(seen).toHaveLength(1)
+    expect(seen[0].id).toBe(mirrorId('ana:1'))
+  })
+
+  test('samePage', () => {
+    expect(samePage('https://www.A.com/p/#x')).toBe(samePage('https://a.com/p'))
+    expect(samePage('https://a.com/p?q=1')).not.toBe(samePage('https://a.com/p?q=2'))
+    expect(samePage('not a url')).toBe('not a url')
+  })
+})
+
+test("a tab closed or moved on away from the board: the others' copy follows without the board saving", () => {
+  const [a, b] = pair()
+  const board = withCards([card(7, 'https://a.example/'), card(8, 'https://b.example/', 300)])
+  const urls = new Map<number, string | null>([
+    [7, 'https://a.example/'],
+    [8, 'https://b.example/']
+  ])
+  const out = { by: 'ana', title: titles, url: (id: number) => urls.get(id) ?? null }
+  writeDiff(a, null, board, undefined, out)
+  expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(2)
+  urls.set(7, null) // closed
+  urls.set(8, 'https://c.example/') // went elsewhere
+  writeDiff(a, board, board, undefined, out)
+  expect(readInto(b, emptyState('x'), 'ben').cards.map((c) => c.url)).toEqual([
+    'https://c.example/'
+  ])
 })

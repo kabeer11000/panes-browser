@@ -483,6 +483,14 @@ export const CardView = memo(
             )}
             <div className="cv-badges">
               {m.isTab && <LiveBadge tabId={m.id} />}
+              {m.liveBy && (
+                <span
+                  className="cv-live-tag"
+                  title={`${m.liveBy} is showing this live. Open it to watch`}
+                >
+                  Live · {m.liveBy.split(' ')[0]}
+                </span>
+              )}
               <CallBadge call={m.ringing ? 'ringing' : null} />
               <CaptureBadge capture={{ camera: !!m.camera, mic: !!m.mic, screen: !!m.screen }} />
               {m.isTab && (m.audible || m.muted || m.kind === 'video') && <MediaControls m={m} />}

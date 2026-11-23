@@ -52,8 +52,13 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       account, invite link with a secret key (no accounts), images shrunk + uploaded to the relay (~5 MB cap). Both edit
       notes, images, arrows, sections, cards. Later: shared tabs. Plan it in tasks/shared-spaces.md first; deploying to
       Render is outward-facing: confirm with the user before the first deploy.
-- [ ] Usage analytics (user decided 2026-11-22): self-hosted endpoint, asked on first run (welcome), domains included.
+- [x] Usage analytics (user decided 2026-11-22): self-hosted endpoint, asked on first run (welcome), domains included.
       Actions, screens, durations, version/OS/RAM tier, perf timings, site domains. Never contents, typed text, passwords.
+      Done 2026-11-23 (97c28ca): "Help improve Panes" toggle on the welcome tour and in Settings > Privacy (off by
+      default). Commands by IPC name, seconds per site (screen time's tick: never private/Tor), active time, boot ms;
+      sent every 30 min to the relay (POST /usage), kept on disk until taken. Read them: GET /usage/stats?days=7 with
+      header x-key: <STATS_KEY on Render; copy in ~/.panes-stats-key>. Screens are only seen as the commands they
+      send (no separate screen events).
 - [x] Tidy freezes the whole PC for a second, even without AI: measured on 120 scattered cards (dev build): frames of
       267 ms, 469 ms of JPEG encoding (cards' small copies made as they flew into view) and 458 ms of GC on the main
       thread. Small copies are now encoded in a worker (pics.ts, shrinkWorker.ts) and cards out of sight at both ends

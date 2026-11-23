@@ -462,6 +462,8 @@ export class TabManager {
   onPrint: ((system: boolean) => void) | null = null
   /** Reader mode for the page on screen (wired in index.ts). */
   onReader: (() => void) | null = null
+  /** The tab menu's "show it live" item for a tab in a space (shared spaces, main/share.ts; wired in index.ts). */
+  liveMenu: ((tabId: number, spaceId: number) => MenuItemConstructorOptions | null) | null = null
 
   /** Called after every state change (the permission card and the site panel follow the tab on screen). */
   onRefresh: (() => void) | null = null
@@ -1529,6 +1531,14 @@ export class TabManager {
   }
 
   /** A tab's title as it shows (its page's, or the one it was saved with while unloaded); '' when unknown. */
+  /** A tab's address as it is now (null: no such tab, it closed). */
+  tabUrl(id: number): string | null {
+    const t = this.tabs.get(id)
+    if (!t) return null
+    const wc = t.unloaded ? null : liveContents(t)
+    return t.pending?.url || wc?.getURL() || t.firstUrl
+  }
+
   tabTitle(id: number): string {
     const t = this.tabs.get(id)
     if (!t) return ''
@@ -4580,6 +4590,10 @@ export class TabManager {
         click: () => this.setPinned(id, !tab.pinned)
       },
       { label: 'Duplicate tab', click: () => this.duplicate(id) },
+      ...(() => {
+        const live = !tab.private && !tab.tor ? this.liveMenu?.(id, tab.spaceId) : null
+        return live ? [{ type: 'separator' } as MenuItemConstructorOptions, live] : []
+      })(),
       ...(TAB_GROUPS
         ? [
             { type: 'separator' } as MenuItemConstructorOptions,

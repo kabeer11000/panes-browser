@@ -51,6 +51,7 @@ import { chromeVars } from '@shared/color'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 import { Recover } from './Recover'
 import { LiveHosts } from './LiveHosts'
+import { LiveWatchPanel } from './canvas/LiveShare'
 import { narrowStep } from '@shared/narrow'
 
 /** The board's own search does not offer opening the board. */
@@ -134,6 +135,11 @@ function App(): React.JSX.Element {
   const canvasTab = useRef<number | null>(null)
   // switching space while on the board shows that space's board: the tab change that comes with it is not a pick
   const spaceSwitchAt = useRef(0)
+  /** The space on screen, for live tabs shown in it (the Watch chip and its viewer). */
+  const activeSpaceInfo = {
+    id: activeSpaceId,
+    shared: !!spaces.find((x) => x.id === activeSpaceId)?.shared
+  }
   const lastSpace = useRef(activeSpaceId)
   useEffect(() => {
     if (lastSpace.current !== activeSpaceId) spaceSwitchAt.current = performance.now()
@@ -926,6 +932,10 @@ function App(): React.JSX.Element {
     >
       {/* tabs shown live in shared spaces keep going away from the board (LiveHosts.tsx) */}
       <LiveHosts spaces={spaces} tabs={tabs} />
+      {/* watching someone's live tab in tab view (the board has its own) */}
+      {mode !== 'canvas' && activeSpaceInfo && (
+        <LiveWatchPanel spaceId={activeSpaceInfo.id} shared={activeSpaceInfo.shared} />
+      )}
       <aside className="sidebar" inert={!showSidebar}>
         {!board && (
           <Sidebar
@@ -1033,7 +1043,7 @@ function App(): React.JSX.Element {
                 onWheel={swipe}
               />
               <div className="strip-side end">
-                {!showSidebar && <StatusChips tor={tor} notice={notice} />}
+                {!showSidebar && <StatusChips tor={tor} notice={notice} space={activeSpaceInfo} />}
                 {!showSidebar && <SharingBar tabs={tabs} activeId={activeId} />}
                 {!showSidebar && findKey !== null && (
                   <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />

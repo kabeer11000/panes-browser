@@ -232,7 +232,14 @@ export function Sidebar({
         paneFocus={group.includes(activeId ?? -1)}
         onWheel={onWheel}
       />
-      <StatusChips tor={tor} notice={notice} />
+      <StatusChips
+        tor={tor}
+        notice={notice}
+        space={{
+          id: activeSpaceId,
+          shared: !!spaces.find((s) => s.id === activeSpaceId)?.shared
+        }}
+      />
       <SharingBar tabs={tabs} activeId={activeId} />
       {passwordPrompt && (
         <SavePrompt

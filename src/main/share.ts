@@ -40,6 +40,8 @@ const APPLY_MS = 30
 const PERSIST_MS = 800
 /** Tabs' pictures for the others: looked at this often, one tab at most this often, a few per look, this size. */
 const PIC_TICK_MS = 15_000
+/** Tab changes gathered this long before they go to the rooms (a page loading changes its tab many times). */
+const TABS_MOVED_MS = 400
 const PIC_EVERY_MS = 30_000
 const PICS_PER_ROUND = 4
 const PIC_WIDTH = 320
@@ -97,6 +99,8 @@ export interface ShareDeps {
   createSpace: () => { id: number }
   /** A tab's title, for the card the others see of it. */
   tabTitle: (tabId: number) => string
+  /** A tab's address now; null once it has closed. */
+  tabUrl: (tabId: number) => string | null
   /** A tab's picture (a JPEG data address) and when it was taken; null and 0 when it has none. */
   thumbOf: (tabId: number) => string | null
   thumbAt: (tabId: number) => number
@@ -144,10 +148,12 @@ export class ShareService {
     by: string
     title: (id: number) => string
     pic: (id: number) => string | undefined
+    url: (id: number) => string | null
   } {
     return {
       by: this.who,
       title: (id) => this.d.tabTitle(id),
+      url: (id) => this.d.tabUrl(id),
       pic: (id) => this.sentPics.get(`${spaceId}:${id}`)?.id
     }
   }
@@ -605,10 +611,22 @@ export class ShareService {
     room.client.awareness.setLocalStateField('live', { title: info.title, url: info.url })
   }
 
-  /** A tab closed or navigated: the live one is said again, or ends. */
-  tabChanged(tabId: number): void {
-    for (const room of this.rooms.values()) if (room.liveTab === tabId) this.liveAnnounce(room)
+  /**
+   * The tabs changed (one closed, went elsewhere, was retitled): the others' copies of this person's tabs follow at
+   * once, not when the board is next saved (closing a tab away from the board never saves it, and the others kept
+   * it), and the live one is said again or ends.
+   */
+  tabsMoved(): void {
+    if (this.tabsTimer) return
+    this.tabsTimer = setTimeout(() => {
+      this.tabsTimer = null
+      for (const room of this.rooms.values()) {
+        this.liveAnnounce(room)
+        if (room.last) writeDiff(room.doc, room.last, room.last, LOCAL, this.tabsOut(room.spaceId))
+      }
+    }, TABS_MOVED_MS)
   }
+  private tabsTimer: NodeJS.Timeout | null = null
 
   signal(spaceId: number, to: number, data: string): void {
     const room = this.rooms.get(spaceId)

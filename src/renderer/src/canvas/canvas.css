@@ -5170,48 +5170,50 @@
 
 /* the watcher's panel: the host's tab, large, over the board */
 .live-view {
+  /* the preview's place and look (Expanded.tsx .cv-panel): the whole board, edge to edge, one slim bar on top */
   position: fixed;
-  inset: 56px 6% 92px;
+  inset: 8px;
   z-index: 200; /* over the board's notices and toasts: the page is what is being looked at */
   display: flex;
   flex-direction: column;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
-  background: var(--popover-bg);
+  background: var(--card-bg, var(--popover-bg));
   box-shadow:
-    0 0 0 1px var(--border),
-    0 30px 80px rgb(0 0 0 / 0.5);
-  animation: pop-open 0.22s var(--ease) both;
+    0 0 0 1px color-mix(in srgb, var(--fg) 9%, transparent),
+    0 20px 60px rgb(0 0 0 / 0.32);
+  animation: pop-open 0.2s var(--ease) both;
 }
-.live-head {
+.live-view .live-head {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 46px;
-  padding: 0 10px 0 14px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  justify-content: space-between;
+  flex: none;
 }
-.live-what {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.live-view .live-head .cv-hzone-l {
   flex: 1;
-  line-height: 1.25;
 }
-.live-what span {
+.live-view .cv-panel-icon {
+  width: 16px;
+  height: 16px;
+}
+.live-drive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   color: var(--fg-dim);
+}
+.live-drive.asked {
+  width: auto !important;
+  padding: 0 8px;
   font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .live-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 9px;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;

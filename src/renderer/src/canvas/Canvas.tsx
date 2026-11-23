@@ -145,6 +145,8 @@ import { ShareButton } from './ShareButton'
 import { SpaceChat } from './SpaceChat'
 import { LiveShare } from './LiveShare'
 import { usePresence } from '@renderer/components/useShare'
+import { isMirror, samePage } from '@shared/share/doc'
+import { watchLive } from '@renderer/liveWatch'
 import { READER } from './model'
 import { ContextMenu, type MenuEntry } from './ContextMenu'
 import { Expanded, type ExpandSource } from './Expanded'
@@ -695,6 +697,16 @@ export function Canvas({
   const presence = usePresence(spaceId, !!thisSpace?.shared)
   /** The tab this person shows live in this shared space (LiveShare), if any: main pushes it with the share state. */
   const liveTab = presence.liveTab
+  const presenceRef = useRef(presence.people)
+  /** The pages others show live here, by page, to whom: their tabs' cards wear it (no separate "is showing" chip). */
+  const liveHosts = new Map(
+    presence.people.flatMap((p) =>
+      p.live && p.rtc ? [[samePage(p.live.url), p.name] as const] : []
+    )
+  )
+  useLayoutEffect(() => {
+    presenceRef.current = presence.people
+  })
   const showLive = (tabId: number | null): void => void window.api.share?.showLive(spaceId, tabId)
   const bootRef = useRef('')
   const tries = useRef(new Map<string, number>())
@@ -3678,6 +3690,7 @@ export function Canvas({
       asleep: !!tab?.unloaded,
       muted: !!tab?.muted,
       ringing: tab?.attention.call === 'ringing',
+      liveBy: isMirror(card.id) ? liveHosts.get(samePage(item?.url ?? '')) : undefined,
       camera: !!tab?.capture.camera,
       mic: !!tab?.capture.mic,
       screen: !!tab?.capture.screen,
@@ -3913,6 +3926,13 @@ export function Canvas({
     const card = s?.cards.find((c) => c.id === id)
     const m = modelForRef.current({ id })
     if (!s || !card || !m || m.kind === 'pending') return
+    // someone's tab they are showing live: its live picture (opening its address here is a page of one's own, signed
+    // in as oneself: their WhatsApp asked for a login)
+    if (isMirror(id)) {
+      const page = samePage(card.url)
+      const host = presenceRef.current.find((p) => p.live && p.rtc && samePage(p.live.url) === page)
+      if (host) return void watchLive({ spaceId, personId: host.id })
+    }
     const v = vp.get()
     setSel(new Set([`c:${id}`]))
     // an empty tab has nothing to read: ask what to open in it, right where its card is

@@ -305,6 +305,7 @@ function createWindow(): void {
     refresh: () => tabs.refresh(),
     createSpace: () => tabs.createSpace(),
     tabTitle: (id) => tabs.tabTitle(id),
+    tabUrl: (id) => tabs.tabUrl(id),
     thumbOf: (id) => tabs.thumbOf(id),
     thumbAt: (id) => tabs.thumbAt(id),
     setLiveShared: (id, on) => tabs.setLiveShared(id, on),
@@ -329,6 +330,28 @@ function createWindow(): void {
     return true
   }
   share.init()
+  // live tab sharing from the tab itself (not only the board's card menu): a space not shared yet is shared first,
+  // its invite link copied, so one click is all it takes
+  tabs.liveMenu = (tabId, spaceId) => {
+    const space = spaces.get(spaceId)
+    if (!space) return null
+    if (share.liveTabOf(spaceId) === tabId)
+      return { label: 'Stop showing this tab live', click: () => share.showLive(spaceId, null) }
+    if (space.shared)
+      return {
+        label: 'Show this tab live to the space',
+        click: () => share.showLive(spaceId, tabId)
+      }
+    return {
+      label: 'Show this tab live (shares this space, copies the invite link)',
+      click: () => {
+        const link = share.start(spaceId)
+        if (!link) return
+        clipboard.writeText(link)
+        share.showLive(spaceId, tabId)
+      }
+    }
+  }
   powerMonitor.on('resume', () => share.wake())
   // board timers and reminders notify from here, board open or not (looked at once the window is up)
   const alarms = new WidgetAlarms({
@@ -832,6 +855,7 @@ function createWindow(): void {
     permissionManager.sync()
   }
   tabs.onRefresh = () => {
+    share.tabsMoved() // the others' copies of this person's tabs follow (a tab closed, went elsewhere)
     askSelection.sync() // the offer follows the page it was made for
     permissionManager.sync() // the same, and a question waiting for its tab shows once the tab is on screen
     sitePanel.refresh() // the open panel follows the tab as it navigates, loads, or starts capturing

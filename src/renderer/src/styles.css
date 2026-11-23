@@ -5758,3 +5758,11 @@ kbd {
   text-transform: uppercase;
   line-height: 15px;
 }
+
+/* someone's live tab, offered in the chrome (StatusChips): one line, the title cut short */
+.status-chip-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

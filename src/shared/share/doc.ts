@@ -127,7 +127,13 @@ export function writeDiff(
   next: CanvasState,
   origin?: unknown,
   /** This person's tabs go to the others too (see TabMirror): who they are, each tab's title and picture. */
-  tabs?: { by: string; title: (id: number) => string; pic?: (id: number) => string | undefined }
+  tabs?: {
+    by: string
+    title: (id: number) => string
+    pic?: (id: number) => string | undefined
+    /** Each tab's address now, null once closed (the board's card may be older than the tab). */
+    url?: (id: number) => string | null
+  }
 ): void {
   const was = prev ? sharedOf(prev) : null
   const now = sharedOf(next)
@@ -146,7 +152,7 @@ export function writeDiff(
       }
       if (before) for (const id of before.keys()) if (!after.has(id)) map.delete(id)
     }
-    if (tabs) writeTabs(doc, next, tabs.by, tabs.title, tabs.pic)
+    if (tabs) writeTabs(doc, next, tabs.by, tabs.title, tabs.pic, tabs.url)
   }, origin)
 }
 
@@ -160,11 +166,15 @@ function writeTabs(
   s: CanvasState,
   by: string,
   title: (id: number) => string,
-  pic?: (id: number) => string | undefined
+  pic?: (id: number) => string | undefined,
+  urlOf?: (id: number) => string | null
 ): void {
   const map = doc.getMap<TabMirror>('tabs')
   const mine = new Set<string>()
-  for (const c of s.cards) {
+  for (const board of s.cards) {
+    const url = urlOf ? urlOf(board.id) : board.url
+    if (url === null) continue // closed: it goes from the others' boards below
+    const c = url === board.url ? board : { ...board, url }
     if (c.id <= 0 || c.private || !/^https?:/i.test(c.url)) continue
     const key = `${by}:${c.id}`
     mine.add(key)
@@ -203,10 +213,19 @@ export function readInto(
   for (const [id, item] of Object.entries(local.items))
     if (!isShared({ id: Number(id) } as CanvasCard) && !isMirror(Number(id))) items[id] = item
   for (const x of shared) items[String(x.card.id)] = x.item
-  // the others' tabs: where their owner has them, as the page they are (opened here, it is a page of one's own)
+  // the others' tabs: where their owner has them, as the page they are (opened here, it is a page of one's own).
+  // A page already on this board (this person's own tab, or someone else's first) shows once: opening someone's tab
+  // here makes a tab of one's own, which goes back to them too, and both boards showed the page twice.
   const mirrors: CanvasCard[] = []
-  doc.getMap<TabMirror>('tabs').forEach((v, key) => {
-    if (v.by === me) return
+  const pages = new Set(own.map((c) => samePage(c.url)))
+  const entries: Array<[string, TabMirror]> = []
+  doc.getMap<TabMirror>('tabs').forEach((v, key) => entries.push([key, v]))
+  entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)) // the same one wins on every board
+  for (const [key, v] of entries) {
+    if (v.by === me) continue
+    const page = samePage(v.card.url)
+    if (pages.has(page)) continue
+    pages.add(page)
     const id = mirrorId(key)
     mirrors.push({ ...v.card, id, private: false })
     const image = v.pic ? picOf?.(v.pic) : undefined
@@ -215,7 +234,7 @@ export function readInto(
       v.title,
       image ? { source: 'tab', image } : { source: 'tab' }
     )
-  })
+  }
   // Someone else's tab laid out from the same spot as one of this person's (both boards place a section's cards in
   // the same slots) moves to the nearest free place here, so the two never sit on top of each other.
   const taken: Box[] = [...own, ...shared.map((x) => x.card)].map(cardBox)
@@ -243,6 +262,18 @@ export function readInto(
     connectors: [...listOf(doc, 'connectors'), ...ownArrows],
     cards: [...own, ...shared.map((x) => x.card), ...mirrors],
     items
+  }
+}
+
+/** A page's address as far as "the same page" goes: no #part, no trailing slash, no "www.", any case of host. */
+export function samePage(url: string): string {
+  try {
+    const u = new URL(url)
+    u.hash = ''
+    u.hostname = u.hostname.replace(/^www\./i, '')
+    return u.toString().replace(/\/$/, '')
+  } catch {
+    return url
   }
 }
 
