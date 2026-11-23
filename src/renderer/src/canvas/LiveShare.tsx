@@ -154,6 +154,16 @@ function LiveViewer({
   const ctl = useRef<RTCDataChannel | null>(null)
   const mv = useRef<RTCDataChannel | null>(null)
   const [state, setState] = useState<'connecting' | 'live' | 'gone'>('connecting')
+  /** Still not through after a while: say so instead of "Connecting" for good. */
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (state === 'live') return
+    const t = window.setTimeout(() => setSlow(true), 12_000)
+    return () => {
+      window.clearTimeout(t)
+      setSlow(false)
+    }
+  }, [state])
   const [control, setControl] = useState<'none' | 'asked' | 'yes' | 'no'>('none')
   /** The host's tab's sound, on unless turned off here (only while it has any). */
   const [sound, setSound] = useState(true)
@@ -211,7 +221,6 @@ function LiveViewer({
       if (e.streams[0]) {
         stream.current = e.streams[0]
         attach(video.current)
-        setState('live')
       }
     }
     pc.ondatachannel = (e) => {
@@ -240,9 +249,13 @@ function LiveViewer({
     let redial = 0
     pc.onconnectionstatechange = () => {
       window.clearTimeout(redial)
-      if (pc.connectionState === 'failed')
+      // live once the line is through, not when the track is announced: a call that never connects (networks that
+      // block a direct line) used to show "Live" over a black picture
+      if (pc.connectionState === 'connected') setState('live')
+      else if (pc.connectionState === 'failed') {
+        setState('connecting')
         redial = window.setTimeout(() => setTry((n) => n + 1), 800)
-      else if (pc.connectionState === 'disconnected')
+      } else if (pc.connectionState === 'disconnected')
         redial = window.setTimeout(() => setTry((n) => n + 1), 4000)
     }
     const off = window.api.share.onSignal(async (sid, from, data) => {
@@ -517,7 +530,11 @@ function LiveViewer({
         )}
         {state !== 'live' && (
           <p className="live-wait">
-            {state === 'gone' ? `${host.name} stopped showing it.` : 'Connecting to their tab…'}
+            {state === 'gone'
+              ? `${host.name} stopped showing it.`
+              : slow
+                ? `Can't get a line through to ${host.name}'s Panes. Their network or yours is blocking it; still trying…`
+                : 'Connecting to their tab…'}
           </p>
         )}
       </div>
