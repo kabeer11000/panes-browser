@@ -139,6 +139,7 @@ import type { SettingsStore } from './settings'
 import type { ActiveSite } from './sites'
 import type { SpaceStore } from './spaces'
 import { JsonStore } from './store'
+import { holdUnseen } from './unseen'
 
 /** How long a live tab's "is a password field focused" answer holds before keys ask again (a click resets it). */
 /**
@@ -4224,7 +4225,13 @@ export class TabManager {
       // A hidden view draws nothing, and one that was never on screen (opened while the canvas is up) has no size
       // either. Off the window it counts as hidden too, so it is shown with only its top-left pixel inside the
       // window's bottom-right corner, which its own rounded corner leaves transparent: nothing shows, yet it paints.
-      const hidden = !tab.view.getVisible()
+      // The page must not learn it was shown (sites take it as read, see shared/unseen.ts): held first.
+      let hidden = !tab.view.getVisible()
+      if (hidden) {
+        await holdUnseen(wc, true)
+        hidden = this.tabs.has(id) && !tab.view.getVisible() // (shown, or closed, meanwhile)
+        if (!hidden) void holdUnseen(wc, false, tab.view.getVisible())
+      }
       if (hidden) {
         const b = tab.view.getBounds()
         const [w, h] = this.win.getContentSize()
@@ -4248,7 +4255,10 @@ export class TabManager {
         ])
       } finally {
         // back out of sight unless it became the page on screen (or the live page) meanwhile
-        if (hidden && this.tabs.has(id)) this.applyVisibility()
+        if (hidden && this.tabs.has(id)) {
+          this.applyVisibility()
+          void holdUnseen(wc, false, tab.view.getVisible())
+        }
       }
       if (!img || img.isEmpty() || !this.tabs.has(id)) return
       const full = img.getSize().width

@@ -3,6 +3,7 @@ import { PASSKEY_SHIM } from '@shared/passkeys'
 import { notifyShim } from '@shared/notify'
 import { captureShim } from '@shared/capture'
 import { webShareShim } from '@shared/webShare'
+import { unseenShim } from '@shared/unseen'
 
 // Every frame of every tab, at document start, in the page's own world (see shared/passkeys.ts).
 webFrame.executeJavaScript(PASSKEY_SHIM).catch(() => undefined)
@@ -99,6 +100,24 @@ if (/^https?:$/.test(location.protocol)) {
           report: (data: string) => ipcRenderer.send('capture:report', data),
           onStop: (cb: (kinds: string[]) => void) =>
             void ipcRenderer.on('capture:stop', (_e, kinds: string[]) => cb(kinds))
+        }
+      ]
+    })
+  } catch {
+    // a frame torn down as it started
+  }
+  try {
+    // painted out of sight for a board picture, the page is not told it was shown (see shared/unseen.ts); main
+    // waits for the reply before showing it, so the hold is in place first
+    contextBridge.executeInMainWorld({
+      func: unseenShim,
+      args: [
+        {
+          onHold: (cb: (on: boolean, shown?: boolean) => void) =>
+            void ipcRenderer.on('unseen:hold', (_e, on: boolean, shown?: boolean) => {
+              cb(on, shown)
+              ipcRenderer.send('unseen:held')
+            })
         }
       ]
     })
