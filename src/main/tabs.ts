@@ -636,8 +636,28 @@ export class TabManager {
 
   initialData(): InitialData {
     const thumbs: Record<number, string> = {}
-    for (const [id, t] of this.tabs) if (t.thumb) thumbs[id] = t.thumb
+    for (const [id, t] of this.tabs) if (t.thumb) thumbs[id] = this.thumbLink(id, false)
     return { state: this.state(), thumbs, canvas: this.startCanvas }
+  }
+
+  // Pictures go to the window as panes-thumb:// addresses (served by thumbBytes), not as data addresses: a picture is
+  // tens of kilobytes of base64, a third bigger than its bytes, copied through IPC and every React prop that held it.
+  private thumbVer = new Map<number, number>()
+  /** Pictures of tabs just closed, kept a moment (a closing card still shows its picture as it goes). */
+  private goneThumbs = new Map<number, string>()
+
+  /** The window's address for a tab's picture; `fresh`: the picture changed (a new version, so a new address). */
+  private thumbLink(id: number, fresh: boolean): string {
+    const v = (this.thumbVer.get(id) ?? 0) + (fresh || !this.thumbVer.has(id) ? 1 : 0)
+    this.thumbVer.set(id, v)
+    return `panes-thumb://t/${id}/${v}`
+  }
+
+  /** A tab's picture, as bytes, for panes-thumb:// (main/index.ts); null when it has none. */
+  thumbBytes(id: number): Buffer | null {
+    const data = this.tabs.get(id)?.thumb ?? this.goneThumbs.get(id)
+    const comma = data?.indexOf(',') ?? -1
+    return data && comma > 0 ? Buffer.from(data.slice(comma + 1), 'base64') : null
   }
 
   /** The session was saved with the board up: it comes back on the board (see restoreOrNew), until it is left. */
@@ -1406,6 +1426,13 @@ export class TabManager {
     const ids = this.own()
     const idx = ids.indexOf(id)
     if (tab.thumbTimer) clearTimeout(tab.thumbTimer)
+    if (tab.thumb) {
+      this.goneThumbs.set(id, tab.thumb)
+      setTimeout(() => {
+        this.goneThumbs.delete(id)
+        if (!this.tabs.has(id)) this.thumbVer.delete(id)
+      }, 30_000).unref()
+    }
     this.tabs.delete(id)
     this.dropCopy(tab)
     this.destroyView(tab)
@@ -4036,7 +4063,7 @@ export class TabManager {
       const at = this.rects[id]
       tab.thumbSize = at ? { w: at.width, h: at.height } : { w: 0, h: 0 }
       tab.thumbAt = Date.now()
-      this.send('tabs:thumb', id, tab.thumb)
+      this.send('tabs:thumb', id, this.thumbLink(id, true))
     } catch {
       // tab closed or view torn down mid-capture
     }
@@ -4155,7 +4182,7 @@ export class TabManager {
       tab.thumbSharp = w >= full
       tab.thumbSize = { w: 0, h: 0 }
       tab.thumbAt = Date.now()
-      this.send('tabs:thumb', id, tab.thumb)
+      this.send('tabs:thumb', id, this.thumbLink(id, true))
     } catch {
       // closed mid-capture
     }
@@ -4298,14 +4325,14 @@ export class TabManager {
     t.thumb = dataUrl
     t.thumbAt = Date.now()
     t.dirty = false
-    this.send('tabs:thumb', id, dataUrl)
+    this.send('tabs:thumb', id, this.thumbLink(id, true))
   }
 
   seedThumb(id: number, dataUrl: string): void {
     const t = this.tabs.get(id)
     if (!t || t.private || t.tor || t.thumb) return
     t.thumb = dataUrl
-    this.send('tabs:thumb', id, dataUrl)
+    this.send('tabs:thumb', id, this.thumbLink(id, true))
   }
 
   // ---- dark websites ----

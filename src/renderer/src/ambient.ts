@@ -7,6 +7,8 @@ const SAMPLE = 12 // snapshots are averaged down to a SAMPLE x SAMPLE grid
 async function glowFor(src: string): Promise<string | null> {
   if (cache.has(src)) return cache.get(src) ?? null
   const img = new Image()
+  // tabs' pictures come from panes-thumb:// with CORS: asked for so, they can be read back
+  if (src.startsWith('panes-thumb:')) img.crossOrigin = 'anonymous'
   img.src = src
   try {
     await img.decode()
@@ -77,6 +79,8 @@ const edgeCache = new Map<string, string | null>()
 async function edgeFor(src: string): Promise<string | null> {
   if (edgeCache.has(src)) return edgeCache.get(src) ?? null
   const img = new Image()
+  // tabs' pictures come from panes-thumb:// with CORS: asked for so, they can be read back
+  if (src.startsWith('panes-thumb:')) img.crossOrigin = 'anonymous'
   img.src = src
   try {
     await img.decode()

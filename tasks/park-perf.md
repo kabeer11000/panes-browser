@@ -27,8 +27,10 @@ DevTools port (scratch scripts: zoom-check, zoom-fps, trace-zoom, layers). Done 
 
 ## Next
 
-- [ ] Thumbnails as files, not data URLs: a `panes-thumb://` URL per picture instead of base64 strings through IPC
-      and React props (a third bigger, copied around, parsed on every decode).
+- [x] Thumbnails as files, not data URLs: a `panes-thumb://` URL per picture instead of base64 strings through IPC
+      and React props (a third bigger, copied around, parsed on every decode). Done 2026-11-23: main sends
+      panes-thumb://t/<id>/<version>, serves the bytes (default session only, CORS for the board's small copies);
+      checked: 25/25 card pictures load from it, small copies still made.
 - [ ] The rest of the overlap layers (75 to 130 cards still get a layer of their own while zooming). Ruled out: the
       card transform (left/top made no reliable difference, reverted), animations, button and media blur, frame
       heads, resize handles, the board's and grid's will-change. Card shadows matter (none: 23 layers).
@@ -38,4 +40,5 @@ DevTools port (scratch scripts: zoom-check, zoom-fps, trace-zoom, layers). Done 
       widen the invalidation).
 - [ ] Keep the last few opened pages warm (not discarded) so going back is instant, within the memory budget.
 - [ ] Prerender the likely next page from the search or command menu (Speculation Rules in the tab's session).
-- [ ] Measure the built app, not only dev (React dev mode doubles render costs in the profiles).
+- [x] Measure the built app, not only dev (React dev mode doubles render costs in the profiles). 2026-11-23:
+      perf-canvas on the beta.139 build (pan/zoom/drag p95 16.8 ms at CPU x4), startup traced on beta.142.

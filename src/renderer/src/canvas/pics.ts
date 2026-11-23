@@ -114,6 +114,8 @@ export function prepare(src: string): Promise<void> {
       if (!img) {
         img = new Image()
         img.decoding = 'async'
+        // tabs' pictures come from panes-thumb:// with CORS: asked for so, they can be read back
+        if (src.startsWith('panes-thumb:')) img.crossOrigin = 'anonymous'
         img.src = src
         await img.decode()
         full.set(src, img, Math.max(1, img.naturalWidth * img.naturalHeight))

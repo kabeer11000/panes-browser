@@ -407,6 +407,21 @@ function createWindow(): void {
   for (const ses of [tabSession, privateSession, torSession]) installDevicePickers(ses)
   installBluetoothPicker()
   installCertBypass()
+  // tabs' pictures for the window's own pages (default session only: web pages cannot ask for them)
+  session.defaultSession.protocol.handle('panes-thumb', (req) => {
+    const m = /^panes-thumb:\/\/t\/(\d+)\//.exec(req.url)
+    const bytes = m ? tabs.thumbBytes(Number(m[1])) : null
+    if (!bytes)
+      return new Response(null, { status: 404, headers: { 'access-control-allow-origin': '*' } })
+    return new Response(new Uint8Array(bytes), {
+      headers: {
+        'content-type': 'image/jpeg',
+        // a new picture is a new address (its version), so one address never changes
+        'cache-control': 'private, max-age=31536000, immutable',
+        'access-control-allow-origin': '*'
+      }
+    })
+  })
   // screen time: the site in front gets the time; past a daily limit its tab shows the time's-up page
   const screenTime = new ScreenTimeService({
     win,

@@ -250,7 +250,9 @@ describe('captureShim', () => {
     setup()
     // a Proxy over a function keeps its name; bot checks that look at it see nothing new
     class M {
-      getUserMedia(): void {}
+      getUserMedia(): void {
+        // a stand-in: only its name matters here
+      }
     }
     const g = { MediaDevices: M } as unknown as typeof globalThis
     captureShim({ report: () => {}, onStop: () => {} }, g)

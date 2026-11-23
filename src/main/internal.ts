@@ -45,7 +45,12 @@ import type { UpdateManager } from './updater'
 /** Must run before app is ready. */
 export function registerInternalScheme(): void {
   protocol.registerSchemesAsPrivileged([
-    { scheme: 'panes', privileges: { standard: true, secure: true, supportFetchAPI: true } }
+    { scheme: 'panes', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+    // tabs' pictures for the window (TabManager.thumbBytes): CORS so the board can read them back into its small copies
+    {
+      scheme: 'panes-thumb',
+      privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true }
+    }
   ])
 }
 
