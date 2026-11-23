@@ -30,6 +30,8 @@ export function applyPerformance(): void {
   try {
     const raw = JSON.parse(readFileSync(join(app.getPath('userData'), 'settings.json'), 'utf8'))
     if (isPerformanceMode(raw?.performanceMode)) chosen = raw.performanceMode
+    // QUIC off (Settings, Network): all of it over TCP, for networks that block or break it
+    if (raw?.quic === false) app.commandLine.appendSwitch('disable-quic')
   } catch {
     // first run, or an unreadable file: Auto
   }

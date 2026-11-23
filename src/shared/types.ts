@@ -651,6 +651,11 @@ export interface Settings {
   askDefaultBrowser: boolean
   /** How Chromium is set up at launch: one process per tab, or tabs of a site sharing one. Applies after a restart. */
   performanceMode: PerformanceMode
+  /**
+   * Connect over QUIC (HTTP/3) where a site offers it. Off for networks that block or break it (many corporate
+   * ones): everything then goes over TCP. Chromium's switch is for the whole browser, read at launch: after a restart.
+   */
+  quic: boolean
   /** Unload background tabs to free memory. They reload when you open them. */
   memorySaver: boolean
   /** Playing videos show live on their board cards (a tab stream each); off, cards keep a still picture. */
@@ -889,6 +894,8 @@ export interface AboutInfo {
   node: string
   platform: string
   arch: string
+  /** QUIC is on in this run (the setting as it was at launch). */
+  quic: boolean
 }
 
 export interface InternalApi {

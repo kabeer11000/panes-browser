@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
   askDefaultBrowser: true,
   onboarded: false,
   performanceMode: 'auto',
+  quic: true,
   adblockOffSites: [],
   adblockCosmeticOffSites: [],
   adblockAggressive: false,

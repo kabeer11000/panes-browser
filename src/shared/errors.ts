@@ -83,6 +83,18 @@ const INFO: Record<ErrorKind, Omit<ErrorInfo, 'kind'>> = {
 
 export function describeError(description: string): ErrorInfo {
   const kind = kindOf(description)
+  // the network broke the site's QUIC (HTTP/3) connection: many corporate ones block or inspect it
+  if (/QUIC/i.test(description))
+    return {
+      kind: 'refused',
+      title: "This network doesn't allow QUIC",
+      message:
+        'The site tried a faster kind of connection (QUIC) that your network blocks or breaks.',
+      tips: [
+        'Turn off QUIC in Settings, under Network, and restart Panes',
+        'Then everything goes over the usual kind of connection'
+      ]
+    }
   return { kind, ...INFO[kind] }
 }
 

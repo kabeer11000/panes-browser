@@ -48,8 +48,13 @@ export function Settings(): React.JSX.Element {
   // Whether the system opens links with Panes; checked again when you come back from its settings.
   const [isDefault, setIsDefault] = useState<boolean | null>(null)
   const [platform, setPlatform] = useState('')
+  /** Whether this run has QUIC on: the setting only applies after a restart. */
+  const [quicAtOpen, setQuicAtOpen] = useState(true)
   useEffect(() => {
-    void window.panesInternal.about().then((a) => setPlatform(a.platform))
+    void window.panesInternal.about().then((a) => {
+      setPlatform(a.platform)
+      setQuicAtOpen(a.quic)
+    })
   }, [])
   useEffect(() => {
     const check = (): void => void window.panesInternal.defaultBrowserStatus().then(setIsDefault)
@@ -506,6 +511,26 @@ export function Settings(): React.JSX.Element {
             onChange={(v) => void update({ usageStats: v })}
           />
         </Row>
+      </Group>
+
+      <Group title="Network" id="network">
+        <Row
+          label="Use QUIC (HTTP/3)"
+          hint="A faster connection many sites offer. Turn it off if pages fail on your network: some, often at work, block or break it. Applies after a restart."
+        >
+          <Toggle
+            label="Use QUIC (HTTP/3)"
+            on={s.quic}
+            onChange={(v) => void update({ quic: v })}
+          />
+        </Row>
+        {s.quic !== quicAtOpen && (
+          <Row label="Restart to apply" hint="Your tabs come back as they were.">
+            <button className="int-btn small" onClick={() => void window.panesInternal.restart()}>
+              Restart Panes
+            </button>
+          </Row>
+        )}
       </Group>
 
       <YouTubeSection s={s} update={update} />

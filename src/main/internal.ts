@@ -153,7 +153,8 @@ export function registerInternalIpc(d: Deps): void {
     chrome: process.versions.chrome,
     node: process.versions.node,
     platform: process.platform,
-    arch: process.arch
+    arch: process.arch,
+    quic: !app.commandLine.hasSwitch('disable-quic')
   }))
   handle('int:history-list', (q: string, limit: number, offset: number) =>
     d.history.list(String(q), Math.min(500, Number(limit) || 100), Math.max(0, Number(offset) || 0))
