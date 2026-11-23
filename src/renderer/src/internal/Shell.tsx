@@ -6,6 +6,7 @@ import {
   BookmarkIcon,
   DownloadIcon,
   HistoryIcon,
+  HourglassIcon,
   KeyIcon,
   SettingsIcon,
   ShieldIcon,
@@ -18,6 +19,7 @@ import { Passwords } from './pages/Passwords'
 import { Settings } from './pages/Settings'
 import { Privacy } from './pages/Privacy'
 import { Software } from './pages/Software'
+import { ScreenTime } from './pages/ScreenTime'
 
 const PAGES: Record<
   InternalPage,
@@ -30,7 +32,8 @@ const PAGES: Record<
   settings: { title: 'Settings', icon: <SettingsIcon />, view: Settings },
   privacy: { title: 'Private and Tor', icon: <ShieldIcon />, view: Privacy },
   // the page opens on the app itself; a heading above it would only repeat what the tab says
-  software: { title: 'Software', icon: <SoftwareIcon />, view: Software, bare: true }
+  software: { title: 'Software', icon: <SoftwareIcon />, view: Software, bare: true },
+  'screen-time': { title: 'Screen time', icon: <HourglassIcon />, view: ScreenTime }
 }
 
 const current = (INTERNAL_PAGES as readonly string[]).includes(location.hostname)

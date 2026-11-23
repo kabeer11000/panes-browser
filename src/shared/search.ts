@@ -180,6 +180,11 @@ export const ACTIONS: SearchAction[] = [
     shortcut: 'Ctrl+Shift+O'
   },
   { id: 'downloads', title: 'Open downloads', keywords: 'downloads files', shortcut: 'Ctrl+J' },
+  {
+    id: 'screen-time',
+    title: 'Screen time',
+    keywords: 'screen time usage digital health wellbeing limits how long sites'
+  },
   { id: 'passwords', title: 'Open passwords', keywords: 'passwords logins credentials' },
   {
     id: 'privacy',

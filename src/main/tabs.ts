@@ -932,6 +932,20 @@ export class TabManager {
     return null
   }
 
+  /**
+   * The web page in front of the person, for screen time: the tab view's page, or the board preview's (the board itself
+   * with no page open shows none). Never a private or Tor tab, nor one let go.
+   */
+  inFront(): { id: number; url: string; playing: boolean } | null {
+    if (this.overlay || (this.canvasMode && !this.previewOpen)) return null
+    const id = this.pageTabId()
+    const t = id === null ? undefined : this.tabs.get(id)
+    if (id === null || !t || t.private || t.tor || t.unloaded) return null
+    const wc = liveContents(t)
+    if (!wc || wc.isDestroyed()) return null
+    return { id, url: wc.getURL(), playing: t.media && !wc.audioMuted }
+  }
+
   private pageTab(): Tab | null {
     if (!this.canvasMode || !this.previewOpen) return this.current()
     const f = this.previewFocus
@@ -2333,6 +2347,7 @@ export class TabManager {
       privacy: page('privacy'),
       software: page('software'),
       history: page('history'),
+      'screen-time': page('screen-time'),
       bookmarks: page('bookmarks'),
       downloads: page('downloads'),
       settings: page('settings'),
@@ -4621,6 +4636,7 @@ export class TabManager {
       page('Downloads', 'downloads'),
       page('Passwords', 'passwords'),
       page('Private and Tor', 'privacy'),
+      page('Screen time', 'screen-time'),
       { type: 'separator' },
       { label: 'Find in page', accelerator: 'CmdOrCtrl+F', click: () => this.command('find') },
       { label: 'Print...', accelerator: 'CmdOrCtrl+P', click: () => this.printPage() },

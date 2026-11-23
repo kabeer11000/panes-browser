@@ -75,6 +75,7 @@ import { registerTouchpad } from './touchpad'
 import { NavGestures } from './gestures'
 import { installBluetoothPicker, installDevicePickers } from './devices'
 import { installCertBypass } from './certs'
+import { registerScreenTimeIpc, ScreenTimeService } from './screenTime'
 import { registerShare } from './share'
 import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
@@ -406,6 +407,14 @@ function createWindow(): void {
   for (const ses of [tabSession, privateSession, torSession]) installDevicePickers(ses)
   installBluetoothPicker()
   installCertBypass()
+  // screen time: the site in front gets the time; past a daily limit its tab shows the time's-up page
+  const screenTime = new ScreenTimeService({
+    win,
+    inFront: () => tabs.inFront(),
+    navigateTab: (id, url) => tabs.navigateTab(id, url)
+  })
+  registerScreenTimeIpc(screenTime)
+  screenTime.start()
   for (const s of [tabSession, privateSession, torSession]) watchCertificates(s)
   const sites = new SiteSettings({
     settings,

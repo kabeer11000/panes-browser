@@ -158,6 +158,11 @@ export const HistoryIcon = (): React.JSX.Element => (
     <path d="M2.5 8a5.5 5.5 0 1 0 1.7-4M2.5 2.8v2.6h2.6M8 5v3.3l2 1.2" />
   </Svg>
 )
+export const HourglassIcon = (): React.JSX.Element => (
+  <Svg>
+    <path d="M4.5 2.5h7M4.5 13.5h7M5.5 2.5c0 3 5 3.6 5 5.5s-5 2.5-5 5.5M10.5 2.5c0 3-5 3.6-5 5.5s5 2.5 5 5.5" />
+  </Svg>
+)
 export const DownloadIcon = (): React.JSX.Element => (
   <Svg>
     <path d="M8 2.5v7.5M5 7.3 8 10.3l3-3M3 13h10" />

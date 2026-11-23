@@ -91,7 +91,8 @@ export const INTERNAL_PAGES = [
   'passwords',
   'settings',
   'privacy',
-  'software'
+  'software',
+  'screen-time'
 ] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]
 

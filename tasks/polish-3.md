@@ -78,8 +78,13 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Cards redesign: sizes, rounding, overall look (user, again). Measure GPU on pan/zoom.
 - [ ] Site settings popup: full retheme, clean; it is oddly see-through (fix). Then every other popup the same way
       (permission card, save-password, downloads bin, tab hover card...): one clean look, wider/horizontal if it reads better.
-- [ ] Then: first-party screen time / digital health (time per site, daily/weekly, limits, focus), better than
+- [~] Then: first-party screen time / digital health (time per site, daily/weekly, limits, focus), better than
       Apple's Screen Time. Local only.
+      DONE (MVP, 2026-11-23): panes://screen-time (menu and search): today, the week as bars, sites by time; daily
+      limits per site; past one the tab shows "Time's up" with 15 more minutes. Counted every 5 s while Panes is in
+      front and the person is there (or a video plays); private and Tor never; kept 60 days on this computer
+      (shared/screenTime.ts, main/screenTime.ts). Page, limits and time's-up checked on a scratch profile; the counting
+      itself only by tests (it needs the window in front). OPEN: focus sessions, weekly report, per-space view.
 
 - [~] Zooming the board in and out is laggy again: measured 2026-11-23 with scripts/perf-canvas.ts on the built app
       (beta.139, 60 tabs): pan, zoom and drag p95 16.8 ms even at CPU x4, no frame over 33 ms zooming. Not

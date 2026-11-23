@@ -887,6 +887,11 @@ export interface InternalApi {
   /** Open the email app with a message to the developer. */
   sendFeedback(): Promise<void>
   historyList(query: string, limit: number, offset: number): Promise<HistoryEntry[]>
+  /** Screen time (shared/screenTime.ts): today, the week, sites; daily limits; a few more minutes; clear it. */
+  screenTime(): Promise<import('./screenTime').ScreenSummary | null>
+  screenTimeLimit(site: string, minutes: number | null): Promise<boolean>
+  screenTimeMore(site: string): Promise<boolean>
+  screenTimeClear(): Promise<boolean>
   historyRemove(id: number): Promise<void>
   historyRemoveMany(ids: number[]): Promise<void>
   /** Open pages in new tabs (web addresses only, at most BULK_OPEN_MAX): the first shown, the rest waiting. Resolves with how many opened. */
