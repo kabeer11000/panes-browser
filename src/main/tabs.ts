@@ -73,7 +73,7 @@ import { dumpableTabs, type TabDump } from '@shared/dumps'
 import type { DumpStore } from './dumps'
 import type { TorManager } from './tor'
 import { ZAP_PREFIX, ZAP_SCRIPT } from '@shared/zap'
-import { errorPageUrl } from '@shared/errors'
+import { errorPageUrl, noteQuicFailure, quicLooksBlocked } from '@shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
 import { freemem, totalmem } from 'os'
 import { isOffscreen, OffscreenPage } from './offscreenPage'
@@ -558,6 +558,8 @@ export class TabManager {
   private previewTab: number | null = null
   /** Tabs streaming live to their canvas card (setStreaming). */
   private streaming = new Set<number>()
+  /** Recent QUIC load failures by site, to tell a network blocking QUIC from one site failing (see describeError). */
+  private quicFailures: Array<{ host: string; at: number }> = []
   /** Tabs shown live to the others in a shared space (main/share.ts): they keep painting wherever they are. */
   private liveShared = new Set<number>()
   /** Each live tab's remote input, in order: a key waits on the password check, and a click after it waits too. */
@@ -3691,7 +3693,20 @@ export class TabManager {
       const back = wc.navigationHistory.canGoBack()
       const space = this.deps.spaces.get(tab.spaceId)
       const theme = space ? { color: space.color, tint: space.tint } : undefined
-      void wc.loadURL(errorPageUrl(url, code, desc, back, theme)).catch(() => {})
+      // a QUIC error is the network's only when QUIC keeps failing on different sites (see describeError)
+      let quicBlocked = false
+      if (/QUIC/i.test(desc)) {
+        const now = Date.now()
+        let host = url
+        try {
+          host = new URL(url).hostname
+        } catch {
+          // not an address: counted as it is
+        }
+        this.quicFailures = noteQuicFailure(this.quicFailures, host, now)
+        quicBlocked = quicLooksBlocked(this.quicFailures, now)
+      }
+      void wc.loadURL(errorPageUrl(url, code, desc, back, theme, quicBlocked)).catch(() => {})
     })
     wc.on('did-navigate', () => {
       // The blank page a new view is primed with (identity.ts) is no page of the person's: going back reached it

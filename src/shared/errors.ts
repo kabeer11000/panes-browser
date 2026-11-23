@@ -81,21 +81,62 @@ const INFO: Record<ErrorKind, Omit<ErrorInfo, 'kind'>> = {
   }
 }
 
-export function describeError(description: string): ErrorInfo {
+/**
+ * What to say about a failed load. A QUIC (HTTP/3) error alone says little: Chromium reports one for a server that went
+ * down or reset its connection as much as for a network that blocks QUIC. It is put down to the network only when
+ * `quicBlocked` (QUIC failed on several sites lately, see quicLooksBlocked); otherwise the site is not answering, with
+ * QUIC as the last thing to try.
+ */
+export function describeError(description: string, quicBlocked = false): ErrorInfo {
   const kind = kindOf(description)
-  // the network broke the site's QUIC (HTTP/3) connection: many corporate ones block or inspect it
   if (/QUIC/i.test(description))
-    return {
-      kind: 'refused',
-      title: "This network doesn't allow QUIC",
-      message:
-        'The site tried a faster kind of connection (QUIC) that your network blocks or breaks.',
-      tips: [
-        'Turn off QUIC in Settings, under Network, and restart Panes',
-        'Then everything goes over the usual kind of connection'
-      ]
-    }
+    return quicBlocked
+      ? {
+          kind: 'refused',
+          title: "This network doesn't allow QUIC",
+          message:
+            'Sites that use a faster kind of connection (QUIC) keep failing, so your network likely blocks or breaks it.',
+          tips: [
+            'Turn off QUIC in Settings, under Network, and restart Panes',
+            'Then everything goes over the usual kind of connection'
+          ]
+        }
+      : {
+          kind: 'refused',
+          title: "That site isn't answering",
+          message: 'The connection to it broke before the page came.',
+          tips: [
+            'It may be down for a moment, try again soon',
+            'If many sites fail like this, your network may block QUIC: turn it off in Settings, under Network'
+          ]
+        }
   return { kind, ...INFO[kind] }
+}
+
+/** QUIC failures on this many different sites within QUIC_WINDOW_MS point at the network, not the sites. */
+export const QUIC_SITES = 2
+export const QUIC_WINDOW_MS = 10 * 60_000
+
+/** A QUIC failure on `host` added to the recent ones (older ones dropped). */
+export function noteQuicFailure(
+  recent: ReadonlyArray<{ host: string; at: number }>,
+  host: string,
+  now: number
+): Array<{ host: string; at: number }> {
+  return [
+    ...recent.filter((f) => now - f.at < QUIC_WINDOW_MS && f.host !== host),
+    { host, at: now }
+  ]
+}
+
+/** Whether recent QUIC failures look like the network blocking QUIC: on several different sites. */
+export function quicLooksBlocked(
+  recent: ReadonlyArray<{ host: string; at: number }>,
+  now: number
+): boolean {
+  return (
+    new Set(recent.filter((f) => now - f.at < QUIC_WINDOW_MS).map((f) => f.host)).size >= QUIC_SITES
+  )
 }
 
 /** The address of Panes' error page for a failed load. */
@@ -104,10 +145,13 @@ export function errorPageUrl(
   code: number,
   description: string,
   canGoBack = false,
-  theme?: { color: string; tint: number }
+  theme?: { color: string; tint: number },
+  /** QUIC failed on several sites lately (see quicLooksBlocked). */
+  quicBlocked = false
 ): string {
   const q = new URLSearchParams({ url: failedUrl, code: String(code), desc: description })
   if (canGoBack) q.set('back', '1')
+  if (quicBlocked) q.set('quic', '1')
   if (theme) {
     q.set('sc', theme.color)
     q.set('st', String(theme.tint))
@@ -121,6 +165,8 @@ export interface ErrorParams {
   desc: string
   /** The tab has an earlier page to go back to. */
   back: boolean
+  /** QUIC failed on several sites lately: a QUIC error is put down to the network. */
+  quicBlocked: boolean
 }
 
 /** Read the page's own address bar; anything missing or odd falls back to a generic error. */
@@ -130,6 +176,7 @@ export function parseErrorParams(search: string): ErrorParams {
   return {
     url: q.get('url') ?? '',
     back: q.get('back') === '1',
+    quicBlocked: q.get('quic') === '1',
     code: Number.isFinite(code) ? code : 0,
     desc: /^[A-Z0-9_]{1,64}$/.test(q.get('desc') ?? '') ? (q.get('desc') as string) : 'ERR_FAILED'
   }

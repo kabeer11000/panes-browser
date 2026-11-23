@@ -86,7 +86,10 @@ function rain(): void {
 
 export function ErrorPage(): React.JSX.Element {
   const params = useMemo(() => parseErrorParams(location.search), [])
-  const info = useMemo(() => describeError(params.desc), [params.desc])
+  const info = useMemo(
+    () => describeError(params.desc, params.quicBlocked),
+    [params.desc, params.quicBlocked]
+  )
   const target = retryTarget(params.url)
   const host = useMemo(() => {
     try {
