@@ -1,12 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  downscaleFor,
-  electronKey,
-  parseRemoteInput,
-  pointerOver,
-  sizeFor,
-  videoBox
-} from './live'
+import { downscaleFor, electronKey, parseRemoteInput, pointerOver, sizeFor, videoBox } from './live'
 
 describe('remote input from the person driving', () => {
   test('pointer events pass, clamped to the page', () => {
