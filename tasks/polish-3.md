@@ -224,9 +224,12 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Off the main thread wherever it is a transparent gain (user 2026-11-22): workers for Tidy/clustering, image decode,
       JSON parse of big state, search ranking; measure each with a long-task trace before and after.
 
-- [ ] Releases are slow and Mac updates heavy: each Mac layer's deltas are ~17 MB (Windows ~180 KB, beta.122), so
+- [x] Releases are slow and Mac updates heavy: each Mac layer's deltas are ~17 MB (Windows ~180 KB, beta.122), so
       something in the Mac asar changes every build. Diff two consecutive dist/mac asars (file list + hashes), make
       the build deterministic, re-measure delta size and release time. Also why each Mac layer takes ~3 min.
+      Found 2026-11-23: the build is deterministic enough (beta.143 to .144: 46 files, 3.3 MB changed); the delta was
+      not. zstd at level 19 kept match tables too small to find a 130 MB dictionary again. hashLog 26 + chainLog 27:
+      17.6 MB to 32 KB, same decoder. Live in beta.147's Mac layers (17-32 KB); Windows from the next release.
 - [~] First open / load time (user 21:15: "needs to be nearly instant"): measure packaged cold and warm start (startup-trace), find the next big cost.
       Measured 2026-11-23 (beta.142 build, fresh profile, PANES_TRACE_STARTUP): page loaded at 639 ms cold, 420-486 ms
       warm. Lock at ~132 ms (Electron's own start), main setup ~110 ms, the interface page 200-270 ms (900 KB of JS

@@ -84,7 +84,12 @@ function makeDelta(base: Buffer, next: Buffer): Buffer {
     params: {
       [constants.ZSTD_c_compressionLevel]: 19,
       [constants.ZSTD_c_windowLog]: windowLog,
-      [constants.ZSTD_c_enableLongDistanceMatching]: 1
+      [constants.ZSTD_c_enableLongDistanceMatching]: 1,
+      // Match tables big enough for a 130 MB dictionary: with level 19's own (smaller) tables most of the old layer
+      // could not be found again, and a release that changed 3 MB of files made a 17.6 MB delta. With these the same
+      // release is 32 KB (beta.143 to beta.144, measured). The decoder is unchanged: what a Panes reads is the same.
+      [constants.ZSTD_c_hashLog]: 26,
+      [constants.ZSTD_c_chainLog]: 27
     },
     dictionary: base
   } as Parameters<typeof zstdCompressSync>[1])
