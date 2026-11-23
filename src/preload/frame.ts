@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import { PASSKEY_SHIM } from '@shared/passkeys'
 import { notifyShim } from '@shared/notify'
 import { captureShim } from '@shared/capture'
+import { webShareShim } from '@shared/webShare'
 
 // Every frame of every tab, at document start, in the page's own world (see shared/passkeys.ts).
 webFrame.executeJavaScript(PASSKEY_SHIM).catch(() => undefined)
@@ -116,7 +117,11 @@ if (/^https?:$/.test(location.protocol)) {
   }
   // Picture in picture is Chromium's own floating window, as in Chrome (the page's button or Panes'): main only hears
   // which tab has it (the events reach this world too: the DOM is shared), so that tab is kept loaded and marked.
-  document.addEventListener('enterpictureinpicture', () => ipcRenderer.send('pip:native', true), true)
+  document.addEventListener(
+    'enterpictureinpicture',
+    () => ipcRenderer.send('pip:native', true),
+    true
+  )
   // Its "back to tab" button closes the window and the video plays on; its X pauses it (as in Chrome). Read a moment
   // later: the pause can land just after the event.
   document.addEventListener(
@@ -125,12 +130,26 @@ if (/^https?:$/.test(location.protocol)) {
       const v = e.target
       setTimeout(
         () =>
-          ipcRenderer.send('pip:native', false, v instanceof HTMLVideoElement && !v.paused && !v.ended),
+          ipcRenderer.send(
+            'pip:native',
+            false,
+            v instanceof HTMLVideoElement && !v.paused && !v.ended
+          ),
         200
       )
     },
     true
   )
+  // navigator.share (Electron has none): Panes' own share menu, from the top frame only
+  if (window === window.top)
+    try {
+      contextBridge.executeInMainWorld({
+        func: webShareShim,
+        args: [{ share: (data: string) => ipcRenderer.invoke('web:share', data) }]
+      })
+    } catch {
+      // a frame torn down as it started
+    }
   try {
     contextBridge.executeInMainWorld({
       func: permissionShim,

@@ -76,7 +76,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       gets the Chrome identity (shared/identity.ts). Checked: desktop player, Your Library sidebar, no "Open App".
 - [x] Card host pill (top of a card) shows sometimes, not others: make it reliable. (e4d901c)
 - [ ] Cards redesign: sizes, rounding, overall look (user, again). Measure GPU on pan/zoom.
-- [ ] Site settings popup: full retheme, clean; it is oddly see-through (fix). Then every other popup the same way
+- [~] Site settings popup: full retheme, clean; it is oddly see-through (fix). Redone in 2b77b45 (1.5 h after this
+      note): one opaque card (--popover-bg, checked defined), hairline-parted. The other popups the same way: open. Then every other popup the same way
       (permission card, save-password, downloads bin, tab hover card...): one clean look, wider/horizontal if it reads better.
 - [~] Then: first-party screen time / digital health (time per site, daily/weekly, limits, focus), better than
       Apple's Screen Time. Local only.
@@ -213,7 +214,17 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
       go where Settings says (Gmail, Outlook, Yahoo or the system's app). Other web+ schemes: needs a consent prompt
       and a list in Settings; deferred.
 
-- [ ] Audit what Chrome supports that Panes breaks or lacks; write the list here with a test page per item.
+- [~] Audit what Chrome supports that Panes breaks or lacks; write the list here with a test page per item.
+      2026-11-23, probed in a Panes tab (example.com) over CDP:
+      - Present and working: WebGPU (adapter), WebUSB/HID/Serial/Bluetooth objects, File System Access, Payment
+        Request, Translator, EyeDropper, Idle Detection, Wake Lock, Window Controls Overlay, install prompt event,
+        document PiP, getDisplayMedia, ClearKey EME, H.264/AAC/HEVC/AV1 in MSE, speech voices (3, after a moment).
+      - MISSING: Widevine DRM (NotSupportedError): Netflix, Disney+, Prime, Spotify/Apple Music playback fail. Needs
+        castlabs' Electron (ECS) with Widevine and their VMP signing: a decision for the user (build change).
+      - MISSING: platform passkeys (isUserVerifyingPlatformAuthenticatorAvailable false): Windows Hello passkeys.
+      - FIXED: navigator.share (was undefined): now Panes' share menu (Copy link, Email); shared/webShare.ts.
+      - UNCLEAR: speech recognition (no answer in 4 s; needs a microphone prompt to judge); web push subscribe
+        (Electron has no push service: expected to fail; needs a site with a worker to confirm).
       BroadcastChannel / tab-to-tab (window.opener, postMessage, SharedWorker, storage events), native app
       protocols, download-then-redirect pages, popups (OAuth), beforeunload, file pickers, Web Share, clipboard,
       notifications, WebAuthn/passkeys, Payment Request, protocol handlers, PWA install, print, drag and drop

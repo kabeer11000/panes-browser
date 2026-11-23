@@ -3,8 +3,10 @@ import { flushTrace, mark } from './startupTrace'
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
+  Menu,
   nativeTheme,
   powerMonitor,
   screen,
@@ -76,6 +78,7 @@ import { NavGestures } from './gestures'
 import { installBluetoothPicker, installDevicePickers } from './devices'
 import { installCertBypass } from './certs'
 import { registerScreenTimeIpc, ScreenTimeService } from './screenTime'
+import { parseShareData, type ShareData } from '@shared/webShare'
 import { registerShare } from './share'
 import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
@@ -684,6 +687,38 @@ function createWindow(): void {
   ipcMain.on('tabs:unsplit', (_e, keepId?: number) => tabs.unsplit(keepId))
   ipcMain.on('tabs:toggle-split', () => tabs.toggleSplit())
   ipcMain.on('tabs:print', () => tabs.printPage())
+  // a page's navigator.share (shared/webShare.ts): Panes' share menu at the pointer; true when something was picked
+  ipcMain.handle('web:share', (e, raw: unknown) => {
+    let data: ShareData | null
+    try {
+      data = typeof raw === 'string' ? parseShareData(JSON.parse(raw)) : null
+    } catch {
+      data = null
+    }
+    if (!data || win.isDestroyed() || e.sender === win.webContents) return false
+    const shared = data
+    const link = shared.url || shared.text
+    return new Promise<boolean>((resolve) => {
+      let picked = false
+      const pick = (run: () => void) => (): void => {
+        picked = true
+        run()
+      }
+      const subject = encodeURIComponent(shared.title || 'A link')
+      const body = encodeURIComponent(
+        [shared.text, shared.url].filter(Boolean).join(String.fromCharCode(10, 10))
+      )
+      Menu.buildFromTemplate([
+        { label: shared.title ? `Share “${shared.title.slice(0, 50)}”` : 'Share', enabled: false },
+        { type: 'separator' },
+        {
+          label: shared.url ? 'Copy link' : 'Copy text',
+          click: pick(() => clipboard.writeText(link))
+        },
+        { label: 'Email', click: pick(() => tabs.mail(`mailto:?subject=${subject}&body=${body}`)) }
+      ]).popup({ window: win, callback: () => setTimeout(() => resolve(picked), 0) })
+    })
+  })
   ipcMain.on('tabs:action', (_e, id: unknown) => typeof id === 'string' && tabs.runAction(id))
   ipcMain.on('tabs:drop', (_e, id: number, targetId: number, edge: Edge | 'center') =>
     tabs.dropTab(id, targetId, edge)

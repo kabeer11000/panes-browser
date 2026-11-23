@@ -5025,6 +5025,11 @@ export class TabManager {
    * A mailto: link: to the email app, or, if a web mail service is chosen in Settings (or the system has no email app
    * to give it to), to that service's compose page in a tab.
    */
+  /** A mailto: address opened the way Settings says (the email app, or a web mail's compose page in a tab). */
+  mail(link: string): void {
+    this.openMailto(link)
+  }
+
   private openMailto(link: string): void {
     const handler = this.deps.settings.get().mailHandler
     const web = (h: 'gmail' | 'outlook' | 'yahoo'): void => {
