@@ -130,3 +130,10 @@ filed from stale polish-3 items; TURN was set up at 16:41). User was angry: "did
 Before starting any listed item: grep .remember/today-*.md and `git log --since=<filing date>` for it, and reproduce
 it on current main. If it does not reproduce, say so and close it with the commit that fixed it; do not write a
 "safety net" change unless asked.
+
+## Two dev copies share port 5173 unless told otherwise (2026-11-24)
+A second `bun run dev` bound [::1]:5173 while the first held 127.0.0.1:5173, so both windows loaded modules from
+both servers: two copies of liveHost, a live share stuck on "Connecting". I chased it as an app bug.
+- Before blaming the app in a two-copy test, check `netstat -ano | grep 5173` shows one listener.
+- Start the second copy with its own renderer port: an untracked config in the repo root that imports
+  electron.vite.config and sets `renderer.server = { port: 5174, strictPort: true }`, run with `-c`; delete it after.
