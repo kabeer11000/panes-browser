@@ -67,7 +67,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Scroll fade gradients on every scrolling list, search popover included.
 - [ ] Notifications sometimes do not open from the strip. User likes the bell after all: reposition it, make it reliable.
       The bell shows always, even with nothing new (beta.113 feedback). Unread styling is "gross": redo it.
-- [ ] open.spotify.com opens in its mobile layout (user agent? viewport?).
+- [x] open.spotify.com opens in its mobile layout (user agent? viewport?): the Electron user agent; spotify.com now
+      gets the Chrome identity (shared/identity.ts). Checked: desktop player, Your Library sidebar, no "Open App".
 - [x] Card host pill (top of a card) shows sometimes, not others: make it reliable. (e4d901c)
 - [ ] Cards redesign: sizes, rounding, overall look (user, again). Measure GPU on pan/zoom.
 - [ ] Site settings popup: full retheme, clean; it is oddly see-through (fix). Then every other popup the same way

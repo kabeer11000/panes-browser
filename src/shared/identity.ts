@@ -75,7 +75,9 @@ const CHROME_ONLY_SUFFIXES = [
   'googleusercontent.com',
   'gstatic.com',
   'googleapis.com',
-  'ggpht.com'
+  'ggpht.com',
+  // the web player serves its phone page ("Open App") to a browser that names Electron
+  'spotify.com'
 ]
 
 /**

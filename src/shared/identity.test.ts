@@ -52,7 +52,9 @@ describe('wantsChromeIdentity', () => {
       'https://google.de/',
       'https://www.youtube.com/watch?v=1',
       'accounts.youtube.com',
-      'https://lh3.googleusercontent.com/a'
+      'https://lh3.googleusercontent.com/a',
+      'https://open.spotify.com/',
+      'accounts.spotify.com'
     ]) {
       expect(wantsChromeIdentity(u)).toBe(true)
     }
