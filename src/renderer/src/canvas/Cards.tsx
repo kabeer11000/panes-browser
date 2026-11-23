@@ -3,6 +3,7 @@ import { Inline } from './Inline'
 import { memo, useEffect, useRef, useState, useLayoutEffect } from 'react'
 import {
   CARD_H,
+  CARD_UNDER,
   CARD_W,
   FRAME_COLORS,
   NOTE_COLORS,
@@ -397,7 +398,14 @@ export const CardView = memo(
     call = false
   }: CardProps): React.JSX.Element {
     const label = `${m.title}${m.site ? `, ${m.site}` : ''}${m.kind === 'pdf' ? ', PDF' : m.kind === 'image' ? ', image' : m.kind === 'video' ? ', video' : m.kind === 'answer' ? ', answer' : ''}${m.current ? ', current tab' : ''}`
-    const cardAspect = w / h
+    // A page, video, picture or PDF floats as its picture with its name under it (the title row is part of the
+    // card's height, see CARD_UNDER); a reader view, an answer, a new tab keep their whole card.
+    const titled =
+      (m.kind === 'page' && !m.blank && !m.reader) ||
+      m.kind === 'video' ||
+      m.kind === 'image' ||
+      m.kind === 'pdf'
+    const cardAspect = w / (titled ? Math.max(1, h - CARD_UNDER) : h)
     // Its eight resize handles exist only while it is under the pointer or selected: on every card they were 1200 on
     // a board of 150, and hiding them all as the board zoomed far out or a drag began cost 25 to 35 ms of styles.
     // Kept through a press (a resize drag can leave the card), so the handle being dragged is never taken away.
@@ -413,6 +421,7 @@ export const CardView = memo(
           m.kind +
           (selected ? ' sel' : '') +
           (m.current ? ' current' : '') +
+          (titled ? ' titled' : '') +
           (fresh ? ' fresh' : '') +
           (hidden ? ' away' : '') +
           (m.asleep ? ' asleep' : '')
@@ -436,6 +445,12 @@ export const CardView = memo(
           onLink={onLink}
           onAspect={onVideoAspect ? (ar) => onVideoAspect(m.id, ar) : undefined}
         />
+        {titled && (
+          <div className="cv-under" aria-hidden="true">
+            <b>{m.title || m.site}</b>
+            {m.title && m.site ? <span>{m.site}</span> : null}
+          </div>
+        )}
         {m.liveRtc !== undefined && m.liveSpace !== undefined && (
           <LiveCardVideo spaceId={m.liveSpace} hostRtc={m.liveRtc} w={w} h={h} />
         )}
@@ -455,6 +470,7 @@ export const CardView = memo(
         {/* who the page is, floating on its picture (a snapshot, a video, a live stream): on the card under the
             pointer or selected, every kind alike; drawn only there, so the board's other cards cost nothing for it */}
         {(hot || selected) &&
+          !titled &&
           (live > 0 ||
             (m.kind === 'video' && !!(m.image || m.snap)) ||
             (m.kind === 'page' && !m.blank && !m.reader && !!m.snap)) && (

@@ -286,6 +286,64 @@
   overflow: hidden;
 }
 
+/* A page, video, picture or PDF floats as its picture with its name under it, like files on a desktop (#10). The
+   card keeps its box (the layout is unchanged); the picture takes all but the title row at the bottom (26px,
+   CARD_UNDER in shared/ai/canvas.ts), which is transparent. What sat at the card's bottom edge moves up onto the
+   picture, and the selection rings the picture, not the title. */
+.cv-card.titled {
+  --under: 26px;
+}
+.cv-card.titled > :is(.cv-snap, .cv-video, .cv-image, .cv-pdf, .cv-shimmer, .cv-live) {
+  bottom: var(--under);
+}
+.cv-card.titled .cv-hover-cap {
+  display: none;
+}
+.cv-card.titled > .cv-chip-place {
+  bottom: calc(var(--under) + 8px);
+}
+.cv-card.titled.sel {
+  outline: none;
+}
+.cv-card.titled.sel > :is(.cv-snap, .cv-video, .cv-image, .cv-pdf, .cv-shimmer) {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.cv-under {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--under);
+  padding: 0 6px 1px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12.5px;
+  line-height: 1.25;
+  white-space: nowrap;
+  color: var(--fg);
+  pointer-events: none;
+}
+.cv-under b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.cv-under span {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg-dim);
+}
+/* zoomed far out the words would be a few pixels high: the pictures alone (kept in place, nothing moves) */
+.cv.lod .cv-under {
+  visibility: hidden;
+}
+
 /* a page as a page of a magazine: the picture, the site, the headline, the first lines */
 .cv-doc {
   display: flex;

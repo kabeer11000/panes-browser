@@ -14,6 +14,8 @@ import {
   fitVideoCards,
   linkedOrder,
   videoCardSize,
+  shapedCardSize,
+  CARD_UNDER,
   emptyState,
   boardIsEmpty,
   linkedSections,
@@ -446,8 +448,8 @@ describe('saving', () => {
     const aspect = ({ id }: { id: number }): number | null =>
       id === 1 ? 16 / 9 : id === 2 ? 9 / 16 : null
     const s1 = fitVideoCards(s0, aspect)
-    expect(cardBox(s1.cards.find((c) => c.id === 1)!)).toMatchObject(videoCardSize(16 / 9))
-    expect(cardBox(s1.cards.find((c) => c.id === 2)!)).toMatchObject(videoCardSize(9 / 16))
+    expect(cardBox(s1.cards.find((c) => c.id === 1)!)).toMatchObject(shapedCardSize(16 / 9))
+    expect(cardBox(s1.cards.find((c) => c.id === 2)!)).toMatchObject(shapedCardSize(9 / 16))
     expect(s1.cards.find((c) => c.id === 3)!.w).toBeUndefined()
     expect(fitVideoCards(s1, aspect)).toBe(s1)
     // sized by hand: kept, even when the video's shape changes
@@ -456,7 +458,7 @@ describe('saving', () => {
     expect(fitVideoCards(s2, (c) => (c.id === 1 ? 4 / 3 : aspect(c)))).toBe(s2)
     // reset: fitted again
     const s3 = fitVideoCards(resetCardSize(s2, 1), aspect)
-    expect(cardBox(s3.cards.find((c) => c.id === 1)!)).toMatchObject(videoCardSize(16 / 9))
+    expect(cardBox(s3.cards.find((c) => c.id === 1)!)).toMatchObject(shapedCardSize(16 / 9))
     // a size set by hand outlives Arrange
     const s4 = tidy(s2, tabs(3), [{ name: 'Videos', ids: [1, 2, 3] }])
     expect(s4.cards.find((c) => c.id === 1)!.fit).toBe(false)
@@ -607,6 +609,12 @@ describe('videoCardSize keeps the shape', () => {
     expect(s.w / s.h).toBeCloseTo(4, 1)
   })
   test('no shape: the default card', () => expect(videoCardSize(0).w).toBeGreaterThan(0))
+  test('a fitted card adds the title row under its picture, so the picture keeps the shape', () => {
+    for (const ar of [16 / 9, 3 / 4, 0.5, 4]) {
+      const pic = videoCardSize(ar)
+      expect(shapedCardSize(ar)).toEqual({ w: pic.w, h: pic.h + CARD_UNDER })
+    }
+  })
 })
 
 describe('makeRoom', () => {

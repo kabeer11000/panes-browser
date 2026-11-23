@@ -13,6 +13,8 @@ import { cleanWidget, newWidget, WIDGET_SIZE, type Widget, type WidgetKind } fro
 
 export const CARD_W = 240
 export const CARD_H = 300
+/** The row under a page's picture for its title (Cards.tsx, `.cv-under` in canvas.css): part of the card's height. */
+export const CARD_UNDER = 26
 export const CARD_MIN_W = 160
 export const CARD_MAX_W = 960
 export const CARD_MIN_H = 110
@@ -1519,6 +1521,12 @@ export function videoCardSize(ar: number): { w: number; h: number } {
     : { w: CARD_MIN_W, h: clampH(CARD_MIN_W / ar) }
 }
 
+/** A card shaped to its content (see videoCardSize), with the title row under the picture added to its height. */
+export function shapedCardSize(ar: number): { w: number; h: number } {
+  const s = videoCardSize(ar)
+  return { w: s.w, h: s.h + CARD_UNDER }
+}
+
 /**
  * Fit video cards to their video's shape (`aspect`: null for a card that is not a video). Never a card sized by hand.
  * Returns `s` itself when nothing changes.
@@ -1533,7 +1541,7 @@ export function fitVideoCards(
     if (c.fit === false) return c
     const ar = aspect(c)
     if (ar === null) return c
-    const want = videoCardSize(ar)
+    const want = shapedCardSize(ar)
     if (c.fit && c.w === want.w && c.h === want.h) return c
     changed = true
     if (c.frame) touched.add(c.frame)
