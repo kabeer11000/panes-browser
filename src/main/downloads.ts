@@ -108,6 +108,18 @@ export class DownloadManager {
     )
   }
 
+  /**
+   * Private and Tor tabs' downloads: saved where the others go (or asked, as set), but never listed, since the list is
+   * kept on disk and would outlive the private session. Without this they went nowhere and left their tab blank.
+   */
+  attachUnlisted(session: Session): void {
+    session.on('will-download', (_e, item) => {
+      const suggested = this.pathFor(item.getFilename())
+      if (this.settings.get().downloadAsk) item.setSaveDialogOptions({ defaultPath: suggested })
+      else item.setSavePath(suggested)
+    })
+  }
+
   /** Set by the AI features: whether to read the page's hints when a download starts. */
   wantHints: () => boolean = () => false
 
