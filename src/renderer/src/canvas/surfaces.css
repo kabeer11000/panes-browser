@@ -684,6 +684,24 @@
   backdrop-filter: none;
 }
 
+/* Frosted glass (Settings > Appearance): the same chrome, translucent with the board blurred behind, and the menus
+   and lists that float over it too. Never in efficient mode (data-fx=low): a blur is a pass of its own every frame. */
+[data-glass='on']:not([data-fx='low']) .cv {
+  --chrome: color-mix(in srgb, var(--popover-bg) 66%, transparent);
+  --glass-pop: color-mix(in srgb, var(--popover-bg) 78%, transparent);
+}
+[data-glass='on']:not([data-fx='low'])
+  .cv
+  :is(.cv-bar, .cv-strip.board, .cv-strip-bellbox, .cv-spaces) {
+  backdrop-filter: blur(22px) saturate(1.6);
+}
+[data-glass='on']:not([data-fx='low'])
+  .cv
+  :is(.cv-nc, .cv-chat, .cv-share-pop, .cv-ctx, .cv-space-menu) {
+  background: var(--glass-pop);
+  backdrop-filter: blur(28px) saturate(1.6);
+}
+
 /* ---- the spaces: the one you are in (its face and name) until pointed at; then the others slide out beside it ---- */
 .cv .cv-spaces .space-chip:not(.active) {
   width: 0;

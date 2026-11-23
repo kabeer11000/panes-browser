@@ -641,6 +641,11 @@ function App(): React.JSX.Element {
       cancelAnimationFrame(shown)
     }
   }, [openedByHover, showSidebar, effective.sidebarWidth])
+  // frosted glass (Settings): a mark on the document the board's surfaces read (surfaces.css); efficient mode wins there
+  useEffect(() => {
+    if (settings.frostedGlass) document.documentElement.dataset.glass = 'on'
+    else delete document.documentElement.dataset.glass
+  }, [settings.frostedGlass])
   const barAutoHidden = !pushed && !horizontal && !board && settings.autoHideTopBar
   // the sidebar and the top bar are never both brought out by the pointer: whichever came first keeps the stage
   const peeking = peekBar && !openedByHover

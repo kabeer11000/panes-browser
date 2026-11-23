@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   newTabPhotoId: null,
   newTabDither: true,
   autoHideTopBar: false,
+  frostedGlass: false,
   sidebarHover: false,
   tabLayout: 'vertical',
   touchpadSpeed: 1,

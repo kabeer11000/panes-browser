@@ -95,6 +95,16 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
         <Row
+          label="Frosted glass"
+          hint="The board's bars and menus become translucent, the board blurred behind them. Off in efficient mode."
+        >
+          <Toggle
+            label="Frosted glass"
+            on={s.frostedGlass}
+            onChange={(v) => void update({ frostedGlass: v })}
+          />
+        </Row>
+        <Row
           label="Search suggestions"
           hint="Send what you type in the command bar to your search engine to get suggestions."
         >

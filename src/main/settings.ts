@@ -56,6 +56,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
     out.paneViewRelease = patch.paneViewRelease
   }
   if (typeof patch.autoHideTopBar === 'boolean') out.autoHideTopBar = patch.autoHideTopBar
+  if (typeof patch.frostedGlass === 'boolean') out.frostedGlass = patch.frostedGlass
   if (typeof patch.sidebarHover === 'boolean') out.sidebarHover = patch.sidebarHover
   if (typeof patch.fullWidthAddress === 'boolean') out.fullWidthAddress = patch.fullWidthAddress
   if (patch.tabLayout === 'vertical' || patch.tabLayout === 'horizontal') {

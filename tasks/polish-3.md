@@ -65,8 +65,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Tooltips go under the web contents: preview and tab view (sidebar). 25/25 clear in a sweep. (7dcff39)
 - [x] Preview notifications list under the page (offscreen page canvas) + Escape closed the preview. (7dcff39)
 - [x] Space switcher unread bubble clipped. (8926016)
-- [ ] Frosted glass option: whole chrome (board strip, now playing, bottom toolbar, popovers) blurred/translucent
+- [x] Frosted glass option: whole chrome (board strip, now playing, bottom toolbar, popovers) blurred/translucent
       when on; off automatically in Efficient/Performance mode. No such setting exists today. Measure GPU on pan/zoom.
+      Done 2026-11-23: Settings > Appearance > Frosted glass (off by default; never with data-fx=low). Pan/zoom with it
+      on: p95 16.8 ms (dev).
 - [x] Scroll fade gradients on every scrolling list, search popover included: one scroll-driven rule (styles.css) for
       the tab list, search, spaces popover, board command list and space menu, notifications, chats. Fades only an
       edge with more beyond it (checked on 63 tabs: top 0/28, middle 28/28, end 28/0); a short list gets none.

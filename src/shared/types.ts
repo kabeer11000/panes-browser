@@ -601,6 +601,8 @@ export interface Settings {
   searchSuggestions: boolean
   /** With the sidebar collapsed, hide the top bar until the pointer touches the top edge. */
   autoHideTopBar: boolean
+  /** The board's bars and popovers translucent with a blur behind (off in efficient mode, whatever this says). */
+  frostedGlass: boolean
   /** With the sidebar collapsed, open it when the pointer touches the left edge; it tucks away again when the pointer leaves. */
   sidebarHover: boolean
   /** Tabs down the side (a sidebar) or along the top. */
