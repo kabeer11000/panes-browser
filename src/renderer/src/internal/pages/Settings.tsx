@@ -496,6 +496,16 @@ export function Settings(): React.JSX.Element {
             onChange={(v) => void update({ adblockAggressive: v })}
           />
         </Row>
+        <Row
+          label="Help improve Panes"
+          hint="Sends which features you use, time per site and how fast Panes starts, every half hour. Never page contents, what you type or passwords; never private or Tor tabs."
+        >
+          <Toggle
+            label="Help improve Panes"
+            on={s.usageStats}
+            onChange={(v) => void update({ usageStats: v })}
+          />
+        </Row>
       </Group>
 
       <YouTubeSection s={s} update={update} />

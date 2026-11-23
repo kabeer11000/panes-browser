@@ -603,6 +603,8 @@ export interface Settings {
   autoHideTopBar: boolean
   /** The board's bars and popovers translucent with a blur behind (off in efficient mode, whatever this says). */
   frostedGlass: boolean
+  /** Send usage statistics (counts and times, never contents) to Panes' relay; asked on the welcome tour. */
+  usageStats: boolean
   /** With the sidebar collapsed, open it when the pointer touches the left edge; it tucks away again when the pointer leaves. */
   sidebarHover: boolean
   /** Tabs down the side (a sidebar) or along the top. */

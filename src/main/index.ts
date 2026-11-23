@@ -63,7 +63,7 @@ import { SiteSettings, watchCertificates } from './sites'
 import { SettingsStore } from './settings'
 import { SpaceStore } from './spaces'
 import { UpdateManager } from './updater'
-import { noteLayerHealthy } from './layers'
+import { appVersion, noteLayerHealthy } from './layers'
 import { Suggester } from './suggest'
 import { registerAi } from './ai/ipc'
 import { registerCanvas } from './ai/canvas'
@@ -79,13 +79,15 @@ import { installBluetoothPicker, installDevicePickers } from './devices'
 import { installCertBypass } from './certs'
 import { registerScreenTimeIpc, ScreenTimeService } from './screenTime'
 import { parseShareData, type ShareData } from '@shared/webShare'
-import { registerShare } from './share'
+import { registerShare, SHARE_RELAY } from './share'
 import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
 import { registerOffscreenInput } from './offscreenPage'
+import { countBoot, countIpc, countSite, startUsage } from './usage'
 
 mark('modules') // every import above has run
 applyPerformance() // Chromium's switches only count before the app is ready
+countIpc() // before any register* call (usage statistics, only counted when the person said yes)
 
 /** Where links and files handed to Panes go once its window exists; until then they wait in `pending`. */
 let openLinks: ((urls: string[]) => void) | null = null
@@ -429,8 +431,10 @@ function createWindow(): void {
   const screenTime = new ScreenTimeService({
     win,
     inFront: () => tabs.inFront(),
-    navigateTab: (id, url) => tabs.navigateTab(id, url)
+    navigateTab: (id, url) => tabs.navigateTab(id, url),
+    onTime: countSite
   })
+  startUsage({ on: () => settings.get().usageStats, version: appVersion(), relay: SHARE_RELAY })
   registerScreenTimeIpc(screenTime)
   screenTime.start()
   for (const s of [tabSession, privateSession, torSession]) watchCertificates(s)
@@ -974,6 +978,7 @@ function createWindow(): void {
   // the top bar in resizes every page view on every frame, which low-end hardware shows as a shift.
   win.webContents.on('did-finish-load', () => {
     mark('page-loaded')
+    countBoot(performance.now())
     flushTrace()
     noteLayerHealthy() // the code running now works: a new app layer is not rolled back
     youtube.probeDecoders(win.webContents)

@@ -372,3 +372,66 @@ describe('limits', () => {
     rmSync(tdir, { recursive: true, force: true })
   })
 })
+
+describe('usage statistics', () => {
+  test('keeps good batches, refuses bad ones, and answers stats only with the key', async () => {
+    const udir = mkdtempSync(join(tmpdir(), 'panes-usage-'))
+    const r = startRelay({ port: 0, dataDir: udir, statsKey: 'k'.repeat(32) })
+    const base = `http://127.0.0.1:${r.port}`
+    const send = (b: unknown): Promise<Response> =>
+      fetch(`${base}/usage`, {
+        method: 'POST',
+        body: typeof b === 'string' ? b : JSON.stringify(b)
+      })
+    const batch = {
+      id: 'install-one',
+      v: '0.1.0-beta.150',
+      os: 'win32 10.0.26300',
+      ram: 16,
+      boot: 900,
+      active: 1800,
+      actions: { 'tabs:create': 4 },
+      sites: { 'youtube.com': 3600 }
+    }
+    expect((await send(batch)).status).toBe(204)
+    expect(
+      (await send({ ...batch, id: 'install-two', boot: undefined, actions: { 'tabs:create': 1 } }))
+        .status
+    ).toBe(204)
+    expect((await send('not json')).status).toBe(400)
+    expect((await send({ ...batch, sites: { 'a.com/secret path': 1 } })).status).toBe(400)
+    expect((await send('x'.repeat(70_000))).status).toBe(413)
+    expect((await fetch(`${base}/usage/stats`)).status).toBe(403)
+    expect((await fetch(`${base}/usage/stats`, { headers: { 'x-key': 'wrong' } })).status).toBe(403)
+    const s = (await (
+      await fetch(`${base}/usage/stats?days=1`, { headers: { 'x-key': 'k'.repeat(32) } })
+    ).json()) as Record<string, unknown>
+    expect(s.people).toBe(2)
+    expect(s.actions).toEqual({ 'tabs:create': 5 })
+    expect(s.sitesHours).toEqual({ 'youtube.com': 2 })
+    expect(s.activeHours).toBe(1)
+    expect(s.bootMs).toEqual({ p50: 900, p90: 900, n: 1 })
+    expect(s.versions).toEqual({ '0.1.0-beta.150': 2 })
+    // a relay with no key set never shows them
+    const r2 = startRelay({ port: 0, dataDir: mkdtempSync(join(tmpdir(), 'panes-usage-')) })
+    expect(
+      (await fetch(`http://127.0.0.1:${r2.port}/usage/stats`, { headers: { 'x-key': '' } })).status
+    ).toBe(403)
+    r2.stop()
+    r.stop()
+    rmSync(udir, { recursive: true, force: true })
+  })
+
+  test('one address cannot flood it', async () => {
+    const udir = mkdtempSync(join(tmpdir(), 'panes-usage-'))
+    const r = startRelay({ port: 0, dataDir: udir })
+    const codes: number[] = []
+    for (let i = 0; i < 25; i++)
+      codes.push(
+        (await fetch(`http://127.0.0.1:${r.port}/usage`, { method: 'POST', body: '{}' })).status
+      )
+    expect(codes.filter((c) => c === 429).length).toBe(5)
+    r.stop()
+    rmSync(udir, { recursive: true, force: true })
+  })
+})

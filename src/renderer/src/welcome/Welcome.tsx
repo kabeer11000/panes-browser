@@ -483,6 +483,20 @@ export function Welcome(): React.JSX.Element {
                         onChange={(v) => update({ memorySaver: v })}
                       />
                     </div>
+                    <div className="wl-row">
+                      <span>
+                        Help improve Panes
+                        <em>
+                          Sends which features you use, time per site and how fast it starts. Never
+                          what you type or read.
+                        </em>
+                      </span>
+                      <Toggle
+                        label="Help improve Panes"
+                        on={s.usageStats}
+                        onChange={(v) => update({ usageStats: v })}
+                      />
+                    </div>
                     <div className="wl-row col">
                       <span>
                         Performance

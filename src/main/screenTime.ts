@@ -28,6 +28,8 @@ interface Deps {
   /** The web page in front of the person (null when none: the board with no page open, a private tab...). */
   inFront: () => { id: number; url: string; playing: boolean } | null
   navigateTab: (id: number, url: string) => boolean
+  /** Each tick's time, as it is counted (usage statistics). */
+  onTime?: (site: string, seconds: number) => void
 }
 
 export class ScreenTimeService {
@@ -63,6 +65,7 @@ export class ScreenTimeService {
     let st = this.store.value
     if (!st.days[today]) st = prune(st, today) // a new day: old ones go
     this.store.value = addTime(st, today, site, TICK_MS / 1000)
+    this.d.onTime?.(site, TICK_MS / 1000)
     this.store.save()
     const left = timeLeft(this.store.value, today, site)
     if (left !== null && left <= 0 && this.stopped.get(f.id) !== f.url) {

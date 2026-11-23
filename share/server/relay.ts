@@ -25,8 +25,11 @@ import {
   unframe,
   type Welcome
 } from '../../src/shared/share/wire'
+import { cleanBatch, USAGE_MAX_BYTES } from '../../src/shared/share/usage'
 
 const ROOM_DAYS = 90
+/** How long usage batches are kept. */
+const USAGE_DAYS = 180
 const ROOM_RE = /^[A-Za-z0-9_-]{16,64}$/
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/
 /** Changes one person may send a second, on average (a drag sends many; a burst is allowed). */
@@ -45,6 +48,8 @@ export interface RelayOptions {
   turn?: { keyId: string; token: string }
   /** For tests: what the TURN credentials are fetched with. */
   fetchTurn?: typeof fetch
+  /** The key GET /usage/stats wants (x-key); without one, nobody can read the usage statistics. */
+  statsKey?: string
   /** Abuse limits (defaults in LIMITS). */
   limits?: Partial<Limits>
 }
@@ -103,6 +108,74 @@ interface Conn {
   at: number
 }
 
+interface UsageRow {
+  at: number
+  id: string
+  v: string
+  os: string
+  ram: number
+  boot: number | null
+  active: number
+  actions: string
+  sites: string
+}
+
+/** The top `n` of a tally, biggest first. */
+const top = (m: Map<string, number>, n: number): Array<[string, number]> =>
+  [...m].sort((a, b) => b[1] - a[1]).slice(0, n)
+
+/** What GET /usage/stats answers: people, time in use, startup, and the most used commands, sites, versions. */
+export function usageStats(rows: UsageRow[], days: number): Record<string, unknown> {
+  const people = new Set<string>()
+  const perDay = new Map<string, Set<string>>()
+  const actions = new Map<string, number>()
+  const sites = new Map<string, number>()
+  const versions = new Map<string, Set<string>>()
+  const oses = new Map<string, Set<string>>()
+  const ram = new Map<string, Set<string>>()
+  const boots: number[] = []
+  let active = 0
+  const add = (m: Map<string, number>, k: string, n: number): void => {
+    m.set(k, (m.get(k) ?? 0) + n)
+  }
+  const who = (m: Map<string, Set<string>>, k: string, id: string): void => {
+    if (!m.has(k)) m.set(k, new Set())
+    m.get(k)!.add(id)
+  }
+  for (const r of rows) {
+    people.add(r.id)
+    who(perDay, new Date(r.at).toISOString().slice(0, 10), r.id)
+    who(versions, r.v, r.id)
+    who(oses, r.os.split(' ')[0], r.id)
+    who(ram, `${r.ram} GB`, r.id)
+    active += r.active
+    if (r.boot !== null) boots.push(r.boot)
+    for (const [k, n] of Object.entries(JSON.parse(r.actions) as Record<string, number>))
+      add(actions, k, n)
+    for (const [k, n] of Object.entries(JSON.parse(r.sites) as Record<string, number>))
+      add(sites, k, n)
+  }
+  boots.sort((a, b) => a - b)
+  const pct = (p: number): number | null =>
+    boots.length ? boots[Math.floor((boots.length - 1) * p)] : null
+  const sizes = (m: Map<string, Set<string>>): Record<string, number> =>
+    Object.fromEntries(
+      [...m].map(([k, s]) => [k, s.size]).sort((a, b) => (b[1] as number) - (a[1] as number))
+    )
+  return {
+    days,
+    people: people.size,
+    peoplePerDay: Object.fromEntries([...perDay].sort().map(([d, s]) => [d, s.size])),
+    activeHours: Math.round(active / 360) / 10,
+    bootMs: { p50: pct(0.5), p90: pct(0.9), n: boots.length },
+    versions: sizes(versions),
+    os: sizes(oses),
+    ram: sizes(ram),
+    actions: Object.fromEntries(top(actions, 100)),
+    sitesHours: Object.fromEntries(top(sites, 100).map(([k, s]) => [k, Math.round(s / 360) / 10]))
+  }
+}
+
 const sha256 = (s: string): string => new Bun.CryptoHasher('sha256').update(s).digest('hex')
 
 /** Who is asking: the first address Render's proxy saw, else the connection's own. */
@@ -122,6 +195,9 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
     CREATE TABLE IF NOT EXISTS rooms (id TEXT PRIMARY KEY, token TEXT NOT NULL, made INTEGER, used INTEGER);
     CREATE TABLE IF NOT EXISTS log (room TEXT, n INTEGER, data BLOB, PRIMARY KEY (room, n));
     CREATE TABLE IF NOT EXISTS blobs (room TEXT, id TEXT, data BLOB, PRIMARY KEY (room, id));
+    CREATE TABLE IF NOT EXISTS usage (at INTEGER, id TEXT, v TEXT, os TEXT, ram INTEGER, boot INTEGER,
+      active INTEGER, actions TEXT, sites TEXT);
+    CREATE INDEX IF NOT EXISTS usage_at ON usage (at);
   `)
   const q = {
     room: db.query<{ token: string }, [string]>('SELECT token FROM rooms WHERE id = ?'),
@@ -138,6 +214,10 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
     getBlob: db.query<{ data: Uint8Array }, [string, string]>(
       'SELECT data FROM blobs WHERE room = ? AND id = ?'
     ),
+    addUsage: db.query(
+      'INSERT INTO usage (at, id, v, os, ram, boot, active, actions, sites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ),
+    usageSince: db.query<UsageRow, [number]>('SELECT * FROM usage WHERE at >= ?'),
     old: db.query<{ id: string }, [number]>('SELECT id FROM rooms WHERE used < ?'),
     blobBytes: db.query<{ s: number }, [string]>(
       'SELECT COALESCE(SUM(LENGTH(data)), 0) AS s FROM blobs WHERE room = ?'
@@ -150,6 +230,8 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
   const limits: Limits = { ...LIMITS, ...o.limits }
   const blobRate = new Buckets(limits.blobsPerMinute, 60_000)
   const roomRate = new Buckets(limits.newRoomsPerHour, 3600_000)
+  // Panes sends a batch every half hour; a burst after a long offline stretch is fine, a flood is not
+  const usageRate = new Buckets(20, 3600_000)
   /** Keep a room's pictures under its share, the oldest going first. */
   function trimBlobs(room: string): void {
     let over = q.blobBytes.get(room)!.s - limits.roomBlobBytes
@@ -236,6 +318,8 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
     }
     blobRate.sweep()
     roomRate.sweep()
+    usageRate.sweep()
+    db.query('DELETE FROM usage WHERE at < ?').run(Date.now() - USAGE_DAYS * 86400_000)
   }
   const sweeper = setInterval(sweep, 3600_000)
 
@@ -245,6 +329,37 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
       const url = new URL(req.url)
       const parts = url.pathname.split('/').filter(Boolean)
       if (url.pathname === '/health') return new Response('ok')
+      // usage statistics from people who said yes (src/shared/share/usage.ts)
+      if (url.pathname === '/usage' && req.method === 'POST') {
+        if (!usageRate.take(addressOf(req, srv))) return new Response('too many', { status: 429 })
+        const body = await req.text()
+        if (body.length > USAGE_MAX_BYTES) return new Response('too big', { status: 413 })
+        let b: ReturnType<typeof cleanBatch> = null
+        try {
+          b = cleanBatch(JSON.parse(body))
+        } catch {
+          // not JSON: refused below
+        }
+        if (!b) return new Response('bad batch', { status: 400 })
+        q.addUsage.run(
+          Date.now(),
+          b.id,
+          b.v,
+          b.os,
+          b.ram,
+          b.boot ?? null,
+          b.active,
+          JSON.stringify(b.actions),
+          JSON.stringify(b.sites)
+        )
+        return new Response(null, { status: 204 })
+      }
+      if (url.pathname === '/usage/stats') {
+        if (!o.statsKey || req.headers.get('x-key') !== o.statsKey)
+          return new Response('not allowed', { status: 403 })
+        const days = Math.min(USAGE_DAYS, Math.max(1, Number(url.searchParams.get('days')) || 7))
+        return Response.json(usageStats(q.usageSince.all(Date.now() - days * 86400_000), days))
+      }
       // ICE servers for shared browsing (STUN, and TURN when a key is set), to people in the room only
       if (parts[0] === 'ice' && parts.length === 2) {
         const token = req.headers.get('x-token') ?? url.searchParams.get('token') ?? ''
@@ -379,6 +494,7 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
 if (import.meta.main) {
   const r = startRelay({
     port: Number(process.env.PORT ?? 8787),
+    statsKey: process.env.STATS_KEY || undefined,
     dataDir: process.env.DATA_DIR ?? join(import.meta.dir, '.data'),
     webDir: process.env.WEB_DIR ?? join(import.meta.dir, '..', 'web', 'dist'),
     turn:
