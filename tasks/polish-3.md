@@ -115,9 +115,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Black flash closing the preview: board hidden one frame (data-closing removed before .covered) (ee11667).
 - [x] Ctrl+W in the preview keeps it open on the tab used before (ee11667).
 - [x] Shared boards show the others' tabs (mirrors) (b93f420); shared spaces badged in the selector (bd49dbc).
-- [ ] Recent tabs strip: picking a tab moves it to the front and shifts the rest (user 00:51). Nothing moves while
-      the strip is used; the order catches up when it is not (preview closed, or a moment after).
-- [ ] Back went to about:blank after the first page (the identity priming load). Fixed in the tree, not yet shipped.
+- [x] Recent tabs strip: picking a tab moves it to the front and shifts the rest (user 00:51). Nothing moves while
+      the strip is used; the order catches up when it is not (preview closed, or a moment after). Shipped in
+      beta.130 (4099888).
+- [x] Back went to about:blank after the first page (the identity priming load). Shipped in beta.129 (05ada01).
 - [ ] Mirrored tabs: pictures (the owner's snapshot, shrunk, encrypted, through the relay's blobs); later live.
 - [ ] Mirrored tabs overlap the viewer's own tabs in the same section (both lay out from the same spots).
 - [ ] Board opened on a space switch stayed blank (stuck in .swap) in the parked test window; reopening fixed it.
