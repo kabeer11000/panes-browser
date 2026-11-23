@@ -100,7 +100,7 @@ export interface ShareDeps {
   /** A tab's title, for the card the others see of it. */
   tabTitle: (tabId: number) => string
   /** A tab's address now; null once it has closed. */
-  tabUrl: (tabId: number) => string | null
+  tabUrl: (tabId: number, spaceId: number) => string | null
   /** A tab's picture (a JPEG data address) and when it was taken; null and 0 when it has none. */
   thumbOf: (tabId: number) => string | null
   thumbAt: (tabId: number) => number
@@ -157,7 +157,7 @@ export class ShareService {
     return {
       by: this.who,
       title: (id) => this.d.tabTitle(id),
-      url: (id) => this.d.tabUrl(id),
+      url: (id) => this.d.tabUrl(id, spaceId),
       pic: (id) => this.sentPics.get(`${spaceId}:${id}`)?.id
     }
   }
@@ -183,7 +183,8 @@ export class ShareService {
       let changed = false
       for (const c of room.last.cards) {
         if (budget <= 0) break
-        if (c.id <= 0 || c.private) continue
+        // only a normal tab of this space now (see TabManager.tabUrl): never another space's under an old card's id
+        if (c.id <= 0 || c.private || this.d.tabUrl(c.id, room.spaceId) === null) continue
         const key = `${room.spaceId}:${c.id}`
         const at = this.d.thumbAt(c.id)
         const was = this.sentPics.get(key)

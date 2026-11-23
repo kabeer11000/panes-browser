@@ -305,7 +305,7 @@ function createWindow(): void {
     refresh: () => tabs.refresh(),
     createSpace: () => tabs.createSpace(),
     tabTitle: (id) => tabs.tabTitle(id),
-    tabUrl: (id) => tabs.tabUrl(id),
+    tabUrl: (id, spaceId) => tabs.tabUrl(id, spaceId),
     thumbOf: (id) => tabs.thumbOf(id),
     thumbAt: (id) => tabs.thumbAt(id),
     setLiveShared: (id, on) => tabs.setLiveShared(id, on),
