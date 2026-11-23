@@ -1,13 +1,15 @@
 import { useRef, useState } from 'react'
 import type { Space } from '@shared/types'
-import { ShareSection } from '@renderer/components/ShareSection'
+import { Face, ShareSection } from '@renderer/components/ShareSection'
 import { useShareState } from '@renderer/components/useShare'
 import { useHostView } from '@renderer/liveHost'
 import { useDismiss } from './useDismiss'
 
 /**
- * Share, always in sight on the board's top bar (as in Figma): invite people, see who is here, join with a link.
- * The same section as in the space's settings, where it was buried under the colours.
+ * Share, on the board's top bar (as in Figma), as small as it can be: "Share" until the space is; then one capsule
+ * with the room's state as a dot and the others as faces; red with "Live" while this person shows a tab. Everything
+ * else (the invite, who watches, Stop, Take back) is in its popover; only a request to drive comes out beside it,
+ * while it waits for an answer.
  */
 export function ShareButton({ space }: { space: Space | undefined }): React.JSX.Element | null {
   const [open, setOpen] = useState(false)
@@ -17,18 +19,20 @@ export function ShareButton({ space }: { space: Space | undefined }): React.JSX.
   const showing = useHostView(space?.id ?? -1)
   if (!space || !window.api.share) return null
   const status = state?.status ?? 'connecting'
-  const others = state?.people.length ?? 0
-  // What the capsule says is what matters most right now, so it is hard to forget: a tab shown live to the others
-  // (red, with who watches), else that the space is shared and who is in it, else how the room is doing.
-  const label = showing
-    ? `Showing live${showing.watching ? ` · ${showing.watching} watching` : ''}`
-    : status === 'live'
-      ? `Shared · ${others ? `${others} here` : 'just you'}`
+  const people = state?.people ?? []
+  const said =
+    status === 'live'
+      ? people.length
+        ? `${people.length} here`
+        : 'just you'
       : status === 'offline'
-        ? 'Shared · offline'
+        ? 'offline'
         : status === 'refused'
-          ? 'Not let in'
-          : 'Shared · connecting'
+          ? 'not let in'
+          : 'connecting'
+  const label = showing
+    ? `Showing a tab live${showing.watching ? `, ${showing.watching} watching` : ''}`
+    : `Shared, ${said}`
   return (
     <div className="cv-share" ref={ref}>
       <button
@@ -41,20 +45,62 @@ export function ShareButton({ space }: { space: Space | undefined }): React.JSX.
         }
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={space.shared ? `Shared space: ${label}` : 'Share this space'}
+        aria-label={space.shared ? label : 'Share this space'}
+        title={space.shared ? label : undefined}
         onClick={() => setOpen((o) => !o)}
       >
         {space.shared ? (
           <>
             <span className="cv-share-dot" aria-hidden="true" />
-            {label}
+            {people.length > 0 && (
+              <span className="cv-share-faces" aria-hidden="true">
+                {people.slice(0, 3).map((p) => (
+                  <Face key={p.id} name={p.name} color={p.color} size={18} />
+                ))}
+                {people.length > 3 && <em>+{people.length - 3}</em>}
+              </span>
+            )}
+            {showing ? (
+              <span>Live{showing.watching ? ` · ${showing.watching}` : ''}</span>
+            ) : people.length === 0 ? (
+              <span>{status === 'live' ? 'Shared' : said}</span>
+            ) : null}
           </>
         ) : (
           'Share'
         )}
       </button>
+      {showing?.asking && (
+        <div className="cv-share-ask" role="alert">
+          <span>{showing.asking.name.split(' ')[0]} wants to drive</span>
+          <button type="button" className="primary" onClick={showing.allow}>
+            Let them
+          </button>
+          <button type="button" onClick={showing.deny}>
+            No
+          </button>
+        </div>
+      )}
       {open && (
         <div className="cv-share-pop" role="dialog" aria-label={`Share ${space.name}`}>
+          {showing && (
+            <div className="cv-share-live">
+              <span className="cv-share-dot" aria-hidden="true" />
+              <span className="cv-share-live-what">
+                {showing.driver
+                  ? `${showing.driver.name.split(' ')[0]} is driving`
+                  : `Showing a tab live${showing.watching ? ` · ${showing.watching} watching` : ''}`}
+              </span>
+              {showing.driver && (
+                <button type="button" onClick={showing.takeBack}>
+                  Take back
+                </button>
+              )}
+              <button type="button" onClick={showing.stop}>
+                Stop
+              </button>
+            </div>
+          )}
           <ShareSection space={space} />
         </div>
       )}

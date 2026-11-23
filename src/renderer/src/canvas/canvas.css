@@ -4754,19 +4754,81 @@
   font-weight: 600;
   white-space: nowrap;
 }
-.cv-faces {
+/* the others in a shared space, small and overlapping inside the share capsule (ShareButton.tsx) */
+.cv-share-faces {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 5px;
+}
+.cv-share-faces .share-face {
+  margin-left: -5px;
+  font-size: 8.5px;
+  box-shadow: 0 0 0 1.5px var(--board, var(--bg));
+}
+.cv-share-faces em {
+  margin-left: 4px;
+  font-style: normal;
+  font-size: 11px;
+}
+/* someone asks to drive the tab shown live: beside the capsule only while it waits for an answer */
+.cv-share-ask {
+  position: absolute;
+  z-index: 3; /* over the chat and history buttons beside the capsule */
+  left: calc(100% + 6px);
+  top: 50%;
+  translate: 0 -50%;
   display: flex;
   align-items: center;
-  padding-left: 4px;
+  gap: 6px;
+  height: 30px;
+  padding: 0 4px 0 12px;
+  border-radius: 999px;
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 10px 30px rgb(0 0 0 / 0.35);
+  font-size: 12.5px;
+  white-space: nowrap;
+  animation: pop-open 0.18s var(--ease) both;
 }
-.cv-faces .share-face {
-  margin-left: -6px;
-  box-shadow: 0 0 0 2px var(--board, var(--bg));
-}
-.cv-faces-more {
-  margin-left: 6px;
+.cv-share-ask button {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
   font-size: 12px;
-  color: var(--fg-dim);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+.cv-share-ask button.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+/* the live tab's state and controls, at the top of the share popover */
+.cv-share-live {
+  --tone: 255 59 48;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 2px;
+  padding: 8px 6px 8px 10px;
+  border-radius: 10px;
+  background: rgb(var(--tone) / 0.12);
+  font-size: 12.5px;
+}
+.cv-share-live-what {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-share-live button {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--fg) 9%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
   .cv-rcursor {
@@ -4806,8 +4868,8 @@
   --tone: 148 163 184;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 12px 0 10px;
+  gap: 6px;
+  padding: 0 10px;
   background: rgb(var(--tone) / 0.16);
   color: rgb(var(--tone));
   box-shadow: inset 0 0 0 1px rgb(var(--tone) / 0.22);
@@ -5071,37 +5133,6 @@
 }
 
 /* ---- a tab shown live in a shared space (LiveShare.tsx) ---- */
-.live-bar,
-.live-invite {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-  padding: 0 6px 0 11px;
-  border-radius: 999px;
-  background: var(--chrome, var(--popover-bg));
-  box-shadow: var(--chrome-edge, inset 0 0 0 0.5px var(--border));
-  color: var(--fg);
-  font: inherit;
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-.live-bar {
-  margin-left: 4px;
-}
-.live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #ff453a;
-  box-shadow: 0 0 0 3px rgb(255 69 58 / 0.22);
-}
-.live-bar-text {
-  font-weight: 600;
-}
-.live-bar-ask {
-  color: var(--fg-dim);
-}
 .live-btn {
   height: 22px;
   padding: 0 10px;
@@ -5116,53 +5147,10 @@
 .live-btn:hover {
   background: color-mix(in srgb, var(--fg) 14%, transparent);
 }
-.live-btn:disabled {
-  opacity: 0.55;
-}
-.live-btn.primary {
-  background: var(--accent);
-  color: var(--accent-fg);
-}
 .live-btn.on {
   background: rgb(52 199 89 / 0.18);
   color: #34c759;
 }
-/* the watcher's sound turned off: there, but quiet */
-.live-btn.off {
-  background: transparent;
-  color: var(--fg-dim);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 14%, transparent);
-}
-.live-btn.quiet {
-  background: transparent;
-  color: var(--fg-dim);
-}
-.live-invites {
-  display: flex;
-  gap: 6px;
-  margin-left: 4px;
-}
-.live-invite {
-  cursor: pointer;
-  padding: 0 5px 0 5px;
-}
-.live-invite span {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.live-invite em {
-  font-style: normal;
-  font-weight: 650;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-fg);
-}
-.live-invite:hover em {
-  filter: brightness(1.08);
-}
-.live-invite:focus-visible,
 .live-btn:focus-visible {
   outline: var(--ring);
   outline-offset: 2px;

@@ -140,7 +140,7 @@ import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
 import type { CardModel } from './model'
 import { boardMoving, onBoardMotion } from './boardMotion'
-import { PresenceFaces, RemoteCursors } from './Presence'
+import { RemoteCursors } from './Presence'
 import { ShareButton } from './ShareButton'
 import { SpaceChat } from './SpaceChat'
 import { LiveShare } from './LiveShare'
@@ -6041,16 +6041,13 @@ export function Canvas({
               size={24}
             />
           </div>
-          <PresenceFaces people={presence.people} />
           <ShareButton space={thisSpace} />
           <SpaceChat spaceId={spaceId} shared={!!thisSpace?.shared} />
           <LiveShare
             spaceId={spaceId}
             shared={!!thisSpace?.shared}
             people={presence.people}
-            liveTab={liveTab}
             myName={presence.me?.name ?? 'Someone'}
-            onStop={() => showLive(null)}
           />
           <UndoHistory
             open={history !== null}

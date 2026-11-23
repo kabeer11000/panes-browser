@@ -1,5 +1,4 @@
 import type { SharePerson } from '@shared/types'
-import { Face } from '@renderer/components/ShareSection'
 
 /**
  * The others in a shared space, on the board: each one's pointer as an arrow with their name, where they are on the
@@ -24,19 +23,5 @@ export function RemoteCursors({ people }: { people: SharePerson[] }): React.JSX.
         ) : null
       )}
     </>
-  )
-}
-
-/** Who is in a shared space, as faces beside the space switcher (nothing when it is not shared). */
-export function PresenceFaces({ people }: { people: SharePerson[] }): React.JSX.Element | null {
-  if (people.length === 0) return null
-  const shown = people.slice(0, 4)
-  return (
-    <div className="cv-faces" aria-label={`${people.length} more here`}>
-      {shown.map((p) => (
-        <Face key={p.id} name={p.name} color={p.color} size={24} />
-      ))}
-      {people.length > shown.length && <span className="cv-faces-more">+{people.length - shown.length}</span>}
-    </div>
   )
 }

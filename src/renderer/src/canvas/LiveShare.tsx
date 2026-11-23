@@ -13,7 +13,7 @@ import {
   type RemoteInput
 } from '@shared/share/live'
 import { Face } from '@renderer/components/ShareSection'
-import { parse, useHostView } from '@renderer/liveHost'
+import { parse } from '@renderer/liveHost'
 
 /**
  * A tab shown live in a shared space (tasks/shared-spaces.md, shared browsing), like Hyperbeam but with the host's own
@@ -419,27 +419,13 @@ export function LiveShare({
   spaceId,
   shared,
   people,
-  liveTab,
-  myName,
-  onStop
+  myName
 }: {
   spaceId: number
   shared: boolean
   people: SharePerson[]
-  /** The tab this person shows live here, if any. */
-  liveTab: number | null
   myName: string
-  onStop: () => void
 }): React.JSX.Element | null {
-  const view = useHostView(spaceId)
-  const host = {
-    watching: view?.watching ?? 0,
-    asking: view?.asking ?? null,
-    driver: view?.driver ?? null,
-    allow: () => view?.allow(),
-    deny: () => view?.deny(),
-    takeBack: () => view?.takeBack()
-  }
   const w = useWatching()
   const watchingId = w?.spaceId === spaceId ? w.personId : null
   const setWatchingId = (id: number | null): void =>
@@ -449,36 +435,6 @@ export function LiveShare({
   const watched = showing.find((p) => p.id === watchingId) ?? null
   return (
     <>
-      {liveTab !== null && (
-        <div className="live-bar" role="status">
-          <span className="live-dot" aria-hidden="true" />
-          <span className="live-bar-text">
-            Showing live
-            {host.watching > 0 ? ` · ${host.watching} watching` : ''}
-          </span>
-          {host.asking ? (
-            <>
-              <span className="live-bar-ask">{host.asking.name} asks to drive</span>
-              <button type="button" className="live-btn primary" onClick={host.allow}>
-                Let them
-              </button>
-              <button type="button" className="live-btn" onClick={host.deny}>
-                No
-              </button>
-            </>
-          ) : host.driver ? (
-            <>
-              <span className="live-bar-ask">{host.driver.name} is driving</span>
-              <button type="button" className="live-btn" onClick={host.takeBack}>
-                Take back
-              </button>
-            </>
-          ) : null}
-          <button type="button" className="live-btn quiet" onClick={onStop}>
-            Stop
-          </button>
-        </div>
-      )}
       {watched && (
         <LiveViewer
           key={watched.id}

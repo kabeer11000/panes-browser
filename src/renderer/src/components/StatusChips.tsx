@@ -28,11 +28,14 @@ export function StatusChips({
   return (
     <div className="status-chips">
       {showing.map((p) => (
-        <div key={`watch${p.id}`} className="status-chip live" role="status">
+        <div
+          key={`watch${p.id}`}
+          className="status-chip live"
+          role="status"
+          title={`${p.name} is showing ${p.live!.title || 'a tab'} live`}
+        >
           <span className="status-dot live" aria-hidden="true" />
-          <span className="status-chip-what">
-            {p.name} is showing {p.live!.title || 'a tab'}
-          </span>
+          <span className="status-chip-what">{p.name.split(' ')[0]} is live</span>
           <button
             type="button"
             className="primary"
