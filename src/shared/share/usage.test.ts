@@ -43,3 +43,23 @@ test('hasUsage', () => {
   expect(hasUsage({ ...ok, active: 0, actions: {} })).toBe(false)
   expect(hasUsage(ok)).toBe(true)
 })
+
+describe('screens are counted as commands (main/usage.ts countScreen)', () => {
+  test('screen keys pass the batch check as they are', () => {
+    const b = cleanBatch({
+      ...ok,
+      actions: {
+        'screen:board': 3,
+        'screen:preview': 2,
+        'screen:page:settings': 1,
+        'tabs:create': 4
+      }
+    })
+    expect(b?.actions).toEqual({
+      'screen:board': 3,
+      'screen:preview': 2,
+      'screen:page:settings': 1,
+      'tabs:create': 4
+    })
+  })
+})

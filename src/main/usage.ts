@@ -56,6 +56,13 @@ export const countSite = (site: string, seconds: number): void =>
     bump(b.sites, site, seconds)
   })
 
+/**
+ * A screen shown: the board, the tab view, the board's preview, one of Panes' own pages. Counted with the commands,
+ * as `screen:<name>` (the batch's key format allows it), so no new field is needed anywhere.
+ */
+export const countScreen = (name: string): void =>
+  count((b) => bump(b.actions, 'screen:' + name, 1))
+
 let booted = false
 /** How long this start took, launch to the window's page loaded (the first load only: not a reload). */
 export function countBoot(ms: number): void {
