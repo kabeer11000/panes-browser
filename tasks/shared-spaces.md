@@ -142,4 +142,7 @@ People without Panes join from any browser in a light web version that is also P
       on the web board. Checked: A's message reached B and the web, the web's answer reached A, B's button counted 2
       unread and cleared once read. Someone else's message is a system notification while Panes is not in front
       (click: that space's board); the toast itself not yet seen on screen.
-- [ ] 9. Room expiry, limits, abuse.
+- [x] 9. Room expiry, limits, abuse: rooms unopened for 90 days go (as before), 32 people a room, a message rate per
+      connection, 2 MB messages, 5 MB pictures; now also: pictures only for members of an existing room (asking never
+      makes one), 100 MB of pictures a room (the oldest go), 60 pictures a minute a room, 30 new rooms an hour per
+      address (Render's x-forwarded-for). Relay tests cover each.

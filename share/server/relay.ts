@@ -45,6 +45,46 @@ export interface RelayOptions {
   turn?: { keyId: string; token: string }
   /** For tests: what the TURN credentials are fetched with. */
   fetchTurn?: typeof fetch
+  /** Abuse limits (defaults in LIMITS). */
+  limits?: Partial<Limits>
+}
+
+/** What keeps one person from filling the relay: pictures per room, how fast they come, how many rooms are made. */
+export interface Limits {
+  /** A room's pictures, all told; past it the oldest go (they are snapshots, replaced as pages change). */
+  roomBlobBytes: number
+  /** Pictures a room may send a minute. */
+  blobsPerMinute: number
+  /** New rooms one address may make an hour. */
+  newRoomsPerHour: number
+}
+export const LIMITS: Limits = {
+  roomBlobBytes: 100 * 1024 * 1024,
+  blobsPerMinute: 60,
+  newRoomsPerHour: 30
+}
+
+/** A token bucket: `per` tokens over `ms`, at most `per` held. */
+class Buckets {
+  private m = new Map<string, { t: number; at: number }>()
+  constructor(
+    private per: number,
+    private ms: number
+  ) {}
+  take(key: string, now = Date.now()): boolean {
+    const b = this.m.get(key) ?? { t: this.per, at: now }
+    b.t = Math.min(this.per, b.t + ((now - b.at) / this.ms) * this.per)
+    b.at = now
+    this.m.set(key, b)
+    if (b.t < 1) return false
+    b.t--
+    return true
+  }
+  /** Forget the full ones (nothing to remember about them). */
+  sweep(now = Date.now()): void {
+    for (const [k, b] of this.m)
+      if (b.t + ((now - b.at) / this.ms) * this.per >= this.per) this.m.delete(k)
+  }
 }
 
 /** What everyone gets with no TURN key, and alongside it. */
@@ -64,6 +104,15 @@ interface Conn {
 }
 
 const sha256 = (s: string): string => new Bun.CryptoHasher('sha256').update(s).digest('hex')
+
+/** Who is asking: the first address Render's proxy saw, else the connection's own. */
+function addressOf(
+  req: Request,
+  srv: { requestIP: (r: Request) => { address: string } | null }
+): string {
+  const fwd = req.headers.get('x-forwarded-for')
+  return fwd?.split(',')[0]?.trim() || srv.requestIP(req)?.address || 'unknown'
+}
 
 export function startRelay(o: RelayOptions): { stop: () => void; port: number } {
   mkdirSync(o.dataDir, { recursive: true })
@@ -89,21 +138,45 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
     getBlob: db.query<{ data: Uint8Array }, [string, string]>(
       'SELECT data FROM blobs WHERE room = ? AND id = ?'
     ),
-    old: db.query<{ id: string }, [number]>('SELECT id FROM rooms WHERE used < ?')
+    old: db.query<{ id: string }, [number]>('SELECT id FROM rooms WHERE used < ?'),
+    blobBytes: db.query<{ s: number }, [string]>(
+      'SELECT COALESCE(SUM(LENGTH(data)), 0) AS s FROM blobs WHERE room = ?'
+    ),
+    blobsOldest: db.query<{ r: number; l: number }, [string]>(
+      'SELECT rowid AS r, LENGTH(data) AS l FROM blobs WHERE room = ? ORDER BY rowid'
+    ),
+    dropBlob: db.query('DELETE FROM blobs WHERE rowid = ?')
+  }
+  const limits: Limits = { ...LIMITS, ...o.limits }
+  const blobRate = new Buckets(limits.blobsPerMinute, 60_000)
+  const roomRate = new Buckets(limits.newRoomsPerHour, 3600_000)
+  /** Keep a room's pictures under its share, the oldest going first. */
+  function trimBlobs(room: string): void {
+    let over = q.blobBytes.get(room)!.s - limits.roomBlobBytes
+    if (over <= 0) return
+    for (const b of q.blobsOldest.all(room)) {
+      if (over <= 0) break
+      q.dropBlob.run(b.r)
+      over -= b.l
+    }
   }
 
-  /** Whether a token may be in a room; a room not seen before is made for it. */
-  function admit(room: string, token: string): boolean {
-    if (!ROOM_RE.test(room) || !TOKEN_RE.test(token)) return false
+  /**
+   * Whether a token may be in a room; a room not seen before is made for it, unless its address has made too many
+   * lately ('busy').
+   */
+  function admit(room: string, token: string, from: string): 'ok' | 'no' | 'busy' {
+    if (!ROOM_RE.test(room) || !TOKEN_RE.test(token)) return 'no'
     const row = q.room.get(room)
     const now = Date.now()
     if (!row) {
+      if (!roomRate.take(from, now)) return 'busy'
       q.make.run(room, sha256(token), now, now)
-      return true
+      return 'ok'
     }
-    if (row.token !== sha256(token)) return false
+    if (row.token !== sha256(token)) return 'no'
     q.touch.run(now, room)
-    return true
+    return 'ok'
   }
   /** Whether a token belongs to a room that exists (never makes one). */
   const member = (room: string, token: string): boolean =>
@@ -161,6 +234,8 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
       db.query('DELETE FROM blobs WHERE room = ?').run(id)
       db.query('DELETE FROM rooms WHERE id = ?').run(id)
     }
+    blobRate.sweep()
+    roomRate.sweep()
   }
   const sweeper = setInterval(sweep, 3600_000)
 
@@ -183,7 +258,9 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
       if (parts[0] === 'sync' && parts.length === 2) {
         const room = parts[1]
         const token = url.searchParams.get('token') ?? ''
-        if (!admit(room, token)) return new Response('not allowed', { status: 403 })
+        const may = admit(room, token, addressOf(req, srv))
+        if (may === 'busy') return new Response('too many new rooms', { status: 429 })
+        if (may === 'no') return new Response('not allowed', { status: 403 })
         if ((rooms.get(room)?.size ?? 0) >= MAX_PEERS)
           return new Response('room full', { status: 429 })
         const ok = srv.upgrade(req, { data: { room, id: nextId++, tokens: BURST, at: Date.now() } })
@@ -193,13 +270,16 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
       if (parts[0] === 'blob' && parts.length >= 2) {
         const room = parts[1]
         const token = req.headers.get('x-token') ?? url.searchParams.get('token') ?? ''
-        if (!admit(room, token)) return new Response('not allowed', { status: 403 })
+        // a room's members only, and asking never makes a room
+        if (!member(room, token)) return new Response('not allowed', { status: 403 })
         if (req.method === 'POST' && parts.length === 2) {
+          if (!blobRate.take(room)) return new Response('too many pictures', { status: 429 })
           const body = new Uint8Array(await req.arrayBuffer())
           if (body.length === 0 || body.length > MAX_BLOB)
             return new Response('too big', { status: 413 })
           const id = sha256(Buffer.from(body).toString('base64')).slice(0, 32)
           q.putBlob.run(room, id, body)
+          trimBlobs(room)
           return Response.json({ id })
         }
         if (req.method === 'GET' && parts.length === 3) {

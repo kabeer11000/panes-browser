@@ -304,3 +304,71 @@ describe('ICE servers for shared browsing', () => {
     rmSync(tdir, { recursive: true, force: true })
   })
 })
+
+describe('limits', () => {
+  test('pictures: members of an existing room only, its share kept (oldest out), and not too fast', async () => {
+    const tdir = mkdtempSync(join(tmpdir(), 'panes-relay-limits-'))
+    const r = startRelay({
+      port: 0,
+      dataDir: tdir,
+      limits: { roomBlobBytes: 3000, blobsPerMinute: 4, newRoomsPerHour: 100 }
+    })
+    const base = `http://127.0.0.1:${r.port}`
+    const room = newRoom()
+    const { token } = await roomKeys(room.room, room.secret)
+    const up = (n: number): Promise<Response> =>
+      fetch(`${base}/blob/${room.room}`, {
+        method: 'POST',
+        headers: { 'x-token': token },
+        body: new Uint8Array(1000).fill(n)
+      })
+    // no such room yet: refused, and the asking does not make it
+    expect((await up(0)).status).toBe(403)
+    const doc = new Y.Doc()
+    let st: ShareStatus = 'connecting'
+    const c = new ShareClient({
+      relay: base,
+      room: room.room,
+      secret: room.secret,
+      doc,
+      onStatus: (x) => (st = x)
+    })
+    await until(() => st === 'live', 'live')
+    const ids: string[] = []
+    for (let i = 1; i <= 4; i++) {
+      const res = await up(i)
+      expect(res.status).toBe(200)
+      ids.push(((await res.json()) as { id: string }).id)
+    }
+    const get = (id: string): Promise<number> =>
+      fetch(`${base}/blob/${room.room}/${id}`, { headers: { 'x-token': token } }).then(
+        (x) => x.status
+      )
+    // 4000 bytes into a 3000 share: the first went
+    expect(await get(ids[0])).toBe(404)
+    expect(await get(ids[3])).toBe(200)
+    // a fifth within the minute is too fast
+    expect((await up(5)).status).toBe(429)
+    c.destroy()
+    r.stop()
+    rmSync(tdir, { recursive: true, force: true })
+  })
+
+  test('one address makes only so many new rooms an hour; existing rooms still open', async () => {
+    const tdir = mkdtempSync(join(tmpdir(), 'panes-relay-rooms-'))
+    const r = startRelay({ port: 0, dataDir: tdir, limits: { newRoomsPerHour: 2 } })
+    const base = `http://127.0.0.1:${r.port}`
+    const knock = async (room: { room: string; secret: string }): Promise<number> => {
+      const { token } = await roomKeys(room.room, room.secret)
+      // not a WebSocket: past the door it says so (400), at the door it is refused
+      return (await fetch(`${base}/sync/${room.room}?token=${token}`)).status
+    }
+    const first = newRoom()
+    expect(await knock(first)).toBe(400)
+    expect(await knock(newRoom())).toBe(400)
+    expect(await knock(newRoom())).toBe(429)
+    expect(await knock(first)).toBe(400)
+    r.stop()
+    rmSync(tdir, { recursive: true, force: true })
+  })
+})
