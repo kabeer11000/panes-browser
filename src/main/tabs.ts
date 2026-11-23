@@ -49,6 +49,7 @@ import {
   type CaptureKind,
   type CaptureState
 } from '@shared/capture'
+import { TYPE_AHEAD_MS, typeAheadKey } from '@shared/typeAhead'
 import {
   FRESH_MEMO,
   NO_ATTENTION,
@@ -2266,6 +2267,8 @@ export class TabManager {
 
   /** A shared space's invite link: joined (main/share.ts) instead of opened as a page. True when it was one. */
   inviteHandler: ((url: string) => boolean) | null = null
+  /** Until when keys typed into a page are the coming search's, after Ctrl+T (see handleKey). */
+  private typeAheadUntil = 0
   /** A search field is open in the window (SearchPalette): pages may not take the keyboard from it (see wire). */
   searchField = false
 
@@ -3189,6 +3192,7 @@ export class TabManager {
   private newTabOrCard(): void {
     // first of all, so not a key typed straight after Ctrl+T is lost while the field it is for is still on its way
     this.send('ui:command', 'type-ahead', Date.now())
+    this.typeAheadUntil = Date.now() + TYPE_AHEAD_MS
     if (this.canvasMode) {
       // the preview's live page is a native view over the board: the new-card popover would open under it, unseen
       if (this.previewOpen) this.send('canvas:preview-key', 'close')
@@ -3971,6 +3975,22 @@ export class TabManager {
       return
     }
     if (input.type !== 'keyDown') return
+    // Typed just after Ctrl+T, before the window has the keyboard (a busy machine, a heavy page): the keys still land
+    // in the page that had it, where they are its shortcuts (YouTube's k, f, m) and the search never sees them. They
+    // are the search's: kept from the page and handed to the field that is coming.
+    if (
+      Date.now() < this.typeAheadUntil &&
+      typeAheadKey('', {
+        key: input.key,
+        ctrlKey: !!input.control,
+        metaKey: !!input.meta,
+        altKey: !!input.alt
+      }) !== null
+    ) {
+      event.preventDefault()
+      this.send('ui:type-ahead-key', input.key)
+      return
+    }
     const mod = input.control || input.meta
     const k = input.key.toLowerCase()
     // the tour asks for a shortcut and must see it, without the feature running under it (Ctrl+Shift+K would swap

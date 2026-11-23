@@ -11,7 +11,7 @@ import { loadChatWidth } from './components/chat/width'
 import { Panes } from './components/Panes'
 import { SearchPalette, type Anchor } from './components/SearchPalette'
 import type { CanvasSearchRequest } from './canvas/askSearch'
-import { startTypeAhead } from './typeAhead'
+import { pageKey, startTypeAhead } from './typeAhead'
 import { Sidebar } from './components/Sidebar'
 import { TabStack } from './components/TabStack'
 import { TaskView } from './components/TaskView'
@@ -455,6 +455,8 @@ function App(): React.JSX.Element {
     [stackPos, openOverlay, nudgeStack, setMode]
   )
 
+  // keys typed into a page just after Ctrl+T, before the window had the keyboard: the search's
+  useEffect(() => window.api.onTypeAheadKey(pageKey), [])
   useEffect(() => {
     const offCmd = window.api.onCommand((cmd, at) => {
       if (cmd === 'type-ahead') return startTypeAhead(at)

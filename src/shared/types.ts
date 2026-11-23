@@ -222,6 +222,8 @@ export interface PanesApi {
   onThumb(cb: (id: number, dataUrl: string) => void): () => void
   /** `at`: for 'type-ahead', when main saw Ctrl+T (epoch ms) */
   onCommand(cb: (cmd: UiCommand, at?: number) => void): () => void
+  /** A key typed into a page just after Ctrl+T, kept from the page: it belongs to the field that is coming. */
+  onTypeAheadKey(cb: (key: string) => void): () => void
   /** Ctrl+wheel over a page. dy uses DOM units: positive = scroll down (deeper into the stack). */
   onStackWheel(cb: (dy: number) => void): () => void
   /** Ctrl key released (commit point for the tab stack). */

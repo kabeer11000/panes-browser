@@ -29,6 +29,7 @@ const api: PanesApi = {
   onState: (cb) => subscribe<[TabsState]>('tabs:state', cb),
   onThumb: (cb) => subscribe<[number, string]>('tabs:thumb', cb),
   onCommand: (cb) => subscribe<[UiCommand, number?]>('ui:command', cb),
+  onTypeAheadKey: (cb) => subscribe<[string]>('ui:type-ahead-key', cb),
   onStackWheel: (cb) => subscribe<[number]>('ui:stack-wheel', cb),
   onStackRelease: (cb) => subscribe<[]>('ui:stack-release', cb),
   createTab: (input) => ipcRenderer.send('tabs:create', input),

@@ -29,6 +29,23 @@ export function takeTypeAhead(): string {
 const isField = (a: Element | null): boolean =>
   a instanceof HTMLElement && a.matches('input, textarea, [contenteditable="true"]')
 
+/**
+ * A key typed into a page just after Ctrl+T, before the window had the keyboard (main kept it from the page): into the
+ * field if it is here already, else kept for it like any other key typed ahead.
+ */
+export function pageKey(key: string): void {
+  if (isField(document.activeElement)) {
+    // as typing would (the field's own input event follows, so React sees it)
+    if (key === 'Backspace') document.execCommand('delete')
+    else document.execCommand('insertText', false, key)
+    return
+  }
+  const next = typeAheadKey(buf ?? '', { key, ctrlKey: false, metaKey: false, altKey: false })
+  if (next === null) return
+  buf = next
+  until = performance.now() + TYPE_AHEAD_MS
+}
+
 /** Listens for those keys, before anything else on the page sees them. Once, at start. */
 export function installTypeAhead(): void {
   window.addEventListener(
