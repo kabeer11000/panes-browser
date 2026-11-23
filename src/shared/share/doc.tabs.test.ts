@@ -47,6 +47,29 @@ describe('tabs shared as mirrors', () => {
     expect(readInto(a, mine, 'ana').cards.map((c) => c.id)).toEqual([7, 8])
   })
 
+  test("someone else's tab never sits on top of one of this person's own (same slot): it moves beside", () => {
+    const [a, b] = pair()
+    writeDiff(a, null, withCards([card(7, 'https://a.example/', 40)]), undefined, {
+      by: 'ana',
+      title: titles
+    })
+    // Ben's own tab is in the very same spot
+    const bens = withCards([card(3, 'https://b.example/', 40)])
+    const seen = readInto(b, bens, 'ben')
+    const own = seen.cards.find((c) => c.id === 3)!
+    const theirs = seen.cards.find((c) => isMirror(c.id))!
+    expect([own.x, own.y]).toEqual([40, 0])
+    const apart =
+      theirs.x >= own.x + 240 ||
+      theirs.x + 240 <= own.x ||
+      theirs.y >= own.y + 300 ||
+      theirs.y + 300 <= own.y
+    expect(apart).toBe(true)
+    // the same answer each time it is read (no drifting from one sync to the next)
+    const again = readInto(b, bens, 'ben').cards.find((c) => isMirror(c.id))!
+    expect([again.x, again.y]).toEqual([theirs.x, theirs.y])
+  })
+
   test('private tabs and non-web pages never leave', () => {
     const [a, b] = pair()
     const mine = withCards([

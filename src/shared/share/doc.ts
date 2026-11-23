@@ -12,7 +12,16 @@
  * order beside it (`o`) so what is on top stays on top.
  */
 import * as Y from 'yjs'
-import type { CanvasCard, CanvasFrame, CanvasNote, CanvasState } from '../ai/canvas'
+import {
+  cardBox,
+  freeSpot,
+  intersects,
+  type Box,
+  type CanvasCard,
+  type CanvasFrame,
+  type CanvasNote,
+  type CanvasState
+} from '../ai/canvas'
 import { itemFor, type CanvasItem } from '../ai/canvasItems'
 import type { CanvasMark } from '../ai/canvasMarks'
 import type { CanvasConnector, End } from '../ai/connectors'
@@ -207,6 +216,18 @@ export function readInto(
       image ? { source: 'tab', image } : { source: 'tab' }
     )
   })
+  // Someone else's tab laid out from the same spot as one of this person's (both boards place a section's cards in
+  // the same slots) moves to the nearest free place here, so the two never sit on top of each other.
+  const taken: Box[] = [...own, ...shared.map((x) => x.card)].map(cardBox)
+  for (const m of mirrors) {
+    const b = cardBox(m)
+    if (taken.some((o) => intersects(b, o))) {
+      const spot = freeSpot({ w: b.w, h: b.h }, taken, { x: m.x, y: m.y }, 16)
+      m.x = spot.x
+      m.y = spot.y
+    }
+    taken.push(cardBox(m))
+  }
   const sharedIds = new Set(shared.map((x) => x.card.id))
   // an own arrow is one that touches one of this person's tab cards
   const ownArrows = (local.connectors ?? []).filter(

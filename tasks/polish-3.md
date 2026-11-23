@@ -123,7 +123,8 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Back went to about:blank after the first page (the identity priming load). Shipped in beta.129 (05ada01).
 - [x] Mirrored tabs: pictures (the owner's snapshot, shrunk, encrypted, through the relay's blobs); later live.
       Shared through the relay's blobs (main/share.ts); the web board shows them decrypted.
-- [ ] Mirrored tabs overlap the viewer's own tabs in the same section (both lay out from the same spots).
+- [x] Mirrored tabs overlap the viewer's own tabs in the same section (both lay out from the same spots): readInto
+      moves a mirror on one of the viewer's cards (or an earlier mirror) to the nearest free spot, the same each read.
 - [ ] Board opened on a space switch stayed blank (stuck in .swap) in the parked test window; reopening fixed it.
       Check on a visible window whether it ever happens for real.
 - [x] Reopen closed tab (Ctrl+Shift+T) exactly where it was: Ctrl+W's close (beforeunload path) never recorded the
