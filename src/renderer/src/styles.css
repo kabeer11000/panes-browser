@@ -1846,6 +1846,10 @@ button {
   width: 296px;
   transform-origin: top left;
 }
+/* hanging from a top bar: as tall as the window allows, so it is not cut off halfway down its colours */
+.space-popover.down .space-pop-scroll {
+  max-height: calc(100vh - 90px);
+}
 .sp-divider {
   height: 1px;
   margin: 14px -14px 2px;
