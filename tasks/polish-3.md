@@ -213,7 +213,11 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Releases are slow and Mac updates heavy: each Mac layer's deltas are ~17 MB (Windows ~180 KB, beta.122), so
       something in the Mac asar changes every build. Diff two consecutive dist/mac asars (file list + hashes), make
       the build deterministic, re-measure delta size and release time. Also why each Mac layer takes ~3 min.
-- [ ] First open / load time (user 21:15: "needs to be nearly instant"): measure packaged cold and warm start (startup-trace), find the next big cost.
+- [~] First open / load time (user 21:15: "needs to be nearly instant"): measure packaged cold and warm start (startup-trace), find the next big cost.
+      Measured 2026-11-23 (beta.142 build, fresh profile, PANES_TRACE_STARTUP): page loaded at 639 ms cold, 420-486 ms
+      warm. Lock at ~132 ms (Electron's own start), main setup ~110 ms, the interface page 200-270 ms (900 KB of JS
+      at boot: app 543 KB, motion 223 KB, React 136 KB). Next: load the board's code only when the window does not
+      open on the board; first paint is not traced yet (add it).
 
 ## Log
 
