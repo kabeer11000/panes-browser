@@ -174,9 +174,10 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 ## C. Web platform parity (plan, then build)
 
 - [x] window.open(url) returns a live window; the new page is a tab still linked to its opener (6d8e669).
-- [ ] beforeunload: no will-prevent-unload handler (closing a tab with unsaved work).
-- [ ] Device pickers: WebUSB/HID/Serial/Bluetooth have no select-* handlers (requests fail).
-- [ ] Certificate errors: no interstitial with proceed.
+- [x] beforeunload: no will-prevent-unload handler (closing a tab with unsaved work): there is one (tabs.ts, Leave/Stay).
+- [x] Device pickers: WebUSB/HID/Serial/Bluetooth have no select-* handlers (requests fail): main/devices.ts has them.
+- [x] Certificate errors: no interstitial with proceed: main/certs.ts + the error page's Advanced. Checked 2026-11-23 on
+      self-signed.badssl.com: the page, then the site loads once let through.
 - [ ] navigator.registerProtocolHandler: unsupported.
 
 - [ ] Audit what Chrome supports that Panes breaks or lacks; write the list here with a test page per item.
