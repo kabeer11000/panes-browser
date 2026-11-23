@@ -101,6 +101,7 @@ function open(spaceId: number, hostRtc: number): Shared {
   let pc: RTCPeerConnection | null = null
   let off: (() => void) | null = null
   let redial = 0
+  let knock = 0
   const send = (sig: LiveSignal): void =>
     window.api.share?.signal(spaceId, hostRtc, JSON.stringify(sig))
 
@@ -179,11 +180,19 @@ function open(spaceId: number, hostRtc: number): Shared {
             // the built-in STUN stays
           }
         send({ k: 'hello' })
+        // a hello the host was not listening for yet (it had only just started showing the tab) is lost, and the host
+        // answers only a hello: say it again until their offer is here
+        window.clearInterval(knock)
+        knock = window.setInterval(() => {
+          if (dead || pc !== conn || conn.remoteDescription) window.clearInterval(knock)
+          else send({ k: 'hello' })
+        }, 3000)
       })
   }
   /** Ends this call; `bye` tells the host (not when calling again: the new hello replaces it). */
   const hangUp = (bye: boolean): void => {
     window.clearTimeout(redial)
+    window.clearInterval(knock)
     off?.()
     off = null
     if (pc) {
