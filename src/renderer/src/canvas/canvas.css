@@ -4964,35 +4964,7 @@
 }
 
 /* ---- a shared space's chat (SpaceChat.tsx) ---- */
-.cv-chat-host {
-  position: relative;
-  margin-left: 4px;
-}
-.cv-chat-btn {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  color: var(--fg-dim);
-  transition:
-    background-color var(--dur-fast),
-    color var(--dur-fast);
-}
-.cv-chat-btn:hover,
-.cv-chat-btn.on {
-  background: color-mix(in srgb, var(--fg) 9%, transparent);
-  color: var(--fg);
-}
-.cv-chat-btn:focus-visible {
-  outline: var(--ring);
-  outline-offset: 2px;
-}
 .cv-chat-count {
-  position: absolute;
-  top: -3px;
-  right: -5px;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -5003,36 +4975,62 @@
   font-weight: 700;
   line-height: 16px;
   text-align: center;
-  box-shadow: 0 0 0 2px var(--board, var(--bg));
 }
-.cv-chat {
+/* the chat tucked away (SpaceChat.tsx): a lip on the board's right edge, just above Ask's */
+.cv-chat-lip {
+  top: calc(50% - 46px);
+  padding: 9px 7px 9px 10px;
+  color: var(--fg-dim);
+}
+.cv-chat-lip.unread {
+  color: var(--fg);
+}
+/* the Ask and chat lips are stacked: with Ask out of the way (no AI), the chat's sits where Ask's would */
+.cv:not(:has(.cv-dock-handle:not(.cv-chat-lip))) :is(.cv-chat-lip, .cv-chat-peek) {
+  top: 50%;
+}
+/* while one panel is out, the other's lip rides its edge (one click to switch) */
+.cv.docked .cv-dock-handle {
+  right: calc(8px + min(calc(var(--dock-w, 380px) - 8px), calc(100% - 128px)));
+}
+/* a new message, peeking out of the lip for a moment (who, the first words); a click opens the chat */
+.cv-chat-peek {
   position: absolute;
-  right: -8px;
-  top: calc(100% + 8px);
+  right: 50px;
+  top: calc(50% - 46px);
+  z-index: 11;
+  translate: 0 -50%;
   display: flex;
   flex-direction: column;
-  width: 320px;
-  height: min(480px, calc(100vh - 120px));
-  border-radius: var(--r-6);
+  align-items: flex-start;
+  gap: 2px;
+  max-width: 260px;
+  padding: 8px 12px;
+  border-radius: 14px 14px 4px 14px;
   background: var(--popover-bg);
   box-shadow:
     0 0 0 1px var(--border),
-    0 24px 60px rgb(0 0 0 / 0.45);
-  transform-origin: top right;
-  animation: pop-open 0.2s var(--ease) both;
+    0 12px 32px rgb(0 0 0 / 0.3);
+  color: var(--fg);
+  font-size: 12.5px;
+  text-align: left;
+}
+.cv-chat-peek b {
+  font-size: 11.5px;
+}
+.cv-chat-peek span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
+  line-height: 1.35;
 }
-.cv-chat header {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid var(--border);
+.cv.reading .cv-chat-peek {
+  display: none;
 }
-.cv-chat header b {
-  font-size: 13.5px;
-}
-.cv-chat header span {
+.cv-chat-sub {
+  flex: none;
+  margin: -4px 16px 6px;
   color: var(--fg-dim);
   font-size: 11.5px;
 }
@@ -5125,11 +5123,6 @@
 }
 .cv-chat-say button:disabled {
   opacity: 0.35;
-}
-@media (prefers-reduced-motion: reduce) {
-  .cv-chat {
-    animation: none;
-  }
 }
 
 /* ---- a tab shown live in a shared space (LiveShare.tsx) ---- */

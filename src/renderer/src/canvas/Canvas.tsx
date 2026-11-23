@@ -4259,6 +4259,20 @@ export function Canvas({
     }
   })
   const dockShown = Math.min(dockW, Math.max(0, stage.w - 120))
+  // the space's chat is a side panel too (SpaceChat.tsx): one of the two at a time, so neither squeezes the board
+  const [chat, setChat] = useState<{ space: number; open: boolean }>({
+    space: spaceId,
+    open: false
+  })
+  const chatOpen = chat.space === spaceId && chat.open
+  const setChatOpen = (open: boolean): void => setChat({ space: spaceId, open })
+  const openChat = (): void => {
+    if (asker.open) asker.close()
+    setChatOpen(true)
+  }
+  const dockOpen = asker.open || chatOpen
+  // Ask coming out puts the chat away (set while rendering: React renders again at once, no effect round trip)
+  if (asker.open && chat.open) setChat({ ...chat, open: false })
   const resizeDock = useCallback(
     (w: number): void => {
       const v = Math.min(DOCK_MAX, Math.max(DOCK_MIN, w))
@@ -4275,16 +4289,16 @@ export function Canvas({
   // left), closing glides it back; the board itself keeps its size, so nothing is laid out again
   const dockWas = useRef(false)
   useEffect(() => {
-    if (asker.open === dockWas.current) return
-    dockWas.current = asker.open
+    if (dockOpen === dockWas.current) return
+    dockWas.current = dockOpen
     if (phaseRef.current !== 'open') return
     const v = vp.get()
-    const dx = (asker.open ? -1 : 1) * Math.round(dockShown / 2)
+    const dx = (dockOpen ? -1 : 1) * Math.round(dockShown / 2)
     if (reduced) vp.set({ ...v, x: v.x + dx })
     else vp.animateTo({ ...v, x: v.x + dx }, 320)
     // only the opening and closing move the board
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asker.open])
+  }, [dockOpen])
   const askerRef = useRef(asker)
   useEffect(() => {
     askerRef.current = asker
@@ -5715,7 +5729,7 @@ export function Canvas({
         (expanded ? ' reading' : '') +
         // the preview has grown over the board and rests there: the board behind it is put away (see preview.css)
         (expanded && expandedCovers ? ' covered' : '') +
-        (asker.open ? ' docked' : '')
+        (dockOpen ? ' docked' : '')
       }
       style={{ '--dock-w': `${dockW}px` } as React.CSSProperties}
       role="application"
@@ -6042,7 +6056,6 @@ export function Canvas({
             />
           </div>
           <ShareButton space={thisSpace} />
-          <SpaceChat spaceId={spaceId} shared={!!thisSpace?.shared} />
           <LiveShare
             spaceId={spaceId}
             shared={!!thisSpace?.shared}
@@ -6253,6 +6266,14 @@ export function Canvas({
           onClose={closeContext}
         />
       )}
+      <SpaceChat
+        spaceId={spaceId}
+        shared={!!thisSpace?.shared}
+        open={chatOpen}
+        onOpen={openChat}
+        onClose={() => setChatOpen(false)}
+        onResize={resizeDock}
+      />
       <AskDock
         ask={asker}
         enabled={aiAvailable}
