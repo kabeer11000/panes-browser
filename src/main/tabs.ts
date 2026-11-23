@@ -224,6 +224,9 @@ interface ClosedTab {
   media: number | null
   /** How far down the page was (a page loaded afresh, as Google's are, does not get its saved scroll back). */
   scroll: number
+  /** Its place among its space's tabs, and its group: Ctrl+Shift+T puts it back there, as Chrome does. */
+  index: number
+  groupId: number | null
 }
 const CLOSED_MAX = 25
 /** Where the page is: how far down, and the moment of its largest video that has started (or null). */
@@ -1506,7 +1509,11 @@ export class TabManager {
       history: (wc && historyOf(wc)) || tab.pending?.history || null,
       spaceId: tab.spaceId,
       media: null,
-      scroll: 0
+      scroll: 0,
+      index: [...this.tabs]
+        .filter(([, t]) => t.spaceId === tab.spaceId)
+        .findIndex(([i]) => i === id),
+      groupId: tab.groupId
     }
   }
 
@@ -1526,6 +1533,11 @@ export class TabManager {
       history: c.history
     })
     if (onBoard) this.send('canvas:show-tab', id)
+    // back in its place among the tabs, and in its group while the group is still there
+    if (c.index >= 0 && spaceId === c.spaceId && spaceId === this.activeSpaceId) {
+      const group = c.groupId !== null ? this.groups.get(c.groupId) : undefined
+      this.moveTab(id, c.index, group && group.spaceId === spaceId ? group.id : undefined)
+    }
     if (c.media !== null || c.scroll > 0) this.placeWhenReady(id, c.media, c.scroll)
   }
 

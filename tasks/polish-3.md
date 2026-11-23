@@ -114,10 +114,11 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Mirrored tabs overlap the viewer's own tabs in the same section (both lay out from the same spots).
 - [ ] Board opened on a space switch stayed blank (stuck in .swap) in the parked test window; reopening fixed it.
       Check on a visible window whether it ever happens for real.
-- [ ] Reopen closed tab (Ctrl+Shift+T) exactly where it was: Ctrl+W's close (beforeunload path) never recorded the
+- [x] Reopen closed tab (Ctrl+Shift+T) exactly where it was: Ctrl+W's close (beforeunload path) never recorded the
       tab at all (checked: example.com closed that way was not in closedUrls). Keep history (pageState: scroll,
       forms) via navigationHistory.restore, video time, space, in the preview on the board, card back at its spot
-      (placeNext).
+      (placeNext). All in place (closingSnap, captureClosed, placeWhenReady, canvas:reopen-at); now also its place
+      among the tabs and its group (checked: closed at index 3 of 63, back at index 3).
 - [ ] Ctrl+T after typing in a page: sometimes the search popover's field does not have the keyboard (click needed).
       Ruled out: a page calling window.focus() (cannot take focus back in Electron, tested), the new-tab page (no
       focus calls). CDP keys skip main's shortcut, and the parked window never has OS focus: needs real keys on a
@@ -178,7 +179,9 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [x] Device pickers: WebUSB/HID/Serial/Bluetooth have no select-* handlers (requests fail): main/devices.ts has them.
 - [x] Certificate errors: no interstitial with proceed: main/certs.ts + the error page's Advanced. Checked 2026-11-23 on
       self-signed.badssl.com: the page, then the site loads once let through.
-- [ ] navigator.registerProtocolHandler: unsupported.
+- [~] navigator.registerProtocolHandler: unsupported (a silent no-op, checked). mailto: links, its main use, already
+      go where Settings says (Gmail, Outlook, Yahoo or the system's app). Other web+ schemes: needs a consent prompt
+      and a list in Settings; deferred.
 
 - [ ] Audit what Chrome supports that Panes breaks or lacks; write the list here with a test page per item.
       BroadcastChannel / tab-to-tab (window.opener, postMessage, SharedWorker, storage events), native app
