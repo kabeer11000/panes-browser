@@ -75,8 +75,13 @@ Release a prerelease after every finished item. Be critical of UI/UX: every chan
 - [ ] Then: first-party screen time / digital health (time per site, daily/weekly, limits, focus), better than
       Apple's Screen Time. Local only.
 
-- [ ] Zooming the board in and out is laggy again: measure with scripts/perf-canvas.ts (frames, long tasks, GPU).
-- [ ] Switching spaces (esp. with many tabs) is laggy and stutters: trace it (long tasks, layout, view swaps).
+- [~] Zooming the board in and out is laggy again: measured 2026-11-23 with scripts/perf-canvas.ts on the built app
+      (beta.139, 60 tabs): pan, zoom and drag p95 16.8 ms even at CPU x4, no frame over 33 ms zooming. Not
+      reproduced on a scratch board: needs the user's own board (many live pages, videos) to find what is slow there.
+- [~] Switching spaces (esp. with many tabs) is laggy and stutters: measured 2026-11-23 (dev, 2 spaces of 25 tabs):
+      the state arrives in 2-10 ms; tab view worst frame 33 ms, board open worst 83 ms (React, dev mode). One switch
+      once took a 3.8 s React render (right after 25 tabs were opened, still loading); not reproduced since, fresh
+      or warm. Next: the same on the user's real profile (a trace of the slow switch).
 - [ ] Search popover offers "canvas mode" while the board is already open.
 - [ ] Now playing play/pause: one click sometimes leaves the wrong state (YouTube). Trace mediaPlay and the playing flag.
 - [ ] Switching between tabs with different page zoom shifts the layout (zoom badge appears/goes): no shift, tab view and preview.
