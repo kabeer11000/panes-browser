@@ -957,6 +957,15 @@ export class TabManager {
     }
   }
 
+  /** Whether a page is a tab shown live to a shared space (its watchers see it, a guest may drive it). */
+  isLiveShared(wc: WebContents): boolean {
+    for (const id of this.liveShared) {
+      const t = this.tabs.get(id)
+      if (t && liveContents(t) === wc) return true
+    }
+    return false
+  }
+
   /** A tab's page that is not on screen (a background tab). Anything that is not a tab's page is not hidden. */
   isHidden(wc: WebContents): boolean {
     const visible = new Set(this.onScreenIds())

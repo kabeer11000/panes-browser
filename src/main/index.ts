@@ -255,6 +255,8 @@ function createWindow(): void {
   downloads.refuse = () => tabs.refuseDrivenDownload()
   const passwords = new PasswordStore()
   const passwordPopover = registerPasswordIpc(win, passwords)
+  // tabs is made below; it is there by the time a page asks
+  passwordPopover.live = (wc) => tabs.isLiveShared(wc)
   const adblock = new Adblock(tabSession)
   adblock.attach(privateSession)
   adblock.configure(settings.get())

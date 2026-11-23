@@ -203,7 +203,13 @@ async function loginAccepted(wc: WebContents, current: () => boolean): Promise<b
 }
 
 /** The site a message came from, or null for anything that is not the top frame of a web page. */
-function siteOf(e: IpcMainEvent | IpcMainInvokeEvent): string | null {
+function siteOf(
+  e: IpcMainEvent | IpcMainInvokeEvent,
+  live: (wc: WebContents) => boolean
+): string | null {
+  // A tab shown live to a shared space: no saved account is listed or filled there (everyone watching would see the
+  // menu, and a guest may be driving), and nothing typed there is offered for saving.
+  if (live(e.sender)) return null
   const frame = e.senderFrame
   if (!frame || frame !== e.sender.mainFrame) return null
   // Nothing is saved from, or offered to, a private tab.
@@ -218,10 +224,15 @@ function siteOf(e: IpcMainEvent | IpcMainInvokeEvent): string | null {
 export function registerPasswordIpc(
   win: BrowserWindow,
   store: PasswordStore
-): { release: (roomy: boolean) => boolean } {
+): { release: (roomy: boolean) => boolean; live: (wc: WebContents) => boolean } {
   let pending: (PasswordPrompt & { password: string }) | null = null
   // With the sidebar closed the prompt hangs under the address bar in a view of its own.
   const popover = new PromptPopover(win)
+  // set once the tabs exist (index.ts): whether a page is a tab shown live to a shared space
+  const api = {
+    release: (roomy: boolean) => popover.release(roomy),
+    live: (() => false) as (wc: WebContents) => boolean
+  }
   const fromUi = (e: IpcMainEvent | IpcMainInvokeEvent): boolean =>
     e.sender === win.webContents || e.sender === popover.contents
   const tell = (p: PasswordPrompt | null): void => {
@@ -243,7 +254,7 @@ export function registerPasswordIpc(
   const identifiers = new Map<string, { value: string; at: number }>()
   const IDENTIFIER_TTL_MS = 5 * 60_000
   ipcMain.on('pw:identifier', (e, value: unknown) => {
-    const origin = siteOf(e)
+    const origin = siteOf(e, api.live)
     if (!origin || typeof value !== 'string') return
     const v = value.trim().slice(0, 256)
     if (v) identifiers.set(origin, { value: v, at: Date.now() })
@@ -251,7 +262,7 @@ export function registerPasswordIpc(
   })
 
   ipcMain.on('pw:submit', (e, typed: unknown, password: unknown) => {
-    const origin = siteOf(e)
+    const origin = siteOf(e, api.live)
     if (!origin || typeof typed !== 'string' || typeof password !== 'string') return
     if (!password || !store.available || store.isNever(origin)) return
     const earlier = identifiers.get(origin)
@@ -269,11 +280,11 @@ export function registerPasswordIpc(
   })
 
   ipcMain.handle('pw:accounts', (e) => {
-    const origin = siteOf(e)
+    const origin = siteOf(e, api.live)
     return origin ? store.accounts(origin) : []
   })
   ipcMain.handle('pw:fill', (e, id: unknown) => {
-    const origin = siteOf(e)
+    const origin = siteOf(e, api.live)
     return origin && typeof id === 'number' ? store.credentials(origin, id) : null
   })
 
@@ -298,7 +309,7 @@ export function registerPasswordIpc(
     } else if (answer === 'never') store.addNever(origin)
     tell(null)
   })
-  return popover
+  return api
 }
 
 export const newPassword = (): string => generatePassword((max) => randomInt(max))
