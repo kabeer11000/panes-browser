@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { electronKey, parseRemoteInput, videoBox } from './live'
+import { downscaleFor, electronKey, parseRemoteInput, videoBox } from './live'
 
 describe('remote input from the person driving', () => {
   test('pointer events pass, clamped to the page', () => {
@@ -23,12 +23,14 @@ describe('remote input from the person driving', () => {
 
   test('only known buttons and modifiers come through', () => {
     expect(parseRemoteInput({ t: 'up', x: 0, y: 0, b: 'back' })).toEqual({ t: 'up', x: 0, y: 0 })
-    expect(parseRemoteInput({ t: 'key', key: 'a', up: true, mods: ['shift', 'hyper', 7] })).toEqual({
-      t: 'key',
-      key: 'a',
-      up: true,
-      mods: ['shift']
-    })
+    expect(parseRemoteInput({ t: 'key', key: 'a', up: true, mods: ['shift', 'hyper', 7] })).toEqual(
+      {
+        t: 'key',
+        key: 'a',
+        up: true,
+        mods: ['shift']
+      }
+    )
   })
 
   test('wheel deltas are bounded', () => {
@@ -63,5 +65,21 @@ describe('videoBox', () => {
       width: 400,
       height: 300
     })
+  })
+})
+
+describe('a live picture no bigger than it is shown', () => {
+  test('full size when the box is as big, or nearly, or unknown', () => {
+    expect(downscaleFor({ w: 1920, h: 1080 }, { w: 1920, h: 1080 })).toBe(1)
+    expect(downscaleFor({ w: 1920, h: 1080 }, { w: 1800, h: 1013 })).toBe(1)
+    expect(downscaleFor({ w: 1920, h: 1080 }, { w: 0, h: 0 })).toBe(1)
+    expect(downscaleFor({ w: 0, h: 0 }, { w: 640, h: 360 })).toBe(1)
+  })
+  test('shrunk to fit a smaller box, in quarter steps, by the side that limits', () => {
+    expect(downscaleFor({ w: 1920, h: 1080 }, { w: 960, h: 540 })).toBe(2)
+    // a tall panel: the width limits
+    expect(downscaleFor({ w: 1920, h: 1080 }, { w: 640, h: 2000 })).toBe(3)
+    expect(downscaleFor({ w: 1920, h: 1080 }, { w: 1100, h: 700 })).toBe(1.75)
+    expect(downscaleFor({ w: 1920, h: 1080 }, { w: 20, h: 20 })).toBe(8)
   })
 })

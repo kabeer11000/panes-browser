@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { SharePerson } from '@shared/types'
-import { ICE_SERVERS, type LiveControl, type LiveSignal } from '@shared/share/live'
+import { downscaleFor, ICE_SERVERS, type LiveControl, type LiveSignal } from '@shared/share/live'
 
 /**
  * The host's side of a tab shown live in a shared space (tasks/shared-spaces.md, shared browsing): the tab's picture
@@ -17,7 +17,14 @@ export const parse = <T>(data: string): T | null => {
   }
 }
 
-type Peer = { pc: RTCPeerConnection; ctl: RTCDataChannel | null; mv: RTCDataChannel | null }
+type Peer = {
+  pc: RTCPeerConnection
+  ctl: RTCDataChannel | null
+  mv: RTCDataChannel | null
+  /** Their picture's sender: shrunk to the size they show it at (`size`). */
+  video: RTCRtpSender | null
+  scale: number
+}
 
 /** The host's side: the tab's picture to everyone who asks, and their input once let in. */
 export function useLiveHost(
@@ -71,7 +78,8 @@ export function useLiveHost(
           chromeMediaSourceId: source,
           maxWidth: 1920,
           maxHeight: 1080,
-          maxFrameRate: 30
+          // smooth when the page moves (a still page sends frames only as it changes)
+          maxFrameRate: 60
         }
       }
       const audio = { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: source } }
@@ -118,8 +126,23 @@ export function useLiveHost(
       setAskingId((a) => (a === from ? null : a))
       setWatching(peers.current.size)
     }
+    /** A watcher's picture no bigger than they show it (a small panel need not get a full 1080p stream). */
+    const fit = (from: number, w: unknown, h: unknown): void => {
+      const peer = peers.current.get(from)
+      const track = peer?.video?.track
+      if (!peer?.video || !track || typeof w !== 'number' || typeof h !== 'number') return
+      const st = track.getSettings()
+      const scale = downscaleFor({ w: st.width ?? 0, h: st.height ?? 0 }, { w, h })
+      if (scale === peer.scale) return
+      peer.scale = scale
+      const p = peer.video.getParameters()
+      if (!p.encodings?.length) return
+      p.encodings[0].scaleResolutionDownBy = scale
+      void peer.video.setParameters(p).catch(() => undefined)
+    }
     const onCtl = (from: number, msg: LiveControl): void => {
-      if (msg.k === 'ask') setAskingId(from)
+      if (msg.k === 'size') fit(from, msg.w, msg.h)
+      else if (msg.k === 'ask') setAskingId(from)
       else if (msg.k === 'release' && driverRef.current === from) {
         driverRef.current = null
         setDriverId(null)
@@ -130,11 +153,12 @@ export function useLiveHost(
     const offer = async (from: number, s: MediaStream): Promise<void> => {
       drop(from)
       const pc = new RTCPeerConnection({ iceServers: await ice })
-      const peer: Peer = { pc, ctl: null, mv: null }
+      const peer: Peer = { pc, ctl: null, mv: null, video: null, scale: 1 }
       peers.current.set(from, peer)
       setWatching(peers.current.size)
       for (const track of s.getTracks()) {
         const sender = pc.addTrack(track, s)
+        if (track.kind === 'video') peer.video = sender
         // smooth, not sharp: frames keep coming when the network is tight
         const p = sender.getParameters()
         p.degradationPreference = 'maintain-framerate'

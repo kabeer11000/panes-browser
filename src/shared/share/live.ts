@@ -31,6 +31,8 @@ export type LiveControl =
   | { k: 'revoked' }
   | { k: 'release' }
   | { k: 'input'; e: RemoteInput }
+  /** The watcher's picture size in device pixels: the host sends them no bigger (see `downscaleFor`). */
+  | { k: 'size'; w: number; h: number }
 
 const num = (v: unknown, lo: number, hi: number): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null
@@ -101,3 +103,14 @@ export const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'stun:stun.l.google.com:19302' }
 ]
+
+/**
+ * How far to shrink a live tab's picture for one watcher: shown contained in a w x h box (device pixels), a frame
+ * bigger than the box is wasted bandwidth and encoding. 1 (full size) when the box is as big, or the size is not
+ * known; never more than 8. Small changes are rounded away so a resize does not renegotiate at every step.
+ */
+export function downscaleFor(src: { w: number; h: number }, box: { w: number; h: number }): number {
+  if (!(src.w > 0 && src.h > 0 && box.w > 0 && box.h > 0)) return 1
+  const s = Math.max(src.w / box.w, src.h / box.h)
+  return s <= 1.1 ? 1 : Math.min(8, Math.round(s * 4) / 4)
+}

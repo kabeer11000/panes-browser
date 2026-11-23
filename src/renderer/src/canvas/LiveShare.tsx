@@ -37,6 +37,35 @@ function LiveViewer({
   const [sound, setSound] = useState(true)
   const [hasSound, setHasSound] = useState(false)
   const hostRtc = host.rtc
+  const stage = useRef<HTMLDivElement>(null)
+  /** Tells the host how big the picture is shown here (device pixels), so it sends no more than that. */
+  const sendSize = useRef<() => void>(() => undefined)
+  useEffect(() => {
+    const el = stage.current
+    if (!el) return
+    let t = 0
+    const send = (): void => {
+      const ch = ctl.current
+      if (ch?.readyState !== 'open') return
+      const d = window.devicePixelRatio || 1
+      const msg: LiveControl = {
+        k: 'size',
+        w: Math.round(el.clientWidth * d),
+        h: Math.round(el.clientHeight * d)
+      }
+      ch.send(JSON.stringify(msg))
+    }
+    sendSize.current = send
+    const ro = new ResizeObserver(() => {
+      window.clearTimeout(t)
+      t = window.setTimeout(send, 250)
+    })
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      window.clearTimeout(t)
+    }
+  }, [])
 
   useEffect(() => {
     if (!window.api.share || !hostRtc) return
@@ -56,6 +85,7 @@ function LiveViewer({
       const ch = e.channel
       if (ch.label === 'ctl') {
         ctl.current = ch
+        ch.onopen = () => sendSize.current()
         ch.onmessage = (m) => {
           const msg = parse<LiveControl>(String(m.data))
           if (msg?.k === 'granted') setControl('yes')
@@ -185,6 +215,7 @@ function LiveViewer({
         </button>
       </div>
       <div
+        ref={stage}
         className={'live-stage' + (driving ? ' driving' : '')}
         tabIndex={driving ? 0 : -1}
         onPointerMove={(e) => {
