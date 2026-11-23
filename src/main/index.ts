@@ -83,7 +83,7 @@ import { registerShare, SHARE_RELAY } from './share'
 import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
 import { registerOffscreenInput } from './offscreenPage'
-import { countBoot, countIpc, countSite, startUsage } from './usage'
+import { countBoot, countIpc, countScreen, countSite, startUsage } from './usage'
 
 mark('modules') // every import above has run
 applyPerformance() // Chromium's switches only count before the app is ready
@@ -864,6 +864,7 @@ function createWindow(): void {
     dock.raise()
     permissionManager.sync()
   }
+  tabs.onScreen = countScreen // usage statistics, while the person allows them (main/usage.ts)
   tabs.onRefresh = () => {
     share.tabsMoved() // the others' copies of this person's tabs follow (a tab closed, went elsewhere)
     askSelection.sync() // the offer follows the page it was made for
@@ -906,6 +907,9 @@ function createWindow(): void {
     tabs.stopCapture(id, kinds)
   )
   ipcMain.on('tabs:toggle-mute', (_e, id: number) => tabs.toggleMute(id))
+  ipcMain.on('tabs:forget-playing', (_e, id: unknown) => {
+    if (typeof id === 'number') tabs.forgetPlaying(id)
+  })
   // play or pause what a tab plays, from its card on the board (the tab stays where it is)
   ipcMain.handle('tabs:media', async (_e, id: unknown, action: unknown) => {
     if (typeof id !== 'number' || (action !== 'toggle' && action !== 'play' && action !== 'pause'))

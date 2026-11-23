@@ -115,7 +115,7 @@ import {
   type End
 } from '@shared/ai/connectors'
 import { keepAspect, snapAngle, snapBox, type Snap } from '@shared/ai/snap'
-import type { Settings, Space, TabInfo } from '@shared/types'
+import type { PlayingTab, Settings, Space, TabInfo } from '@shared/types'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
@@ -134,7 +134,7 @@ import { groupWaiting, NO_ATTENTION } from '@shared/attention'
 import { alreadyOpen, quickFind, type FindItem } from '@shared/ai/quickFind'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
-import { StripInbox, StripPlaying, StripTab } from './TabStrip'
+import { NowPlaying, StripInbox, StripTab } from './TabStrip'
 import { usePeeks } from './usePeeks'
 import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
@@ -253,6 +253,8 @@ interface Props {
   layout?: LayoutNode | null
   /** For the space switcher in the board's top bar: each space has its own board. */
   spaces?: Space[]
+  /** Now playing in every space (TabsState.nowPlaying): the island in the strip and the preview. */
+  nowPlaying?: PlayingTab[]
 }
 
 type Phase = 'loading' | 'entering' | 'open' | 'leaving'
@@ -565,6 +567,7 @@ export function Canvas({
   thumbs,
   spaceId,
   spaces = [],
+  nowPlaying,
   onExit,
   dim = false,
   layout = null,
@@ -764,38 +767,10 @@ export function Canvas({
 
   const [bench, setBench] = useState<TabInfo[]>([])
   const allTabs = useMemo(() => (bench.length ? [...tabs, ...bench] : tabs), [tabs, bench])
-  // What plays on this board: every tab that has made sound since the board opened stays listed while it is paused
-  // (a paused video is silent, yet you want it back), until its tab closes or it is dismissed; the one playing now
-  // first, then the most recent.
-  const [heard, setHeard] = useState<number[]>([])
-  const [forgot, setForgot] = useState<Set<number>>(new Set())
-  // a tab in a call (camera, microphone or screen in use) is listed like one playing, silent or not
-  const audibleKey = tabs
-    .filter((t) => t.audible || t.playing || isCapturing(t.capture))
-    .map((t) => t.id)
-    .join(',')
-  const [lastAudible, setLastAudible] = useState('')
-  if (audibleKey !== lastAudible) {
-    // a tab that starts playing again is listed again, at the front
-    setLastAudible(audibleKey)
-    const now = audibleKey ? audibleKey.split(',').map(Number) : []
-    if (now.length) {
-      setHeard((h) => [...now, ...h.filter((id) => !now.includes(id))].slice(0, 12))
-      if (now.some((id) => forgot.has(id)))
-        setForgot((f) => new Set([...f].filter((id) => !now.includes(id))))
-    }
-  }
-  const playing = useMemo(() => {
-    const live = new Map(tabs.map((t) => [t.id, t]))
-    return heard
-      .map((id) => live.get(id))
-      .filter((t): t is TabInfo => !!t && !forgot.has(t.id))
-      .sort(
-        (a, b) =>
-          Number(isCapturing(b.capture)) - Number(isCapturing(a.capture)) ||
-          Number(b.audible && !b.muted) - Number(a.audible && !a.muted)
-      )
-  }, [tabs, heard, forgot])
+  // Now playing in every space (main keeps the list, shared/nowPlaying.ts): the island in the strip and the preview
+  const island = useMemo(() => nowPlaying ?? [], [nowPlaying])
+  const goPlaying = (t: PlayingTab): void =>
+    t.spaceId === spaceId ? openWaiting(t.id) : window.api.activateTab(t.id)
   // a notification's words on its tab in the strip, for a few seconds (board and preview alike)
   const peeks = usePeeks(tabs)
   const tabsRef = useRef(allTabs)
@@ -5011,13 +4986,13 @@ export function Canvas({
   if (stripWant.join(',') !== strip.join(',')) setStrip(stripWant)
   // the tab strip, after the recent tabs: a tab with something new that is not among them yet (two at most)
   // what plays is first in the strip already: it is not listed again among the tabs
-  const nowPlaying = playing[0]?.id
+  const playingHere = island[0]?.spaceId === spaceId ? island[0].id : undefined
   // the board's row skips it; the preview's row is kept in place, so a tab never vanishes from it on switching away
   const withWaiting = (row: number[], keep = false): number[] => [
-    ...row.filter((id) => keep || id !== nowPlaying || id === expanded?.id),
+    ...row.filter((id) => keep || id !== playingHere || id === expanded?.id),
     ...waiting
       .map((w) => w.id)
-      .filter((id) => !row.includes(id) && id !== nowPlaying && named(id))
+      .filter((id) => !row.includes(id) && id !== playingHere && named(id))
       .slice(0, 2)
   ]
   const previewRow = withWaiting(strip, true)
@@ -6260,8 +6235,8 @@ export function Canvas({
           recent={previewRow.flatMap((id) => modelFor({ id }) ?? [])}
           swapFrom={expanded.swap}
           onSwitch={(id) => switchPreview(id, true)}
-          playing={playing[0] ?? null}
-          onPlaying={openWaiting}
+          island={{ items: island, spaces: spaces ?? [], activeSpaceId: spaceId }}
+          onPlaying={goPlaying}
           peeks={peeks}
           waiting={waiting}
           onOpenTab={openWaiting}
@@ -6320,9 +6295,14 @@ export function Canvas({
       {/* the bell beside it, on its own: always there, so the row never changes its shape when something comes in */}
       {phase === 'open' && !expanded && quick === null && (
         <div className="cv-strip-row">
-          {(playing.length > 0 || boardRow.length > 0) && (
+          {(island.length > 0 || boardRow.length > 0) && (
             <div className="cv-strip board" role="toolbar" aria-label="Recent tabs">
-              {playing[0] && <StripPlaying t={playing[0]} onGo={openWaiting} />}
+              <NowPlaying
+                items={island}
+                spaces={spaces ?? []}
+                activeSpaceId={spaceId}
+                onGo={goPlaying}
+              />
               {boardRow.length > 0 && (
                 <div className="cv-recent" role="tablist" aria-label="Recent tabs">
                   {boardRow

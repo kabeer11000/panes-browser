@@ -71,6 +71,7 @@ const api: PanesApi = {
   stopCapture: (id, kinds) => ipcRenderer.send('tabs:stop-capture', id, kinds),
   setNewTabPhoto: (id) => ipcRenderer.send('settings:newtab-photo', id),
   toggleMute: (id) => ipcRenderer.send('tabs:toggle-mute', id),
+  forgetPlaying: (id) => ipcRenderer.send('tabs:forget-playing', id),
   mediaPlay: (id, action) => ipcRenderer.invoke('tabs:media', id, action),
   togglePip: () => ipcRenderer.send('pip:toggle'),
   exitPip: () => ipcRenderer.send('pip:exit'),

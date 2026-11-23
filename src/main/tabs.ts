@@ -73,6 +73,14 @@ import { dumpableTabs, type TabDump } from '@shared/dumps'
 import type { DumpStore } from './dumps'
 import type { TorManager } from './tor'
 import { ZAP_PREFIX, ZAP_SCRIPT } from '@shared/zap'
+import {
+  forgetPlaying,
+  nextPlaying,
+  NO_PLAYING,
+  shownPlaying,
+  type PlayingFacts,
+  type PlayingList
+} from '@shared/nowPlaying'
 import { errorPageUrl, noteQuicFailure, quicLooksBlocked } from '@shared/errors'
 import { FullscreenNotice } from './fullscreenNotice'
 import { freemem, totalmem } from 'os'
@@ -126,6 +134,7 @@ import type {
   TabCardInfo,
   TabInfo,
   TabsState,
+  PlayingTab,
   UiCommand
 } from '@shared/types'
 import { displayHost, resolveInput } from '@shared/url'
@@ -483,6 +492,8 @@ export class TabManager {
 
   /** Called after every state change (the permission card and the site panel follow the tab on screen). */
   onRefresh: (() => void) | null = null
+  /** A screen was shown (usage statistics, see main/usage.ts): 'board', 'tabs', 'preview', or 'page:<panes:// page>'. */
+  onScreen: ((name: string) => void) | null = null
   /** Called when a page view is added to the window: the downloads bin lifts itself back above it. */
   onViewAdded: (() => void) | null = null
   /**
@@ -558,6 +569,8 @@ export class TabManager {
   private previewTab: number | null = null
   /** Tabs streaming live to their canvas card (setStreaming). */
   private streaming = new Set<number>()
+  /** Now playing across the spaces (shared/nowPlaying.ts), kept between pushes. */
+  private playing: PlayingList = NO_PLAYING
   /** Recent QUIC load failures by site, to tell a network blocking QUIC from one site failing (see describeError). */
   private quicFailures: Array<{ host: string; at: number }> = []
   /** Tabs shown live to the others in a shared space (main/share.ts): they keep painting wherever they are. */
@@ -760,8 +773,45 @@ export class TabManager {
       if (this.sounding(t, wc) && !wc.audioMuted) cur.playing = true
       else if (wc.audioMuted) cur.muted = true
     }
+    // now playing, every space (shared/nowPlaying.ts): the list kept here, shown the same in every view
+    const facts: PlayingFacts[] = []
+    for (const [id, t] of this.tabs) {
+      const wc = liveContents(t)
+      if (!wc) continue
+      facts.push({
+        id,
+        sounding: this.sounding(t, wc),
+        muted: wc.audioMuted,
+        media: !t.unloaded && t.media,
+        call: isCapturing(t.capture)
+      })
+    }
+    this.playing = nextPlaying(this.playing, facts)
+    const nowPlaying: PlayingTab[] = []
+    for (const id of shownPlaying(this.playing, facts)) {
+      const t = this.tabs.get(id)
+      const wc = t && liveContents(t)
+      if (!t || !wc) continue
+      const url = wc.getURL() || t.pending?.url || t.firstUrl
+      const title = wc.getTitle() || t.pending?.title || ''
+      nowPlaying.push({
+        id,
+        spaceId: t.spaceId,
+        url,
+        title,
+        aiTitle: this.aiTitle?.({ url, title, private: t.private, tor: t.tor }) ?? null,
+        favicon: t.favicon,
+        private: t.private,
+        tor: t.tor,
+        audible: this.sounding(t, wc),
+        muted: wc.audioMuted,
+        playing: !t.unloaded && t.media,
+        capture: t.capture
+      })
+    }
     return {
       tabs,
+      nowPlaying,
       activeId: this.activeId,
       layout: this.layout,
       spaces: this.deps.spaces.list(),
@@ -1380,13 +1430,23 @@ export class TabManager {
   }
 
   /**
-   * Go to a tab you asked for (the search palette, the assistant, a tab list). On the board it opens in the
-   * preview over its card and the board stays; a tab of another space switches to that space as before.
+   * Go to a tab you asked for (the search palette, the assistant, a tab list, the now-playing island). On the board
+   * it opens in the preview over its card and the board stays; a tab of another space switches to that space first,
+   * then opens there the same way (its board shows it once its card is in, see showNow), or as the tab itself when
+   * that space browses with tabs.
    */
   show(id: number): void {
     const tab = this.tabs.get(id)
     if (!tab) return
-    if (this.canvasMode && tab.spaceId === this.activeSpaceId) this.send('canvas:show-tab', id)
+    const other = tab.spaceId !== this.activeSpaceId
+    if (other) this.switchSpace(tab.spaceId)
+    // the board stays only in a space browsed with it: one browsed with tabs shows the tab itself
+    const board =
+      this.canvasMode &&
+      (!other ||
+        browseWith(this.deps.settings.get().browseWith, this.deps.spaces.get(tab.spaceId)) ===
+          'canvas')
+    if (board) this.send('canvas:show-tab', id)
     else this.activate(id)
   }
 
@@ -3130,8 +3190,15 @@ export class TabManager {
     }
   }
 
+  /** The person took a paused tab off the now-playing island. */
+  forgetPlaying(id: number): void {
+    this.playing = forgetPlaying(this.playing, id)
+    this.refresh()
+  }
+
   /** The canvas preview opened, changed card or closed (see pageTab). */
   setPreview(open: boolean, tab: number | null): void {
+    if (open && !this.previewOpen) this.onScreen?.('preview')
     this.previewOpen = open
     this.previewTab = open ? tab : null
   }
@@ -3220,6 +3287,7 @@ export class TabManager {
   /** Canvas mode opened or closed (see main/ai/canvas.ts). */
   setCanvasMode(open: boolean): void {
     if (this.canvasMode === open) return
+    this.onScreen?.(open ? 'board' : 'tabs')
     // the video being watched, as it is this moment: its card shows this frame until its stream comes in
     if (open && this.activeId !== null) this.grabStill(this.activeId)
     this.canvasMode = open
@@ -3626,6 +3694,9 @@ export class TabManager {
         tab.navUrl = null
         tab.shownPage = true
       }
+      // Panes' own pages (settings, history, downloads...) count as screens; never a web address
+      const page = /^panes:\/\/([a-z-]{1,30})/i.exec(url)?.[1]
+      if (page) this.onScreen?.('page:' + page.toLowerCase())
     })
 
     if (process.env['PANES_DEBUG']) {

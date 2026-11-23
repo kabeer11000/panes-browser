@@ -17,6 +17,7 @@ export function useTabs(): TabsView {
     tabGroups: [],
     spaceAudio: {},
     spaceAttention: {},
+    nowPlaying: [],
     tor: { state: 'off', progress: 0, message: '', tabs: 0 },
     notice: null
   })

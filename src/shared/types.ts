@@ -170,6 +170,24 @@ export interface SpacePatch {
   browseWith?: BrowseWith | null
 }
 
+/** A tab in the now-playing island, from any space (TabsState.nowPlaying). */
+export interface PlayingTab {
+  id: number
+  spaceId: number
+  url: string
+  title: string
+  aiTitle: string | null
+  favicon: string | null
+  private: boolean
+  tor: boolean
+  /** Making sound now (muted or not). */
+  audible: boolean
+  muted: boolean
+  /** Its media plays (paused: false). */
+  playing: boolean
+  capture: TabInfo['capture']
+}
+
 export interface TabsState {
   tabs: TabInfo[]
   activeId: number | null
@@ -183,6 +201,8 @@ export interface TabsState {
   spaceAudio: Record<number, { playing: boolean; muted: boolean }>
   /** What is waiting in every space (only spaces with something): unread, unseen, a call and the tab it is in. */
   spaceAttention: Record<number, SpaceAttention>
+  /** Now playing in every space, in the island's order (shared/nowPlaying.ts): calls, then what is heard, then the rest. */
+  nowPlaying: PlayingTab[]
   /** Tor, for Tor tabs that wait on it and for the chip that says how it is doing. */
   tor: { state: TorState; progress: number; message: string; tabs: number }
   /** Something that just happened, said for a few seconds (a saved session). `id` tells one saying from the next. */
@@ -283,6 +303,8 @@ export interface PanesApi {
   /** End what a tab is capturing (camera, microphone or screen). */
   stopCapture(id: number, kinds: CaptureKind[]): void
   toggleMute(id: number): void
+  /** Take a paused tab off the now-playing island (shared/nowPlaying.ts). */
+  forgetPlaying(id: number): void
   /** Play or pause the video or audio on a tab's page, wherever it is; null when it has none. */
   mediaPlay(id: number, action: 'toggle' | 'play' | 'pause'): Promise<{ paused: boolean } | null>
   /** Keep this photo on the new tab page (null goes back to the daily one). */

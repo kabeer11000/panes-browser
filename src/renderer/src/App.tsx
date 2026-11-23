@@ -52,6 +52,7 @@ import { DragLayer, DropIndicator } from './components/DragLayer'
 import { Recover } from './Recover'
 import { LiveHosts } from './LiveHosts'
 import { LiveWatchPanel } from './canvas/LiveShare'
+import { NowPlaying } from './canvas/TabStrip'
 import { narrowStep } from '@shared/narrow'
 
 /** The board's own search does not offer opening the board. */
@@ -85,7 +86,8 @@ function App(): React.JSX.Element {
     activeSpaceId,
     activeSpace,
     tor,
-    notice
+    notice,
+    nowPlaying
   } = useTabs()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   // Opened by the pointer touching the left edge (a setting): it closes itself when the pointer leaves.
@@ -1036,6 +1038,18 @@ function App(): React.JSX.Element {
                   />
                 )}
                 <NavButtons active={active} />
+                {/* now playing in every space, beside the address (the board and its preview have it in their strip) */}
+                <div className="strip-island no-drag">
+                  <NowPlaying
+                    items={nowPlaying}
+                    spaces={spaces}
+                    activeSpaceId={activeSpaceId}
+                    here={activeId}
+                    onList={(open) =>
+                      void (open ? holdOverlay('island') : releaseOverlay('island'))
+                    }
+                  />
+                </div>
               </div>
               <AddressBar
                 active={active}
@@ -1198,6 +1212,7 @@ function App(): React.JSX.Element {
                     thumbs={thumbs}
                     spaceId={activeSpaceId}
                     spaces={spaces}
+                    nowPlaying={nowPlaying}
                     layout={layout}
                     onExit={(pick) => {
                       setQuiet(false)

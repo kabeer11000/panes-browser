@@ -4797,6 +4797,152 @@
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+
+/* ---- now playing, every space (NowPlaying in TabStrip.tsx): today's pill, a +N, and the list it opens into ---- */
+.cv-island {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.cv-island-head {
+  display: flex;
+  align-items: center;
+}
+/* the hairline that sets what plays apart from the tabs goes after the whole island, +N included */
+.cv-island .cv-strip-play {
+  margin-right: 0;
+}
+.cv-island .cv-strip-play::after {
+  display: none;
+}
+.cv-strip .cv-island {
+  padding-right: 6px;
+  margin-right: 2px;
+}
+.cv-strip .cv-island::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+/* playing in another space: its space's icon before the name */
+.cv-island-space {
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin: 0 2px 0 4px;
+}
+.cv-island-more {
+  flex: none;
+  height: 22px;
+  min-width: 26px;
+  margin: 0 6px 0 -2px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--fg) 9%, transparent);
+  color: var(--fg);
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.cv-island-more:hover,
+.cv-island-more[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.cv-island-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* the list grows out of the pill, below it (above it when the preview's bar is at the bottom) */
+.cv-island-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -4px;
+  z-index: 30;
+  width: 360px;
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 16px;
+  background: var(--popover-bg);
+  box-shadow: var(--float-shadow, 0 0 0 1px var(--border), 0 18px 50px rgb(0 0 0 / 0.45));
+  transform-origin: top left;
+  animation: cv-nc-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.cv-panel.bar-bottom .cv-island-list {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform-origin: bottom left;
+}
+.cv-island-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding-right: 2px;
+  border-radius: 10px;
+  color: var(--fg);
+}
+.cv-island-row:hover {
+  background: var(--surface-hover);
+}
+.cv-island-row.here {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.cv-island-go {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 38px;
+  padding: 0 6px 0 10px;
+  border-radius: 10px;
+  color: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  text-align: left;
+}
+.cv-island-go:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.cv-island-row .cv-eq {
+  color: var(--accent);
+}
+.cv-island-row.call .cv-strip-call > .on {
+  color: var(--badge-bg);
+}
+.cv-island-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-island-where {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 110px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+/* in the tab view's top bar: at the end of its left side, against the address bar (the bar keeps the address centred) */
+.strip-island {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
 /* a notification's words, for a few seconds, floating beside its tab over the strip (inside the bar's height: below
    it in the preview is the page, which nothing can cover) */
 .cv-recent button > .cv-strip-peek {

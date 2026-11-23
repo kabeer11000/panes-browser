@@ -5,7 +5,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseMarkdown, type Block, type Inline } from '@shared/ai/markdown'
 import type { CanvasReaderDoc } from '@shared/ai/canvasItems'
 import type { Grouped } from '@shared/attention'
-import type { PageMenuPick, PreviewSwipe, Rect, TabInfo } from '@shared/types'
+import type { PageMenuPick, PlayingTab, PreviewSwipe, Rect, Space, TabInfo } from '@shared/types'
 import { pageCaps, restRect, zoomPercent } from '@shared/ai/previewBar'
 import type { CardModel } from './model'
 import { displayHost } from '@shared/url'
@@ -25,7 +25,7 @@ import { SiteIcon } from '@renderer/components/SiteIcon'
 import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
-import { StripInbox, StripPlaying, StripTab } from './TabStrip'
+import { NowPlaying, StripInbox, StripTab } from './TabStrip'
 import { Panes } from '@renderer/components/Panes'
 import { DropIndicator } from '@renderer/components/DragLayer'
 import { useTabDrag } from '@renderer/hooks/useTabDrag'
@@ -188,10 +188,10 @@ interface Props extends ExpandSource {
   swapped?: boolean
   /** The card it replaced, where the recent tabs' highlight slides from. */
   swapFrom?: number
-  /** What plays (or a call), first in the header's tab strip, unless it is this page. */
-  playing?: TabInfo | null
-  /** Go to what plays (its card, in this preview). */
-  onPlaying?: (tab: number) => void
+  /** Now playing in every space (the island, first in the header's tab strip). */
+  island?: { items: readonly PlayingTab[]; spaces: readonly Space[]; activeSpaceId: number }
+  /** Go to something playing (its card in this preview, or its own space). */
+  onPlaying?: (t: PlayingTab) => void
   /** A notification's words on its tab in the strip, while they show (see usePeeks). */
   peeks?: ReadonlyMap<number, string>
   /** What waits in the tabs (messages, calls), one entry per site or account, for the strip's notifications. */
@@ -765,7 +765,7 @@ export function Expanded({
   layout = null,
   allTabs = [],
   thumbs = {},
-  playing,
+  island,
   onPlaying,
   peeks,
   waiting = [],
@@ -813,6 +813,8 @@ export function Expanded({
   const [addressOpen, setAddressOpen] = useState(false)
   // the strip's notifications are open: like the address popover, the page steps aside for its picture under them
   const [inboxOpen, setInboxOpen] = useState(false)
+  /** The now-playing island's list is open over the page. */
+  const [islandOpen, setIslandOpen] = useState(false)
   // a tab in the strip pointed at: its name stands in the header's title meanwhile (no tooltip over the strip)
   const [pointed, setPointed] = useState<Pick<
     CardModel,
@@ -835,7 +837,7 @@ export function Expanded({
     })
   )
   // something is over the page: it stays stepped aside
-  const aside = addressOpen || inboxOpen || splitHold || drag !== null
+  const aside = addressOpen || inboxOpen || islandOpen || splitHold || drag !== null
   const asideRef = useRef(false)
   const tabRef = useRef<number | null>(tab ?? null)
   /** In a split: where each pane's page goes, as Panes reports it (null when this is no split). */
@@ -1748,10 +1750,12 @@ export function Expanded({
             )}
           </div>
           <div className="cv-hzone cv-hzone-c">
-            {playing && onPlaying && (
-              <StripPlaying
-                t={playing}
-                here={playing.id === tab}
+            {island && island.items.length > 0 && (
+              <NowPlaying
+                items={island.items}
+                spaces={island.spaces}
+                activeSpaceId={island.activeSpaceId}
+                here={tab}
                 onGo={onPlaying}
                 onHover={(t) =>
                   setPointed(
@@ -1763,6 +1767,10 @@ export function Expanded({
                     }
                   )
                 }
+                onList={(open) => {
+                  if (open) grabShot() // the page stands in as a picture while the list covers it
+                  setIslandOpen(open)
+                }}
               />
             )}
             {recent && recent.length > 1 && onSwitch && (
