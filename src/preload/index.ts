@@ -87,6 +87,7 @@ const api: PanesApi = {
   suggestRemote: (q) => ipcRenderer.invoke('search:remote', q),
   suggestSemantic: (q, exclude) => ipcRenderer.invoke('search:semantic', q, exclude),
   aiWarm: () => ipcRenderer.send('ai:warm'),
+  searchField: (open) => ipcRenderer.send('ui:search-field', !!open),
   chatInfo: () => ipcRenderer.invoke('ai:chat-info'),
   chatSend: (req) => ipcRenderer.invoke('ai:chat-send', req),
   chatPrime: (req) => ipcRenderer.send('ai:chat-prime', { ...req, mode: 'panel' }),

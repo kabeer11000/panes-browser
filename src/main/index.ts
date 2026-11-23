@@ -985,6 +985,11 @@ function createWindow(): void {
       Array.isArray(exclude) ? exclude.filter((u): u is string => typeof u === 'string') : []
     )
   )
+  ipcMain.on('ui:search-field', (e, open: unknown) => {
+    if (e.sender === win.webContents) tabs.searchField = open === true
+  })
+  // the window's page reloading takes any open search field with it
+  win.webContents.on('did-start-loading', () => (tabs.searchField = false))
   ipcMain.on('ai:warm', (e) => {
     if (e.sender === win.webContents) ai.features.warm()
   })

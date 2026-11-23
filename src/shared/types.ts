@@ -309,6 +309,8 @@ export interface PanesApi {
   suggestSemantic(query: string, exclude: string[]): Promise<LocalSuggestion[]>
   /** The command bar opened: get the embedding model ready. */
   aiWarm(): void
+  /** A search field opened in the window (true) or went (false): no page may take the keyboard from it meanwhile. */
+  searchField(open: boolean): void
   /** The chat panel: where it is answered (no keys or tokens), and the turn, saved conversations and events. */
   chatInfo(): Promise<ChatInfo>
   chatSend(req: ChatSendRequest): Promise<{ dropped: number[] }>

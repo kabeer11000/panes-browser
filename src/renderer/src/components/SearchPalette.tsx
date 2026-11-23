@@ -249,6 +249,12 @@ export function SearchPalette({
     window.api.aiWarm() // the meaning search is ready by the first keystroke
   }, [])
 
+  // while it is open, a page focusing itself (autofocus as it loads) cannot take the typing away from it (main)
+  useEffect(() => {
+    window.api.searchField(true)
+    return () => window.api.searchField(false)
+  }, [])
+
   const typedRef = useRef({ typed, dirty })
   useEffect(() => {
     typedRef.current = { typed, dirty }

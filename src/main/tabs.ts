@@ -2266,6 +2266,8 @@ export class TabManager {
 
   /** A shared space's invite link: joined (main/share.ts) instead of opened as a page. True when it was one. */
   inviteHandler: ((url: string) => boolean) | null = null
+  /** A search field is open in the window (SearchPalette): pages may not take the keyboard from it (see wire). */
+  searchField = false
 
   navigate(input: string): void {
     const url = resolveInput(input, this.deps.settings.searchUrl())
@@ -3565,6 +3567,17 @@ export class TabManager {
     if (isOffscreen(tab.view)) tab.view.tabId = id // the board finds the page's canvas by its tab
     const wc = tab.view.webContents
     const refresh = (): void => this.refresh()
+    // A page that takes the keyboard by itself while a search field is open in the window (a field it focuses as it
+    // loads, window.focus()) gives it back: the search stayed open, but what was typed next went into the page. A
+    // click in the page is the person's own choice, and stands.
+    let pressedAt = 0
+    wc.on('input-event', (_e, input) => {
+      if (input.type === 'mouseDown' || input.type === 'touchStart') pressedAt = Date.now()
+    })
+    wc.on('focus', () => {
+      if (this.searchField && Date.now() - pressedAt > 1000 && !this.win.isDestroyed())
+        this.win.webContents.focus()
+    })
     // A page that closes itself (window.close(), as many download pages do once the file has started) takes its tab
     // with it, as in Chrome. Left in place the tab held a page that was gone: a frozen picture, and every action on it
     // (reload, back) failed.
