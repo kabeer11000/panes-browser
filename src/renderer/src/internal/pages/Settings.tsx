@@ -502,6 +502,16 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
         <Row
+          label="Try secure connections first"
+          hint="Opens http: pages over https: when the site has it, and goes back to http: when it does not."
+        >
+          <Toggle
+            label="Try secure connections first"
+            on={s.httpsFirst}
+            onChange={(v) => void update({ httpsFirst: v })}
+          />
+        </Row>
+        <Row
           label="Ask sites not to sell or share my data"
           hint="Sends Global Privacy Control with every visit. Some laws (California's, for one) make sites honour it."
         >

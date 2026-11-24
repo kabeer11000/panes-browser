@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   performanceMode: 'auto',
   quic: true,
   privacySignal: true,
+  httpsFirst: true,
   adblockOffSites: [],
   adblockCosmeticOffSites: [],
   adblockAggressive: false,

@@ -693,6 +693,8 @@ export interface Settings {
    * navigator.globalPrivacyControl), a request some laws make binding. Every tab, private and Tor ones too.
    */
   privacySignal: boolean
+  /** Ask http: pages over https: first, back to http: when a site has no https (Chrome's HTTPS upgrades). */
+  httpsFirst: boolean
   /** Unload background tabs to free memory. They reload when you open them. */
   memorySaver: boolean
   /** Playing videos show live on their board cards (a tab stream each); off, cards keep a still picture. */

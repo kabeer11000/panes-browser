@@ -149,6 +149,7 @@ import type { ActiveSite } from './sites'
 import type { SpaceStore } from './spaces'
 import { JsonStore } from './store'
 import { holdUnseen } from './unseen'
+import { hostOf, httpsUpgrade } from '@shared/httpsFirst'
 
 /** The page's main video, as LiveVideo wants it (see TabManager.liveVideo). Runs in the page; reads only layout. */
 const LIVE_VIDEO_SCRIPT = `(() => {
@@ -370,6 +371,10 @@ interface Tab {
   flat: boolean
   /** The load that failed, while the tab shows Panes' error page for it. */
   failed: { url: string; code: number; desc: string } | null
+  /** An http: page asked over https: first (HTTPS-first): what was asked, what is tried, and when. */
+  upgraded?: { from: string; to: string; at: number }
+  /** The https: address that failed before going back to http: (out of the history once the http: page is in). */
+  fellBack?: string
   /** A page loaded into a view that had shown nothing: the view stays hidden until it has painted. */
   awaiting: boolean
   /** While it is `awaiting`: its page as saved to disk (SavedPages), shown in its place once drawn. */
@@ -3808,6 +3813,14 @@ export class TabManager {
     wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
       // -3 is a navigation cut short (a redirect, a download, you clicking elsewhere): not a failure
       if (!isMainFrame || code === -3 || url.startsWith('panes://')) return
+      // the https: tried first did not work (no https there, a bad certificate): the page as it was asked, on http:
+      const up = tab.upgraded
+      if (up && hostOf(url) === hostOf(up.to)) {
+        tab.upgraded = undefined
+        tab.fellBack = url
+        this.httpOnly.add(hostOf(up.from))
+        return void wc.loadURL(up.from).catch(() => {})
+      }
       tab.failed = { url, code, desc }
       const back = wc.navigationHistory.canGoBack()
       const space = this.deps.spaces.get(tab.spaceId)
@@ -3828,6 +3841,15 @@ export class TabManager {
       void wc.loadURL(errorPageUrl(url, code, desc, back, theme, quicBlocked)).catch(() => {})
     })
     wc.on('did-navigate', () => {
+      tab.upgraded = undefined // the page is here (on https:, or where a redirect took it): nothing to fall back from
+      // the failed https: try is no page of the person's: Back skips it, as in Chrome
+      const failed = tab.fellBack
+      tab.fellBack = undefined
+      if (failed) {
+        const h = wc.navigationHistory
+        const i = h.getActiveIndex() - 1
+        if (i >= 0 && h.getEntryAtIndex(i)?.url === failed) h.removeEntryAtIndex(i)
+      }
       // The blank page a new view is primed with (identity.ts) is no page of the person's: going back reached it
       // (about:blank, after the first real page). Out of the history once a page has come after it, as in Chrome,
       // where back stops at the first page.
@@ -3927,6 +3949,7 @@ export class TabManager {
     })
     wc.on('did-start-navigation', (details) => {
       if (!details.isMainFrame || details.isSameDocument) return
+      if (this.tryHttps(tab, wc, details.url)) return
       followIdentity(wc, this.identities(tab), details.url)
       tab.favicon = null
       // a muted site stays muted wherever its tabs go
@@ -4032,6 +4055,39 @@ export class TabManager {
         this.openLink(url, id)
       }
     })
+  }
+
+  /**
+   * Hosts whose https: did not work this run (HTTPS-first): they load on http: without trying again. ponytail: kept
+   * for the run only; after a restart such a host is tried over https: once more (one failed attempt each).
+   */
+  private httpOnly = new Set<string>()
+
+  /**
+   * HTTPS-first: an http: page on a public host is asked over https: instead (Chrome's HTTPS upgrades). True when the
+   * navigation was replaced. The https: page sending you back to http: (a site that has no https) is let through,
+   * and so is every host whose https: failed before; did-fail-load goes back to http: when the https: one fails.
+   */
+  private tryHttps(tab: Tab, wc: WebContents, url: string): boolean {
+    const up = tab.upgraded
+    if (up && url.startsWith('https:') && hostOf(url) === hostOf(up.to)) return false // the attempt itself
+    tab.upgraded = undefined
+    if (!this.deps.settings.get().httpsFirst) return false
+    const host = hostOf(url)
+    // straight back to http: from the https: just tried (within a few seconds): this site has no https
+    if (up && host === hostOf(up.from) && url.startsWith('http:') && Date.now() - up.at < 10_000) {
+      this.httpOnly.add(host)
+      return false
+    }
+    if (this.httpOnly.has(host)) return false
+    const to = httpsUpgrade(url)
+    if (!to) return false
+    tab.upgraded = { from: url, to, at: Date.now() }
+    // a tick later: a navigation started inside another's start fails at once (ERR_FAILED); this one replaces it
+    setImmediate(() => {
+      if (!wc.isDestroyed() && tab.upgraded?.to === to) void wc.loadURL(to).catch(() => {})
+    })
+    return true
   }
 
   /**
