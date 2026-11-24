@@ -50,7 +50,9 @@ export function registerInternalScheme(): void {
     {
       scheme: 'panes-thumb',
       privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true }
-    }
+    },
+    // sites' icons for the window, kept on disk (main/favicons.ts)
+    { scheme: 'panes-icon', privileges: { standard: true, secure: true, supportFetchAPI: true } }
   ])
 }
 

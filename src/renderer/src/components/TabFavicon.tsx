@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { attentionLabel, badgeText } from '@shared/attention'
 import type { TabInfo } from '@shared/types'
 import { GlobeIcon, IncognitoIcon, TorIcon } from './icons'
+import { iconSrc } from './iconSrc'
 
 function Plain({ tab, noSpinner }: { tab: TabInfo; noSpinner?: boolean }): React.JSX.Element {
   const [failed, setFailed] = useState<string | null>(null)
@@ -14,7 +15,15 @@ function Plain({ tab, noSpinner }: { tab: TabInfo; noSpinner?: boolean }): React
       </span>
     )
   }
-  return <img className="favicon" src={tab.favicon} alt="" onError={() => setFailed(tab.favicon)} />
+  return (
+    <img
+      className="favicon"
+      // a private or Tor tab's icon is never kept on disk (main asks the site each time)
+      src={tab.private || tab.tor ? tab.favicon : iconSrc(tab.favicon)}
+      alt=""
+      onError={() => setFailed(tab.favicon)}
+    />
+  )
 }
 
 /**

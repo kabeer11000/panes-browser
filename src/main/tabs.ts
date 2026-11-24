@@ -672,6 +672,8 @@ export class TabManager {
     private privateSession: Session,
     private deps: {
       settings: SettingsStore
+      /** A normal tab's icon: it may be kept on disk (FaviconCache). */
+      favicons?: { allow: (url: string | null) => void }
       history: HistoryStore
       bookmarks: BookmarkStore
       spaces: SpaceStore
@@ -1358,6 +1360,8 @@ export class TabManager {
       if (lazy) {
         tab.pending = { url, title: lazy.title, history: lazy.history }
         tab.favicon = lazy.favicon
+        // a normal tab's icon from before (the session, an import): it may be kept on disk too
+        if (!tab.private && !tab.tor) this.deps.favicons?.allow(lazy.favicon)
       } else {
         this.go(tab, url)
       }
@@ -3962,7 +3966,10 @@ export class TabManager {
         tab.attention = noteFavicon(tab.attention, this.looking(id))
       }
       tab.favicon = next
-      if (!tab.private) this.deps.history.updateMeta(wc.getURL(), { favicon: tab.favicon })
+      if (!tab.private && !tab.tor) {
+        this.deps.history.updateMeta(wc.getURL(), { favicon: tab.favicon })
+        this.deps.favicons?.allow(next)
+      }
       this.refresh()
     })
     wc.on('before-input-event', (e, input) => {

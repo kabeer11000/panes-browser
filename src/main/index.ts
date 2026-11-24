@@ -38,6 +38,7 @@ import { BookmarkStore, HistoryStore } from './history'
 import { Importer } from './importer'
 import { PasswordExport } from './passwordExport'
 import { DumpStore } from './dumps'
+import { FaviconCache } from './favicons'
 import { TorManager } from './tor'
 import { chromeVars } from '@shared/color'
 import { KIND_THEME, WELCOME_THEME } from '@shared/tabkind'
@@ -280,8 +281,14 @@ function createWindow(): void {
   const spaces = new SpaceStore()
   const suggester = new Suggester({ history, bookmarks, settings })
   const dumps = new DumpStore()
+  // sites' icons, kept on disk so they show at once after a restart (fetched as a normal tab would)
+  const favicons = new FaviconCache((url) =>
+    tabSession.fetch(url, { signal: AbortSignal.timeout(10_000) })
+  )
+  session.defaultSession.protocol.handle('panes-icon', (req) => favicons.serve(req.url))
   const tabs = new TabManager(win, tabSession, privateSession, {
     settings,
+    favicons,
     history,
     bookmarks,
     spaces,

@@ -34,6 +34,7 @@ import {
   SplitIcon,
   TorIcon
 } from './icons'
+import { iconSrc } from './iconSrc'
 import { SiteIcon } from './SiteIcon'
 
 export interface Anchor {
@@ -85,7 +86,7 @@ function ResultIcon({ r }: { r: SearchResult }): React.JSX.Element {
     return (
       <img
         className="pal-fav"
-        src={r.favicon}
+        src={iconSrc(r.favicon)}
         alt=""
         onError={() => setFailed(r.favicon ?? null)}
       />

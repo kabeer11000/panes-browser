@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { iconSrc } from './iconSrc'
 import { GlobeIcon } from './icons'
 
 /**
@@ -26,7 +27,7 @@ export function SiteIcon({
   return (
     <img
       className={className}
-      src={src}
+      src={iconSrc(src)}
       alt=""
       decoding={decoding}
       draggable={false}
