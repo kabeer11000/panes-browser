@@ -208,6 +208,20 @@ const PERM_ICON: Record<PermKind, () => React.JSX.Element> = {
     <Glyph>
       <path d="M9 2.5h4.5V7M13.5 2.5 7.5 8.5M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3" />
     </Glyph>
+  ),
+  // a page with a pen over it: saving changes to a file
+  files: () => (
+    <Glyph>
+      <path d="M9.5 2H4.5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h4M9.5 2l3 3v2.5M9.5 2v3h3" />
+      <path d="M12.6 9.2 14 10.6l-3.6 3.6H9v-1.4l3.6-3.6Z" />
+    </Glyph>
+  ),
+  // a frame inside a page: what a site shows inside it
+  storage: () => (
+    <Glyph>
+      <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+      <rect x="5" y="6" width="6" height="5" rx="1" />
+    </Glyph>
   )
 }
 

@@ -196,3 +196,12 @@ describe('originOf and describeKinds', () => {
     expect(describeKinds(['midi'])).toBe('MIDI devices')
   })
 })
+
+test('file editing and embedded sign-ins are asked; fonts and local network stay refused', () => {
+  expect(kindsFor('fileSystem')).toEqual(['files'])
+  expect(kindsFor('storage-access')).toEqual(['storage'])
+  expect(kindsFor('top-level-storage-access')).toEqual(['storage'])
+  // Electron cannot ask these (see kindsFor): refused, as before
+  expect(kindsFor('local-fonts')).toBeNull()
+  expect(kindsFor('local-network-access')).toBeNull()
+})

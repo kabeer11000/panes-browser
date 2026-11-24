@@ -9,6 +9,10 @@ export type PermKind =
   | 'midi'
   | 'windows'
   | 'apps'
+  /** Saving changes to files and folders the person picked (File System Access; opening them needs no answer). */
+  | 'files'
+  /** Sites it embeds using what they saved (cookies) there: a sign-in inside a comment box (Storage Access). */
+  | 'storage'
 export type PermDecision = 'allow' | 'block'
 /** What the site settings offer for one kind: a remembered answer, or asking each time. */
 export type PermSetting = PermDecision | 'ask'
@@ -31,7 +35,9 @@ export const PERM_KINDS: readonly PermKind[] = [
   'clipboard',
   'midi',
   'windows',
-  'apps'
+  'apps',
+  'files',
+  'storage'
 ]
 
 export const PERM_LABEL: Record<PermKind, string> = {
@@ -43,7 +49,9 @@ export const PERM_LABEL: Record<PermKind, string> = {
   screen: 'Screen sharing',
   midi: 'MIDI devices',
   windows: 'Window placement',
-  apps: 'Open apps'
+  apps: 'Open apps',
+  files: 'File editing',
+  storage: 'Embedded sign-ins'
 }
 
 /** How the prompt names each kind after "wants to use your". */
@@ -56,7 +64,9 @@ const PERM_NOUN: Record<PermKind, string> = {
   screen: 'screen',
   midi: 'MIDI devices',
   windows: 'displays to place windows',
-  apps: 'apps'
+  apps: 'apps',
+  files: 'files and folders (to save changes to the ones you pick)',
+  storage: 'sign-ins for the sites it shows inside it'
 }
 
 /** How long "Allow this time" lasts. Long enough for a call, short enough that it is not a quiet Allow. */
@@ -104,6 +114,14 @@ export function kindsFor(
       return ['windows']
     case 'openExternal': // a link to an app on this computer (zoommtg:, slack:, msteams:, ...)
       return ['apps']
+    case 'fileSystem':
+      return ['files']
+    case 'storage-access':
+    case 'top-level-storage-access':
+      return ['storage']
+    // Not asked (refused, as before): local-fonts, where Chromium checks before it requests and Electron's check
+    // has no "ask" (only yes or no), so a card never shows; local-network-access, which could not be shown to
+    // change anything in Electron 44.
     default:
       return null
   }

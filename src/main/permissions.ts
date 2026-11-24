@@ -12,6 +12,7 @@ import {
   type IpcMainInvokeEvent,
   type MediaAccessPermissionRequest,
   type NativeImage,
+  type FilesystemPermissionRequest,
   type OpenExternalPermissionRequest,
   type Session,
   type Streams,
@@ -394,6 +395,12 @@ export class PermissionManager {
         if (permission === 'keyboardLock') this.d.onKeyboardLock(wc)
         return cb(true)
       }
+      // opening a file or folder the person picked: the picker was their answer (as in Chrome); saving changes asks
+      if (
+        permission === 'fileSystem' &&
+        (details as FilesystemPermissionRequest).fileAccessType === 'readable'
+      )
+        return cb(true)
       const kinds = kindsFor(permission, (details as MediaAccessPermissionRequest).mediaTypes)
       const origin = kinds && permissionOrigin(kinds, details.requestingUrl, wc.getURL())
       if (!kinds || !origin) return cb(false)
