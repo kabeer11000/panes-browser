@@ -506,10 +506,18 @@ export const CardView = memo(
               {m.isTab && <LiveBadge tabId={m.id} />}
               {m.sharedOut && (
                 <span
-                  className="cv-shared-tag"
+                  className={'cv-shared-tag' + (m.sharedOut === 'paused' ? ' paused' : '')}
                   role="img"
-                  aria-label="Shared with everyone in this space"
-                  title="Shared with everyone in this space. Right-click to stop sharing"
+                  aria-label={
+                    m.sharedOut === 'paused'
+                      ? 'Sharing paused: this tab is on another site now'
+                      : 'Shared with everyone in this space'
+                  }
+                  title={
+                    m.sharedOut === 'paused'
+                      ? 'Sharing paused: this tab went to another site, so the others still see the page you shared. Right-click to share this page'
+                      : 'Shared with everyone in this space. Right-click to stop sharing'
+                  }
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
                     <circle cx="6" cy="5.5" r="2.4" />

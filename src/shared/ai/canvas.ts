@@ -116,6 +116,8 @@ export interface CanvasCard {
   fit?: boolean
   /** A tab's card the person shared with their shared space: only these (and a tab shown live) reach the others. */
   shared?: boolean
+  /** The site it was shared on: on another site the others keep the last of it (sharingPaused in canvasItems.ts). */
+  sharedSite?: string
 }
 export interface CanvasNote extends Box {
   id: string
@@ -1181,7 +1183,10 @@ export function tidy(
       if (sz?.w !== undefined) card.w = sz.w
       if (sz?.h !== undefined) card.h = sz.h
       if (c?.fit !== undefined) card.fit = c.fit
-      if (c?.shared && !card.private) card.shared = true // a tidy never unshares a tab
+      if (c?.shared && !card.private) {
+        card.shared = true // a tidy never unshares a tab
+        if (c.sharedSite !== undefined) card.sharedSite = c.sharedSite
+      }
       cards.set(id, card)
     })
   }

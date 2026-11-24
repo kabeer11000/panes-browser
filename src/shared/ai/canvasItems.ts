@@ -27,6 +27,11 @@ export interface CanvasItem {
   source?: 'tab' | 'history' | 'download' | 'web' | 'answer'
   /** A local file (a download): the path, only ever read through main. */
   file?: string
+  /**
+   * A local file shared to a shared space, as it went to the room: its parts in the room's sealed store and its
+   * extension ("id1.id2/.png", see share/doc.ts). On the others' boards `file` is their own copy of it, once here.
+   */
+  sealed?: string
   /** The tab that shows this page, if there is one. */
   tab?: number
   /** How it was placed (by suggestion, or by the person). */
@@ -56,6 +61,20 @@ export function siteOf(url: string): string {
 }
 
 /** The YouTube video id in an address, or null. */
+/**
+ * A shared tab that moved on to another site than the one it was shared on: the others keep the last page of it (its
+ * address and picture stop going) until it is shared again, so a shared tab taken to the bank does not show the bank.
+ */
+/** A file's path as a file: address (the board's cards keep both). */
+export const fileUrl = (path: string): string => `file:///${encodeURI(path.replace(/\\/g, '/'))}`
+
+export function sharingPaused(
+  card: { shared?: boolean; sharedSite?: string },
+  url: string
+): boolean {
+  return !!card.shared && card.sharedSite !== undefined && siteOf(url) !== card.sharedSite
+}
+
 export function youtubeId(url: string): string | null {
   try {
     const u = new URL(url)

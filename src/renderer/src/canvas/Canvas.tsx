@@ -97,6 +97,9 @@ import {
   pdfSource,
   type Placement,
   posterFor,
+  fileUrl,
+  sharingPaused,
+  siteOf,
   type CanvasItem,
   type CanvasPageContent
 } from '@shared/ai/canvasItems'
@@ -146,7 +149,7 @@ import { BoardSpaces } from './BoardSpaces'
 import { SpaceChat } from './SpaceChat'
 import { LiveShare } from './LiveShare'
 import { usePresence } from '@renderer/components/useShare'
-import { isMirror, samePage } from '@shared/share/doc'
+import { canShareFile, isMirror, samePage } from '@shared/share/doc'
 import { watchLive } from '@renderer/liveWatch'
 import { READER } from './model'
 import { ContextMenu, type MenuEntry } from './ContextMenu'
@@ -2428,7 +2431,6 @@ export function Canvas({
         const n = addNote(s0, { x: q.x - NOTE_W / 2, y: q.y - NOTE_H / 2 }, s0.notes.length)
         return { state: patchNote(n.state, n.id, { text: t.slice(0, 600) }), key: `n:${n.id}` }
       }
-    const fileUrl = (path: string): string => `file:///${encodeURI(path.replace(/\\/g, '/'))}`
     for (const f of files.slice(0, 12)) {
       const as = classifyFile(f.name, f.mime)
       if (!as || as === 'image' || as === 'pdf') {
@@ -3655,7 +3657,11 @@ export function Canvas({
   }
 
   // ---- what each card shows ----
-  const modelFor = (card: { id: number; shared?: boolean }): CardModel | null => {
+  const modelFor = (card: {
+    id: number
+    shared?: boolean
+    sharedSite?: string
+  }): CardModel | null => {
     if (!st) return null
     const virtual = isVirtual(card.id)
     const item: CanvasItem | undefined = virtual ? st.items[String(card.id)] : undefined
@@ -3676,7 +3682,12 @@ export function Canvas({
       muted: !!tab?.muted,
       ringing: tab?.attention.call === 'ringing',
       liveBy: liveHost?.name,
-      sharedOut: !virtual && !!card.shared && !!thisSpace?.shared,
+      sharedOut:
+        (!virtual || canShareFile(item)) && !!card.shared && !!thisSpace?.shared
+          ? sharingPaused(card, tab?.url ?? '')
+            ? ('paused' as const)
+            : ('on' as const)
+          : undefined,
       // the card plays their picture while it is on screen (one line with the viewer, see liveLine.ts)
       liveRtc: liveHost && onScreen.has(card.id) ? liveHost.rtc : undefined,
       liveSpace: liveHost ? spaceId : undefined,
@@ -3715,7 +3726,7 @@ export function Canvas({
     const text = c?.text || item?.text
     const image =
       kind === 'image'
-        ? (local ?? (item?.file ? undefined : url))
+        ? (local ?? (item?.file || item?.sealed ? undefined : url)) // a shared file: none until its copy is here
         : kind === 'video'
           ? ((tab && stills[tab.id]?.url === tab.url ? stills[tab.id].src : undefined) ??
             item?.image ??
@@ -5329,9 +5340,11 @@ export function Canvas({
                 : 'start'
               : undefined,
           share:
-            thisSpace?.shared && m.isTab && web && !priv
+            thisSpace?.shared && ((m.isTab && web && !priv) || canShareFile(item))
               ? card?.shared
-                ? 'stop'
+                ? sharingPaused(card, url)
+                  ? 'paused'
+                  : 'stop'
                 : 'start'
               : undefined
         }),
@@ -5345,9 +5358,23 @@ export function Canvas({
             edit(
               (s) => ({
                 ...s,
-                cards: s.cards.map((c) => (c.id === id ? { ...c, shared: !c.shared } : c))
+                cards: s.cards.map((c) =>
+                  c.id !== id
+                    ? c
+                    : c.shared
+                      ? { ...c, shared: false, sharedSite: undefined }
+                      : { ...c, shared: true, sharedSite: siteOf(url) }
+                )
               }),
               { undo: card?.shared ? 'Stop sharing' : 'Share' }
+            )
+          else if (act === 'share-here')
+            edit(
+              (s) => ({
+                ...s,
+                cards: s.cards.map((c) => (c.id === id ? { ...c, sharedSite: siteOf(url) } : c))
+              }),
+              { undo: 'Share this page' }
             )
           else if (act === 'play')
             void window.api.mediaPlay?.(m.id, m.playing ? 'pause' : 'play').catch(() => undefined)

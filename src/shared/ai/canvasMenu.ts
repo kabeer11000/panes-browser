@@ -61,8 +61,11 @@ export interface CardFacts {
   ai?: boolean
   /** In a shared space: it can be shown live to everyone ('start'), or it is ('stop'); missing: not offered. */
   live?: 'start' | 'stop'
-  /** In a shared space: the tab can be shared with everyone ('start'), or it is ('stop'); missing: not offered. */
-  share?: 'start' | 'stop'
+  /**
+   * In a shared space: the tab can be shared with everyone ('start'), or it is ('stop'), or it is but went on to
+   * another site, so the others keep its last page ('paused': share this page, or stop); missing: not offered.
+   */
+  share?: 'start' | 'stop' | 'paused'
 }
 
 export function cardMenu(f: CardFacts): MenuEntry[] {
@@ -76,9 +79,10 @@ export function cardMenu(f: CardFacts): MenuEntry[] {
     ...(f.share || f.live ? ['sep' as const] : []),
     ...(f.share
       ? [
+          ...(f.share === 'paused' ? [{ id: 'share-here', label: 'Share this page' }] : []),
           {
             id: 'share-tab',
-            label: f.share === 'stop' ? 'Stop sharing' : 'Share with everyone'
+            label: f.share === 'start' ? 'Share with everyone' : 'Stop sharing'
           }
         ]
       : []),

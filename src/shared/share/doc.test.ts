@@ -2,7 +2,16 @@ import { describe, expect, test } from 'bun:test'
 import * as Y from 'yjs'
 import { emptyState, type CanvasCard, type CanvasNote, type CanvasState } from '../ai/canvas'
 import type { CanvasItem } from '../ai/canvasItems'
-import { idBlock, isEmptyDoc, readInto, sharedOf, sharedSeq, writeDiff } from './doc'
+import {
+  canShareFile,
+  idBlock,
+  isEmptyDoc,
+  parseSealed,
+  readInto,
+  sharedOf,
+  sharedSeq,
+  writeDiff
+} from './doc'
 
 const note = (id: string, text: string, x = 0): CanvasNote => ({
   id,
@@ -155,5 +164,110 @@ describe('shared board document', () => {
     expect(Number.isSafeInteger(idBlock(2 ** 32 - 1) + 2 ** 24)).toBe(true)
     expect(sharedSeq(20, 123456789)).toBe(a) // a local board's counter moves into the block
     expect(sharedSeq(a + 5, 123456789)).toBe(a + 5) // and stays where it got to
+  })
+})
+
+describe('files of this computer on a shared board', () => {
+  const path = 'C:/Users/ana/AppData/Panes/canvas-files/abc123.png'
+  const pic: CanvasItem = {
+    kind: 'image',
+    url: 'file:///C:/Users/ana/AppData/Panes/canvas-files/abc123.png',
+    title: 'holiday.png',
+    site: 'This computer',
+    file: path
+  }
+  const SEALED = 'AAAAAAAAAAAA.BBBBBBBBBBBB/.png'
+  const withPic = (shared: boolean): CanvasState => ({
+    ...emptyState('a'),
+    cards: [{ ...card(-9, pic.url), shared }],
+    items: { '-9': pic }
+  })
+  const pair = (): [Y.Doc, Y.Doc] => {
+    const a = new Y.Doc()
+    const b = new Y.Doc()
+    a.on('update', (u: Uint8Array, o: unknown) => o !== 'b' && Y.applyUpdate(b, u, 'a'))
+    b.on('update', (u: Uint8Array, o: unknown) => o !== 'a' && Y.applyUpdate(a, u, 'b'))
+    return [a, b]
+  }
+  const out = (
+    sealed: string | null
+  ): { by: string; title: () => string; files: () => string | null } => ({
+    by: 'ana',
+    title: () => '',
+    files: () => sealed
+  })
+
+  test('stay home until shared, and the sharer keeps them on their own board', () => {
+    const [a, b] = pair()
+    writeDiff(a, null, withPic(false), undefined, out(SEALED))
+    expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
+    const mine = readInto(a, withPic(false), 'ana')
+    expect(mine.cards.map((c) => c.id)).toEqual([-9])
+    expect(mine.items['-9']).toEqual(pic)
+  })
+
+  test('shared: nothing goes until the file is in the room, and the sharer keeps the card meanwhile', () => {
+    const [a, b] = pair()
+    writeDiff(a, null, withPic(true), undefined, out(null))
+    expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
+    expect(readInto(a, withPic(true), 'ana').cards.map((c) => c.id)).toEqual([-9])
+  })
+
+  test('once sealed: no path of the sharer goes; the other gets their own copy when it is here', () => {
+    const [a, b] = pair()
+    writeDiff(a, null, withPic(true), undefined, out(SEALED))
+    const sent = JSON.stringify(a.getMap('cards').toJSON())
+    expect(sent).not.toContain('Users')
+    expect(sent).not.toContain('file:///')
+    const before = readInto(b, emptyState('x'), 'ben')
+    expect(before.items['-9']).toMatchObject({ sealed: SEALED, kind: 'image' })
+    expect(before.items['-9'].file).toBeUndefined()
+    const copy = 'D:/ben/canvas-files/ff.png'
+    const after = readInto(b, emptyState('x'), 'ben', undefined, (s) =>
+      s === SEALED ? copy : undefined
+    )
+    expect(after.items['-9']).toMatchObject({ file: copy, sealed: SEALED })
+    // the sharer's own board keeps their file, not the room's copy
+    expect(readInto(a, withPic(true), 'ana').items['-9']).toEqual(pic)
+  })
+
+  test("the other moving it writes it back sealed, never with their copy's path", () => {
+    const [a, b] = pair()
+    writeDiff(a, null, withPic(true), undefined, out(SEALED))
+    const seen = readInto(b, emptyState('x'), 'ben', undefined, () => 'D:/ben/canvas-files/ff.png')
+    const moved = { ...seen, cards: seen.cards.map((c) => ({ ...c, x: 500 })) }
+    writeDiff(b, seen, moved)
+    const back = JSON.stringify(b.getMap('cards').toJSON())
+    expect(back).not.toContain('ben')
+    expect(readInto(a, withPic(true), 'ana').cards[0].x).toBe(500)
+  })
+
+  test('stopping sharing takes it from the others', () => {
+    const [a, b] = pair()
+    writeDiff(a, null, withPic(true), undefined, out(SEALED))
+    writeDiff(a, withPic(true), withPic(false), undefined, out(SEALED))
+    expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
+  })
+
+  test('parseSealed takes store ids and a picture or PDF extension only', () => {
+    expect(parseSealed(SEALED)).toEqual({ ids: ['AAAAAAAAAAAA', 'BBBBBBBBBBBB'], ext: '.png' })
+    expect(parseSealed('AAAAAAAAAAAA/.pdf')?.ext).toBe('.pdf')
+    for (const bad of [
+      'AAAAAAAAAAAA/.svg',
+      'AAAAAAAAAAAA/.html',
+      'AAAAAAAAAAAA/.exe',
+      '../../x/.png',
+      'short/.png',
+      'AAAAAAAAAAAA/..png',
+      'AAAAAAAAAAAA'
+    ])
+      expect(parseSealed(bad)).toBeNull()
+  })
+
+  test('canShareFile: own pictures and PDFs only', () => {
+    expect(canShareFile(pic)).toBe(true)
+    expect(canShareFile({ ...pic, file: 'C:/a/b.svg' })).toBe(false)
+    expect(canShareFile({ ...pic, sealed: SEALED })).toBe(false)
+    expect(canShareFile(item('https://x.example/a.png'))).toBe(false)
   })
 })

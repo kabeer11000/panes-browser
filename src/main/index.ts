@@ -307,6 +307,7 @@ function createWindow(): void {
   })
   // shared spaces: a board saved here goes to its room; one changed there comes back (main/share.ts)
   const share = registerShare({
+    files: ai.content,
     win,
     spaces,
     canvas,

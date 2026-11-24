@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import * as Y from 'yjs'
 import { emptyState, type CanvasCard, type CanvasState } from '../ai/canvas'
 import { isMirror, mirrorId, readInto, samePage, withTabs, writeDiff } from './doc'
+import { sharingPaused } from '../ai/canvasItems'
 
 const card = (id: number, url: string, x = 0, extra: Partial<CanvasCard> = {}): CanvasCard => ({
   id,
@@ -257,7 +258,7 @@ describe('the live tab without a card yet (shown from the tab view, board never 
 })
 
 describe('tabs are private until shared', () => {
-  test("a tab never shared and not live never reaches the others; sharing sends it, unsharing takes it back", () => {
+  test('a tab never shared and not live never reaches the others; sharing sends it, unsharing takes it back', () => {
     const [a, b] = pair()
     const priv = withCards([card(7, 'https://bank.example/', 0, { shared: false })])
     const out = { by: 'ana', title: titles, all: () => [{ id: 8, url: 'https://mail.example/' }] }
@@ -280,4 +281,51 @@ describe('tabs are private until shared', () => {
     writeDiff(a, board, board, undefined, { by: 'ana', title: titles })
     expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
   })
+})
+
+describe('a shared tab that goes to another site', () => {
+  const site = { sharedSite: 'docs.example' }
+  test('same site: the others follow it; another site: they keep the last page; sharing that page resumes', () => {
+    const [a, b] = pair()
+    const urls = new Map<number, string | null>([[7, 'https://docs.example/a']])
+    const out = { by: 'ana', title: titles, url: (id: number) => urls.get(id) ?? null }
+    const shared = withCards([card(7, 'https://docs.example/a', 0, site)])
+    writeDiff(a, null, shared, undefined, out)
+    urls.set(7, 'https://docs.example/b')
+    writeDiff(a, shared, shared, undefined, out)
+    const seen = (): string[] => readInto(b, emptyState('x'), 'ben').cards.map((c) => c.url)
+    expect(seen()).toEqual(['https://docs.example/b'])
+    urls.set(7, 'https://bank.example/account')
+    writeDiff(a, shared, shared, undefined, out)
+    expect(seen()).toEqual(['https://docs.example/b'])
+    const again = withCards([card(7, 'https://docs.example/a', 0, { sharedSite: 'bank.example' })])
+    writeDiff(a, shared, again, undefined, out)
+    expect(seen()).toEqual(['https://bank.example/account'])
+  })
+
+  test('the tab shown live follows wherever it goes (presenting is showing what is on screen)', () => {
+    const [a, b] = pair()
+    const urls = new Map<number, string | null>([[7, 'https://bank.example/']])
+    const board = withCards([card(7, 'https://docs.example/a', 0, site)])
+    writeDiff(a, null, board, undefined, {
+      by: 'ana',
+      title: titles,
+      url: (id: number) => urls.get(id) ?? null,
+      live: 7
+    })
+    expect(readInto(b, emptyState('x'), 'ben').cards.map((c) => c.url)).toEqual([
+      'https://bank.example/'
+    ])
+  })
+})
+
+test('sharingPaused', () => {
+  expect(sharingPaused({ shared: true, sharedSite: 'a.example' }, 'https://www.a.example/x')).toBe(
+    false
+  )
+  expect(sharingPaused({ shared: true, sharedSite: 'a.example' }, 'https://b.example/')).toBe(true)
+  expect(sharingPaused({ shared: true }, 'https://b.example/')).toBe(false) // shared before sites were kept
+  expect(sharingPaused({ shared: false, sharedSite: 'a.example' }, 'https://b.example/')).toBe(
+    false
+  )
 })

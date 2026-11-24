@@ -25,7 +25,7 @@ import {
   type CanvasNote,
   type CanvasState
 } from '../ai/canvas'
-import { itemFor, type CanvasItem } from '../ai/canvasItems'
+import { fileUrl, itemFor, sharingPaused, type CanvasItem } from '../ai/canvasItems'
 import type { CanvasMark } from '../ai/canvasMarks'
 import type { CanvasConnector, End } from '../ai/connectors'
 
@@ -91,17 +91,59 @@ export interface TabMirror {
 
 const isShared = (c: CanvasCard): boolean => c.id < 0 && !isMirror(c.id)
 
+/**
+ * A card holding a file of this person's own computer (a picture or PDF dropped on the board): it stays here until
+ * they share it, and then goes as its file sealed into the room's store (`sealed`), never as a path. One that came
+ * from the room (`sealed` set) is a shared card like any other.
+ */
+export const isOwnFile = (item: CanvasItem | undefined): boolean => !!item?.file && !item.sealed
+/** An own file that can be shared (a picture or PDF; the size is checked as it goes). */
+export const canShareFile = (item: CanvasItem | undefined): boolean =>
+  !!item?.file && !item.sealed && SHAREABLE_FILE.test(extOf(item.file))
+/** A path's extension with its dot, lower case ('' when none). */
+const extOf = (path: string): string => {
+  const name = path.split(/[\\/]/).pop() ?? ''
+  const i = name.lastIndexOf('.')
+  return i > 0 ? name.slice(i).toLowerCase() : ''
+}
+
+/** Kinds of file that go to the others, and the extensions they may come back with. */
+export const SHAREABLE_FILE = /^\.(png|jpe?g|gif|webp|avif|bmp|pdf)$/
+/** A sealed file as written: its parts' store ids (dot-separated) and its extension. Null when not well-formed. */
+export function parseSealed(sealed: string): { ids: string[]; ext: string } | null {
+  const m = /^((?:[A-Za-z0-9_-]{8,64}\.){0,7}[A-Za-z0-9_-]{8,64})\/(\.[a-z0-9]{1,8})$/.exec(sealed)
+  return m && SHAREABLE_FILE.test(m[2]) ? { ids: m[1].split('.'), ext: m[2] } : null
+}
+/** A card's item as it goes to the room once its file is sealed: no path and no address of this computer. */
+const sealedItem = (item: CanvasItem, sealed: string): CanvasItem => {
+  const out: CanvasItem = { ...item, url: `panes-file:${sealed}`, site: 'Shared file', sealed }
+  delete out.file
+  delete out.image
+  return out
+}
+
 /** Whether an arrow's end is on something shared (or a point): an arrow to a tab's card stays its owner's. */
 function sharedEnd(e: End, cards: ReadonlySet<number>): boolean {
   return e.kind !== 'card' || cards.has(e.id)
 }
 
-/** The shared parts of a board, each by id, in the board's order. */
-export function sharedOf(s: CanvasState): { [K in Kind]: Map<string, Kinds[K]> } {
+/**
+ * The shared parts of a board, each by id, in the board's order. `files`: a file of this computer's sealed id once
+ * it has gone to the room (null until then); its card goes only when it was shared and its file is there.
+ */
+export function sharedOf(
+  s: CanvasState,
+  files?: (file: string) => string | null
+): { [K in Kind]: Map<string, Kinds[K]> } {
   const cards = new Map<string, SharedCard>()
   for (const c of s.cards) {
     const item = s.items[String(c.id)]
-    if (isShared(c) && item) cards.set(String(c.id), { card: c, item })
+    if (!isShared(c) || !item) continue
+    const sealed = item.sealed ?? (isOwnFile(item) && c.shared ? files?.(item.file!) : null)
+    if (sealed) {
+      const out = sealedItem(item, sealed)
+      cards.set(String(c.id), { card: { ...c, url: out.url }, item: out })
+    } else if (!isOwnFile(item)) cards.set(String(c.id), { card: c, item })
   }
   const ids = new Set([...cards.values()].map((x) => x.card.id))
   return {
@@ -140,10 +182,12 @@ export function writeDiff(
     all?: () => Array<{ id: number; url: string }>
     /** The tab shown live: it goes to the others whether or not its card was shared. */
     live?: number
+    /** Files of this computer shared on the board: each one's sealed id once it is in the room (see sharedOf). */
+    files?: (file: string) => string | null
   }
 ): void {
-  const was = prev ? sharedOf(prev) : null
-  const now = sharedOf(next)
+  const was = prev ? sharedOf(prev, tabs?.files) : null
+  const now = sharedOf(next, tabs?.files)
   doc.transact(() => {
     for (const kind of KINDS) {
       const map = doc.getMap<Slot<unknown>>(kind)
@@ -193,6 +237,10 @@ function writeTabs(
     if (!board.shared && board.id !== live) continue
     const url = urlOf ? urlOf(board.id) : board.url
     if (url === null) continue // closed: it goes from the others' boards below
+    if (board.id !== live && sharingPaused(board, url)) {
+      mine.add(`${by}:${board.id}`) // on another site: the others keep the last page of it, nothing new goes
+      continue
+    }
     const c = url === board.url ? board : { ...board, url }
     if (c.id <= 0 || c.private || !/^https?:/i.test(c.url)) continue
     const key = `${by}:${c.id}`
@@ -254,15 +302,37 @@ export function readInto(
   local: CanvasState,
   me?: string,
   /** A picture from the room's store, as an image address, once it is here (undefined until then). */
-  picOf?: (id: string) => string | undefined
+  picOf?: (id: string) => string | undefined,
+  /** A shared file's copy on this computer (a path), once it is here (undefined until then). */
+  fileOf?: (sealed: string) => string | undefined
 ): CanvasState {
   const shared = listOf(doc, 'cards')
-  const own = local.cards.filter((c) => !isShared(c) && !isMirror(c.id))
+  const inRoom = new Set(shared.map((x) => x.card.id))
+  // this person's own files stay as they are here (path and all): private ones, and shared ones not in the room yet
+  const own = local.cards.filter(
+    (c) =>
+      !isMirror(c.id) &&
+      (!isShared(c) || (isOwnFile(local.items[String(c.id)]) && !inRoom.has(c.id)))
+  )
   const ownIds = new Set(own.map((c) => c.id))
+  const localUrl = new Map(local.cards.map((c) => [c.id, c.url]))
   const items: Record<string, CanvasItem> = {}
   for (const [id, item] of Object.entries(local.items))
-    if (!isShared({ id: Number(id) } as CanvasCard) && !isMirror(Number(id))) items[id] = item
-  for (const x of shared) items[String(x.card.id)] = x.item
+    if (
+      ownIds.has(Number(id)) ||
+      (!isShared({ id: Number(id) } as CanvasCard) && !isMirror(Number(id)))
+    )
+      items[id] = item
+  for (const x of shared) {
+    const id = String(x.card.id)
+    const mine = local.items[id]
+    if (isOwnFile(mine))
+      items[id] = mine // the sharer's own: their file, not the room's copy
+    else if (x.item.sealed) {
+      const file = fileOf?.(x.item.sealed)
+      items[id] = file ? { ...x.item, file, url: fileUrl(file) } : x.item
+    } else items[id] = x.item
+  }
   // the others' tabs: where their owner has them, as the page they are (opened here, it is a page of one's own).
   // A page already on this board (this person's own tab, or someone else's first) shows once: opening someone's tab
   // here makes a tab of one's own, which goes back to them too, and both boards showed the page twice.
@@ -310,7 +380,15 @@ export function readInto(
     notes: listOf(doc, 'notes'),
     marks: listOf(doc, 'marks'),
     connectors: [...listOf(doc, 'connectors'), ...ownArrows],
-    cards: [...own, ...shared.map((x) => x.card), ...mirrors],
+    cards: [
+      ...own,
+      // the sharer's own file: where the room has it, as their own card (its address on this computer)
+      ...shared.map((x) => {
+        const url = isOwnFile(local.items[String(x.card.id)]) ? localUrl.get(x.card.id) : undefined
+        return url !== undefined ? { ...x.card, url } : x.card
+      }),
+      ...mirrors
+    ],
     items
   }
 }

@@ -19,13 +19,22 @@ import {
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { userInfo } from 'os'
-import { join } from 'path'
+import { extname, join } from 'path'
 import * as Y from 'yjs'
 import { emptyState, type CanvasState } from '@shared/ai/canvas'
 import { ShareClient, type ShareStatus } from '@shared/share/client'
 import { inviteLink, newRoom, parseInvite } from '@shared/share/crypto'
 import { chatOf, sayIn, watchChat, type ChatMessage } from '@shared/share/chat'
-import { isEmptyDoc, readInto, sharedSeq, withTabs, writeDiff } from '@shared/share/doc'
+import {
+  isEmptyDoc,
+  parseSealed,
+  readInto,
+  SHAREABLE_FILE,
+  sharedSeq,
+  withTabs,
+  writeDiff
+} from '@shared/share/doc'
+import { sharingPaused } from '@shared/ai/canvasItems'
 import type { SharePerson, ShareState } from '@shared/types'
 import { parseRemoteInput, type RemoteInput } from '@shared/share/live'
 import { JsonStore } from './store'
@@ -120,7 +129,16 @@ export interface ShareDeps {
   openBoard: (spaceId: number) => void
   /** Ask whether someone may drive the live tab, above every page (PermissionManager.askDrive). */
   askDrive: (name: string, color: string) => { answer: Promise<boolean>; cancel: () => void }
+  /** The board's files (CanvasContent): a card's file read, and a shared one kept as the board's own copy. */
+  files: {
+    bytes: (req: { file: string }) => Promise<{ data: Uint8Array } | null>
+    store: (req: { data: Uint8Array; name: string }) => Promise<{ file: string } | null>
+  }
 }
+
+/** The largest file a board shares (in parts of FILE_PART: the relay takes one store item of about 5 MB at most). */
+const FILE_MAX = 25 * 1024 * 1024
+const FILE_PART = 5 * 1024 * 1024
 
 export class ShareService {
   private store = new JsonStore<{
@@ -162,9 +180,12 @@ export class ShareService {
     url: (id: number) => string | null
     all: () => Array<{ id: number; url: string }>
     live?: number
+    files: (file: string) => string | null
   } {
-    const live = this.rooms.get(spaceId)?.liveTab
+    const room = this.rooms.get(spaceId)
+    const live = room?.liveTab
     return {
+      files: (file) => (room ? this.sealedFor(room, file) : null),
       by: this.who,
       title: (id) => this.d.tabTitle(id),
       url: (id) => this.d.tabUrl(id, spaceId),
@@ -177,7 +198,13 @@ export class ShareService {
   /** The cards of this person's tabs that go to the room: those shared, and the live one (with a card made for it). */
   private sharedCards(room: Room, last: CanvasState): CanvasState['cards'] {
     const live = room.liveTab
-    const s = live === undefined ? last : withTabs(last, this.d.tabsOf(room.spaceId).filter((t) => t.id === live))
+    const s =
+      live === undefined
+        ? last
+        : withTabs(
+            last,
+            this.d.tabsOf(room.spaceId).filter((t) => t.id === live)
+          )
     return s.cards.filter((c) => c.shared || c.id === live)
   }
 
@@ -204,7 +231,10 @@ export class ShareService {
       for (const c of this.sharedCards(room, room.last)) {
         if (budget <= 0) break
         // only a normal tab of this space now (see TabManager.tabUrl): never another space's under an old card's id
-        if (c.id <= 0 || c.private || this.d.tabUrl(c.id, room.spaceId) === null) continue
+        const url = c.id > 0 && !c.private ? this.d.tabUrl(c.id, room.spaceId) : null
+        if (url === null) continue
+        // a shared tab on another site than it was shared on: its picture stays home (see sharingPaused)
+        if (c.id !== room.liveTab && sharingPaused(c, url)) continue
         const key = `${room.spaceId}:${c.id}`
         const at = this.d.thumbAt(c.id)
         const was = this.sentPics.get(key)
@@ -223,6 +253,83 @@ export class ShareService {
       // the cards name their pictures now: the tabs go into the room again (nothing else changed)
       if (changed && room.last)
         writeDiff(room.doc, room.last, room.last, LOCAL, this.tabsOut(room.spaceId))
+    }
+  }
+
+  /**
+   * Files of this computer shared on a board, by space and path: their sealed id in the room once they are there, ''
+   * while going, null when they cannot go (too big, not a picture or PDF). Kept for this run: after a restart a shared
+   * file goes once more (ponytail: keep them with the room if re-sending large files ever matters).
+   */
+  private sealedFiles = new Map<string, string | null>()
+  /** Shared files that came from the room, by sealed id: the path of this computer's copy; and those on their way. */
+  private gotFiles = new Map<string, string>()
+  private filesComing = new Set<string>()
+  /** Shared files that could not be had (gone from the relay, or not well-formed): not asked for again this run. */
+  private filesGone = new Set<string>()
+
+  /** A shared file's sealed id in the room; null until it is there (it goes now, and the board is written again then). */
+  private sealedFor(room: Room, file: string): string | null {
+    const key = `${room.spaceId}:${file}`
+    const have = this.sealedFiles.get(key)
+    if (have !== undefined) return have || null
+    this.sealedFiles.set(key, '')
+    void this.sealFile(room, file).then((sealed) => {
+      // a failed upload (the network) is tried again on the next write; one that can never go is not
+      if (sealed === undefined) this.sealedFiles.delete(key)
+      else this.sealedFiles.set(key, sealed)
+      if (sealed && this.rooms.get(room.spaceId) === room && room.last)
+        writeDiff(room.doc, room.last, room.last, LOCAL, this.tabsOut(room.spaceId))
+    })
+    return null
+  }
+
+  /** A file into the room's store, in parts: "id1.id2/.ext"; null when it cannot go, undefined when it failed. */
+  private async sealFile(room: Room, file: string): Promise<string | null | undefined> {
+    const ext = extname(file).toLowerCase()
+    if (!SHAREABLE_FILE.test(ext)) return null
+    const got = await this.d.files.bytes({ file })
+    if (!got || got.data.byteLength > FILE_MAX) return null
+    const ids: string[] = []
+    for (let at = 0; at < got.data.byteLength || at === 0; at += FILE_PART) {
+      const id = await room.client.putBlob(got.data.subarray(at, at + FILE_PART))
+      if (!id) return undefined
+      ids.push(id)
+    }
+    return `${ids.join('.')}/${ext}`
+  }
+
+  /** A shared file's copy on this computer, once it is here; fetched the first time it is wanted. */
+  private fileOf(room: Room): (sealed: string) => string | undefined {
+    return (sealed) => {
+      const have = this.gotFiles.get(sealed)
+      if (have !== undefined || this.filesComing.has(sealed) || this.filesGone.has(sealed))
+        return have
+      const parsed = parseSealed(sealed)
+      if (!parsed) return void this.filesGone.add(sealed)
+      this.filesComing.add(sealed)
+      void (async (): Promise<void> => {
+        const parts: Uint8Array[] = []
+        for (const id of parsed.ids) {
+          const bytes = await room.client.getBlob(id)
+          if (!bytes) return void this.filesGone.add(sealed)
+          parts.push(bytes)
+        }
+        const size = parts.reduce((n, p) => n + p.byteLength, 0)
+        if (size > FILE_MAX) return void this.filesGone.add(sealed)
+        const data = new Uint8Array(size)
+        let at = 0
+        for (const p of parts) {
+          data.set(p, at)
+          at += p.byteLength
+        }
+        // kept as the board's own copy (named by its content; the board reads only from there)
+        const kept = await this.d.files.store({ data, name: 'Shared' + parsed.ext })
+        if (!kept) return
+        this.gotFiles.set(sealed, kept.file)
+        if (this.rooms.get(room.spaceId) === room) this.applySoon(room)
+      })().finally(() => this.filesComing.delete(sealed))
+      return undefined
     }
   }
 
@@ -386,7 +493,7 @@ export class ShareService {
       const base =
         room.last ?? this.d.canvas.load(room.spaceId).state ?? emptyState(this.d.canvas.boot)
       const next = {
-        ...readInto(room.doc, base, this.who, this.picOf(room)),
+        ...readInto(room.doc, base, this.who, this.picOf(room), this.fileOf(room)),
         seq: sharedSeq(base.seq, room.doc.clientID)
       }
       this.d.canvas.saveQuiet(room.spaceId, next)
@@ -762,7 +869,11 @@ export function registerShare(d: ShareDeps): ShareService {
   })
   ipcMain.handle('share:ask-drive', (e, id: unknown, name: unknown, color: unknown) =>
     mine(e) && typeof name === 'string'
-      ? svc.askDrive(num(id), name, typeof color === 'string' && /^#[0-9a-f]{3,8}$/i.test(color) ? color : '#888')
+      ? svc.askDrive(
+          num(id),
+          name,
+          typeof color === 'string' && /^#[0-9a-f]{3,8}$/i.test(color) ? color : '#888'
+        )
       : false
   )
   ipcMain.on('share:ask-drive-cancel', (e, id: unknown) => {
