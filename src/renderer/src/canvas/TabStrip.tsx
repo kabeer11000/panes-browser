@@ -67,6 +67,13 @@ export function StripTab({
         e.stopPropagation()
         window.api.closeTab(m.id)
       }}
+      // from the keyboard: Delete closes the focused one (its menu is the Menu key or Shift+F10, as anywhere)
+      onKeyDown={(e) => {
+        if (e.key !== 'Delete') return
+        e.preventDefault()
+        e.stopPropagation()
+        window.api.closeTab(m.id)
+      }}
       onClick={
         onDragStart
           ? undefined
