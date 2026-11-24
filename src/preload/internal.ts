@@ -33,6 +33,7 @@ if (location.protocol === 'panes:') {
     dumpRemove: (id) => ipcRenderer.invoke('int:dump-remove', id),
     downloadsList: () => ipcRenderer.invoke('int:downloads-list'),
     downloadAction: (id, action) => ipcRenderer.invoke('int:download-action', id, action),
+    downloadDrag: (id) => ipcRenderer.send('int:download-drag', id),
     downloadPreviews: (ids) => ipcRenderer.invoke('int:download-previews', ids),
     readerGet: (key) => ipcRenderer.invoke('int:reader-get', key),
     readerExit: () => ipcRenderer.invoke('int:reader-exit'),

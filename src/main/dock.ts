@@ -230,8 +230,10 @@ export function registerDock(
     }
   })
   ipcMain.on('dock:drag', (e, id: unknown) => {
-    const item = fromDock(e) && typeof id === 'number' ? downloads.dragItem(id) : null
-    if (item) e.sender.startDrag(item)
+    if (!fromDock(e) || typeof id !== 'number') return
+    void downloads.dragItem(id).then((item) => {
+      if (item && !e.sender.isDestroyed()) e.sender.startDrag(item)
+    })
   })
   ipcMain.on('dock:mode', (e, mode: unknown) => {
     if (fromBin(e) && (mode === 'peek' || mode === 'out')) dock.setMode(mode)

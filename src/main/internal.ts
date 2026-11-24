@@ -289,6 +289,13 @@ export function registerInternalIpc(d: Deps): void {
         }).show()
     })
   })
+  // a finished download dragged out of the Downloads page: the system's drag, with the file (as the dock's)
+  ipcMain.on('int:download-drag', (e, id: unknown) => {
+    if (!e.senderFrame?.url.startsWith('panes://') || typeof id !== 'number') return
+    void d.downloads.dragItem(id).then((item) => {
+      if (item && !e.sender.isDestroyed()) e.sender.startDrag(item)
+    })
+  })
   ipcMain.on('int:passwords-watch-cancel', (e) => {
     if (e.senderFrame?.url.startsWith('panes://')) d.passwordExport.cancel()
   })

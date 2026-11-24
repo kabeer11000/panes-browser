@@ -65,7 +65,16 @@ export function Downloads(): React.JSX.Element {
       )}
       <div className="u-group" hidden={items.length === 0}>
         {items.map((d) => (
-          <div key={d.id} className="u-row int-item download">
+          <div
+            key={d.id}
+            className="u-row int-item download"
+            // a finished file drags out like one from a folder: to the desktop, an email, a chat
+            draggable={d.state === 'completed' && !d.missing}
+            onDragStart={(e) => {
+              e.preventDefault() // the system's drag, started by main with the file itself
+              window.panesInternal.downloadDrag(d.id)
+            }}
+          >
             {previews[d.id] ? (
               <span className="dl-thumb" style={{ backgroundImage: `url(${previews[d.id]})` }} />
             ) : (

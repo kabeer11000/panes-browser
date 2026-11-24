@@ -967,6 +967,8 @@ export interface InternalApi {
   dumpRemove(id: number): Promise<void>
   downloadsList(): Promise<DownloadInfo[]>
   downloadAction(id: number, action: DownloadAction): Promise<void>
+  /** Drag a finished download's file out (to the desktop, a folder, another app). */
+  downloadDrag(id: number): void
   /** Opens a folder picker; the chosen folder becomes the download folder and is returned, null if cancelled. */
   pickDownloadDir(): Promise<string | null>
   /** Pictures of finished downloads (data URLs), for the ones that have one yet; the rest are made in the background. */

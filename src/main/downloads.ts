@@ -145,12 +145,17 @@ export class DownloadManager {
   }
 
   /** What a drag out of the bin carries: the file and its picture, or null when either is not there. */
-  dragItem(id: number): { file: string; icon: Electron.NativeImage } | null {
+  async dragItem(id: number): Promise<{ file: string; icon: Electron.NativeImage } | null> {
     const d = this.store.value.items.find((x) => x.id === id)
+    if (!d || d.state !== 'completed' || !existsSync(d.savePath)) return null
     const preview = this.previews.get(id)
-    if (!d || d.state !== 'completed' || !preview || !existsSync(d.savePath)) return null
-    const icon = nativeImage.createFromDataURL(preview).resize({ width: 64 })
-    return icon.isEmpty() ? null : { file: d.savePath, icon }
+    const pic = preview ? nativeImage.createFromDataURL(preview).resize({ width: 64 }) : null
+    // a file with no picture of its own (a zip, an installer, a document) drags with the system's icon for its type
+    const icon =
+      pic && !pic.isEmpty()
+        ? pic
+        : await app.getFileIcon(d.savePath, { size: 'normal' }).catch(() => null)
+    return icon && !icon.isEmpty() ? { file: d.savePath, icon } : null
   }
 
   /** Downloads from earlier sessions get their pictures the first time they are asked for: the ones the bin shows. */
