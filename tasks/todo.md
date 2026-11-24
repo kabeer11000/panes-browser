@@ -367,12 +367,12 @@ Fixes: the flash (Chromium's viewer, then ours) and the flaky Ctrl+F in live PDF
 ## Chrome parity QA (2026-11-24)
 Found by checking which of Electron's app-side hooks Panes handles (unhandled = refused or silent):
 - [x] HTTP basic auth (`login`): sign-in card (e6d71eb)
-- [ ] File System Access (`fileSystem` permission, refused today): vscode.dev, Excalidraw, Photopea cannot save to a file
-- [ ] Storage Access (`storage-access`, `top-level-storage-access`, refused today): embedded sign-ins fail
-- [ ] Local network access (`local-network-access`, refused today): public sites reaching devices at home (Plex, printers)
-- [ ] Client certificates (`select-client-certificate`): Electron silently uses the first certificate; Chrome asks
-- [ ] Context menu: Save link as, Copy image address, View page source, Copy link to highlight
-- [ ] Ctrl+G / Ctrl+Shift+G find next / previous
+- [x] File System Access (`fileSystem` permission, refused today): vscode.dev, Excalidraw, Photopea cannot save to a file
+- [x] Storage Access (`storage-access`, `top-level-storage-access`, refused today): embedded sign-ins fail
+- [-] Local network access: dropped, Electron cannot ask it (see kindsFor)
+- [x] Client certificates (`select-client-certificate`): Electron silently uses the first certificate; Chrome asks
+- [x] Context menu: Save link as, Copy image address, View page source, Copy link to highlight
+- [x] Ctrl+G / Ctrl+Shift+G find next / previous
 - [ ] Global Privacy Control setting (Sec-GPC header + navigator.globalPrivacyControl)
 - [ ] HTTPS-first: http navigations try https first, fall back with a notice
 - [ ] Middle-click autoscroll (Chrome on Windows)
