@@ -363,3 +363,19 @@ Fixes: the flash (Chromium's viewer, then ours) and the flaky Ctrl+F in live PDF
 - [x] Top-left: one space chip (colour dot + name) with a dropdown: spaces, New space, Undo history; history icon removed
 - [x] Gestures (Windows touchpad): two-finger horizontal swipe on a page = back / forward with an arrow that fills; two fingers from the pad's left / right edge = previous / next tab; each on/off in Settings
 - [ ] Release
+
+## Chrome parity QA (2026-11-24)
+Found by checking which of Electron's app-side hooks Panes handles (unhandled = refused or silent):
+- [x] HTTP basic auth (`login`): sign-in card (e6d71eb)
+- [ ] File System Access (`fileSystem` permission, refused today): vscode.dev, Excalidraw, Photopea cannot save to a file
+- [ ] Storage Access (`storage-access`, `top-level-storage-access`, refused today): embedded sign-ins fail
+- [ ] Local network access (`local-network-access`, refused today): public sites reaching devices at home (Plex, printers)
+- [ ] Client certificates (`select-client-certificate`): Electron silently uses the first certificate; Chrome asks
+- [ ] Context menu: Save link as, Copy image address, View page source, Copy link to highlight
+- [ ] Ctrl+G / Ctrl+Shift+G find next / previous
+- [ ] Global Privacy Control setting (Sec-GPC header + navigator.globalPrivacyControl)
+- [ ] HTTPS-first: http navigations try https first, fall back with a notice
+- [ ] Middle-click autoscroll (Chrome on Windows)
+- [ ] window.prompt() (Electron does not implement it)
+Not now (large, say if wanted): install web apps (PWA), address/card autofill, page translation, QR code for a page.
+Already there: leave-site dialog, spellcheck + suggestions, HTML fullscreen, keyboard/pointer lock, device pickers, Ctrl+1-9, F3/F6/F11, print, find, PiP, picture/video context items.
