@@ -6,6 +6,7 @@ import {
   type MenuItemConstructorOptions,
   type WebContents
 } from 'electron'
+import { highlightLink } from '@shared/textFragment'
 
 interface Actions {
   openTab: (url: string) => void
@@ -20,6 +21,8 @@ interface Actions {
   /** Circle to search on this page. */
   circle: () => void
   searchUrl: (text: string) => string
+  /** The page's source, in a new tab (Ctrl+U). */
+  viewSource: () => void
   /** The page is on the canvas board (its preview): what opens becomes a card, so the words say so. */
   onBoard?: boolean
 }
@@ -80,6 +83,9 @@ export function showContextMenu(
         label: a.onBoard ? 'Open link side by side' : 'Open link in split view',
         click: () => a.openSplit(p.linkURL)
       },
+      ...(/^https?:/i.test(p.linkURL)
+        ? [{ label: 'Save link as...', click: () => wc.downloadURL(p.linkURL) }]
+        : []),
       { label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) },
       sep
     )
@@ -92,6 +98,7 @@ export function showContextMenu(
       },
       { label: 'Copy image', click: () => wc.copyImageAt(p.x, p.y) },
       { label: 'Save image as...', click: () => wc.downloadURL(p.srcURL) },
+      { label: 'Copy image address', click: () => clipboard.writeText(p.srcURL) },
       sep
     )
   }
@@ -115,6 +122,12 @@ export function showContextMenu(
     const short = text.length > 28 ? text.slice(0, 28) + '...' : text
     items.push(
       { role: 'copy' },
+      ...(() => {
+        const link = highlightLink(p.pageURL, text)
+        return link
+          ? [{ label: 'Copy link to highlight', click: () => clipboard.writeText(link) }]
+          : []
+      })(),
       { label: `Search for "${short}"`, click: () => a.openTab(a.searchUrl(text)) },
       ...(a.explain ? [{ label: 'Explain, translate or summarise', click: a.explain }] : []),
       ...(a.askAi
@@ -137,6 +150,7 @@ export function showContextMenu(
       { label: 'Reload', click: () => wc.reload() },
       sep,
       { label: 'Print...', accelerator: 'CmdOrCtrl+P', click: a.print },
+      { label: 'View page source', accelerator: 'CmdOrCtrl+U', click: a.viewSource },
       { label: 'Circle to search', accelerator: 'CmdOrCtrl+Shift+S', click: a.circle },
       ...(a.askAi ? [{ label: 'Ask AI about this page', click: () => a.askAi?.(null) }] : []),
       sep

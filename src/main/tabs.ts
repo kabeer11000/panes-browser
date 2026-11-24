@@ -3898,7 +3898,8 @@ export class TabManager {
                 ? null
                 : () => this.onAskSelection?.(),
             circle: () => this.onCircle?.(),
-            searchUrl: (t) => this.deps.settings.searchUrl() + encodeURIComponent(t)
+            searchUrl: (t) => this.deps.settings.searchUrl() + encodeURIComponent(t),
+            viewSource: () => this.viewSource(wc.getURL())
           })
     )
     wc.on('enter-html-full-screen', () => this.setFullscreen(id))
@@ -4168,6 +4169,8 @@ export class TabManager {
       else if (k === 'b') this.command('toggle-sidebar')
       else if (k === '\\') this.toggleSplit()
       else if (k === 'f') this.command('find')
+      else if (k === 'g')
+        this.findAgain(true) // as F3 (Chrome's Ctrl+G)
       // on the board Ctrl+D duplicates the selected cards (the board's own key handler)
       else if (k === 'd' && !this.canvasMode) this.toggleBookmark()
       else if (k === 'h') this.openInternal('history')
@@ -4196,6 +4199,8 @@ export class TabManager {
       else if (k === 'n') this.newPrivateTab()
       else if (k === 'delete') this.openInternal('settings', 'clear-data')
       else if (k === 'b') this.openInternal('bookmarks')
+      else if (k === 'g')
+        this.findAgain(false) // as Shift+F3
       else if (k === 'j' || k === 'c') this.toggleDevTools(this.current())
       else if (k === 'pagedown') this.moveActive(1)
       else if (k === 'pageup') this.moveActive(-1)
