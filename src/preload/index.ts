@@ -139,6 +139,7 @@ const api: PanesApi = {
     ice: (id) => ipcRenderer.invoke('share:ice', id),
     pointer: (id) => ipcRenderer.invoke('share:pointer', id),
     pageCursor: (id) => ipcRenderer.invoke('share:page-cursor', id),
+    liveVideo: (id) => ipcRenderer.invoke('share:live-video', id),
     liveAspect: (id, aspect) => ipcRenderer.send('share:live-aspect', id, aspect),
     askDrive: (id, name, color) => ipcRenderer.invoke('share:ask-drive', id, name, color),
     askDriveCancel: (id) => ipcRenderer.send('share:ask-drive-cancel', id),

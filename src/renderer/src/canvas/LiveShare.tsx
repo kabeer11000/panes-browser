@@ -5,7 +5,13 @@ import { ChevronDownIcon, SpeakerIcon } from '@renderer/components/icons'
 import { holdOverlay, releaseOverlay } from '@renderer/overlay'
 import { useShareState } from '@renderer/components/useShare'
 import type { SharePerson } from '@shared/types'
-import { videoBox, type LiveControl, type RemoteInput } from '@shared/share/live'
+import {
+  focusInset,
+  videoBox,
+  videoRect,
+  type LiveControl,
+  type RemoteInput
+} from '@shared/share/live'
 import { takeLine, type LiveUser } from '@renderer/liveLine'
 import { Face } from '@renderer/components/ShareSection'
 
@@ -150,6 +156,9 @@ function LiveViewer({
   const [hasSound, setHasSound] = useState(false)
   /** The page's own cursor under the pointer (the host says it): a hand on links, a bar on text. */
   const [cursor, setCursor] = useState('default')
+  /** Where their page's video is (the host says, checked), and the part of it the panel shows now (null: all). */
+  const [vid, setVid] = useState<[number, number, number, number] | null>(null)
+  const focusRef = useRef<[number, number, number, number] | null>(null)
   const hostRtc = host.rtc
   const stage = useRef<HTMLDivElement>(null)
   // The page views are native and paint over the window's own UI: while the viewer is open they stand aside as
@@ -175,17 +184,22 @@ function LiveViewer({
         else if (msg.k === 'denied') setControl('no')
         else if (msg.k === 'revoked') setControl('none')
         else if (msg.k === 'cur' && /^[a-z-]{1,24}$/.test(msg.c)) setCursor(msg.c)
+        else if (msg.k === 'vid') setVid(videoRect(msg.r))
       },
       // the room it could fill (the window, less its margin and bar), not the picture's own box: out of the host's
       // sight their tab takes this shape, and the picture then grows to fill it
       size: () => {
         const d = window.devicePixelRatio || 1
         const r = viewRoom()
-        return { w: r.w * d, h: r.h * d }
+        // focused on the video, only part of the picture fills the room: ask for it that much sharper (same shape)
+        const f = focusRef.current
+        const k = f ? Math.min(4, 1 / Math.min(f[2], f[3])) : 1
+        return { w: r.w * d * k, h: r.h * d * k }
       }
     }
     const held = takeLine(spaceId, hostRtc, user)
     lineRef.current = held
+    setVid(held.line.video) // said before this viewer opened (the card's line was up first)
     user.changed()
     let t = 0
     const later = (): void => {
@@ -211,6 +225,15 @@ function LiveViewer({
     if (ch?.readyState === 'open') ch.send(JSON.stringify(msg))
   }
   const driving = control === 'yes'
+  /** Focus on video: the page's video alone, filling the panel. Off while driving (clicks go to the whole page). */
+  const [focusOn, setFocusOn] = useState(true)
+  const focus = vid && focusOn && !driving ? vid : null
+  const focusKey = focus ? focus.join(',') : ''
+  useEffect(() => {
+    focusRef.current = focus
+    lineRef.current?.sendSize()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- focusKey stands for focus (a new array each render)
+  }, [focusKey])
   const hostFirst = host.name.split(' ')[0]
   // Esc puts it away, as it does the preview (not while driving: then keys are for their page)
   useEffect(() => {
@@ -345,6 +368,17 @@ function LiveViewer({
                   : 'Ask to control'}
             </button>
           )}
+          {vid && !driving && (
+            <button
+              type="button"
+              className="live-btn"
+              aria-pressed={focusOn}
+              title={focusOn ? 'Show their whole page' : 'Show only the video, filling the panel'}
+              onClick={() => setFocusOn((v) => !v)}
+            >
+              {focusOn ? 'Whole page' : 'Focus video'}
+            </button>
+          )}
           {hasSound && (
             <button
               type="button"
@@ -371,11 +405,7 @@ function LiveViewer({
       <div
         ref={stage}
         className={'live-stage' + (driving ? ' driving' : '')}
-        style={
-          driving
-            ? ({ cursor, '--pc': host.color } as React.CSSProperties)
-            : undefined
-        }
+        style={driving ? ({ cursor, '--pc': host.color } as React.CSSProperties) : undefined}
         tabIndex={driving ? 0 : -1}
         onPointerMove={(e) => {
           if (!driving) return
@@ -427,10 +457,16 @@ function LiveViewer({
           input({ t: 'key', key: e.key, up: true, mods: mods(e) })
         }}
       >
-        <video ref={attach} muted={!sound} playsInline disablePictureInPicture />
-        {state === 'live' && (
-          <LivePointers sinkRef={ptrSink} video={video} host={host} people={people} />
-        )}
+        <video
+          ref={attach}
+          muted={!sound}
+          playsInline
+          disablePictureInPicture
+          style={focus ? ({ objectViewBox: focusInset(focus) } as React.CSSProperties) : undefined}
+        />
+        {state === 'live' &&
+          // pointers are placed on the whole page: not over a part of it
+          !focus && <LivePointers sinkRef={ptrSink} video={video} host={host} people={people} />}
         {state !== 'live' && (
           <p className="live-wait">
             {state === 'gone'

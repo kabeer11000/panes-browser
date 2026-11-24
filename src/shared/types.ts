@@ -388,6 +388,8 @@ export interface PanesApi {
     pointer(spaceId: number): Promise<{ x: number; y: number } | null>
     /** The live tab's page cursor (a CSS cursor name), for whoever drives it. */
     pageCursor(spaceId: number): Promise<string | null>
+    /** Where the live tab's main video is (x, y, w, h as fractions of its page), or null. */
+    liveVideo(spaceId: number): Promise<[number, number, number, number] | null>
     /** The shape the watchers see the live tab in (width / height): while the host is not looking at it, it takes it. */
     liveAspect(spaceId: number, aspect: number): void
     /**

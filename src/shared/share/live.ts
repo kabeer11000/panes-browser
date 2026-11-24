@@ -43,6 +43,28 @@ export type LiveControl =
   | { k: 'ptr'; who: number; x: number | null; y: number }
   /** The page's mouse cursor under the driver's pointer (a CSS cursor name), host to driver. */
   | { k: 'cur'; c: string }
+  /** Where the page's main video is (x, y, w, h as fractions of the page), host to watchers; null: none. */
+  | { k: 'vid'; r: [number, number, number, number] | null }
+
+/**
+ * The page's video as the host said where it is, checked: x, y, w, h in 0..1 with the video inside the page and big
+ * enough to be worth showing alone. Null for anything else (it comes from the other side of the line).
+ */
+export function videoRect(v: unknown): [number, number, number, number] | null {
+  if (!Array.isArray(v) || v.length !== 4) return null
+  const [x, y, w, h] = v as unknown[]
+  if (![x, y, w, h].every((n) => typeof n === 'number' && Number.isFinite(n))) return null
+  const r = [x, y, w, h] as [number, number, number, number]
+  if (r[0] < 0 || r[1] < 0 || r[2] < 0.05 || r[3] < 0.05) return null
+  if (r[0] + r[2] > 1.001 || r[1] + r[3] > 1.001) return null
+  return r
+}
+
+/** CSS object-view-box showing only that part of the picture (the viewer's Focus on video). */
+export function focusInset([x, y, w, h]: readonly [number, number, number, number]): string {
+  const pc = (n: number): string => `${(Math.max(0, n) * 100).toFixed(2)}%`
+  return `inset(${pc(y)} ${pc(1 - x - w)} ${pc(1 - y - h)} ${pc(x)})`
+}
 
 const num = (v: unknown, lo: number, hi: number): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null
@@ -159,9 +181,19 @@ export function sizeFor(
 
 /** Keys with Ctrl (or Cmd) the driver may press: editing inside the page. Everything else stays with the host. */
 const EDIT_KEYS = new Set([
-  'a', 'c', 'x', 'z', 'y',
-  'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-  'Backspace', 'Delete', 'Home', 'End'
+  'a',
+  'c',
+  'x',
+  'z',
+  'y',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'Backspace',
+  'Delete',
+  'Home',
+  'End'
 ])
 /** Keys the driver may press with no modifier but Shift (F-keys open devtools, reload, fullscreen: host only). */
 const BLOCKED_PLAIN = /^F\d{1,2}$/

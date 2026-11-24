@@ -150,6 +150,24 @@ import type { SpaceStore } from './spaces'
 import { JsonStore } from './store'
 import { holdUnseen } from './unseen'
 
+/** The page's main video, as LiveVideo wants it (see TabManager.liveVideo). Runs in the page; reads only layout. */
+const LIVE_VIDEO_SCRIPT = `(() => {
+  const W = innerWidth, H = innerHeight
+  let best = null, area = 0
+  for (const v of document.querySelectorAll('video')) {
+    if (v.readyState < 2 || !v.videoWidth || !v.videoHeight) continue
+    const e = v.getBoundingClientRect()
+    const k = Math.min(e.width / v.videoWidth, e.height / v.videoHeight)
+    const w = v.videoWidth * k, h = v.videoHeight * k
+    const l = Math.max(0, e.left + (e.width - w) / 2), t = Math.max(0, e.top + (e.height - h) / 2)
+    const r = Math.min(W, e.left + (e.width + w) / 2), b = Math.min(H, e.top + (e.height + h) / 2)
+    if (r - l <= 0 || b - t <= 0 || (r - l) * (b - t) <= area) continue
+    area = (r - l) * (b - t)
+    best = [l / W, t / H, (r - l) / W, (b - t) / H]
+  }
+  return best && area >= W * H * 0.08 ? best : null
+})()`
+
 /** How long a live tab's "is a password field focused" answer holds before keys ask again (a click resets it). */
 /**
  * A tab painting out of sight: its own slot's size, or (shown live, with the watchers' shape known) that shape at the
@@ -4453,6 +4471,23 @@ export class TabManager {
   }
 
   /** The live tab's page cursor (CSS name, as Chromium says it), for whoever drives it. */
+  /**
+   * Where the main video of a live tab's page is, for the watchers' Focus on video: the biggest one with a picture,
+   * as the picture itself (its own black bars left out), clipped to the page, in fractions of the page; null when
+   * there is none worth it. Videos inside frames are not looked for (ponytail: embedded players show the whole page).
+   */
+  async liveVideo(id: number): Promise<[number, number, number, number] | null> {
+    const t = this.tabs.get(id)
+    const wc = t && this.liveShared.has(id) ? liveContents(t) : undefined
+    if (!wc || wc.isDestroyed()) return null
+    try {
+      const r: unknown = await wc.executeJavaScript(LIVE_VIDEO_SCRIPT)
+      return Array.isArray(r) && r.length === 4 ? (r as [number, number, number, number]) : null
+    } catch {
+      return null
+    }
+  }
+
   liveCursor(id: number): string {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)

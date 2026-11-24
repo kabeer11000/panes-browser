@@ -327,6 +327,7 @@ function createWindow(): void {
     remoteInput: (id, ev) => tabs.remoteInput(id, ev),
     pointerIn: (id) => tabs.pointerIn(id),
     cursorIn: (id) => tabs.liveCursor(id),
+    videoIn: (id) => tabs.liveVideo(id),
     setLiveAspect: (id, aspect) => tabs.setLiveAspect(id, aspect),
     askDrive: (name, color) => permissionManager.askDrive(name, color),
     openBoard: (id) => {

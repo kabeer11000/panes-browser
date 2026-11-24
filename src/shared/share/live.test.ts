@@ -2,10 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import {
   downscaleFor,
   driverKeyAllowed,
-  electronKey,   parseRemoteInput,
+  electronKey,
+  focusInset,
+  parseRemoteInput,
   pointerOver,
   sizeFor,
-  videoBox
+  videoBox,
+  videoRect
 } from './live'
 
 describe('remote input from the person driving', () => {
@@ -155,5 +158,28 @@ describe('what the driver may press', () => {
     expect(driverKeyAllowed('F4', ['alt'])).toBe(false)
     expect(driverKeyAllowed('r', ['meta'])).toBe(false)
     for (const k of ['F5', 'F11', 'F12', 'ContextMenu']) expect(driverKeyAllowed(k, [])).toBe(false)
+  })
+})
+
+describe('focus on video', () => {
+  test('videoRect takes a video inside the page, big enough, and nothing else', () => {
+    expect(videoRect([0.1, 0.2, 0.6, 0.5])).toEqual([0.1, 0.2, 0.6, 0.5])
+    expect(videoRect([0, 0, 1, 1])).toEqual([0, 0, 1, 1])
+    for (const bad of [
+      null,
+      'inset(0)',
+      [0, 0, 1],
+      [0, 0, 0.01, 0.5],
+      [-0.1, 0, 0.5, 0.5],
+      [0.6, 0, 0.5, 0.5],
+      [0, 0, 0.5, Number.NaN],
+      [0, 0, '1', 1]
+    ])
+      expect(videoRect(bad)).toBeNull()
+  })
+
+  test('focusInset crops to exactly that part', () => {
+    expect(focusInset([0.1, 0.2, 0.6, 0.5])).toBe('inset(20.00% 30.00% 30.00% 10.00%)')
+    expect(focusInset([0, 0, 1, 1])).toBe('inset(0.00% 0.00% 0.00% 0.00%)')
   })
 })

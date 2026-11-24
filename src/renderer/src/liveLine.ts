@@ -1,4 +1,10 @@
-import { ICE_SERVERS, sizeFor, type LiveControl, type LiveSignal } from '@shared/share/live'
+import {
+  ICE_SERVERS,
+  sizeFor,
+  videoRect,
+  type LiveControl,
+  type LiveSignal
+} from '@shared/share/live'
 import { parse } from '@renderer/liveHost'
 
 /**
@@ -15,6 +21,8 @@ export interface LiveLine {
   hasSound: boolean
   ctl: RTCDataChannel | null
   mv: RTCDataChannel | null
+  /** Where the page's video is, as the host last said (checked): for a viewer opened after it was said. */
+  video: [number, number, number, number] | null
 }
 
 /** Something showing the line: told when it changes, and asked its size. */
@@ -76,12 +84,20 @@ export function takeLine(
 const lingering = new Map<string, number>()
 
 function open(spaceId: number, hostRtc: number): Shared {
-  const line: LiveLine = { stream: null, state: 'connecting', hasSound: false, ctl: null, mv: null }
+  const line: LiveLine = {
+    stream: null,
+    state: 'connecting',
+    hasSound: false,
+    ctl: null,
+    mv: null,
+    video: null
+  }
   const users = new Set<LiveUser>()
   const tell = (): void => {
     for (const u of users) u.changed()
   }
   const hear = (msg: LiveControl): void => {
+    if (msg.k === 'vid') line.video = videoRect(msg.r)
     for (const u of users) u.message?.(msg)
   }
   let lastSize = ''

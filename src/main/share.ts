@@ -123,6 +123,8 @@ export interface ShareDeps {
   pointerIn: (tabId: number) => { x: number; y: number } | null
   /** That tab's page cursor (CSS name). */
   cursorIn: (tabId: number) => string
+  /** Where that tab's main video is (fractions of its page), or null. */
+  videoIn: (tabId: number) => Promise<[number, number, number, number] | null>
   /** The shape the watchers see that tab in (width / height). */
   setLiveAspect: (tabId: number, aspect: number) => void
   /** Bring the window up on a space's board (a chat notification was clicked). */
@@ -798,6 +800,12 @@ export class ShareService {
   }
 
   /** The live tab's page cursor, for the driver (null when nothing is shown live). */
+  /** The live tab's main video, for the watchers' Focus on video. */
+  async liveVideo(spaceId: number): Promise<[number, number, number, number] | null> {
+    const room = this.rooms.get(spaceId)
+    return room?.liveTab !== undefined ? this.d.videoIn(room.liveTab) : null
+  }
+
   pageCursor(spaceId: number): string | null {
     const room = this.rooms.get(spaceId)
     return room?.liveTab !== undefined ? this.d.cursorIn(room.liveTab) : null
@@ -893,6 +901,7 @@ export function registerShare(d: ShareDeps): ShareService {
   ipcMain.handle('share:page-cursor', (e, id: unknown) =>
     mine(e) ? svc.pageCursor(num(id)) : null
   )
+  ipcMain.handle('share:live-video', (e, id: unknown) => (mine(e) ? svc.liveVideo(num(id)) : null))
   ipcMain.handle('share:chat', (e, id: unknown) => (mine(e) ? svc.chat(num(id)) : null))
   ipcMain.on('share:say', (e, id: unknown, text: unknown) => {
     if (mine(e) && typeof text === 'string') svc.say(num(id), text)

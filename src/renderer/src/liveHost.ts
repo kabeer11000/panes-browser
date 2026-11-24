@@ -214,6 +214,20 @@ export function useLiveHost(
         pointTo({ k: 'ptr', who: 0, x: at ? at.x : null, y: at ? at.y : 0 })
       })
     }, 33)
+    // where the page's video is, to every watcher as it changes (their Focus on video), once a second while watched
+    let lastVid = 'null'
+    const sendVid = (ch: RTCDataChannel | null): void => {
+      if (ch?.readyState === 'open') ch.send(`{"k":"vid","r":${lastVid}}`)
+    }
+    const video = window.setInterval(() => {
+      if (peers.current.size === 0 || !window.api.share?.liveVideo) return
+      void window.api.share.liveVideo(spaceId).then((r) => {
+        const key = JSON.stringify(r ? r.map((n) => Math.round(n * 1000) / 1000) : null)
+        if (dead || key === lastVid) return
+        lastVid = key
+        for (const p of peers.current.values()) sendVid(p.ctl)
+      })
+    }, 1000)
     /** A call to one watcher, carrying the tab's picture and the two control channels. */
     const offer = async (from: number, s: MediaStream): Promise<void> => {
       drop(from, true)
@@ -239,6 +253,7 @@ export function useLiveHost(
       peer.ctl = pc.createDataChannel('ctl', { ordered: true })
       // the driver calling again (they closed the picture and opened it): still theirs to drive
       peer.ctl.onopen = () => {
+        sendVid(peer.ctl) // a new watcher hears where the video is at once
         if (driverRef.current !== from) return
         peer.ctl?.send(JSON.stringify({ k: 'granted' }))
         lastCur = '' // and the cursor again
@@ -296,6 +311,7 @@ export function useLiveHost(
       off()
       window.clearInterval(retry)
       window.clearInterval(pointer)
+      window.clearInterval(video)
       waiting.clear()
       for (const [to, p] of all) {
         send(to, { k: 'bye' })
