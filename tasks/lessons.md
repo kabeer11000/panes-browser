@@ -137,3 +137,10 @@ both servers: two copies of liveHost, a live share stuck on "Connecting". I chas
 - Before blaming the app in a two-copy test, check `netstat -ano | grep 5173` shows one listener.
 - Start the second copy with its own renderer port: an untracked config in the repo root that imports
   electron.vite.config and sets `renderer.server = { port: 5174, strictPort: true }`, run with `-c`; delete it after.
+
+## Read the whole handler before calling a binding missing (2026-11-24)
+I said Ctrl+Shift+D was unbound after reading only the first half of handleKey's Ctrl+Shift chain, added it, and
+committed; the binding was further down, so mine was dead code (no-dupe-else-if caught it after the commit). My
+handleKey test passed because of the original line.
+- Grep the key across the whole function (`grep -n "k === 'd'"`) before adding a binding.
+- Gate commits on lint: `eslint ... && git commit`, not `;`.

@@ -54,6 +54,19 @@ export function StripTab({
       onPointerLeave={onHover ? () => onHover(null) : undefined}
       // with a drag start, the press is the drag's: a click without moving comes back through it as a pick
       onPointerDown={onDragStart}
+      // that tab's own menu (close, duplicate, pin...), native so it sits over a live page; a middle click closes it.
+      // Not the menu of the page open beside it (the header's), which closed the wrong one.
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        window.api.tabMenu(m.id)
+      }}
+      onAuxClick={(e) => {
+        if (e.button !== 1) return
+        e.preventDefault()
+        e.stopPropagation()
+        window.api.closeTab(m.id)
+      }}
       onClick={
         onDragStart
           ? undefined
