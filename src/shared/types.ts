@@ -1281,12 +1281,15 @@ export interface PermissionPromptState {
    * `realm` text (the site's own words), and `insecure` when the password would cross the network unencrypted.
    */
   login?: { host: string; realm: string; proxy: boolean; insecure: boolean; retry?: boolean }
+  /** The site asks for a certificate that says who you are (client certificate): the ones this computer has. */
+  certs?: Array<{ name: string; issuer: string; expires: number }>
 }
 
 export type PermissionAnswer =
   | { action: 'allow' | 'once' | 'block' | 'cancel' | 'openSettings' }
   | { action: 'share'; sourceId: string; audio: boolean }
   | { action: 'login'; username: string; password: string }
+  | { action: 'cert'; index: number }
 
 /** What the permission card (a transparent view above the page) can do. */
 export interface PermissionApi {

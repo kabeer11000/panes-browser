@@ -462,6 +462,14 @@ function createWindow(): void {
   installCertBypass()
   // HTTP authentication (a site's or a proxy's user name and password): asked on the permission card. Without a
   // handler Electron cancels, and such sites only ever showed "401 Unauthorized".
+  // A site asking which certificate says who you are: picked on the card, never sent without asking.
+  app.on('select-client-certificate', (event, wc, url, list, callback) => {
+    event.preventDefault()
+    if (list.length === 0 || !wc) return callback() // no page to ask on: none sent
+    void permissionManager
+      .askCertificate(wc, url, list)
+      .then((i) => callback(i === null ? undefined : list[i]))
+  })
   app.on('login', (event, wc, details, authInfo, callback) => {
     event.preventDefault()
     if (!wc && !authInfo.isProxy) return callback()

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { describeKinds } from '@shared/permissions'
 import type { PermissionAnswer, PermissionApi, PermissionPromptState } from '@shared/types'
+import { CertCard } from './CertCard'
 import { LoginCard } from './LoginCard'
 import { ShareDialog } from './ShareDialog'
 
@@ -69,6 +70,9 @@ export function Permission(): React.JSX.Element | null {
         onAnswer={answer}
       />
     )
+
+  if (state.certs)
+    return <CertCard key={id} ref={box} host={host(origin)} certs={state.certs} onAnswer={answer} />
 
   if (state.drive) {
     const first = state.drive.name.split(' ')[0]

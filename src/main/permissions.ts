@@ -347,6 +347,34 @@ export class PermissionManager {
     )
   }
 
+  /**
+   * A site asks for a client certificate: which one, from the card (Electron would send the first one without
+   * asking, telling any site that asks who you are). The index picked, or null to go on without one.
+   */
+  askCertificate(
+    wc: WebContents,
+    pageUrl: string,
+    list: ReadonlyArray<{ subjectName: string; issuerName: string; validExpiry: number }>
+  ): Promise<number | null> {
+    let origin = ''
+    try {
+      origin = new URL(pageUrl).origin
+    } catch {
+      // shown by name only
+    }
+    const certs = list.slice(0, 20).map((c) => ({
+      name: c.subjectName.slice(0, 200),
+      issuer: c.issuerName.slice(0, 200),
+      expires: c.validExpiry * 1000
+    }))
+    const { outcome } = this.enqueue({ origin, kinds: [], certs }, wc)
+    return outcome.then((o) =>
+      o.action === 'cert' && Number.isInteger(o.index) && o.index >= 0 && o.index < certs.length
+        ? o.index
+        : null
+    )
+  }
+
   /** Make the card's page now, so the first question shows at once instead of after a page loads. */
   warm(): void {
     if (!this.d.win.isDestroyed()) this.ensureView()
@@ -515,7 +543,7 @@ export class PermissionManager {
     // The picker is a modal dialog: it takes the keyboard (Esc, Enter, Tab) from its first frame. The small card
     // does not: it must not take typing away from the page.
     // The sign-in card takes it too: it is typed into, and the page is waiting on it anyway.
-    if (modal || next.state.login) view.webContents.focus()
+    if (modal || next.state.login || next.state.certs) view.webContents.focus()
     if (!view.webContents.isLoading()) view.webContents.send('perm:state', next.state)
   }
 

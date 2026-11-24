@@ -66,6 +66,38 @@ body {
   color: var(--fg-dim);
   font-size: var(--fs-s);
 }
+/* the certificate card (CertCard.tsx): one row a certificate, picked with a click */
+.perm-certs {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.perm-cert {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--r-3);
+  background: var(--surface-hover);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+}
+.perm-cert:hover {
+  background: var(--surface-active);
+}
+.perm-cert:focus-visible {
+  outline: var(--ring);
+  outline-offset: var(--ring-offset);
+}
+.perm-cert b {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.perm-cert span {
+  color: var(--fg-dim);
+  font-size: var(--fs-s);
+}
 /* the sign-in card (LoginCard.tsx): who asks, then the two fields */
 .perm-login-who {
   display: block;
