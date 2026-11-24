@@ -688,6 +688,11 @@ export interface Settings {
    * ones): everything then goes over TCP. Chromium's switch is for the whole browser, read at launch: after a restart.
    */
   quic: boolean
+  /**
+   * Global Privacy Control: every site is told not to sell or share your data (the Sec-GPC header and
+   * navigator.globalPrivacyControl), a request some laws make binding. Every tab, private and Tor ones too.
+   */
+  privacySignal: boolean
   /** Unload background tabs to free memory. They reload when you open them. */
   memorySaver: boolean
   /** Playing videos show live on their board cards (a tab stream each); off, cards keep a still picture. */

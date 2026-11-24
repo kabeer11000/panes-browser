@@ -208,7 +208,7 @@ function createWindow(): void {
 
   const tabSession = session.fromPartition('persist:panes')
   tabSession.setUserAgent(plainUserAgent(), 'en-US,en;q=0.9')
-  rewriteClientHints(tabSession, chromeUserAgent())
+  rewriteClientHints(tabSession, chromeUserAgent(), () => settings.get().privacySignal)
   serveInternalPages(tabSession)
   // Spell check follows the system language; if that is not one it has a dictionary for, use English.
   if (tabSession.getSpellCheckerLanguages().length === 0)
@@ -217,7 +217,7 @@ function createWindow(): void {
   // Private tabs: an in-memory session (no `persist:` prefix), set up like the main one but never saving anything.
   const privateSession = session.fromPartition('private')
   privateSession.setUserAgent(plainUserAgent(), 'en-US,en;q=0.9')
-  rewriteClientHints(privateSession, chromeUserAgent())
+  rewriteClientHints(privateSession, chromeUserAgent(), () => settings.get().privacySignal)
   serveInternalPages(privateSession)
 
   // Tor tabs: another in-memory session, whose only way out is Tor's local proxy. Until Tor is up (and after it
@@ -225,7 +225,7 @@ function createWindow(): void {
   const tor = new TorManager()
   const torSession = session.fromPartition('tor')
   torSession.setUserAgent(plainUserAgent(), 'en-US,en;q=0.9')
-  rewriteClientHints(torSession, chromeUserAgent())
+  rewriteClientHints(torSession, chromeUserAgent(), () => settings.get().privacySignal)
   serveInternalPages(torSession)
   const DEAD_PROXY = 'socks5://127.0.0.1:1'
   void torSession.setProxy({ proxyRules: DEAD_PROXY })
@@ -814,6 +814,10 @@ function createWindow(): void {
   ipcMain.on('pip:native', (e, on: unknown, playing: unknown) =>
     tabs.nativePip(e.sender, on === true, playing === true)
   )
+  // a page's frame asks, as it starts, whether to say Global Privacy Control (preload/frame.ts)
+  ipcMain.on('privacy:signal', (e) => {
+    e.returnValue = settings.get().privacySignal
+  })
   ipcMain.on('capture:report', (e, data: unknown) => {
     if (typeof data === 'string' && data.length < 200)
       tabs.captureReport(e.sender, e.senderFrame, data)

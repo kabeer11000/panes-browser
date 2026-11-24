@@ -23,18 +23,24 @@ const metadataFor = (chromeUa: string): UaMetadata | null =>
  * before any per-tab override can apply, and it is the one that decides a sign-in. The page a request
  * belongs to decides which identity it carries (a main-frame request is its own page).
  */
-export function rewriteClientHints(session: Session, chromeUa: string): void {
+export function rewriteClientHints(
+  session: Session,
+  chromeUa: string,
+  /** Global Privacy Control is on (the setting): every request says Sec-GPC: 1. */
+  privacySignal: () => boolean = () => false
+): void {
   const m = metadataFor(chromeUa)
-  if (!m) return
+  // the session's one header listener (Electron allows one): the privacy signal rides here too
   session.webRequest.onBeforeSendHeaders({ urls: ['<all_urls>'] }, (details, callback) => {
+    const headers = details.requestHeaders
+    if (privacySignal()) headers['Sec-GPC'] = '1'
     const page =
       details.resourceType === 'mainFrame'
         ? details.url
         : (details.webContents && !details.webContents.isDestroyed()
             ? details.webContents.getURL()
             : '') || details.url
-    if (!wantsChromeIdentity(page)) return callback({ requestHeaders: details.requestHeaders })
-    const headers = details.requestHeaders
+    if (!m || !wantsChromeIdentity(page)) return callback({ requestHeaders: headers })
     for (const name of Object.keys(headers)) {
       const key = name.toLowerCase()
       if (key === 'user-agent') headers[name] = chromeUa

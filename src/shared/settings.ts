@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
   performanceMode: 'auto',
   quic: true,
+  privacySignal: true,
   adblockOffSites: [],
   adblockCosmeticOffSites: [],
   adblockAggressive: false,

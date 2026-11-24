@@ -502,6 +502,16 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
         <Row
+          label="Ask sites not to sell or share my data"
+          hint="Sends Global Privacy Control with every visit. Some laws (California's, for one) make sites honour it."
+        >
+          <Toggle
+            label="Ask sites not to sell or share my data"
+            on={s.privacySignal}
+            onChange={(v) => void update({ privacySignal: v })}
+          />
+        </Row>
+        <Row
           label="Help improve Panes"
           hint="Sends which features you use, time per site and how fast Panes starts, every half hour. Never page contents, what you type or passwords; never private or Tor tabs."
         >

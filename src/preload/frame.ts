@@ -90,6 +90,23 @@ function permissionShim(bridge: {
   })
 }
 
+// Global Privacy Control (the setting): the page can read it as navigator.globalPrivacyControl, before its own scripts
+// run; the request header says it too (main/identity.ts). Off, it is not there at all, as in Chrome.
+if (/^https?:$/.test(location.protocol) && ipcRenderer.sendSync('privacy:signal') === true) {
+  try {
+    contextBridge.executeInMainWorld({
+      func: () =>
+        Object.defineProperty(Navigator.prototype, 'globalPrivacyControl', {
+          get: () => true,
+          configurable: true,
+          enumerable: true
+        })
+    })
+  } catch {
+    // a frame torn down as it started
+  }
+}
+
 if (/^https?:$/.test(location.protocol)) {
   try {
     // passed itself, run from its source text in the page's world (see notifyShim below)

@@ -45,6 +45,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (typeof patch.torSnowflake === 'boolean') out.torSnowflake = patch.torSnowflake
   if (typeof patch.downloadAsk === 'boolean') out.downloadAsk = patch.downloadAsk
   if (typeof patch.quic === 'boolean') out.quic = patch.quic
+  if (typeof patch.privacySignal === 'boolean') out.privacySignal = patch.privacySignal
   if (patch.downloadDir === null) out.downloadDir = null // reset only: a folder comes from the picker (setDownloadDir)
   if (patch.startup === 'newtab' || patch.startup === 'restore') out.startup = patch.startup
   if (typeof patch.accent === 'string' && /^#[0-9a-f]{6}$/i.test(patch.accent))
