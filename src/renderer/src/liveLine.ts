@@ -23,6 +23,8 @@ export interface LiveLine {
   mv: RTCDataChannel | null
   /** Where the page's video is, as the host last said (checked): for a viewer opened after it was said. */
   video: [number, number, number, number] | null
+  /** The viewer shows it (not only cards): a card under it need not draw the same picture again. */
+  viewing: boolean
 }
 
 /** Something showing the line: told when it changes, and asked its size. */
@@ -60,7 +62,15 @@ export function takeLine(
     lines.set(key, s)
   }
   const shared = s
+  /** Whether a viewer (a user that is not a card) shows the line: everyone is told when that changes. */
+  const viewers = (): void => {
+    const viewing = [...shared.users].some((u) => !u.size()?.card)
+    if (viewing === shared.line.viewing) return
+    shared.line.viewing = viewing
+    for (const u of shared.users) u.changed()
+  }
   shared.users.add(user)
+  viewers()
   clearTimeout(lingering.get(key))
   shared.sendSize()
   return {
@@ -68,6 +78,7 @@ export function takeLine(
     sendSize: shared.sendSize,
     release: () => {
       shared.users.delete(user)
+      viewers()
       shared.sendSize()
       if (shared.users.size > 0) return
       lingering.set(
@@ -90,7 +101,8 @@ function open(spaceId: number, hostRtc: number): Shared {
     hasSound: false,
     ctl: null,
     mv: null,
-    video: null
+    video: null,
+    viewing: false
   }
   const users = new Set<LiveUser>()
   const tell = (): void => {

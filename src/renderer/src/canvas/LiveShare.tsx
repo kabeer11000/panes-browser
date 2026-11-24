@@ -517,11 +517,13 @@ export function LiveCardVideo({
     const v = video.current
     let held: ReturnType<typeof takeLine> | null = null
     const show = (): void => {
-      const stream = held?.line.stream
-      if (v && stream && v.srcObject !== stream) {
-        v.srcObject = stream
-        void v.play().catch(() => undefined)
-      }
+      const line = held?.line
+      const stream = line?.stream
+      if (!v || !line || !stream) return
+      if (v.srcObject !== stream) v.srcObject = stream
+      // under the open viewer the card's copy would decode the same picture again, unseen: it waits
+      if (line.viewing) v.pause()
+      else if (v.paused) void v.play().catch(() => undefined)
     }
     held = takeLine(spaceId, hostRtc, {
       changed: show,
