@@ -245,7 +245,8 @@ export const ACTIONS: SearchAction[] = [
   {
     id: 'save-session',
     title: 'Save all tabs as a session',
-    keywords: 'save session tabs dump export'
+    keywords: 'save session tabs dump export',
+    shortcut: 'Ctrl+Shift+D'
   },
   { id: 'welcome', title: 'Welcome tour', keywords: 'welcome tour intro help' },
   { id: 'feedback', title: 'Send feedback', keywords: 'feedback bug report email' }
