@@ -66,6 +66,34 @@ body {
   color: var(--fg-dim);
   font-size: var(--fs-s);
 }
+/* the sign-in card (LoginCard.tsx): who asks, then the two fields */
+.perm-login-who {
+  display: block;
+  color: var(--fg-dim);
+}
+.perm-login-warn {
+  color: var(--danger, #e5484d);
+}
+.perm-field {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-s);
+  color: var(--fg-dim);
+}
+.perm-field input {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-3);
+  background: var(--surface-hover);
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--fs-m);
+  border: 1px solid var(--border);
+}
+.perm-field input:focus-visible {
+  outline: var(--ring);
+  outline-offset: -1px;
+}
 .perm-sources {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

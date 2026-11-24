@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { describeKinds } from '@shared/permissions'
 import type { PermissionAnswer, PermissionApi, PermissionPromptState } from '@shared/types'
+import { LoginCard } from './LoginCard'
 import { ShareDialog } from './ShareDialog'
 
 declare global {
@@ -58,11 +59,26 @@ export function Permission(): React.JSX.Element | null {
     )
   }
 
+  if (state.login)
+    return (
+      <LoginCard
+        key={id}
+        ref={box}
+        login={state.login}
+        temporary={state.temporary}
+        onAnswer={answer}
+      />
+    )
+
   if (state.drive) {
     const first = state.drive.name.split(' ')[0]
     return (
       <div className="perm-root" ref={box} key={id}>
-        <div className="perm-card" role="alertdialog" aria-label={`${first} asks to control your tab`}>
+        <div
+          className="perm-card"
+          role="alertdialog"
+          aria-label={`${first} asks to control your tab`}
+        >
           <div className="perm-title perm-drive-title">
             <span
               className="perm-face"

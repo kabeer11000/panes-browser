@@ -305,6 +305,47 @@ export class PermissionManager {
     }
   }
 
+  /**
+   * A site or proxy asks for a user name and password (Electron's `login`): the same card, with fields. Null when the
+   * person cancels, or the page goes on without it (a proxy's question belongs to no page).
+   */
+  askLogin(
+    wc: WebContents | null,
+    pageUrl: string,
+    a: { isProxy: boolean; host: string; port: number; realm: string },
+    /** The last answer was turned down: the site asks again. */
+    retry = false
+  ): Promise<{ username: string; password: string } | null> {
+    const host = a.host + (a.port && a.port !== 80 && a.port !== 443 ? `:${a.port}` : '')
+    let origin = ''
+    try {
+      origin = new URL(pageUrl).origin
+    } catch {
+      // a proxy asking for no page in particular
+    }
+    const { outcome } = this.enqueue(
+      {
+        origin,
+        kinds: [],
+        temporary: wc ? wc.session.storagePath === null : undefined,
+        login: {
+          host: host.slice(0, 200),
+          realm: a.realm.slice(0, 160),
+          proxy: a.isProxy,
+          // a proxy's own connection is not the page's: say nothing we cannot know
+          insecure: !a.isProxy && !/^https:/i.test(pageUrl),
+          retry
+        }
+      },
+      a.isProxy ? null : wc
+    )
+    return outcome.then((o) =>
+      o.action === 'login' && typeof o.username === 'string' && typeof o.password === 'string'
+        ? { username: o.username.slice(0, 256), password: o.password.slice(0, 1024) }
+        : null
+    )
+  }
+
   /** Make the card's page now, so the first question shows at once instead of after a page loads. */
   warm(): void {
     if (!this.d.win.isDestroyed()) this.ensureView()
@@ -466,7 +507,8 @@ export class PermissionManager {
     paintView(view.webContents)
     // The picker is a modal dialog: it takes the keyboard (Esc, Enter, Tab) from its first frame. The small card
     // does not: it must not take typing away from the page.
-    if (modal) view.webContents.focus()
+    // The sign-in card takes it too: it is typed into, and the page is waiting on it anyway.
+    if (modal || next.state.login) view.webContents.focus()
     if (!view.webContents.isLoading()) view.webContents.send('perm:state', next.state)
   }
 

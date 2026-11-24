@@ -1274,11 +1274,17 @@ export interface PermissionPromptState {
   app?: string
   /** Someone in a shared space asks to drive the tab this person presents: their name and colour. */
   drive?: { name: string; color: string }
+  /**
+   * A site (or a proxy) asks for a user name and password (HTTP authentication): `host` as it named itself, its
+   * `realm` text (the site's own words), and `insecure` when the password would cross the network unencrypted.
+   */
+  login?: { host: string; realm: string; proxy: boolean; insecure: boolean; retry?: boolean }
 }
 
 export type PermissionAnswer =
   | { action: 'allow' | 'once' | 'block' | 'cancel' | 'openSettings' }
   | { action: 'share'; sourceId: string; audio: boolean }
+  | { action: 'login'; username: string; password: string }
 
 /** What the permission card (a transparent view above the page) can do. */
 export interface PermissionApi {

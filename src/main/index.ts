@@ -460,6 +460,18 @@ function createWindow(): void {
   for (const ses of [tabSession, privateSession, torSession]) installDevicePickers(ses)
   installBluetoothPicker()
   installCertBypass()
+  // HTTP authentication (a site's or a proxy's user name and password): asked on the permission card. Without a
+  // handler Electron cancels, and such sites only ever showed "401 Unauthorized".
+  app.on('login', (event, wc, details, authInfo, callback) => {
+    event.preventDefault()
+    if (!wc && !authInfo.isProxy) return callback()
+    void permissionManager
+      .askLogin(wc, details.url, authInfo, !details.firstAuthAttempt)
+      .then((c) => {
+        if (c) callback(c.username, c.password)
+        else callback()
+      })
+  })
   // tabs' pictures for the window's own pages (default session only: web pages cannot ask for them)
   session.defaultSession.protocol.handle('panes-thumb', (req) => {
     const m = /^panes-thumb:\/\/t\/(\d+)\//.exec(req.url)
