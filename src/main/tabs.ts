@@ -4189,8 +4189,6 @@ export class TabManager {
       else if (k === 'n') this.newPrivateTab()
       else if (k === 'delete') this.openInternal('settings', 'clear-data')
       else if (k === 'b') this.openInternal('bookmarks')
-      else if (k === 'd')
-        this.dumpTabs() // save the open tabs as a session (the board too)
       else if (k === 'j' || k === 'c') this.toggleDevTools(this.current())
       else if (k === 'pagedown') this.moveActive(1)
       else if (k === 'pageup') this.moveActive(-1)
