@@ -5536,6 +5536,7 @@ export function Canvas({
           setEditing(made.id)
         } else if (act === 'paste') void boardClip.pasteAt(w)
         else if (act === 'tidy') void runTidy(true)
+        else if (act === 'save-session') window.api.runAction('save-session')
         else if (act === 'settings') window.api.openInternal('settings')
         else if (act === 'fit') fitAll()
         else if (act === 'all') {

@@ -323,6 +323,8 @@ export function boardMenu(f: BoardFacts): MenuEntry[] {
       disabled: !f.undo
     },
     'sep',
+    // the tabs open now, kept to bring back later (panes://sessions)
+    { id: 'save-session', label: 'Save tabs as a session', keys: 'Ctrl+Shift+D' },
     ...(f.ai !== false ? [{ id: 'ask', label: 'Ask about the board' }] : []),
     {
       id: 'export',
