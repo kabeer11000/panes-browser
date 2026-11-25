@@ -42,7 +42,7 @@ From the sticky-note board. Each item: what was found in the code, then the fix.
       (.perm-btn.primary), `internal.css` (.int-btn.primary), `chat.css` (.chat-btn.primary, .chat-send x2).
       White knobs on accent tracks (`.toggle span`, `.pn-switch span`, range thumbs) vanish the same way.
       Fix: all to `var(--accent-fg)`; knobs get a hairline ring. Check every window with a white space colour.
-- [ ] **Settings dialogs/menus animate in but do not close properly.** Needs a repro to pin down which ones:
+- [x] (e3f0bf0, 9967393) **Settings dialogs/menus animate in but do not close properly.** Needs a repro to pin down which ones:
       `ui.tsx` `Select` uses `<Presence>` (fine), but other in-page pieces animate in with CSS only and are
       unmounted on close with no exit (`.pw-detail` in Passwords, `.dl-suggest` in Downloads, the confirm states in
       SpacesSection/AiSection). Fix: route every conditional overlay/expander through `<Presence>` (or
@@ -120,9 +120,16 @@ From the sticky-note board. Each item: what was found in the code, then the fix.
       request URLs) go nowhere: handle `devtools-open-url` and the DevTools webContents' `setWindowOpenHandler`
       to open Panes tabs; a context menu on the DevTools webContents (copy/paste/inspect); Ctrl+Shift+C opens
       with the element picker, Ctrl+Shift+J on the Console panel; dock position remembered.
-- [ ] Board section name chips: light section/space colour with white text (fhead-at missed the newer styles).
-- [ ] Settings: the sticky search row sticks against the page header (no gap / overlaps it).
-- [ ] Downloads bin: its shadow is clipped, and it flashes sometimes (user asked again, so the artifacting is in scope).
+- [x] (9b9c1c9) Board section name chips: light section/space colour with white text (fhead-at missed the newer styles).
+- [x] (39c5ac4) Settings: the sticky search row sticks against the page header.
+- [x] (7d28230, c247674, 7587a22) Notifications not frosted in the preview; every menu and popover leaves with an animation.
+- [x] (2a88e1f) Downloads bin: its shadow is clipped, and it flashes sometimes (user asked again, so the artifacting is in scope).
+- [x] (ef3e5ba) Private and Tor tabs on the board could not be opened or navigated.
+- [x] (2c487bb, b918e19, 737d560) No Windows dialogs: restart warning, Leave site? (closing, Panes' own navigations),
+      device chooser, and a page's alert/confirm/prompt are on Panes' card. Left: Leave site? for a navigation the page
+      starts itself (a link in it): Panes cannot know where it was going, so the system's question stays there.
+- [x] (9944418, 1c18b92) Memory saver never unloads or freezes a tab in a call, a listen-only one included.
+- [x] (389f159) Frosted glass visible (60%). (0086215) bun run lint passes.
 - [ ] **Chrome extensions (not urgent).** Nothing exists (`session.loadExtension` unused). Electron supports only a
       subset of the extension APIs (no full `chrome.tabs`/action UI). Needs a design pass first: load unpacked +
       CRX from the Web Store per space session, an extensions page in `panes://`, toolbar action buttons. Park until
