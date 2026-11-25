@@ -1350,6 +1350,8 @@ export interface PermissionPromptState {
     list?: boolean
     /** A text field to answer in (a page's prompt()), holding this to start with; its text comes back with the choice. */
     input?: string
+    /** A picture shown under the words (a page's QR code), as a data: address. */
+    image?: string
   }
 }
 

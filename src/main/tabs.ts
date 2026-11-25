@@ -2,8 +2,10 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  ClipboardItem,
   dialog,
   Notification,
+  nativeImage,
   nativeTheme,
   powerMonitor,
   screen,
@@ -110,6 +112,7 @@ import {
 } from '@shared/memory'
 import { join } from 'path'
 import { TabPics } from './tabPics'
+import { qrBitmap } from '@shared/qr'
 import { internalUrl, type InternalPage } from '@shared/settings'
 import { pdfFileName } from '@shared/print'
 import {
@@ -2366,6 +2369,7 @@ export class TabManager {
           title: string
           detail?: string
           choices: Array<{ label: string; tone?: 'primary' | 'danger' }>
+          image?: string
         },
         wc: WebContents | null
       ) => Promise<number | null>)
@@ -2580,6 +2584,38 @@ export class TabManager {
     if (!canceled && filePath) await wc.savePage(filePath, 'HTMLComplete').catch(() => {})
   }
 
+  /** A QR code of a page's address on Panes' card (Chrome's "Create QR code"): copied or saved from there. */
+  async showQr(id = this.activeId): Promise<void> {
+    const tab = id === null ? undefined : this.tabs.get(id)
+    const wc = tab && liveContents(tab)
+    const url = wc?.getURL() ?? ''
+    if (!wc || !this.confirm || !/^https?:/i.test(url) || url.length > 2000) return
+    const { width, height, bgra } = qrBitmap(url)
+    const img = nativeImage.createFromBitmap(Buffer.from(bgra), { width, height })
+    const pick = await this.confirm(
+      {
+        title: 'Scan to open this page',
+        detail: new URL(url).host,
+        image: img.toDataURL(),
+        choices: [{ label: 'Copy image' }, { label: 'Save...' }, { label: 'Done', tone: 'primary' }]
+      },
+      wc
+    )
+    if (pick === 0)
+      await clipboard.write([
+        new ClipboardItem({
+          'image/png': new Blob([new Uint8Array(img.toPNG())], { type: 'image/png' })
+        })
+      ])
+    else if (pick === 1) {
+      const { canceled, filePath } = await dialog.showSaveDialog(this.win, {
+        defaultPath: `${new URL(url).hostname} QR code.png`,
+        filters: [{ name: 'PNG image', extensions: ['png'] }]
+      })
+      if (!canceled && filePath) writeFileSync(filePath, img.toPNG())
+    }
+  }
+
   /** Direct "Save as PDF" of the page on screen (the print dialog has its own; this is for the command bar). */
   private async savePdf(): Promise<void> {
     const wc = this.current()?.view.webContents
@@ -2640,6 +2676,7 @@ export class TabManager {
       print: () => this.printPage(),
       'save-pdf': () => void this.savePdf(),
       'save-page': () => void this.savePage(),
+      'qr-code': () => void this.showQr(),
       'open-file': () => void this.openFile(),
       'view-source': () => this.viewSource(),
       devtools: () => this.toggleDevTools(tab),
@@ -4076,6 +4113,7 @@ export class TabManager {
       [...this.liveRightAt].some(([, at]) => Date.now() - at < 600)
         ? undefined // the driver's right click: no native menu on the host's screen, where they cannot see it
         : showContextMenu(this.win, wc, params, {
+            qr: () => void this.showQr(id),
             openTab: (u) =>
               tab.tor
                 ? this.create(u, true, this.activeSpaceId, undefined, true, true)
@@ -5320,6 +5358,10 @@ export class TabManager {
           }
         }),
         ...when(caps.copy, { label: 'Copy link', click: () => clipboard.writeText(url) }),
+        ...when(caps.copy && /^https?:/i.test(url), {
+          label: 'QR code for this page',
+          click: () => void this.showQr(id)
+        }),
         ...when(shown, {
           label: 'Find in page...',
           accelerator: 'CmdOrCtrl+F',

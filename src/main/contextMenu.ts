@@ -23,6 +23,8 @@ interface Actions {
   searchUrl: (text: string) => string
   /** The page's source, in a new tab (Ctrl+U). */
   viewSource: () => void
+  /** A QR code of the page's address. */
+  qr: () => void
   /** The page is on the canvas board (its preview): what opens becomes a card, so the words say so. */
   onBoard?: boolean
 }
@@ -176,6 +178,7 @@ export function showContextMenu(
       { label: 'Reload', click: () => wc.reload() },
       sep,
       { label: 'Print...', accelerator: 'CmdOrCtrl+P', click: a.print },
+      ...(/^https?:/i.test(p.pageURL) ? [{ label: 'QR code for this page', click: a.qr }] : []),
       { label: 'View page source', accelerator: 'CmdOrCtrl+U', click: a.viewSource },
       { label: 'Circle to search', accelerator: 'CmdOrCtrl+Shift+S', click: a.circle },
       ...(a.askAi ? [{ label: 'Ask AI about this page', click: () => a.askAi?.(null) }] : []),

@@ -153,6 +153,7 @@ export const ACTIONS: SearchAction[] = [
     keywords: 'save page pdf export document print'
   },
   { id: 'save-page', title: 'Save page as HTML', keywords: 'save page as html file download' },
+  { id: 'qr-code', title: 'QR code for this page', keywords: 'qr code scan phone share link' },
   { id: 'open-file', title: 'Open file', keywords: 'open file local pdf image' },
   {
     id: 'view-source',

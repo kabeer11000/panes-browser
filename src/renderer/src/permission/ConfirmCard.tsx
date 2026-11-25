@@ -12,7 +12,7 @@ export const ConfirmCard = forwardRef<
     onAnswer: (a: PermissionAnswer) => void
   }
 >(function ConfirmCard({ confirm, onAnswer }, ref) {
-  const { title, detail, choices, list, input } = confirm
+  const { title, detail, choices, list, input, image } = confirm
   // a page's prompt(): the text typed goes back with the choice, Enter being the last (OK)
   const [text, setText] = useState(input ?? '')
   const pick = (index: number): void =>
@@ -24,6 +24,7 @@ export const ConfirmCard = forwardRef<
           <b>{title}</b>
         </div>
         {detail && <p className="perm-confirm-detail">{detail}</p>}
+        {image && <img className="perm-confirm-image" src={image} alt="" />}
         {input !== undefined && (
           <input
             className="perm-confirm-input"

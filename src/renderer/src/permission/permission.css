@@ -227,6 +227,15 @@ body {
   background: #e5484d;
 }
 
+/* a picture on the card (a page's QR code): square, crisp, on its own white */
+.perm-confirm-image {
+  align-self: center;
+  width: 192px;
+  height: 192px;
+  border-radius: var(--r-3);
+  image-rendering: pixelated;
+}
+
 /* a page's prompt(): the answer typed on the card */
 .perm-confirm-input {
   height: 34px;
