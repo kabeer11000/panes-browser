@@ -25,6 +25,14 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { DEFAULT_SETTINGS, type InternalPage } from '@shared/settings'
 import { originOf } from '@shared/permissions'
 import { privateTabsWarning } from '@shared/update'
+import {
+  DIALOG_TEXT_MAX,
+  dialogAllowed,
+  dialogAnswered,
+  dialogResult,
+  NO_PACE,
+  type DialogPace
+} from '@shared/jsDialogs'
 import { linksFromArgv } from '@shared/launch'
 import type { Edge } from '@shared/layout'
 import type { ClearKind, Rect, SpacePatch } from '@shared/types'
@@ -470,6 +478,42 @@ function createWindow(): void {
   // USB, HID, serial and Bluetooth devices: Chrome's chooser, in every session tabs use
   askDevicesWith((c, wc) => permissionManager.confirm(c, wc))
   tabs.confirm = (c, wc) => permissionManager.confirm(c, wc)
+  // A page's alert(), confirm() and prompt() (preload/frame.ts, shared/jsDialogs.ts): asked on Panes' card, for the
+  // page that asked (it shows when that page is on screen), instead of a Windows dialog. The page waits, as it does
+  // for the real ones. A page that keeps throwing them up gets Cancel at once past a few (dialogAllowed).
+  const dialogPace = new WeakMap<Electron.WebContents, DialogPace>()
+  ipcMain.on('dialog:js', (e, kind: unknown, message: unknown, value: unknown) => {
+    const k = kind === 'alert' || kind === 'confirm' || kind === 'prompt' ? kind : null
+    if (!k) return void (e.returnValue = null)
+    const wc = e.sender
+    const gate = dialogAllowed(dialogPace.get(wc) ?? NO_PACE, Date.now())
+    dialogPace.set(wc, gate.pace)
+    if (!gate.allow) return void (e.returnValue = dialogResult(k, null))
+    let host = ''
+    try {
+      host = new URL(e.senderFrame?.origin ?? '').host
+    } catch {
+      // no origin to name: "This page"
+    }
+    const text = String(message ?? '').slice(0, DIALOG_TEXT_MAX)
+    void permissionManager
+      .confirmWith(
+        {
+          title: host ? `${host} says` : 'This page says',
+          ...(text ? { detail: text } : {}),
+          choices:
+            k === 'alert'
+              ? [{ label: 'OK', tone: 'primary' }]
+              : [{ label: 'Cancel' }, { label: 'OK', tone: 'primary' }],
+          ...(k === 'prompt' ? { input: String(value ?? '').slice(0, DIALOG_TEXT_MAX) } : {})
+        },
+        e.sender
+      )
+      .then((r) => {
+        dialogPace.set(wc, dialogAnswered(dialogPace.get(wc) ?? NO_PACE, Date.now()))
+        e.returnValue = dialogResult(k, r)
+      })
+  })
   for (const ses of [tabSession, privateSession, torSession]) installDevicePickers(ses)
   installBluetoothPicker()
   installCertBypass()

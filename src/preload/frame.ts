@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import { PASSKEY_SHIM } from '@shared/passkeys'
 import { notifyShim } from '@shared/notify'
 import { captureShim } from '@shared/capture'
+import { dialogShim } from '@shared/jsDialogs'
 import { webShareShim } from '@shared/webShare'
 import { unseenShim } from '@shared/unseen'
 
@@ -117,6 +118,21 @@ if (/^https?:$/.test(location.protocol)) {
           report: (data: string) => ipcRenderer.send('capture:report', data),
           onStop: (cb: (kinds: string[]) => void) =>
             void ipcRenderer.on('capture:stop', (_e, kinds: string[]) => cb(kinds))
+        }
+      ]
+    })
+  } catch {
+    // a frame torn down as it started
+  }
+  try {
+    // alert(), confirm() and prompt() on Panes' card instead of Windows dialogs (shared/jsDialogs.ts): the page waits
+    // for the answer, as it does for the real ones
+    contextBridge.executeInMainWorld({
+      func: dialogShim,
+      args: [
+        {
+          ask: (kind: string, message: string, value: string): unknown =>
+            ipcRenderer.sendSync('dialog:js', kind, message, value)
         }
       ]
     })

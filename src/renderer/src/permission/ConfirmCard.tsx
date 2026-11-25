@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useState } from 'react'
 import type { PermissionAnswer, PermissionPromptState } from '@shared/types'
 
 /**
@@ -12,8 +12,11 @@ export const ConfirmCard = forwardRef<
     onAnswer: (a: PermissionAnswer) => void
   }
 >(function ConfirmCard({ confirm, onAnswer }, ref) {
-  const { title, detail, choices, list } = confirm
-  const pick = (index: number): void => onAnswer({ action: 'choose', index })
+  const { title, detail, choices, list, input } = confirm
+  // a page's prompt(): the text typed goes back with the choice, Enter being the last (OK)
+  const [text, setText] = useState(input ?? '')
+  const pick = (index: number): void =>
+    onAnswer({ action: 'choose', index, ...(input !== undefined ? { text } : {}) })
   return (
     <div className="perm-root" ref={ref}>
       <div className="perm-card" role="alertdialog" aria-label={title}>
@@ -21,6 +24,17 @@ export const ConfirmCard = forwardRef<
           <b>{title}</b>
         </div>
         {detail && <p className="perm-confirm-detail">{detail}</p>}
+        {input !== undefined && (
+          <input
+            className="perm-confirm-input"
+            value={text}
+            autoFocus
+            spellCheck={false}
+            aria-label={title}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && pick(choices.length - 1)}
+          />
+        )}
         {list ? (
           <div className="perm-certs" role="list">
             {choices.map((c, i) => (
@@ -52,7 +66,7 @@ export const ConfirmCard = forwardRef<
                 key={i}
                 type="button"
                 className={'perm-btn' + (c.tone ? ' ' + c.tone : '')}
-                autoFocus={c.tone === 'primary'}
+                autoFocus={input === undefined && c.tone === 'primary'}
                 onClick={() => pick(i)}
               >
                 {c.label}

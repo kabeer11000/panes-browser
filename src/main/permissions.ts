@@ -383,6 +383,14 @@ export class PermissionManager {
     confirm: NonNullable<PermissionPromptState['confirm']>,
     wc: WebContents | null = null
   ): Promise<number | null> {
+    return this.confirmWith(confirm, wc).then((r) => r?.index ?? null)
+  }
+
+  /** As confirm, with what was typed in the card's field (a page's prompt()). */
+  confirmWith(
+    confirm: NonNullable<PermissionPromptState['confirm']>,
+    wc: WebContents | null = null
+  ): Promise<{ index: number; text?: string } | null> {
     const choices = confirm.choices.slice(0, 12)
     const { outcome } = this.enqueue(
       { origin: '', kinds: [], confirm: { ...confirm, choices } },
@@ -390,7 +398,10 @@ export class PermissionManager {
     )
     return outcome.then((o) =>
       o.action === 'choose' && Number.isInteger(o.index) && o.index >= 0 && o.index < choices.length
-        ? o.index
+        ? {
+            index: o.index,
+            ...(typeof o.text === 'string' ? { text: o.text.slice(0, 10_000) } : {})
+          }
         : null
     )
   }

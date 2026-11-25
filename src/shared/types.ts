@@ -1335,6 +1335,8 @@ export interface PermissionPromptState {
     choices: Array<{ label: string; tone?: 'primary' | 'danger' }>
     /** Many choices (devices): one per row instead of buttons side by side. */
     list?: boolean
+    /** A text field to answer in (a page's prompt()), holding this to start with; its text comes back with the choice. */
+    input?: string
   }
 }
 
@@ -1343,7 +1345,7 @@ export type PermissionAnswer =
   | { action: 'share'; sourceId: string; audio: boolean }
   | { action: 'login'; username: string; password: string }
   | { action: 'cert'; index: number }
-  | { action: 'choose'; index: number }
+  | { action: 'choose'; index: number; text?: string }
 
 /** What the permission card (a transparent view above the page) can do. */
 export interface PermissionApi {
