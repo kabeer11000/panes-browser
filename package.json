@@ -31,7 +31,7 @@
     "@ai-sdk/openai-compatible": "^3.0.87",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "adblock-rs": "^0.13.5",
+    "adblock-rs": "0.13.6",
     "ai": "^7.0.166",
     "electron-updater": "^6.8.11",
     "koffi": "^2",

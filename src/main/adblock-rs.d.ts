@@ -5,7 +5,8 @@
 declare module 'adblock-rs' {
   export class FilterSet {
     constructor(debug?: boolean)
-    addFilters(rules: string | string[], opts?: { permissions?: number }): unknown
+    /** One newline-separated list (an array of rules is deprecated since 0.13.6). */
+    addFilters(rules: string, opts?: { permissions?: number }): unknown
   }
 
   export interface CosmeticResources {
