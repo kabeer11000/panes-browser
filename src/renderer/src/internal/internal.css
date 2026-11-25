@@ -1590,14 +1590,16 @@ a.int-btn {
 
 /* ---- Settings: categories and search (Settings.tsx) ---- */
 .set-nav {
+  /* stuck right under the page's title bar (not 8px under it, where the field pressed against its line), with room
+     above the field */
   position: sticky;
-  top: calc(var(--bar-h, 56px) - 8px);
+  top: var(--bar-h, 52px);
   z-index: 6;
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin: 0 0 18px;
-  padding: 8px 0 10px;
+  padding: 12px 0 10px;
   background: color-mix(in srgb, var(--stage-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
 }
