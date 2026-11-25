@@ -46,10 +46,36 @@ function wear(space: Space, accentSetting: string): void {
 function Panes({ big = false }: { big?: boolean }): React.JSX.Element {
   return (
     <div className={'wl-mark' + (big ? ' big' : '')} aria-hidden="true">
-      <span className="wl-glow" />
       <span className="p1" />
       <span className="p2" />
       <span className="p3" />
+    </div>
+  )
+}
+
+/**
+ * The opening screen's picture: a small window whose panes slowly take the three shapes Panes browses in: one page,
+ * two side by side, and a board of them. What Panes is, shown instead of decoration (welcome.css .wl-demo).
+ */
+function HeroArt(): React.JSX.Element {
+  return (
+    <div className="wl-demo" aria-hidden="true">
+      <div className="wl-demo-bar">
+        <i />
+        <i />
+        <i />
+        <span className="wl-demo-addr" />
+      </div>
+      <div className="wl-demo-body">
+        {[1, 2, 3].map((n) => (
+          <div key={n} className={'wl-demo-pane d' + n}>
+            <span className="wl-demo-head" />
+            <span className="wl-demo-line l1" />
+            <span className="wl-demo-line l2" />
+            <span className="wl-demo-line l3" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -329,21 +355,31 @@ export function Welcome(): React.JSX.Element {
             >
               {step === 'welcome' && (
                 <div className="wl-hero">
-                  <Panes big />
-                  <h1>
-                    Welcome to <span className="wl-wordmark">Panes</span>
-                  </h1>
-                  <p className="wl-lede">
-                    A calm, fast browser built around the way you work: tabs you can see, pages side
-                    by side, and nothing in your way.
-                  </p>
-                  <button type="button" className="wl-go" onClick={forward}>
-                    Get started
-                    <svg viewBox="0 0 24 24" aria-hidden="true" className="wl-go-arrow">
-                      <path d="M5 12h14M13 6l6 6-6 6" />
-                    </svg>
-                  </button>
-                  <span className="wl-hint">Takes about a minute</span>
+                  <div className="wl-hero-text">
+                    <div className="wl-brand">
+                      <Panes />
+                      <span>Panes</span>
+                    </div>
+                    <h1>
+                      A quieter way
+                      <br />
+                      to browse.
+                    </h1>
+                    <p className="wl-lede">
+                      Tabs you can see, pages side by side, and a board for everything you are
+                      working on.
+                    </p>
+                    <div className="wl-hero-go">
+                      <button type="button" className="wl-go" onClick={forward}>
+                        Get started
+                        <svg viewBox="0 0 24 24" aria-hidden="true" className="wl-go-arrow">
+                          <path d="M5 12h14M13 6l6 6-6 6" />
+                        </svg>
+                      </button>
+                      <span className="wl-hint">About a minute</span>
+                    </div>
+                  </div>
+                  <HeroArt />
                 </div>
               )}
 

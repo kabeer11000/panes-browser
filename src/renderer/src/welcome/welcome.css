@@ -644,44 +644,89 @@ body {
   font-weight: 650;
 }
 
-/* ---- the opening screen: a staggered rise, the mark glowing behind ---- */
+/* ---- the opening screen: an editorial page. The words set left, one plain button, and on the right a small window
+   whose panes take Panes' three shapes in turn (one page, side by side, a board). No glow, no gradient type. ---- */
+.wl-stage:has(.wl-hero) {
+  max-width: 1080px;
+}
+.wl-step:has(.wl-hero) {
+  align-items: stretch;
+  text-align: left;
+}
 .wl-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 88px);
+  width: 100%;
+}
+.wl-hero-text {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-start;
+  gap: 22px;
 }
-.wl-hero > * {
-  animation: wl-rise 0.7s var(--ease) both;
+.wl-hero-text > * {
+  animation: wl-rise 0.6s var(--ease) both;
 }
-.wl-hero > .wl-mark {
-  animation:
-    wl-float 5s ease-in-out infinite,
-    wl-rise 0.8s var(--ease) both;
+.wl-hero-text > :nth-child(2) {
+  animation-delay: 0.06s;
 }
-.wl-hero h1 {
+.wl-hero-text > :nth-child(3) {
   animation-delay: 0.12s;
 }
-.wl-hero .wl-lede {
-  animation-delay: 0.2s;
-}
-.wl-hero .wl-go {
-  animation-delay: 0.3s;
-}
-.wl-hero .wl-hint {
-  animation-delay: 0.38s;
+.wl-hero-text > :nth-child(4) {
+  animation-delay: 0.18s;
 }
 @keyframes wl-rise {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(10px);
   }
 }
-.wl-wordmark {
-  background: linear-gradient(100deg, #7ab4ff, #ff7ac8 55%, #ff8a6b);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.wl-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-l);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.wl-brand .wl-mark {
+  zoom: 0.19;
+  animation: none;
+}
+.wl-step .wl-hero h1 {
+  margin: 0;
+  font-size: clamp(40px, 6.2vw, 72px);
+  font-weight: 600;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+}
+.wl-hero .wl-lede {
+  max-width: 400px;
+  font-size: var(--fs-xl);
+  line-height: 1.5;
+}
+.wl-hero-go {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 6px;
+}
+.wl-hero .wl-go {
+  margin: 0;
+  padding: 12px 22px;
+  border-radius: 12px;
+  background: var(--fg);
+  color: var(--stage-bg, #111);
+  font-size: var(--fs-l);
+  box-shadow: none;
+}
+.wl-hero .wl-go:hover {
+  transform: none;
+  filter: none;
+  background: color-mix(in srgb, var(--fg) 88%, var(--stage-bg, #111));
 }
 .wl-hint {
   font-size: var(--fs-m);
@@ -706,62 +751,167 @@ body {
   transform: translateX(3px);
 }
 
-/* ---- the mark: a soft glow behind it, and the panes assembling on arrival ---- */
-.wl-glow {
-  position: absolute;
-  inset: -40% -30%;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--accent) 40%, transparent),
-    transparent 68%
-  );
-  filter: blur(14px);
-  z-index: -1;
-  animation: wl-breathe 5s ease-in-out infinite;
+/* the small window */
+.wl-demo {
+  --cycle: 12s;
+  --pane-ease: cubic-bezier(0.65, 0, 0.35, 1);
+  aspect-ratio: 4 / 3;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--fg) 4%, var(--stage-bg, #111));
+  box-shadow:
+    inset 0 0 0 1px var(--hairline),
+    0 30px 80px -30px rgb(0 0 0 / 0.55);
+  overflow: hidden;
+  animation: wl-rise 0.8s 0.1s var(--ease) both;
 }
-@keyframes wl-breathe {
-  50% {
-    opacity: 0.55;
-    transform: scale(1.08);
+.wl-demo-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+}
+.wl-demo-bar i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fg) 16%, transparent);
+}
+.wl-demo-addr {
+  flex: 0 1 42%;
+  height: 16px;
+  margin: 0 auto;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+.wl-demo-body {
+  position: relative;
+  flex: 1;
+  margin: 0 10px 10px;
+}
+.wl-demo-pane {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--fg) 7%, var(--stage-bg, #111));
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  overflow: hidden;
+  animation: var(--cycle) var(--pane-ease) infinite both;
+}
+.wl-demo-head {
+  height: 34%;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+.d2 .wl-demo-head {
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.d3 .wl-demo-head {
+  background: color-mix(in srgb, var(--accent) 18%, color-mix(in srgb, var(--fg) 8%, transparent));
+}
+.wl-demo-line {
+  height: 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.wl-demo-line.l1 {
+  width: 82%;
+}
+.wl-demo-line.l2 {
+  width: 64%;
+}
+.wl-demo-line.l3 {
+  width: 72%;
+}
+/* one page (0-25%), side by side (33-58%), a board of three (66-92%), and back */
+.d1 {
+  animation-name: wl-d1;
+}
+.d2 {
+  animation-name: wl-d2;
+}
+.d3 {
+  animation-name: wl-d3;
+}
+@keyframes wl-d1 {
+  0%,
+  25%,
+  100% {
+    inset: 0 0 0 0;
+  }
+  33%,
+  58% {
+    inset: 0 51% 0 0;
+  }
+  66%,
+  92% {
+    inset: 8% 54% 30% 4%;
   }
 }
-.wl-mark.big {
-  width: 168px;
-  height: 150px;
-}
-.wl-mark.big .p1 {
-  height: 82px;
-}
-.wl-mark.big .p2 {
-  height: 82px;
-  top: 18px;
-}
-.wl-mark.big .p3 {
-  top: 40px;
-}
-.wl-mark .p1 {
-  animation: wl-assemble 0.7s var(--ease) both;
-}
-.wl-mark .p2 {
-  animation: wl-assemble 0.7s 0.08s var(--ease) both;
-}
-.wl-mark .p3 {
-  animation: wl-assemble 0.7s 0.16s var(--ease) both;
-}
-@keyframes wl-assemble {
-  from {
+@keyframes wl-d2 {
+  0%,
+  25%,
+  100% {
+    inset: 0 0 0 100%;
     opacity: 0;
-    transform: translateY(12px) scale(0.9);
+  }
+  33%,
+  58% {
+    inset: 0 0 0 51%;
+    opacity: 1;
+  }
+  66%,
+  92% {
+    inset: 14% 6% 40% 52%;
+    opacity: 1;
+  }
+}
+@keyframes wl-d3 {
+  0%,
+  58%,
+  100% {
+    inset: 100% 30% -60% 30%;
+    opacity: 0;
+  }
+  66%,
+  92% {
+    inset: 64% 26% 4% 30%;
+    opacity: 1;
+  }
+}
+/* narrow windows: the words alone */
+@media (max-width: 760px) {
+  .wl-hero {
+    grid-template-columns: 1fr;
+  }
+  .wl-demo {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wl-hero > *,
-  .wl-mark .p1,
-  .wl-mark .p2,
-  .wl-mark .p3,
-  .wl-glow {
+  .wl-hero-text > *,
+  .wl-demo,
+  .wl-mark {
     animation: none !important;
+  }
+  /* held still on the side by side shape */
+  .wl-demo-pane {
+    animation: none;
+  }
+  .d1 {
+    inset: 0 51% 0 0;
+  }
+  .d2 {
+    inset: 0 0 0 51%;
+  }
+  .d3 {
+    display: none;
   }
 }
 
