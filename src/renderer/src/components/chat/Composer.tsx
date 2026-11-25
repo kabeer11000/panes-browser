@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Presence } from '@renderer/components/Presence'
 import { displayHost } from '@shared/url'
 import type { TabInfo } from '@shared/types'
 import type { ChatFile } from '@shared/ai/chatConv'
@@ -184,26 +185,28 @@ export function Composer(p: Props): React.JSX.Element {
         >
           <AttachIcon />
         </button>
-        {open && (
-          <ul className="chat-mentions" role="listbox" aria-label="Tabs to add">
-            {choices.map((t, i) => (
-              <li
-                key={t.id}
-                role="option"
-                aria-selected={i === pick}
-                className={i === pick ? 'sel' : ''}
-                onPointerDown={(e) => {
-                  e.preventDefault() // keep the caret in the box
-                  choose(t)
-                }}
-                onPointerEnter={() => setPick(i)}
-              >
-                <span className="t">{t.aiTitle ?? (t.title || displayHost(t.url))}</span>
-                <span className="h">{displayHost(t.url)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <Presence>
+          {open && (
+            <ul className="chat-mentions" role="listbox" aria-label="Tabs to add">
+              {choices.map((t, i) => (
+                <li
+                  key={t.id}
+                  role="option"
+                  aria-selected={i === pick}
+                  className={i === pick ? 'sel' : ''}
+                  onPointerDown={(e) => {
+                    e.preventDefault() // keep the caret in the box
+                    choose(t)
+                  }}
+                  onPointerEnter={() => setPick(i)}
+                >
+                  <span className="t">{t.aiTitle ?? (t.title || displayHost(t.url))}</span>
+                  <span className="h">{displayHost(t.url)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Presence>
         <textarea
           ref={ta}
           rows={1}

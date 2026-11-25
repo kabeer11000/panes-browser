@@ -1021,3 +1021,9 @@
 .cv.lod .cv-count {
   display: none;
 }
+
+/* menus that drop down from the top of the board or the preview leave upward, back toward where they came from
+   (<Presence>, --leave-y; the toolbar's open upward and leave downward, the default) */
+.cv :is(.cv-nc, .cv-space-menu, .cv-share-pop) {
+  --leave-y: -4px;
+}

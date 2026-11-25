@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { Presence } from '@renderer/components/Presence'
 import { useDismiss } from './useDismiss'
 
 const ago = (t: number): string => {
@@ -57,32 +58,34 @@ export function UndoHistory({
           <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v2.6h2.6M8 5v3l2 1.5" />
         </svg>
       </button>
-      {open && (
-        <div className="cv-menu cv-space-menu" role="menu" aria-label="Undo history">
-          {steps.length === 0 ? (
-            <p className="cv-hist-head">Nothing to undo yet</p>
-          ) : (
-            <>
-              <p className="cv-hist-head">Go back to before</p>
-              {steps.slice(0, STEPS_SHOWN).map((s, i) => (
-                <button
-                  key={`${s.t}-${i}`}
-                  type="button"
-                  role="menuitem"
-                  className="step"
-                  onClick={() => {
-                    onClose()
-                    onUndo(i)
-                  }}
-                >
-                  <span>{s.label}</span>
-                  <small>{ago(s.t)}</small>
-                </button>
-              ))}
-            </>
-          )}
-        </div>
-      )}
+      <Presence>
+        {open && (
+          <div className="cv-menu cv-space-menu" role="menu" aria-label="Undo history">
+            {steps.length === 0 ? (
+              <p className="cv-hist-head">Nothing to undo yet</p>
+            ) : (
+              <>
+                <p className="cv-hist-head">Go back to before</p>
+                {steps.slice(0, STEPS_SHOWN).map((s, i) => (
+                  <button
+                    key={`${s.t}-${i}`}
+                    type="button"
+                    role="menuitem"
+                    className="step"
+                    onClick={() => {
+                      onClose()
+                      onUndo(i)
+                    }}
+                  >
+                    <span>{s.label}</span>
+                    <small>{ago(s.t)}</small>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </Presence>
     </div>
   )
 }

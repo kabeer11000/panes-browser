@@ -521,45 +521,49 @@ export function StripInbox({
         <BellGlyph />
         {waiting.length > 0 && <b>{badgeText(waiting.length, 9)}</b>}
       </button>
-      {open && (
-        <div className="cv-nc" role="dialog" aria-label="Notifications">
-          <div className="cv-nc-head">Notifications</div>
-          <div className="cv-nc-list">
-            {waiting.length === 0 && <p className="cv-nc-empty">You are all caught up.</p>}
-            {waiting.map((t, i) => {
-              const a = t.attention
-              const msgs = [...a.messages].reverse()
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  className="cv-nc-card"
-                  style={{ '--i': Math.min(i, 8) } as React.CSSProperties}
-                  title={`Open ${nameOf(t)}`}
-                  onClick={() => onPick(t.id)}
-                >
-                  <span className="cv-nc-app">
-                    <SiteIcon src={t.favicon} />
-                    <span>{nameOf(t)}</span>
-                    {msgs[0] ? (
-                      <time>{messageAge(msgs[0].at, now)}</time>
-                    ) : (
-                      <em className={a.call === 'ringing' ? 'ringing' : ''}>{attentionLabel(a)}</em>
-                    )}
-                  </span>
-                  {msgs.slice(0, 3).map((m) => (
-                    <span key={m.at + m.title} className="cv-nc-msg">
-                      {m.title && <strong>{m.title}</strong>}
-                      {m.body && <span>{m.body}</span>}
+      <Presence>
+        {open && (
+          <div className="cv-nc" role="dialog" aria-label="Notifications">
+            <div className="cv-nc-head">Notifications</div>
+            <div className="cv-nc-list">
+              {waiting.length === 0 && <p className="cv-nc-empty">You are all caught up.</p>}
+              {waiting.map((t, i) => {
+                const a = t.attention
+                const msgs = [...a.messages].reverse()
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    className="cv-nc-card"
+                    style={{ '--i': Math.min(i, 8) } as React.CSSProperties}
+                    title={`Open ${nameOf(t)}`}
+                    onClick={() => onPick(t.id)}
+                  >
+                    <span className="cv-nc-app">
+                      <SiteIcon src={t.favicon} />
+                      <span>{nameOf(t)}</span>
+                      {msgs[0] ? (
+                        <time>{messageAge(msgs[0].at, now)}</time>
+                      ) : (
+                        <em className={a.call === 'ringing' ? 'ringing' : ''}>
+                          {attentionLabel(a)}
+                        </em>
+                      )}
                     </span>
-                  ))}
-                  {msgs.length > 3 && <span className="cv-nc-more">{msgs.length - 3} more</span>}
-                </button>
-              )
-            })}
+                    {msgs.slice(0, 3).map((m) => (
+                      <span key={m.at + m.title} className="cv-nc-msg">
+                        {m.title && <strong>{m.title}</strong>}
+                        {m.body && <span>{m.body}</span>}
+                      </span>
+                    ))}
+                    {msgs.length > 3 && <span className="cv-nc-more">{msgs.length - 3} more</span>}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Presence>
     </span>
   )
 }

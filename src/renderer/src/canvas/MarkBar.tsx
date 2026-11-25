@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { Presence } from '@renderer/components/Presence'
 import { useDismiss } from './useDismiss'
 import {
   HEADING_MIN,
@@ -165,46 +166,48 @@ export function MarkBar({
             >
               Arrange
             </button>
-            {menu && (
-              <div className="cv-menu cv-mmenu" role="menu" onClick={() => setMenu(false)}>
-                {ALIGN.map((a) => (
+            <Presence>
+              {menu && (
+                <div className="cv-menu cv-mmenu" role="menu" onClick={() => setMenu(false)}>
+                  {ALIGN.map((a) => (
+                    <button
+                      key={a.how}
+                      type="button"
+                      role="menuitem"
+                      disabled={units < 2}
+                      onClick={() => onAlign(a.how)}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
                   <button
-                    key={a.how}
                     type="button"
                     role="menuitem"
-                    disabled={units < 2}
-                    onClick={() => onAlign(a.how)}
+                    disabled={units < 3}
+                    onClick={() => onDistribute('x')}
                   >
-                    {a.label}
+                    Space evenly across
                   </button>
-                ))}
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={units < 3}
-                  onClick={() => onDistribute('x')}
-                >
-                  Space evenly across
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  disabled={units < 3}
-                  onClick={() => onDistribute('y')}
-                >
-                  Space evenly down
-                </button>
-                <button type="button" role="menuitem" onClick={() => onOrder('front')}>
-                  Bring to front
-                </button>
-                <button type="button" role="menuitem" onClick={() => onOrder('back')}>
-                  Send to back
-                </button>
-                <button type="button" role="menuitem" onClick={onDuplicate}>
-                  Duplicate <small>Ctrl+D</small>
-                </button>
-              </div>
-            )}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={units < 3}
+                    onClick={() => onDistribute('y')}
+                  >
+                    Space evenly down
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => onOrder('front')}>
+                    Bring to front
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => onOrder('back')}>
+                    Send to back
+                  </button>
+                  <button type="button" role="menuitem" onClick={onDuplicate}>
+                    Duplicate <small>Ctrl+D</small>
+                  </button>
+                </div>
+              )}
+            </Presence>
           </div>
           {(marks.length > 1 || grouped) && (
             <button

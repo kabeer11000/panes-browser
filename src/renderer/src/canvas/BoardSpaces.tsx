@@ -83,92 +83,94 @@ export function BoardSpaces({
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
-      {open && (
-        <div className="cv-space-menu" role="menu" aria-label="Spaces">
-          {orderedSpaces.map((s, i) => {
-            const on = s.id === activeSpaceId
-            const waiting = on ? undefined : spaceAttention[s.id]
-            const sound = spaceAudio[s.id]
-            return (
-              <button
-                key={s.id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={on}
-                className={
-                  'cv-space-item' + (on ? ' on' : '') + (dragging === s.id ? ' dragging' : '')
-                }
-                {...reorder(s.id)}
-                title={waiting ? attentionLabel(waiting) : undefined}
-                onClick={() => {
-                  setOpen(false)
-                  if (on) return
-                  if (waiting?.callTabId != null) window.api.activateTab(waiting.callTabId)
-                  else window.api.switchSpace(s.id)
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault()
-                  setOpen(false)
-                  setEditing(s.id)
-                }}
-              >
-                <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={20} />
-                <span className="cv-space-item-name">{s.name}</span>
-                {s.shared && <span className="cv-space-item-meta">Shared</span>}
-                {sound?.playing && <span className="cv-space-item-meta">Playing</span>}
-                {waiting && !waiting.call && (
-                  <span className="cv-space-item-attn">{badgeText(waiting.count, 9)}</span>
-                )}
-                {on ? (
-                  <svg
-                    className="cv-space-check"
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="m5 12 5 5 9-10" />
-                  </svg>
-                ) : (
-                  i < 9 && <kbd>Ctrl+Alt+{i + 1}</kbd>
-                )}
-              </button>
-            )
-          })}
-          <div className="cv-space-sep" role="separator" />
-          <button
-            type="button"
-            role="menuitem"
-            className="cv-space-item plain"
-            onClick={() => {
-              setOpen(false)
-              window.api.createSpace()
-            }}
-          >
-            <span className="cv-space-plus" aria-hidden="true">
-              <PlusIcon />
-            </span>
-            New space
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="cv-space-item plain"
-            onClick={() => {
-              setOpen(false)
-              setEditing(activeSpaceId)
-            }}
-          >
-            <span className="cv-space-plus" aria-hidden="true" />
-            {active?.name ?? 'Space'} settings…
-          </button>
-        </div>
-      )}
+      <Presence>
+        {open && (
+          <div className="cv-space-menu" role="menu" aria-label="Spaces">
+            {orderedSpaces.map((s, i) => {
+              const on = s.id === activeSpaceId
+              const waiting = on ? undefined : spaceAttention[s.id]
+              const sound = spaceAudio[s.id]
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={on}
+                  className={
+                    'cv-space-item' + (on ? ' on' : '') + (dragging === s.id ? ' dragging' : '')
+                  }
+                  {...reorder(s.id)}
+                  title={waiting ? attentionLabel(waiting) : undefined}
+                  onClick={() => {
+                    setOpen(false)
+                    if (on) return
+                    if (waiting?.callTabId != null) window.api.activateTab(waiting.callTabId)
+                    else window.api.switchSpace(s.id)
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    setOpen(false)
+                    setEditing(s.id)
+                  }}
+                >
+                  <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={20} />
+                  <span className="cv-space-item-name">{s.name}</span>
+                  {s.shared && <span className="cv-space-item-meta">Shared</span>}
+                  {sound?.playing && <span className="cv-space-item-meta">Playing</span>}
+                  {waiting && !waiting.call && (
+                    <span className="cv-space-item-attn">{badgeText(waiting.count, 9)}</span>
+                  )}
+                  {on ? (
+                    <svg
+                      className="cv-space-check"
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="m5 12 5 5 9-10" />
+                    </svg>
+                  ) : (
+                    i < 9 && <kbd>Ctrl+Alt+{i + 1}</kbd>
+                  )}
+                </button>
+              )
+            })}
+            <div className="cv-space-sep" role="separator" />
+            <button
+              type="button"
+              role="menuitem"
+              className="cv-space-item plain"
+              onClick={() => {
+                setOpen(false)
+                window.api.createSpace()
+              }}
+            >
+              <span className="cv-space-plus" aria-hidden="true">
+                <PlusIcon />
+              </span>
+              New space
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="cv-space-item plain"
+              onClick={() => {
+                setOpen(false)
+                setEditing(activeSpaceId)
+              }}
+            >
+              <span className="cv-space-plus" aria-hidden="true" />
+              {active?.name ?? 'Space'} settings…
+            </button>
+          </div>
+        )}
+      </Presence>
       <Presence>
         {edited && (
           <SpacePopover

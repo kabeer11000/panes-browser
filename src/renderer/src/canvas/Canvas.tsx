@@ -1,4 +1,5 @@
 import { useReducedMotion } from 'motion/react'
+import { Presence } from '@renderer/components/Presence'
 import {
   startTransition,
   useCallback,
@@ -6237,17 +6238,19 @@ export function Canvas({
           </button>
         </div>
       )}
-      {finder.confirm && (
-        <div className="cv-confirm" role="alertdialog" aria-label="Confirm">
-          <span>{finder.confirm.detail}</span>
-          <button type="button" onClick={() => finder.answerConfirm(false)}>
-            Not now
-          </button>
-          <button type="button" className="primary" onClick={() => finder.answerConfirm(true)}>
-            Allow
-          </button>
-        </div>
-      )}
+      <Presence>
+        {finder.confirm && (
+          <div className="cv-confirm" role="alertdialog" aria-label="Confirm">
+            <span>{finder.confirm.detail}</span>
+            <button type="button" onClick={() => finder.answerConfirm(false)}>
+              Not now
+            </button>
+            <button type="button" className="primary" onClick={() => finder.answerConfirm(true)}>
+              Allow
+            </button>
+          </div>
+        )}
+      </Presence>
       {expanded && (
         <Expanded
           key={expanded.id}

@@ -1,4 +1,5 @@
 import { arrangeLabel } from '@shared/ai/canvasMenu'
+import { Presence } from '@renderer/components/Presence'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useDismiss } from './useDismiss'
 import './surfaces.css'
@@ -231,27 +232,29 @@ export function Toolbar({
         >
           {draw.id === 'marker' ? <HighlighterArt /> : <PencilArt />}
         </button>
-        {draws && (
-          <div className="cv-menu rows" role="menu">
-            {DRAW.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={d.id === draw.id}
-                onClick={() => {
-                  setDraws(false)
-                  setLastDraw(d)
-                  onTool(d.id)
-                }}
-              >
-                {d.icon}
-                <span>{d.label}</span>
-                <kbd>{d.key}</kbd>
-              </button>
-            ))}
-          </div>
-        )}
+        <Presence>
+          {draws && (
+            <div className="cv-menu rows" role="menu">
+              {DRAW.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={d.id === draw.id}
+                  onClick={() => {
+                    setDraws(false)
+                    setLastDraw(d)
+                    onTool(d.id)
+                  }}
+                >
+                  {d.icon}
+                  <span>{d.label}</span>
+                  <kbd>{d.key}</kbd>
+                </button>
+              ))}
+            </div>
+          )}
+        </Presence>
       </div>
       <button
         type="button"
@@ -277,43 +280,45 @@ export function Toolbar({
         >
           <ShapeClusterIcon />
         </button>
-        {shapes && (
-          <div className="cv-menu rows" role="menu">
-            {SHAPE_KINDS.map((k) => (
-              <button
-                key={k}
-                type="button"
-                role="menuitemradio"
-                aria-checked={tool === 'shape' && k === shapeKind}
-                onClick={() => {
-                  setShapes(false)
-                  onShapeKind(k)
-                  onTool('shape')
-                }}
-              >
-                <ShapeIcon />
-                <span>{SHAPE_LABEL[k]}</span>
-              </button>
-            ))}
-            <i className="cv-menu-sep" aria-hidden="true" />
-            {LINKS.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={tool === d.id}
-                onClick={() => {
-                  setShapes(false)
-                  onTool(d.id)
-                }}
-              >
-                {d.icon}
-                <span>{d.label.replace(/ \(.*\)$/, '')}</span>
-                <kbd>{d.key}</kbd>
-              </button>
-            ))}
-          </div>
-        )}
+        <Presence>
+          {shapes && (
+            <div className="cv-menu rows" role="menu">
+              {SHAPE_KINDS.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={tool === 'shape' && k === shapeKind}
+                  onClick={() => {
+                    setShapes(false)
+                    onShapeKind(k)
+                    onTool('shape')
+                  }}
+                >
+                  <ShapeIcon />
+                  <span>{SHAPE_LABEL[k]}</span>
+                </button>
+              ))}
+              <i className="cv-menu-sep" aria-hidden="true" />
+              {LINKS.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={tool === d.id}
+                  onClick={() => {
+                    setShapes(false)
+                    onTool(d.id)
+                  }}
+                >
+                  {d.icon}
+                  <span>{d.label.replace(/ \(.*\)$/, '')}</span>
+                  <kbd>{d.key}</kbd>
+                </button>
+              ))}
+            </div>
+          )}
+        </Presence>
       </div>
       <span className="cv-sep" aria-hidden="true" />
       {toolButton(TEXT)}
@@ -348,23 +353,25 @@ export function Toolbar({
         >
           <PlusIcon />
         </button>
-        {blocks && (
-          <div className="cv-menu" role="menu">
-            {BLOCKS.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setBlocks(false)
-                  onBlock(b.id)
-                }}
-              >
-                {b.label}
-              </button>
-            ))}
-          </div>
-        )}
+        <Presence>
+          {blocks && (
+            <div className="cv-menu" role="menu">
+              {BLOCKS.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setBlocks(false)
+                    onBlock(b.id)
+                  }}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </Presence>
       </div>
       {/* the board's widgets, in reach on the bar (they were only in the command menu and the right-click menu) */}
       <div className="cv-split" ref={widgetsBox}>
@@ -379,23 +386,25 @@ export function Toolbar({
         >
           <StopwatchIcon />
         </button>
-        {widgets && (
-          <div className="cv-menu" role="menu">
-            {(['stopwatch', 'timer', 'reminder'] as const).map((w) => (
-              <button
-                key={w}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setWidgets(false)
-                  onWidget(w)
-                }}
-              >
-                {WIDGET_LABEL[w]}
-              </button>
-            ))}
-          </div>
-        )}
+        <Presence>
+          {widgets && (
+            <div className="cv-menu" role="menu">
+              {(['stopwatch', 'timer', 'reminder'] as const).map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setWidgets(false)
+                    onWidget(w)
+                  }}
+                >
+                  {WIDGET_LABEL[w]}
+                </button>
+              ))}
+            </div>
+          )}
+        </Presence>
       </div>
       <span className="cv-sep" aria-hidden="true" />
       {showPrompt && (

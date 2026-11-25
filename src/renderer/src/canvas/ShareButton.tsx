@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Presence } from '@renderer/components/Presence'
 import type { Space } from '@shared/types'
 import { Face, ShareSection } from '@renderer/components/ShareSection'
 import { useShareState } from '@renderer/components/useShare'
@@ -70,29 +71,31 @@ export function ShareButton({ space }: { space: Space | undefined }): React.JSX.
           'Share'
         )}
       </button>
-      {open && (
-        <div className="cv-share-pop" role="dialog" aria-label={`Share ${space.name}`}>
-          {showing && (
-            <div className="cv-share-live">
-              <span className="cv-share-dot" aria-hidden="true" />
-              <span className="cv-share-live-what">
-                {showing.driver
-                  ? `${showing.driver.name.split(' ')[0]} is controlling your tab`
-                  : `Presenting a tab${showing.watching ? ` · ${showing.watching} watching` : ''}`}
-              </span>
-              {showing.driver && (
-                <button type="button" onClick={showing.takeBack}>
-                  Take back
+      <Presence>
+        {open && (
+          <div className="cv-share-pop" role="dialog" aria-label={`Share ${space.name}`}>
+            {showing && (
+              <div className="cv-share-live">
+                <span className="cv-share-dot" aria-hidden="true" />
+                <span className="cv-share-live-what">
+                  {showing.driver
+                    ? `${showing.driver.name.split(' ')[0]} is controlling your tab`
+                    : `Presenting a tab${showing.watching ? ` · ${showing.watching} watching` : ''}`}
+                </span>
+                {showing.driver && (
+                  <button type="button" onClick={showing.takeBack}>
+                    Take back
+                  </button>
+                )}
+                <button type="button" onClick={showing.stop}>
+                  Stop
                 </button>
-              )}
-              <button type="button" onClick={showing.stop}>
-                Stop
-              </button>
-            </div>
-          )}
-          <ShareSection space={space} />
-        </div>
-      )}
+              </div>
+            )}
+            <ShareSection space={space} />
+          </div>
+        )}
+      </Presence>
     </div>
   )
 }

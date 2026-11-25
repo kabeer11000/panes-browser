@@ -1,4 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { Presence } from '@renderer/components/Presence'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { exampleAsks, splitBlocks } from '@shared/ai/canvasPlace'
 import { boardStatus } from '@shared/ai/canvasTools'
@@ -355,17 +356,19 @@ export function AskDock({
               })}
             </div>
             <div className="cv-dock-foot">
-              {confirm && (
-                <div className="cv-dock-confirm" role="alertdialog" aria-label="Confirm">
-                  <span>{confirm.text}</span>
-                  <button type="button" onClick={() => confirm.answer(false)}>
-                    Not now
-                  </button>
-                  <button type="button" className="primary" onClick={() => confirm.answer(true)}>
-                    Allow
-                  </button>
-                </div>
-              )}
+              <Presence>
+                {confirm && (
+                  <div className="cv-dock-confirm" role="alertdialog" aria-label="Confirm">
+                    <span>{confirm.text}</span>
+                    <button type="button" onClick={() => confirm.answer(false)}>
+                      Not now
+                    </button>
+                    <button type="button" className="primary" onClick={() => confirm.answer(true)}>
+                      Allow
+                    </button>
+                  </div>
+                )}
+              </Presence>
               {ask.queue.length > 0 && (
                 <div className="cv-dock-queue" aria-label="Waiting messages">
                   <div className="cv-dock-queue-head">
