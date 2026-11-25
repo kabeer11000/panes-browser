@@ -41,7 +41,8 @@ export function Pic({
   const [last, setLast] = useState<string | null>(() => pick(null))
   const ready = pick(last)
   if (ready && ready !== last) setLast(ready)
-  const shown = ready ?? (bad.has(src) ? null : last)
+  // a newer picture that will not load (its tab just closed) leaves the one it was to replace, not an empty card
+  const shown = ready ?? last
   // shown from the first frame: no fade. Waited for: a short fade, so it does not pop
   const [fade] = useState(shown === null)
   useEffect(() => {

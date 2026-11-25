@@ -611,14 +611,14 @@ export function registerCanvas(d: {
   })
   // The live page's latest picture, taken while the preview is open (see live-shot). It becomes the card's picture
   // once the preview has let the page go, after the flight back: the board drawing again mid-flight would cost frames.
-  let kept: { id: number; img: Electron.NativeImage } | null = null
+  let kept: { id: number; img: Electron.NativeImage; at: number } | null = null
   const keepAsThumb = (id: number | null): void => {
     const k = kept
     if (!k || k.id !== id) return
     kept = null
     setTimeout(() => {
       const small = k.img.getSize().width > 960 ? k.img.resize({ width: 960 }) : k.img
-      d.tabs.takeThumb(k.id, 'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64'))
+      d.tabs.takeThumb(k.id, 'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64'), k.at)
     }, 450)
   }
   const capture = async (tabId: number): Promise<Electron.NativeImage | null> => {
@@ -642,7 +642,7 @@ export function registerCanvas(d: {
     if (thumb !== false) {
       const small = img.getSize().width > 960 ? img.resize({ width: 960 }) : img
       d.tabs.takeThumb(tabId, 'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64'))
-    } else kept = { id: tabId, img }
+    } else kept = { id: tabId, img, at: Date.now() }
     return 'data:image/jpeg;base64,' + img.toJPEG(82).toString('base64')
   })
   // The live page used (scrolled, typed in, clicked) or loaded: a fresh picture once it has been still a moment,
@@ -666,7 +666,7 @@ export function registerCanvas(d: {
         if (!full || d.tabs.liveTab() !== id || d.win.isDestroyed()) return
         // no wider than the preview ever shows it: a full-size picture of a large window took ~16 ms of main to encode
         const img = full.getSize().width > PIC_MAX_W ? full.resize({ width: PIC_MAX_W }) : full
-        kept = { id, img }
+        kept = { id, img, at: Date.now() }
         d.win.webContents.send(
           'canvas:live-pic',
           id,

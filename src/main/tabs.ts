@@ -4521,10 +4521,13 @@ export class TabManager {
     const tab = this.tabs.get(id)
     if (!tab || this.overlay || (!leaving && !this.visibleIds().includes(id)) || this.isBlank(tab))
       return
+    const startedAt = Date.now()
     try {
       tab.dirty = false // before the capture: a change that lands while it runs marks it again
       const img = await tab.view.webContents.capturePage()
-      if (img.isEmpty() || !this.tabs.has(id)) return
+      if (img.isEmpty()) tab.dirty = true // nothing taken: the page still differs from its picture
+      // a newer picture landed while this one was taken (the preview's, a load's): it is kept
+      if (img.isEmpty() || !this.tabs.has(id) || tab.thumbAt > startedAt) return
       const width = sharp ? img.getSize().width : THUMB_WIDTH
       const picture = sharp ? img : img.resize({ width, quality: 'good' })
       const jpeg = picture.toJPEG(sharp ? 82 : 72)
@@ -4535,7 +4538,7 @@ export class TabManager {
       tab.thumbAt = Date.now()
       this.send('tabs:thumb', id, this.thumbLink(id, true))
     } catch {
-      // tab closed or view torn down mid-capture
+      tab.dirty = true // tab closed or view torn down mid-capture
     }
   }
 
@@ -4595,6 +4598,10 @@ export class TabManager {
         while (this.sharpWant.size > 0 && this.canvasMode) {
           const [id, width] = [...this.sharpWant].pop()!
           this.sharpWant.delete(id)
+          // a picture at the page's own size is as sharp as it gets: a card shown wider than the page is not taken
+          // again on every pan of the board
+          const t = this.tabs.get(id)
+          if (t?.thumbSharp && !t.dirty) continue
           await this.captureHidden(id, width)
         }
       } finally {
@@ -4606,7 +4613,18 @@ export class TabManager {
   private sharpWant = new Map<number, number>()
   private sharpening = false
 
-  async captureHidden(id: number, width = CANVAS_THUMB_WIDTH): Promise<void> {
+  /** One capture of a tab at a time: two would each show it out of sight and hide it under the other. */
+  private hiddenShots = new Map<number, Promise<void>>()
+  captureHidden(id: number, width = CANVAS_THUMB_WIDTH): Promise<void> {
+    const running = this.hiddenShots.get(id)
+    if (running) return running
+    const p = this.captureHiddenNow(id, width).finally(() => this.hiddenShots.delete(id))
+    this.hiddenShots.set(id, p)
+    return p
+  }
+
+  private async captureHiddenNow(id: number, width: number): Promise<void> {
+    const startedAt = Date.now()
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
     if (!tab || !wc || tab.private || tab.tor || tab.unloaded || tab.failed || this.isBlank(tab)) {
@@ -4638,6 +4656,7 @@ export class TabManager {
         await new Promise((res) => setTimeout(res, 400))
       }
       let img: Electron.NativeImage | null
+      tab.dirty = false // before the capture, as in snapshot: a change that lands while it runs marks it again
       try {
         // a page that never draws must not hold the card up: give up after a while (the card keeps its words)
         img = await Promise.race([
@@ -4651,7 +4670,8 @@ export class TabManager {
           void holdUnseen(wc, false, tab.view.getVisible())
         }
       }
-      if (!img || img.isEmpty() || !this.tabs.has(id)) return
+      if (!img || img.isEmpty()) tab.dirty = true // nothing taken: still differs from its picture
+      if (!img || img.isEmpty() || !this.tabs.has(id) || tab.thumbAt > startedAt) return
       const full = img.getSize().width
       const w = Math.min(full, Math.max(CANVAS_THUMB_WIDTH, Math.round(width)))
       const jpeg = (w < full ? img.resize({ width: w, quality: 'good' }) : img).toJPEG(
@@ -4863,11 +4883,13 @@ export class TabManager {
 
   /** Give a tab with no picture one from the disk cache (an unloaded tab after a restart). */
   /** A picture of the page as it is right now (the canvas preview's, as it closes): the tab's picture from now on. */
-  takeThumb(id: number, dataUrl: string): void {
+  takeThumb(id: number, dataUrl: string, takenAt = Date.now()): void {
     const t = this.tabs.get(id)
-    if (!t || t.private || t.tor) return
+    // never over a newer one (a picture kept from the preview is handed over a moment after it was taken)
+    if (!t || t.private || t.tor || t.thumbAt > takenAt) return
     t.thumb = dataUrl
-    t.thumbAt = Date.now()
+    t.thumbAt = takenAt
+    t.thumbSharp = false
     t.dirty = false
     this.send('tabs:thumb', id, this.thumbLink(id, true))
   }
