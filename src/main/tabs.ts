@@ -153,6 +153,8 @@ import { JsonStore } from './store'
 import { holdUnseen } from './unseen'
 import { hostOf, httpsUpgrade } from '@shared/httpsFirst'
 
+/** How long a navigation Panes started counts as the one a page's "Leave site?" is about (Tab.leaving). */
+const LEAVE_ASK_MS = 3000
 /** How far a touchpad pinch may magnify a page (visual zoom, over its layout). */
 const PINCH_MAX = 4
 /** The page's main video, as LiveVideo wants it (see TabManager.liveVideo). Runs in the page; reads only layout. */
@@ -318,6 +320,13 @@ type TabView = WebContentsView | OffscreenPage
 interface Tab {
   /** A native view, or (offscreenPages) a page drawn off screen into the window's own canvases. */
   view: TabView
+  /**
+   * A navigation Panes started in this tab (an address, Back, Forward, Reload), kept a moment: a page that objects to
+   * being left ("Leave site?") is asked about on Panes' own card, and on Leave the same navigation runs again.
+   */
+  leaving?: { at: number; again: () => void }
+  /** Leave was picked: the page's objection is passed over once, for the navigation run again. */
+  passUnload?: boolean
   /** The person's own mute for this tab (shared/mute.ts), kept apart from the page so it outlives navigations and
    * a page brought back after unloading; the page's audioMuted is worked out from it and the site (applyMute). */
   mute?: TabMute
@@ -2466,7 +2475,7 @@ export class TabManager {
     const url = resolveInput(input, this.deps.settings.searchUrl())
     if (!tab || !url) return false
     tab.hasUrl = true
-    this.go(tab, url)
+    this.leave(tab, () => this.go(tab, url))
     this.refresh()
     return true
   }
@@ -2487,24 +2496,32 @@ export class TabManager {
       return
     }
     tab.hasUrl = true
-    this.go(tab, url)
+    this.leave(tab, () => this.go(tab, url))
     if (!this.canvasMode && !this.overlay) tab.view.webContents.focus()
     this.refresh()
   }
 
+  /** Run a navigation Panes starts, remembering it (Tab.leaving) so a page's "Leave site?" can run it again. */
+  private leave(tab: Tab, act: () => void): void {
+    tab.leaving = { at: Date.now(), again: act }
+    act()
+  }
+
   back(): void {
-    this.pageTab()?.view.webContents.navigationHistory.goBack()
+    const tab = this.pageTab()
+    if (tab) this.leave(tab, () => tab.view.webContents.navigationHistory.goBack())
   }
   forward(): void {
-    this.pageTab()?.view.webContents.navigationHistory.goForward()
+    const tab = this.pageTab()
+    if (tab) this.leave(tab, () => tab.view.webContents.navigationHistory.goForward())
   }
   reload(hard = false): void {
     const tab = this.pageTab()
     if (!tab) return
+    const wc = tab.view.webContents
     // Reloading an error page means trying the address that failed, not showing the error again.
-    if (tab.failed) void tab.view.webContents.loadURL(tab.failed.url).catch(() => {})
-    else if (hard) tab.view.webContents.reloadIgnoringCache()
-    else tab.view.webContents.reload()
+    if (tab.failed) void wc.loadURL(tab.failed.url).catch(() => {})
+    else this.leave(tab, () => (hard ? wc.reloadIgnoringCache() : wc.reload()))
   }
 
   /** Back, forward or reload for one tab, whether or not it is the one on screen (the canvas preview's buttons). */
@@ -2512,11 +2529,11 @@ export class TabManager {
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
     if (!tab || !wc) return
-    if (what === 'back') wc.navigationHistory.goBack()
-    else if (what === 'forward') wc.navigationHistory.goForward()
+    if (what === 'back') this.leave(tab, () => wc.navigationHistory.goBack())
+    else if (what === 'forward') this.leave(tab, () => wc.navigationHistory.goForward())
     else if (what === 'stop') wc.stop()
     else if (tab.failed) void wc.loadURL(tab.failed.url).catch(() => {})
-    else wc.reload()
+    else this.leave(tab, () => wc.reload())
   }
 
   /** Next or previous match of the last search, or open the find bar if there has been none. */
@@ -3824,6 +3841,36 @@ export class TabManager {
     // no answer here Electron keeps the page, so typing an address or a link did nothing at all.
     wc.on('will-prevent-unload', (e) => {
       if (this.win.isDestroyed()) return e.preventDefault()
+      // Leave was picked on Panes' card: the navigation run again goes past the page's objection
+      if (tab.passUnload) {
+        tab.passUnload = false
+        return e.preventDefault()
+      }
+      // A navigation Panes started (an address, Back, Forward, Reload): asked on Panes' own card. It is stopped for
+      // now (not prevented), and on Leave it runs again. One the page started itself keeps the system question below.
+      const leaving = tab.leaving
+      if (
+        leaving &&
+        Date.now() - leaving.at < LEAVE_ASK_MS &&
+        !this.unloadAsked.has(wc) &&
+        this.confirm
+      ) {
+        tab.leaving = undefined
+        void this.confirm(
+          {
+            title: 'Leave site?',
+            detail: 'Changes you made may not be saved.',
+            choices: [{ label: 'Stay' }, { label: 'Leave', tone: 'danger' }]
+          },
+          null
+        ).then((i) => {
+          if (i !== 1 || this.tabs.get(id) !== tab || wc.isDestroyed()) return
+          tab.passUnload = true
+          leaving.again()
+          setTimeout(() => (tab.passUnload = false), LEAVE_ASK_MS) // never left set for a later navigation
+        })
+        return
+      }
       // Closing the tab: asked on Panes' own card, not a system dialog. The page stays for now (not prevented) and the
       // tab closes only on Leave. A navigation away keeps the system's question: it is answered there and then.
       if (this.unloadAsked.has(wc) && this.confirm) {
@@ -3965,6 +4012,7 @@ export class TabManager {
       void wc.loadURL(errorPageUrl(url, code, desc, back, theme, quicBlocked)).catch(() => {})
     })
     wc.on('did-navigate', () => {
+      tab.leaving = undefined // it went: nothing is left to ask about (see will-prevent-unload)
       tab.upgraded = undefined // the page is here (on https:, or where a redirect took it): nothing to fall back from
       // the failed https: try is no page of the person's: Back skips it, as in Chrome
       const failed = tab.fellBack
