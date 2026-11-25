@@ -45,6 +45,7 @@ import {
   type Box,
   type CanvasFrame,
   makeRoom,
+  cardRoom,
   type CanvasState,
   type TabLite
 } from './canvas'
@@ -716,5 +717,82 @@ describe('makeRoom', () => {
   test('nothing to move: the same board back', () => {
     const s0 = board([frame('a', 0, 0), frame('b', 900, 0)])
     expect(makeRoom(s0, 'a')).toEqual(s0)
+  })
+})
+
+describe('cardRoom (a card that grew by itself never covers another)', () => {
+  const free: CanvasFrame = {
+    id: 'other',
+    name: 'Other',
+    kind: 'other',
+    x: 0,
+    y: 0,
+    w: 1200,
+    h: 600,
+    pinned: false,
+    free: true
+  }
+  const card = (
+    id: number,
+    x: number,
+    y: number,
+    w = 300,
+    h = 200,
+    frame: string | null = 'other'
+  ): CanvasState['cards'][number] =>
+    ({
+      id,
+      url: `https://e${id}.com/`,
+      x,
+      y,
+      w,
+      h,
+      frame,
+      manual: true
+    }) as CanvasState['cards'][number]
+  const board = (cards: CanvasState['cards'], frames = [free]): CanvasState => ({
+    ...emptyState('t'),
+    frames,
+    cards
+  })
+  const noOverlap = (s: CanvasState): void => {
+    for (let i = 0; i < s.cards.length; i++)
+      for (let j = i + 1; j < s.cards.length; j++)
+        expect(intersects(cardBox(s.cards[i]), cardBox(s.cards[j]))).toBe(false)
+  }
+
+  test('the one that grew stays; the card it covers moves the short way out', () => {
+    // the board seen in testing: a fitted card 384 wide at 24 ran over its neighbour at 327
+    const s = cardRoom(board([card(2, 24, 24, 384, 230), card(1, 327, 44, 384, 230)]), 2)
+    expect(s.cards.find((c) => c.id === 2)).toMatchObject({ x: 24, y: 24 })
+    noOverlap(s)
+    expect(s.cards.find((c) => c.id === 1)!.x).toBeGreaterThan(24 + 384)
+  })
+  test('pushes on down a chain', () => {
+    const s = cardRoom(board([card(1, 0, 0, 500), card(2, 400, 0), card(3, 710, 0)]), 1)
+    noOverlap(s)
+  })
+  test('loose cards too, but only among themselves', () => {
+    const s = cardRoom(
+      board([card(1, 0, 0, 500, 200, null), card(2, 400, 0, 300, 200, null)], []),
+      1
+    )
+    noOverlap(s)
+  })
+  test('nothing to do: the same state back', () => {
+    const s0 = board([card(1, 0, 0), card(2, 400, 0)])
+    expect(cardRoom(s0, 1)).toEqual(s0)
+  })
+  test('a gridded section is left to lay itself out', () => {
+    const s0 = board([card(1, 0, 0, 500), card(2, 400, 0)], [{ ...free, free: false }])
+    expect(cardRoom(s0, 1)).toBe(s0)
+  })
+  test('fitVideoCards makes room in a hand-laid section', () => {
+    const s0 = board([card(1, 0, 0, 300, 200), card(2, 330, 0, 300, 200)])
+    const s1 = fitVideoCards(
+      { ...s0, cards: s0.cards.map((c) => ({ ...c, w: undefined, h: undefined, manual: false })) },
+      (c) => (c.id === 1 ? 16 / 9 : null)
+    )
+    noOverlap(s1)
   })
 })

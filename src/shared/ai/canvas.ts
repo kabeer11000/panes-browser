@@ -505,44 +505,79 @@ function movables(s: CanvasState): Movable[] {
 }
 
 /**
- * Make room around a section that grew, was dropped or was made: it stays where it is (the one being worked on never
- * jumps away), and whatever it now covers is pushed out the shortest way that leads away from it (judged by their
- * middles), just far enough to clear it. What that pushes into moves on in turn; a cap on the rounds ends it.
+ * Push whatever `origin` now covers out of its way: `origin` stays where it is (the thing being worked on never jumps
+ * away), and each thing it overlaps moves the shortest way that leads away from it (judged by their middles), just far
+ * enough to leave `clear` between them. What that pushes into moves on in turn; a cap on the rounds ends it.
  */
-export function makeRoom(s: CanvasState, id: string): CanvasState {
-  const origin = `f:${id}`
-  if (!s.frames.some((f) => f.id === id)) return s
+function pushApart(
+  s: CanvasState,
+  origin: string,
+  list: (t: CanvasState) => Movable[],
+  clear: { x: number; y: number },
+  touch: number
+): CanvasState {
   let next = s
   const queue = [origin]
   for (let guard = 0; queue.length > 0 && guard < 400; guard++) {
     const key = queue.shift()!
-    let all = movables(next)
+    let all = list(next)
     const me = all.find((m) => m.key === key)
     if (!me) continue
     for (const k of all.map((m) => m.key)) {
       if (k === key || k === origin) continue
       const cur = all.find((m) => m.key === k)
-      if (!cur || !intersects(me.box, cur.box, FRAME_GAP / 4)) continue
+      if (!cur || !intersects(me.box, cur.box, touch)) continue
       const a = me.box
       const b = cur.box
-      const clear = FRAME_GAP / 2
       // each way out that leads away from the pusher (judged by the middles), with how far it is
       const ways: Array<[number, number]> = []
       const below = b.y + b.h / 2 >= a.y + a.h / 2
       const after = b.x + b.w / 2 >= a.x + a.w / 2
-      ways.push(below ? [0, a.y + a.h + clear - b.y] : [0, a.y - clear - (b.y + b.h)])
-      ways.push(after ? [a.x + a.w + clear - b.x, 0] : [a.x - clear - (b.x + b.w), 0])
+      ways.push(below ? [0, a.y + a.h + clear.y - b.y] : [0, a.y - clear.y - (b.y + b.h)])
+      ways.push(after ? [a.x + a.w + clear.x - b.x, 0] : [a.x - clear.x - (b.x + b.w), 0])
       const [dx, dy] = ways.reduce((p, q) =>
         Math.abs(q[0] + q[1]) < Math.abs(p[0] + p[1]) ? q : p
       )
       next = cur.move(next, dx, dy)
-      all = movables(next)
+      all = list(next)
       if (!queue.includes(k)) queue.push(k)
-      // a push further down the chain may land back on the section: look round it again
+      // a push further down the chain may land back on the first one: look round it again
       if (key !== origin && !queue.includes(origin)) queue.push(origin)
     }
   }
   return next
+}
+
+/** Make room around a section that grew, was dropped or was made (see pushApart): other sections, loose notes. */
+export function makeRoom(s: CanvasState, id: string): CanvasState {
+  if (!s.frames.some((f) => f.id === id)) return s
+  const clear = FRAME_GAP / 2
+  return pushApart(s, `f:${id}`, movables, { x: clear, y: clear }, FRAME_GAP / 4)
+}
+
+/**
+ * Make room around a card that changed size by itself (a page that became a video, a picture's shape arriving): the
+ * cards it now covers, in a section laid out by hand or loose on the board, move out of its way as sections do (see
+ * pushApart). A gridded section lays itself out again instead (regridFrame), so it is left to that.
+ */
+export function cardRoom(s: CanvasState, id: number): CanvasState {
+  const c = s.cards.find((x) => x.id === id)
+  if (!c) return s
+  const f = c.frame ? s.frames.find((x) => x.id === c.frame) : undefined
+  if (f && !f.free) return s
+  const frame = c.frame
+  const list = (t: CanvasState): Movable[] =>
+    t.cards
+      .filter((x) => x.frame === frame)
+      .map((x) => ({
+        key: `c:${x.id}`,
+        box: cardBox(x),
+        move: (t2: CanvasState, dx: number, dy: number) => ({
+          ...t2,
+          cards: t2.cards.map((y) => (y.id === x.id ? { ...y, x: y.x + dx, y: y.y + dy } : y))
+        })
+      }))
+  return pushApart(s, `c:${id}`, list, { x: GAP, y: ROW_GAP }, 0)
 }
 
 /** A section that changed keeps its place and moves what it now covers out of the way (see makeRoom). */
@@ -1549,6 +1584,7 @@ export function fitVideoCards(
   aspect: (c: CanvasCard) => number | null
 ): CanvasState {
   const touched = new Set<string>()
+  const resized: number[] = []
   let changed = false
   const cards = s.cards.map((c) => {
     if (c.fit === false) return c
@@ -1558,6 +1594,8 @@ export function fitVideoCards(
     if (c.fit && c.w === want.w && c.h === want.h) return c
     changed = true
     if (c.frame) touched.add(c.frame)
+    // only a card that grew can cover another
+    if (want.w > (c.w ?? CARD_W) || want.h > (c.h ?? CARD_H)) resized.push(c.id)
     return { ...c, w: want.w, h: want.h, fit: true }
   })
   if (!changed) return s
@@ -1566,6 +1604,8 @@ export function fitVideoCards(
     const f = next.frames.find((x) => x.id === fid)
     if (f) next = regridFrame(next, fid, !!f.sized)
   }
+  // outside a grid nothing lays the others out again: the resized cards push what they now cover aside
+  for (const id of resized) next = cardRoom(next, id)
   return next
 }
 
