@@ -1,0 +1,12 @@
+# Images and other binaries are never touched by line-ending conversion (core.autocrlf): the installer's bitmaps lost
+# bytes that way once and NSIS could not show them.
+*.bmp binary
+*.ico binary
+*.icns binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.webp binary
+*.mp4 binary
+*.zip binary
+*.node binary

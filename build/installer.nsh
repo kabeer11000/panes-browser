@@ -21,6 +21,12 @@
   !endif
 !macroend
 
+; electron-builder's assisted installer has no Welcome page of its own, so the sidebar art (installerSidebar.bmp)
+; only ever showed on the last page. This puts the Welcome page first, with the wording above.
+!macro customWelcomePage
+  !insertmacro MUI_PAGE_WELCOME
+!macroend
+
 !macro customInstall
   ; ProgID for documents
   WriteRegStr SHCTX "Software\Classes\PanesHTML" "" "Panes Document"
