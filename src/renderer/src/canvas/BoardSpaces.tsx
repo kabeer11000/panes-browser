@@ -1,3 +1,4 @@
+import { useReorder } from '@renderer/hooks/useReorder'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Space } from '@shared/types'
 import { attentionLabel, badgeText } from '@shared/attention'
@@ -39,6 +40,13 @@ export function BoardSpaces({
     void holdOverlay('board-spaces')
     return () => void releaseOverlay('board-spaces')
   }, [over])
+
+  // drag a space up or down the list to put it elsewhere (useReorder), as in the sidebar
+  const {
+    ordered: orderedSpaces,
+    dragging,
+    handlers: reorder
+  } = useReorder(spaces, window.api.moveSpace)
 
   return (
     <div className="cv-space-title-wrap space-switcher down" ref={host}>
@@ -82,7 +90,7 @@ export function BoardSpaces({
       </button>
       {open && (
         <div className="cv-space-menu" role="menu" aria-label="Spaces">
-          {spaces.map((s, i) => {
+          {orderedSpaces.map((s, i) => {
             const on = s.id === activeSpaceId
             const waiting = on ? undefined : spaceAttention[s.id]
             const sound = spaceAudio[s.id]
@@ -92,7 +100,10 @@ export function BoardSpaces({
                 type="button"
                 role="menuitemradio"
                 aria-checked={on}
-                className={'cv-space-item' + (on ? ' on' : '')}
+                className={
+                  'cv-space-item' + (on ? ' on' : '') + (dragging === s.id ? ' dragging' : '')
+                }
+                {...reorder(s.id)}
                 title={waiting ? attentionLabel(waiting) : undefined}
                 onClick={() => {
                   setOpen(false)

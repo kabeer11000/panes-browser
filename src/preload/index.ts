@@ -212,6 +212,7 @@ const api: PanesApi = {
   moveTabToSpace: (tabId, spaceId) => ipcRenderer.send('spaces:move-tab', tabId, spaceId),
   updateSpace: (id, patch) => ipcRenderer.send('spaces:update', id, patch),
   deleteSpace: (id) => ipcRenderer.send('spaces:delete', id),
+  moveSpace: (id, to) => ipcRenderer.send('spaces:move', id, to),
   popOutPane: (id) => ipcRenderer.send('tabs:pop-out', id),
   setRatios: (path, ratios) => ipcRenderer.send('tabs:ratios', path, ratios),
   moveTab: (id, index, groupId) => ipcRenderer.send('tabs:move', id, index, groupId),

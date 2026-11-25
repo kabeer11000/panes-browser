@@ -4,6 +4,7 @@ import { APPEARANCE_LIMITS, SPACE_COLORS, type AppearanceKey } from '@shared/set
 import { defaultSpaceIcon, isSpaceIcon, type SpaceIcon } from '@shared/spaceicons'
 import { MAX_SITES_PER_SPACE, sanitizeSiteTheme } from '@shared/sitetheme'
 import type { SiteTheme, Space, SpaceMode, SpacePatch, SpaceUi } from '@shared/types'
+import { moveId } from '@shared/order'
 import { JsonStore } from './store'
 
 const MAX_NAME = 24
@@ -178,6 +179,18 @@ export class SpaceStore {
   }
 
   /** The last space cannot be removed. */
+  /** Put a space at another place in the order the person sees them in (dragged in a space picker). */
+  move(id: number, to: number): boolean {
+    const d = this.store.value
+    const ids = d.spaces.map((s) => s.id)
+    const next = moveId(ids, id, to)
+    if (next === ids) return false
+    const byId = new Map(d.spaces.map((s) => [s.id, s]))
+    d.spaces = next.map((i) => byId.get(i)!)
+    this.store.save()
+    return true
+  }
+
   remove(id: number): boolean {
     const d = this.store.value
     if (d.spaces.length <= 1 || !this.get(id)) return false

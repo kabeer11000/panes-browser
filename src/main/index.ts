@@ -821,6 +821,11 @@ function createWindow(): void {
     share.forget(id)
     tabs.deleteSpace(id)
   })
+  // dragged to another place among the spaces (a space picker): the window is told the new order at once
+  ipcMain.on('spaces:move', (_e, id: unknown, to: unknown) => {
+    if (typeof id !== 'number' || typeof to !== 'number') return
+    if (spaces.move(id, to)) tabs.refresh()
+  })
   ipcMain.on('spaces:move-tab', (_e, tabId: number, spaceId: number) =>
     tabs.moveTabToSpace(tabId, spaceId)
   )

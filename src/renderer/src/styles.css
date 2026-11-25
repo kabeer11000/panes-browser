@@ -5997,3 +5997,17 @@ kbd {
   --glass-alpha: 72%;
   --glass-blur: blur(28px) saturate(1.6);
 }
+
+/* a space being dragged to another place in its picker (useReorder): lifted a touch, above its neighbours */
+.space-chip.dragging,
+.cv-space-item.dragging {
+  position: relative;
+  z-index: 2;
+  scale: 1.06;
+  cursor: grabbing;
+  transition: scale var(--dur-fast) var(--ease);
+}
+.cv-space-item.dragging {
+  scale: 1.02;
+  background: var(--surface-hover);
+}

@@ -1,3 +1,4 @@
+import { useReorder } from '@renderer/hooks/useReorder'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
 import { memo, useEffect, useId, useState } from 'react'
 import type { Space } from '@shared/types'
@@ -55,6 +56,13 @@ export const SpaceSwitcher = memo(function SpaceSwitcher({
     return () => void releaseOverlay(owner)
   }, [dropsOverPage, owner])
 
+  // drag a space along the row to put it elsewhere (useReorder): the others slide aside, the new order is kept
+  const {
+    ordered: orderedSpaces,
+    dragging,
+    handlers: reorder
+  } = useReorder(spaces, window.api.moveSpace)
+
   return (
     <div className={'space-switcher ' + placement}>
       <Presence>
@@ -70,7 +78,7 @@ export const SpaceSwitcher = memo(function SpaceSwitcher({
       </Presence>
       <LayoutGroup id={groupId}>
         <div className="space-row" role="tablist" aria-label="Spaces">
-          {spaces.map((s, i) => {
+          {orderedSpaces.map((s, i) => {
             const on = s.id === activeSpaceId
             const sound = audio[s.id]
             const sounding = !!sound && (sound.playing || sound.muted)
@@ -84,8 +92,13 @@ export const SpaceSwitcher = memo(function SpaceSwitcher({
                 role="tab"
                 aria-selected={on}
                 aria-label={(s.shared ? `${s.name}, shared` : s.name) + (said ? `: ${said}` : '')}
-                className={'space-chip no-drag' + (on ? ' active' : '')}
+                className={
+                  'space-chip no-drag' +
+                  (on ? ' active' : '') +
+                  (dragging === s.id ? ' dragging' : '')
+                }
                 layout
+                {...reorder(s.id)}
                 data-space={s.id}
                 title={`${s.name} (Ctrl+Alt+${i + 1}). ${said ? said + '. ' : ''}${on ? 'Click to edit' : 'Right-click to edit'}.`}
                 onClick={() =>
@@ -108,7 +121,10 @@ export const SpaceSwitcher = memo(function SpaceSwitcher({
                       <circle cx="3.4" cy="2.2" r="1.7" />
                       <path d="M0.4 7.6c0-1.8 1.3-3 3-3s3 1.2 3 3z" />
                       <circle cx="7.2" cy="2.6" r="1.4" opacity="0.75" />
-                      <path d="M6.9 7.6c0-1.2-.4-2.2-1.1-2.8.4-.2.9-.3 1.4-.3 1.5 0 2.6 1.1 2.6 3.1z" opacity="0.75" />
+                      <path
+                        d="M6.9 7.6c0-1.2-.4-2.2-1.1-2.8.4-.2.9-.3 1.4-.3 1.5 0 2.6 1.1 2.6 3.1z"
+                        opacity="0.75"
+                      />
                     </svg>
                   </span>
                 )}

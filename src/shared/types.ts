@@ -527,6 +527,8 @@ export interface PanesApi {
   moveTabToSpace(tabId: number, spaceId: number): void
   updateSpace(id: number, patch: SpacePatch): void
   deleteSpace(id: number): void
+  /** Put a space at index `to` in the order the spaces are shown. */
+  moveSpace(id: number, to: number): void
   /** Take a pane out of the split and show it alone at full size. */
   popOutPane(id: number): void
   setRatios(path: number[], ratios: number[]): void
