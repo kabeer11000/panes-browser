@@ -36,6 +36,7 @@ import { browseWith } from '@shared/browse'
 import { stageBackground } from '@shared/color'
 import { siteListed, ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '@shared/memory'
 import { siteKey, siteThemeCss } from '@shared/sitetheme'
+import { innerRect } from '@shared/geometry'
 import { isMuted, muteAfterSiteChange, toggledTabMute, type TabMute } from '@shared/mute'
 import {
   holdCapture,
@@ -3062,12 +3063,7 @@ export class TabManager {
   setRects(rects: Record<number, Rect>): void {
     const next: Record<number, Rect> = {}
     for (const [id, r] of Object.entries(rects)) {
-      next[Number(id)] = {
-        x: Math.round(r.x),
-        y: Math.round(r.y),
-        width: Math.max(0, Math.round(r.width)),
-        height: Math.max(0, Math.round(r.height))
-      }
+      next[Number(id)] = innerRect(r)
     }
     this.rects = next
     this.applyVisibility()
@@ -5147,7 +5143,6 @@ export class TabManager {
           label: shown ? 'Show as reader' : 'Show the live page',
           click: pick(shown ? 'reader' : 'live')
         }),
-        { label: 'Pop out as a tab', click: pick('popout') },
         ...when(!priv && this.deps.settings.get().ai.enabled, {
           label: 'Ask about this page',
           click: pick('ask')
@@ -5458,7 +5453,11 @@ export class TabManager {
 
   /** Memory Panes is using across all its processes, and how many tabs hold a page. */
   memoryStats(): MemoryStats {
-    const kb = app.getAppMetrics().reduce((sum, m) => sum + m.memory.workingSetSize, 0)
+    // each process's own memory (as Task Manager's and Chrome's): the working sets counted shared libraries and GPU
+    // memory again in every process, so the sum read far above what Panes really holds
+    const kb = app
+      .getAppMetrics()
+      .reduce((sum, m) => sum + (m.memory.privateBytes ?? m.memory.workingSetSize), 0)
     let unloaded = 0
     for (const t of this.tabs.values()) if (t.unloaded) unloaded++
     return {

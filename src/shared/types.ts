@@ -218,7 +218,7 @@ export interface Rect {
 
 /** Commands main sends to the renderer UI (usually from keyboard shortcuts). */
 /** What the canvas preview's page menu hands back for the board to do itself. */
-export type PageMenuPick = 'popout' | 'ask' | 'find' | 'site' | 'reader' | 'live' | 'close'
+export type PageMenuPick = 'ask' | 'find' | 'site' | 'reader' | 'live' | 'close'
 /** Shortcuts main routes to the open canvas preview ('zoom': its page zoom changed, read it again). */
 /** `back`: Ctrl+W closed the preview's page; the page it was opened from takes its place, else the preview closes. */
 export type PreviewKey = 'find' | 'address' | 'close' | 'zoom' | 'back'

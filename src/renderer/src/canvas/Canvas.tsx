@@ -4016,15 +4016,6 @@ export function Canvas({
     (url: string, live: boolean): void => void edit((s0) => setPreview(s0, url, live)),
     [edit]
   )
-  const goToTab = (id: number): void => {
-    const item = stRef.current?.items[String(id)]
-    const tabId = isVirtual(id) ? item?.tab : id
-    if (tabId !== undefined) leaveRef.current(tabId)
-    else if (item?.url) {
-      window.api.createTab(item.url)
-      leaveRef.current(null)
-    }
-  }
 
   // the board's own size follows the window (the chrome folds away around it): what is in the middle stays there
   useEffect(() => {
@@ -6273,7 +6264,6 @@ export function Canvas({
             switchPreview(to, true)
             return true
           }}
-          onGoToTab={() => goToTab(expanded.id)}
           onTab={(tabId) => {
             const it = st?.items[String(expanded.id)]
             if (it) edit((s0) => setItem(s0, expanded.id, { ...it, tab: tabId }))

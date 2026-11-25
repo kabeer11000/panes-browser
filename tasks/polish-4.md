@@ -75,6 +75,24 @@ From the sticky-note board. Each item: what was found in the code, then the fix.
 - [x] Mute tab / mute site reliable: own tab mute kept apart from the page (shared/mute.ts). Leaving a muted site is
       heard again, unmuting a site keeps tabs muted on their own, a tab's mute survives unload. Needs an on-screen check.
 - [ ] Split view: the panes' left and right border/outline is clipped.
+- [ ] Preview's recent tabs: more than the limit (the row of 4 plus up to 2 waiting tabs appended), and picking a
+      right-hand one moves the row (a tab outside the row joins at the left / takes a freed seat by recency).
+      Fix (drafted, E:/tmp/draft/kept.ts): the row is frozen while the preview is open; a tab keeps its seat while
+      open; closed ones leave and the next fills the end; a page from outside takes the rightmost seat that is not
+      the way back; waiting tabs only fill free seats; one cap (5, the board's) for both rows.
+- [ ] Setting to turn off tooltips everywhere: `tooltips` setting, stamped as data-tips by main/uiFx.ts on every
+      Panes page, tooltip.ts shows nothing while it is off (titles are still moved off, so no system tooltip).
+- [x] Pop out (open as a tab, leave the board) removed from the preview header and its menu.
+- [ ] Every floating surface follows the frosted-glass setting (space menu, share, strip, menus, toasts, AI/chat
+      panel...): converted to --glass-alpha / --glass-blur; check on screen with glass on and off.
+- [ ] Bulk-closing a frame: cards leave in one frame (board hides them at once; main sends one state for the batch).
+- [ ] Split view outline clipped: native view snapped inside the pane box (shared/geometry.ts innerRect).
+- [ ] Selected card ring not rounded (user: since today). Find on screen.
+- [ ] Scroll fade gradients everywhere, search dialog (command palette) included.
+- [ ] Settings page reorganised: easier to find things (fewer, clearer sections; a section index or search).
+- [ ] Top toolbar (strip with now playing and tabs) with the AI or chat panel open: drifts left with a gap.
+- [ ] adblock-rs 0.13.5 -> 0.13.6, then a full Windows and Mac release (installer + Mac shell build).
+- [ ] AI can change Panes' own settings (a tool: read/set a whitelisted set, says what it changed, undoable).
 - [ ] Welcome screen redesign: calmer, typographic, less "vibe coded" (Dia/Arc-like restraint).
 
 ## C. Features

@@ -153,7 +153,6 @@ interface Props extends ExpandSource {
   bar?: 'top' | 'bottom'
   /** The panel now covers its card (true, once it has grown) or is about to uncover it (false, as it closes). */
   onCover?: (covered: boolean) => void
-  onGoToTab: () => void
   /** A tab was made for the live page: the card should remember it. */
   onTab: (tab: number) => void
   /** The text of a note was edited. */
@@ -359,10 +358,6 @@ const LinkGlyph = (): React.JSX.Element => (
   <Glyph d="M6.6 9.4 9.4 6.6M7.2 4.6l1-1a2.6 2.6 0 0 1 3.7 3.7l-1 1M8.8 11.4l-1 1a2.6 2.6 0 0 1-3.7-3.7l1-1" />
 )
 const CheckGlyph = (): React.JSX.Element => <Glyph d="m3.4 8.4 3 3 6.2-6.6" />
-/** Open outside the board: the usual arrow leaving a box. */
-const PopOutGlyph = (): React.JSX.Element => (
-  <Glyph d="M9.5 2.5h4v4M13.5 2.5 8 8M12 9.5V12a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 3 12V5.5A1.5 1.5 0 0 1 4.5 4H7" />
-)
 
 // ---- reader view ----
 
@@ -749,7 +744,6 @@ export function Expanded({
   onBack,
   bar = 'top',
   onCover,
-  onGoToTab,
   onTab,
   onText,
   onStep,
@@ -1495,8 +1489,7 @@ export function Expanded({
 
   /** What was picked in the page menu (the header's More button, or a right-click on the header). */
   const onPagePick = (what: PageMenuPick | null): void => {
-    if (what === 'popout') onGoToTab()
-    else if (what === 'ask') onAsk?.()
+    if (what === 'ask') onAsk?.()
     else if (what === 'find') openFind()
     else if (what === 'site') openSite()
     else if (what === 'reader') toReader()
@@ -1588,7 +1581,7 @@ export function Expanded({
         style={{ left, top, width: w, height: h }}
       >
         {/* three zones: the page (nav, address) on the left, how to see it in the middle, what to do on the right.
-            The rest (bookmark, copy link, find, zoom, pop out) is in More and on a right-click of the bar. */}
+            The rest (bookmark, copy link, find, zoom) is in More and on a right-click of the bar. */}
         <header
           className="cv-panel-head"
           ref={head}
@@ -1829,7 +1822,7 @@ export function Expanded({
                 className="cv-hbtn"
                 aria-label="More"
                 aria-haspopup="menu"
-                title="More: bookmark, copy link, find, zoom, pop out..."
+                title="More: bookmark, copy link, find, zoom..."
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect()
                   pageMenu(r.left, bar === 'bottom' ? r.top - 4 : r.bottom + 4)
@@ -1849,17 +1842,6 @@ export function Expanded({
                     onClick={copy}
                   >
                     {copied ? <CheckGlyph /> : <LinkGlyph />}
-                  </button>
-                ) : null}
-                {m.kind === 'page' || m.kind === 'video' || /^(https?|file):/i.test(url ?? '') ? (
-                  <button
-                    type="button"
-                    className="cv-hbtn"
-                    aria-label="Pop out as a tab"
-                    title="Pop out: open as a tab and leave the canvas"
-                    onClick={onGoToTab}
-                  >
-                    <PopOutGlyph />
                   </button>
                 ) : null}
               </>
