@@ -95,12 +95,20 @@
     background-color 0.15s ease,
     scale var(--spring-snappy-dur) var(--spring-snappy);
 }
-.cv .cv-frame[class*=' fc'] .cv-frame-name {
+/* A section's name chip, wherever it is drawn (in the section, or above it as the board's header, .cv-fhead-at): a
+   tint of the section's colour (the space's when it has none) under text that reads on it in either scheme. The
+   header once had white text on the colour itself, so a white or pale section, or a light board, was white on white. */
+.cv .cv-fhead-at {
+  --fc: var(--space);
+}
+.cv :is(.cv-frame, .cv-fhead-at):not(.other, .private) .cv-frame-name,
+.cv :is(.cv-frame, .cv-fhead-at)[class*=' fc'] .cv-frame-name {
   color: color-mix(in srgb, var(--fc) 35%, #fff);
   background: color-mix(in srgb, var(--fc) 30%, var(--board));
 }
-[data-scheme='light'] .cv .cv-frame[class*=' fc'] .cv-frame-name {
-  color: color-mix(in srgb, var(--fc) 60%, #000);
+[data-scheme='light'] .cv :is(.cv-frame, .cv-fhead-at):not(.other, .private) .cv-frame-name,
+[data-scheme='light'] .cv :is(.cv-frame, .cv-fhead-at)[class*=' fc'] .cv-frame-name {
+  color: color-mix(in srgb, var(--fc) 35%, #000);
   background: color-mix(in srgb, var(--fc) 22%, #fff);
 }
 .cv .cv-frame-head:hover .cv-frame-name {
