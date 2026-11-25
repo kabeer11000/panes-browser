@@ -64,6 +64,17 @@ From the sticky-note board. Each item: what was found in the code, then the fix.
       a brief full/green settle on completion, red with the reason (`interrupted` cause) on failure. Same component
       for the fan and `panes://downloads`.
 
+## D. Asked during the session (2026-11-25)
+
+- [x] Frosted glass one setting across every window; never see-through without blur (49cc02b)
+- [x] Settings bottom nav too wide: icons, current page named (b5b9d6d)
+- [x] Card shadow under the title row (9b1ad90; lift shadow, split target, pulse)
+- [ ] Ctrl+F find opens as a bar above the page (in the strip/sidebar) instead of floating on it. Native page views
+      paint over the window's UI, so it needs its own small view over the page's top-right (like the popover).
+- [ ] Share popover on the board: too much text, reads AI-written. Cut to the essentials.
+- [ ] Split view: the panes' left and right border/outline is clipped.
+- [ ] Welcome screen redesign: calmer, typographic, less "vibe coded" (Dia/Arc-like restraint).
+
 ## C. Features
 
 - [ ] **Reorder spaces by dragging in the space selector.** Nothing exists: no `spaces:reorder` IPC, `Space[]`

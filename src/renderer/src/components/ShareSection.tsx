@@ -7,12 +7,20 @@ const STATUS: Record<ShareState['status'], string> = {
   connecting: 'Connecting',
   syncing: 'Catching up',
   live: 'Live',
-  offline: 'Offline: changes wait and go out when you are back',
-  refused: 'The room did not let this link in'
+  offline: 'Offline',
+  refused: 'Link refused'
 }
 
 /** Someone's initials on their colour, as on their cursor. */
-export function Face({ name, color, size = 22 }: { name: string; color: string; size?: number }): React.JSX.Element {
+export function Face({
+  name,
+  color,
+  size = 22
+}: {
+  name: string
+  color: string
+  size?: number
+}): React.JSX.Element {
   const initials =
     name
       .split(/[\s._-]+/)
@@ -41,7 +49,7 @@ function NameField({ name }: { name: string }): React.JSX.Element {
   }
   return (
     <label className="share-name">
-      <span className="share-or">You appear as</span>
+      <span className="share-or">Your name</span>
       <input
         className="share-join-input"
         value={draft ?? name}
@@ -60,6 +68,7 @@ const isInvite = (text: string): boolean =>
 
 /** Someone sent an invite link: paste it here (or in the address bar) and the space is joined and shown. */
 function JoinWithLink(): React.JSX.Element {
+  const [open, setOpen] = useState(false)
   const [link, setLink] = useState('')
   const text = link.trim()
   const bad = text !== '' && !isInvite(text)
@@ -68,13 +77,19 @@ function JoinWithLink(): React.JSX.Element {
     window.api.navigate(text) // main joins it, as an invite opened any other way, and goes to it
     setLink('')
   }
+  if (!open)
+    return (
+      <button type="button" className="share-link-btn" onClick={() => setOpen(true)}>
+        Join with a link
+      </button>
+    )
   return (
     <div className="share-join">
-      <span className="share-or">Have an invite link?</span>
       <div className="share-join-row">
         <input
           className="share-join-input"
-          placeholder="Paste it here"
+          autoFocus
+          placeholder="Paste an invite link"
           value={link}
           spellCheck={false}
           aria-invalid={bad}
@@ -86,7 +101,7 @@ function JoinWithLink(): React.JSX.Element {
           Join
         </button>
       </div>
-      {bad && <p className="share-note warn">That is not a Panes invite link.</p>}
+      {bad && <p className="share-note warn">Not a Panes invite link</p>}
     </div>
   )
 }
@@ -116,13 +131,12 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
   if (!shared)
     return (
       <div className="share-sec">
-        <span className="tp-title">Share</span>
-        <p className="share-note">
-          Work on this board together, live, like a Figma file. Anyone with the link can join, in Panes or in
-          their browser. Everything is end-to-end encrypted.
-        </p>
-        <p className="share-note">
-          Your tabs stay private. Only the board is shared, plus any tab you choose to share or present.
+        <span className="tp-title">Share this board</span>
+        <p
+          className="share-note"
+          title="Only the board is shared, plus any tab you choose to share or present. Anyone with the link can join, in Panes or a browser."
+        >
+          Anyone with the link can edit it live. End-to-end encrypted; your tabs stay private.
         </p>
         <button
           type="button"
@@ -134,9 +148,9 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
             setBusy(false)
           }}
         >
-          {busy ? 'Making a room...' : 'Invite people'}
+          {busy ? 'Creating link...' : copied ? 'Link copied' : 'Copy invite link'}
         </button>
-        {failed && <p className="share-note warn">The space could not be shared. Try again in a moment.</p>}
+        {failed && <p className="share-note warn">Could not share. Try again.</p>}
         <JoinWithLink />
       </div>
     )
@@ -147,7 +161,16 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
     <div className="share-sec">
       <div className="share-head">
         <span className="tp-title">Shared</span>
-        <span className={'share-status ' + status}>
+        <span
+          className={'share-status ' + status}
+          title={
+            status === 'offline'
+              ? 'Changes wait and go out when you are back'
+              : status === 'refused'
+                ? 'The room did not let this link in'
+                : undefined
+          }
+        >
           <i aria-hidden="true" />
           {STATUS[status]}
         </span>
@@ -158,21 +181,23 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
           <Face key={p.id} name={p.name} color={p.color} />
         ))}
         <span className="share-count">
-          {people.length === 0 ? 'Only you, so far' : `${people.length + 1} here`}
+          {people.length === 0 ? 'Just you' : `${people.length + 1} here`}
         </span>
       </div>
-      <p className="share-note">
-        They see the board. Your tabs stay private: right-click one to share it or present it live, and you decide
-        if anyone may control it.
+      <p
+        className="share-note"
+        title="Right-click a tab to share it or present it live; you decide if anyone may control it."
+      >
+        Tabs stay private unless you share one.
       </p>
       {state && <NameField name={state.me.name} />}
       <div className="share-actions">
         <button
           type="button"
-          className="share-btn"
+          className="share-btn primary"
           onClick={async () => copy(await window.api.share!.link(space.id))}
         >
-          {copied ? 'Link copied' : 'Copy invite link'}
+          {copied ? 'Link copied' : 'Copy link'}
         </button>
         {resetting ? (
           <button
@@ -184,7 +209,7 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
               await copy(await window.api.share!.reset(space.id))
             }}
           >
-            New link, remove everyone
+            Reset and remove everyone
           </button>
         ) : (
           <button type="button" className="share-btn quiet" onClick={() => setResetting(true)}>
@@ -195,12 +220,13 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
           <button
             type="button"
             className="share-btn danger"
+            title="You keep your copy of the board"
             onClick={() => {
               window.api.share!.stop(space.id)
               setStopping(false)
             }}
           >
-            Stop: keep my copy
+            Confirm stop
           </button>
         ) : (
           <button type="button" className="share-btn quiet" onClick={() => setStopping(true)}>

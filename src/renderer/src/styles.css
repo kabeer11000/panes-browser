@@ -5821,6 +5821,20 @@ kbd {
   padding-top: 10px;
   border-top: 1px solid var(--border);
 }
+/* joining is rare next to sharing: a quiet line until it is wanted */
+.share-link-btn {
+  align-self: flex-start;
+  height: 24px;
+  padding: 0;
+  background: none;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: var(--fs-s);
+}
+.share-link-btn:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
 .share-or {
   font-size: var(--fs-s);
   color: var(--fg-dim);
