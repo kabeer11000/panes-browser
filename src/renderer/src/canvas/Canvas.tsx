@@ -6145,18 +6145,20 @@ export function Canvas({
           />
         </div>
       )}
-      {cmdOpen && (
-        <CommandMenu
-          commands={commands}
-          canAsk={aiAvailable}
-          onAsk={(q) => asker.ask(q)}
-          onFind={(q) => {
-            asker.close()
-            finder.run(q)
-          }}
-          onClose={() => setCmdOpen(false)}
-        />
-      )}
+      <Presence>
+        {cmdOpen && (
+          <CommandMenu
+            commands={commands}
+            canAsk={aiAvailable}
+            onAsk={(q) => asker.ask(q)}
+            onFind={(q) => {
+              asker.close()
+              finder.run(q)
+            }}
+            onClose={() => setCmdOpen(false)}
+          />
+        )}
+      </Presence>
       <div ref={marquee} className="cv-marquee" />
       <div ref={drawBox} className="cv-draw" />
       {phase !== 'loading' && (
