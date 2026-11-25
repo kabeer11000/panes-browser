@@ -3915,6 +3915,14 @@ export class TabManager {
         const i = h.getActiveIndex() - 1
         if (i >= 0 && h.getEntryAtIndex(i)?.url === failed) h.removeEntryAtIndex(i)
       }
+      // Chromium keeps an entry for the address that failed, and the error page came after it: Back from the error
+      // page went to that address, which failed again and brought the error page back, so Back did nothing. The
+      // failed entry goes; Back leaves the error page for the page before it, as in Chrome.
+      if (tab.failed && wc.getURL().startsWith('panes://error')) {
+        const h = wc.navigationHistory
+        const i = h.getActiveIndex() - 1
+        if (i >= 0 && h.getEntryAtIndex(i)?.url === tab.failed.url) h.removeEntryAtIndex(i)
+      }
       // The blank page a new view is primed with (identity.ts) is no page of the person's: going back reached it
       // (about:blank, after the first real page). Out of the history once a page has come after it, as in Chrome,
       // where back stops at the first page.

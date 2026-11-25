@@ -96,7 +96,10 @@ From the sticky-note board. Each item: what was found in the code, then the fix.
 - [x] (670f78a) Settings memory figure wrong (summed working sets).
 - [ ] Onboarding password import: open the browser's own password page, with a per-browser steps popup.
 - [ ] AI can change Panes' own settings (a tool: read/set a whitelisted set, says what it changed, undoable).
-- [ ] Welcome screen redesign: calmer, typographic, less "vibe coded" (Dia/Arc-like restraint).
+- [x] (845da6b) Space selector, Share and presenting pill not frosted: now on the board chrome.
+- [ ] Settings segmented selectors (Balanced etc.) look broken, no background on the picked one.
+- [ ] Re-check every prompt of 2026-11-25 against what shipped (user asked twice).
+- [x] (f06cc4a) Welcome screen redesign: calmer, typographic, less "vibe coded" (Dia/Arc-like restraint).
 
 ## C. Features
 
