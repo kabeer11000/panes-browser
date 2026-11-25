@@ -4977,7 +4977,7 @@ kbd {
 }
 .tour-acts .primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
 }
 .tour-acts .primary:hover {
   filter: brightness(1.1);
@@ -5149,7 +5149,7 @@ kbd {
 .recover-btn.primary {
   border-color: transparent;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
 }
 
 /* ==================================================================================================================

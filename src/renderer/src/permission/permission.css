@@ -54,7 +54,7 @@ body {
 }
 .perm-btn.primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
 }
 .perm-btn.primary:hover {
   filter: brightness(1.1);

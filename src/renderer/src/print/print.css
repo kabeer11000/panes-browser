@@ -565,7 +565,7 @@ body,
 .pr-btn.primary {
   min-width: 72px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
 }
 .pr-btn.primary:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 88%, #fff);

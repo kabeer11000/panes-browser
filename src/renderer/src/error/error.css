@@ -70,7 +70,7 @@ body {
 }
 .err-btn.primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
 }
 .err-btn:focus-visible,
 .mascot:focus-visible,

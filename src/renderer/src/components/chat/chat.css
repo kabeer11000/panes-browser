@@ -199,7 +199,7 @@
 .chat-btn.primary {
   margin-top: 10px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   box-shadow: none;
 }
 .chat-btn.primary:hover {
@@ -604,7 +604,7 @@
   height: 28px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   transition:
     opacity var(--dur-fast),
     filter var(--dur-fast);
@@ -803,7 +803,7 @@
   padding: 0 16px;
   border-radius: var(--r-5);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   font-size: var(--fs-s);
 }
 .chat-btn.primary:hover {

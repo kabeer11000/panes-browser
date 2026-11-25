@@ -583,7 +583,7 @@ input[type='range']:active::-webkit-slider-thumb {
 /* ---- passwords ---- */
 .int-btn.primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
 }
 .int-btn.primary:hover:not(:disabled) {
   background: var(--accent);

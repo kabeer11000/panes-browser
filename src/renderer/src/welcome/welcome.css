@@ -115,7 +115,7 @@ body {
   padding: 13px 30px;
   border-radius: var(--r-pill);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   font-size: var(--fs-xl);
   font-weight: 600;
   box-shadow: 0 14px 30px -12px var(--accent);
@@ -149,7 +149,7 @@ body {
 }
 .wl-next {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   box-shadow: 0 10px 24px -12px var(--accent);
   transition: filter var(--dur);
 }
@@ -1023,7 +1023,7 @@ body {
   padding: 13px 34px;
   border-radius: var(--r-pill);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-fg);
   font-size: var(--fs-xl);
   font-weight: 600;
   box-shadow: 0 14px 30px -12px var(--accent);
