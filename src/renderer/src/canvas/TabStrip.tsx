@@ -8,10 +8,12 @@ import { MiniPauseIcon, MiniPlayIcon } from './icons'
 import {
   CameraIcon,
   CloseIcon,
+  IncognitoIcon,
   MicIcon,
   MicOffIcon,
   ScreenIcon,
-  SpeakerIcon
+  SpeakerIcon,
+  TorIcon
 } from '@renderer/components/icons'
 import { SpaceAvatar } from '@renderer/components/SpaceAvatar'
 import type { CardModel } from './model'
@@ -82,7 +84,14 @@ export function StripTab({
             }
       }
     >
-      <SiteIcon src={m.favicon} decoding="sync" />
+      {/* a private or Tor tab's site icon is never kept (favicons.ts), so it showed as a blank: its own mark instead */}
+      {m.kind === 'private' ? (
+        <span className="cv-strip-kind" aria-hidden="true">
+          {m.tor ? <TorIcon /> : <IncognitoIcon />}
+        </span>
+      ) : (
+        <SiteIcon src={m.favicon} decoding="sync" />
+      )}
       {/* something new in that tab: how many, on the icon's corner as on an app in the Dock (a dot when unknown) */}
       {m.attnNew && (
         <i className={'cv-unread' + (m.attnCount ? '' : ' dot')} aria-hidden="true">

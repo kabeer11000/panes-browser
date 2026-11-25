@@ -5677,3 +5677,17 @@
   line-height: 16px;
   box-shadow: 0 0 0 2px rgb(255 59 48 / 0.25);
 }
+
+/* a private or Tor tab in the tab strip (TabStrip.tsx): its kind's mark where a site icon would be */
+.cv-strip-kind {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--fg-dim);
+}
+.cv-strip-kind svg {
+  width: 100%;
+  height: 100%;
+}
