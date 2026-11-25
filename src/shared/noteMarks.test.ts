@@ -66,7 +66,7 @@ describe('markFor (the formatting keys in notes, labels and shapes)', () => {
   const k = (
     key: string,
     mods: Partial<Record<'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey', boolean>> = {}
-  ) => ({
+  ): Parameters<typeof markFor>[0] => ({
     key,
     ctrlKey: false,
     metaKey: false,

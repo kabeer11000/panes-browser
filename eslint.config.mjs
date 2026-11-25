@@ -37,5 +37,12 @@ export default defineConfig(
       ...eslintPluginReactRefresh.configs.vite.rules
     }
   },
+  // the website's scripts are plain JavaScript: return types cannot be written there
+  {
+    files: ['website/**/*.js'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off'
+    }
+  },
   eslintConfigPrettier
 )
