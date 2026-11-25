@@ -44,6 +44,7 @@ import {
   NO_CAPTURE,
   NO_HOLD,
   isCapturing,
+  inCall,
   CAPTURE_PREFIX,
   parseCapture,
   sameCapture,
@@ -2787,7 +2788,7 @@ export class TabManager {
     tab.captureHold = hold
     tab.capture = hold.shown
     // while something shows, look again now and then for frames that went away without a word
-    const next = settleIn ?? (isCapturing(hold.shown) ? CAPTURE_RECHECK_MS : null)
+    const next = settleIn ?? (inCall(hold.shown) ? CAPTURE_RECHECK_MS : null)
     if (next !== null) tab.captureTimer = setTimeout(() => this.showCapture(tab), next)
     if (!sameCapture(was, hold.shown)) this.refresh()
   }
@@ -5433,7 +5434,7 @@ export class TabManager {
             this.pipId === id ||
             this.fullscreenId === id ||
             this.liveShared.has(id) || // shown live to a shared space: unloaded or frozen, everyone's picture stops
-            isCapturing(t.capture)), // in a call: unloading it would hang up
+            inCall(t.capture)), // in a call (even one only listened to): unloading or freezing it would hang up
         host,
         inActiveSpace: t.spaceId === this.activeSpaceId,
         lastShownAt: t.lastShownAt,

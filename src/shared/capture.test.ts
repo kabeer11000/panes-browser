@@ -5,6 +5,7 @@ import {
   captureKindsOf,
   holdCapture,
   isCapturing,
+  inCall,
   mergeCapture,
   NO_CAPTURE,
   NO_HOLD,
@@ -331,5 +332,51 @@ describe('muted mic', () => {
   })
   test('parse ignores micMuted without a mic', () => {
     expect(parseCapture(CAPTURE_PREFIX + '{"micMuted":true}')).toEqual(NO_CAPTURE)
+  })
+})
+
+describe('a call only listened to (no camera, mic or screen)', () => {
+  test('parsed, merged across frames, held, and in a call without capturing', () => {
+    const r = parseCapture(
+      CAPTURE_PREFIX + JSON.stringify({ camera: false, mic: false, screen: false, rtc: true })
+    )!
+    expect(r.rtc).toBe(true)
+    expect(isCapturing(r)).toBe(false) // the camera and mic badge stays off
+    expect(inCall(r)).toBe(true) // but the tab is never unloaded or frozen
+    expect(mergeCapture([NO_CAPTURE, r]).rtc).toBe(true)
+    expect(holdCapture(NO_HOLD, r, 1).hold.shown.rtc).toBe(true)
+    expect(sameCapture(NO_CAPTURE, r)).toBe(false)
+    expect(inCall(NO_CAPTURE)).toBe(false)
+  })
+  test('the page shim reports a WebRTC connection while it is connecting or connected', () => {
+    class FakePeer {
+      connectionState = 'new'
+      private fs: Array<() => void> = []
+      addEventListener(_t: string, f: () => void): void {
+        this.fs.push(f)
+      }
+      set(s: string): void {
+        this.connectionState = s
+        for (const f of this.fs) f()
+      }
+    }
+    const reports: Array<CaptureState | null> = []
+    const g = {
+      MediaDevices: class {},
+      RTCPeerConnection: FakePeer,
+      setInterval: () => 1,
+      clearInterval: () => {}
+    }
+    captureShim(
+      { report: (d) => reports.push(parseCapture(CAPTURE_PREFIX + d)), onStop: () => {} },
+      g as unknown as typeof globalThis
+    )
+    const pc = new (g as unknown as { RTCPeerConnection: new () => FakePeer }).RTCPeerConnection()
+    pc.set('connecting')
+    expect(reports.at(-1)?.rtc).toBe(true)
+    pc.set('connected')
+    expect(reports.at(-1)?.rtc).toBe(true)
+    pc.set('closed')
+    expect(reports.at(-1)?.rtc).toBeUndefined()
   })
 })

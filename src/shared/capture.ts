@@ -9,6 +9,11 @@ export interface CaptureState {
   screen: boolean
   /** The microphone is held but muted in the page (every live mic track disabled, as call sites mute). */
   micMuted?: boolean
+  /**
+   * The page is connected to a call (a WebRTC connection connecting or connected), with or without a camera or
+   * microphone: a call only listened to (a webinar, a muted call with everything off) holds none of those.
+   */
+  rtc?: boolean
 }
 export type CaptureKind = 'camera' | 'mic' | 'screen'
 
@@ -18,8 +23,18 @@ export const NO_CAPTURE: CaptureState = { camera: false, mic: false, screen: fal
 
 export const isCapturing = (c: CaptureState): boolean => c.camera || c.mic || c.screen
 
+/**
+ * In a call: capturing, or connected to one only to listen. Such a tab is never unloaded or frozen (it would hang up);
+ * the camera and mic badge still shows only what is captured (isCapturing).
+ */
+export const inCall = (c: CaptureState): boolean => isCapturing(c) || !!c.rtc
+
 export const sameCapture = (a: CaptureState, b: CaptureState): boolean =>
-  a.camera === b.camera && a.mic === b.mic && a.screen === b.screen && !a.micMuted === !b.micMuted
+  a.camera === b.camera &&
+  a.mic === b.mic &&
+  a.screen === b.screen &&
+  !a.micMuted === !b.micMuted &&
+  !a.rtc === !b.rtc
 
 /** The state in a console message, or null for any other message. */
 export function parseCapture(message: string): CaptureState | null {
@@ -31,7 +46,8 @@ export function parseCapture(message: string): CaptureState | null {
       camera: v.camera === true,
       mic,
       screen: v.screen === true,
-      ...(mic && v.micMuted === true ? { micMuted: true } : {})
+      ...(mic && v.micMuted === true ? { micMuted: true } : {}),
+      ...(v.rtc === true ? { rtc: true } : {})
     }
   } catch {
     return null
@@ -46,6 +62,7 @@ export function mergeCapture(states: Iterable<CaptureState>): CaptureState {
   let muted = 0
   for (const s of states) {
     for (const k of CAPTURE_KINDS) out[k] ||= s[k]
+    if (s.rtc) out.rtc = true
     if (s.mic) {
       live++
       if (s.micMuted) muted++
@@ -95,6 +112,8 @@ export function holdCapture(
     offSince[k] = since
     settleIn = settleIn === null ? left : Math.min(settleIn, left)
   }
+  // a call connection is carried as reported (it does not flicker as device tracks do)
+  if (reported.rtc) shown.rtc = true
   // muting is shown at once (no hold): it is a state of a live mic, not a gap in one
   if (shown.mic && reported.mic && reported.micMuted) shown.micMuted = true
   else if (shown.mic && !reported.mic && prev.shown.micMuted) shown.micMuted = true
@@ -198,8 +217,15 @@ export function captureShim(
       : (t.getSettings?.() as { displaySurface?: string } | undefined)?.displaySurface
         ? 'screen'
         : 'camera'
+  // calls joined only to listen hold no track: their connections are followed too (connecting or connected = in a call)
+  const peers = new Set<RTCPeerConnection>()
   const report = (): void => {
-    const now = { camera: false, mic: false, screen: false, micMuted: false }
+    const now = { camera: false, mic: false, screen: false, micMuted: false, rtc: false }
+    for (const p of [...peers]) {
+      const s = p.connectionState
+      if (s === 'connecting' || s === 'connected') now.rtc = true
+      else peers.delete(p)
+    }
     let mics = 0
     let mutedMics = 0
     for (const t of [...live]) {
@@ -220,8 +246,9 @@ export function captureShim(
       last = text
       bridge.report(text)
     }
-    if (live.size > 0 && timer === undefined) timer = g.setInterval(report, 1000)
-    else if (live.size === 0 && timer !== undefined) {
+    const busy = live.size > 0 || peers.size > 0
+    if (busy && timer === undefined) timer = g.setInterval(report, 1000)
+    else if (!busy && timer !== undefined) {
       g.clearInterval(timer)
       timer = undefined
     }
@@ -241,6 +268,23 @@ export function captureShim(
           report()
           return stream
         })
+    })
+  }
+  const Peer = g.RTCPeerConnection
+  if (typeof Peer === 'function') {
+    g.RTCPeerConnection = new Proxy(Peer, {
+      construct: (target, args, newTarget) => {
+        const pc = Reflect.construct(target, args, newTarget) as RTCPeerConnection
+        // held only while connecting or connected: scripts that open one to probe the network and drop it are not
+        // kept alive (or looked at) for the page's life
+        pc.addEventListener('connectionstatechange', () => {
+          const s = pc.connectionState
+          if (s === 'connecting' || s === 'connected') peers.add(pc)
+          else peers.delete(pc)
+          report()
+        })
+        return pc
+      }
     })
   }
   const track = g.MediaStreamTrack?.prototype
