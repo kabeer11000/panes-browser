@@ -1,5 +1,6 @@
 import { Img } from './Img'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { TabStream } from '@renderer/components/TabStream'
 import { flushSync } from 'react-dom'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseMarkdown, type Block, type Inline } from '@shared/ai/markdown'
@@ -1888,7 +1889,7 @@ export function Expanded({
                     )}
                     {/* under a popover the page goes on live, streamed over its picture (it would freeze otherwise) */}
                     {aside && live === 'on' && tab !== undefined && tab !== null && (
-                      <AsideStream tab={tab} />
+                      <TabStream tab={tab} className="cv-live-stream" />
                     )}
                     {/* a page drawn off screen (Settings, Draw pages inside the window) is drawn here itself, over its
                       picture, from the first frame of the flight: it moves with the panel instead of standing in
@@ -1951,57 +1952,5 @@ export function Expanded({
       {/* the flight's soft shadow and light rim, over the panel's clipped edge (see draw) */}
       <div className="cv-fly-edge" ref={edge} aria-hidden="true" />
     </div>
-  )
-}
-
-/**
- * The preview's page while something is over it (the address, notifications or now playing list): the page is
- * parked out of sight, still painting (main/tabs.ts), and streamed here over its picture, so a video plays on and
- * the page moves as it does. The picture shows until the first frame is in.
- */
-function AsideStream({ tab }: { tab: number }): React.JSX.Element {
-  const video = useRef<HTMLVideoElement>(null)
-  const [shown, setShown] = useState(false)
-  useEffect(() => {
-    const v = video.current
-    if (!v) return
-    let dead = false
-    let stream: MediaStream | null = null
-    void (async () => {
-      const source = await window.api.canvas.streamSource?.(tab)
-      if (!source || dead) return
-      const d = window.devicePixelRatio || 1
-      const box = v.getBoundingClientRect()
-      const s = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'tab',
-            chromeMediaSourceId: source,
-            maxWidth: Math.round(box.width * d),
-            maxHeight: Math.round(box.height * d),
-            maxFrameRate: 30
-          }
-        }
-      } as unknown as MediaStreamConstraints)
-      if (dead) return s.getTracks().forEach((t) => t.stop())
-      stream = s
-      v.srcObject = s
-      void v.play().catch(() => undefined)
-    })().catch(() => undefined)
-    return () => {
-      dead = true
-      stream?.getTracks().forEach((t) => t.stop())
-      v.srcObject = null
-    }
-  }, [tab])
-  return (
-    <video
-      ref={video}
-      className={'cv-live-stream' + (shown ? ' on' : '')}
-      muted
-      playsInline
-      onLoadedData={() => setShown(true)}
-    />
   )
 }

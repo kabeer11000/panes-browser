@@ -365,7 +365,13 @@ function App(): React.JSX.Element {
         )
       }
       // the board opened as the window starts needs no fresh pictures of pages nobody has seen yet
-      await holdOverlay('app', m !== 'search' && !(m === 'canvas' && quietRef.current))
+      // only the search popover leaves the page in view (it goes on live under it); the rest cover it
+      await holdOverlay(
+        'app',
+        m !== 'search' && !(m === 'canvas' && quietRef.current),
+        undefined,
+        m === 'search'
+      )
       opening.current = false
       setMode(m)
       setSearchPending(false) // the open search holds the bar from here

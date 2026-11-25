@@ -1082,6 +1082,9 @@ function createWindow(): void {
   ipcMain.handle('ui:overlay', (_e, open: boolean, snapshot?: boolean, sharp?: boolean) =>
     tabs.setOverlay(open, snapshot, sharp === true)
   )
+  ipcMain.on('ui:overlay-live', (e, on: unknown) => {
+    if (e.sender === win.webContents) tabs.setOverlayLive(on === true)
+  })
   ipcMain.handle('search:local', (_e, q: string) => suggester.local(String(q)))
   // the smart part of a blank tab (shared/newtab.ts): only with AI on, worked out here from history and saved boards
   ipcMain.handle('newtab:smart', (e): SmartNewTab | null => {

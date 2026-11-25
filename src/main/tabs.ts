@@ -3389,6 +3389,14 @@ export class TabManager {
    * size, still showing to its page. Taken off the window instead, the page was hidden and came back as a page shown
    * again: it laid itself out anew and its parts moved (YouTube). Coming back is now only a move.
    */
+  /** Pages under an overlay that leaves them in view wait in the corner still painting (see PanesApi.setOverlayLive). */
+  private overlayLive = false
+  setOverlayLive(on: boolean): void {
+    if (this.overlayLive === on) return
+    this.overlayLive = on
+    if (this.overlay) this.applyVisibility()
+  }
+
   setLiveAside(on: boolean): void {
     if (this.liveAside === on) return
     this.liveAside = on
@@ -3562,7 +3570,10 @@ export class TabManager {
   streamSource(id: number): string | null {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
-    const aside = id === this.liveId && this.liveAside // the preview's page under a popover
+    // the preview's page under a popover; a page under the tab view's search or a card (setOverlayLive)
+    const aside =
+      (id === this.liveId && this.liveAside) ||
+      (this.overlay && this.overlayLive && this.visibleIds().includes(id))
     if (!wc || (!this.streaming.has(id) && !this.liveShared.has(id) && !aside)) return null
     try {
       return wc.getMediaSourceId(this.win.webContents)
@@ -3807,7 +3818,9 @@ export class TabManager {
                   )
                 }
               : placed && this.overlay && !liveFull
-                ? { ...placed, x: PARKED_X }
+                ? this.overlayLive
+                  ? { x: w - 3, y: h - 3, width: placed.width, height: placed.height }
+                  : { ...placed, x: PARKED_X }
                 : placed && this.fullscreenId === null
                   ? { ...placed, x: placed.x + this.slideX, y: placed.y + this.slideY }
                   : placed

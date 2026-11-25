@@ -224,6 +224,7 @@ const api: PanesApi = {
   onTourKey: (cb) => subscribe<[KeyLike]>('ui:tour-key', cb),
   setOverlay: (open, snapshot, sharp) =>
     ipcRenderer.invoke('ui:overlay', open, snapshot, sharp) as Promise<void>,
+  setOverlayLive: (on) => ipcRenderer.send('ui:overlay-live', on === true),
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,
   onSettings: (cb) => subscribe<[Settings]>('settings:changed', cb),
   openInternal: (page) => ipcRenderer.send('tabs:open-internal', page),

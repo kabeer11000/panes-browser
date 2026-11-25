@@ -715,6 +715,19 @@ button {
   background: var(--surface-hover);
   color: var(--fg);
 }
+/* the page live under a popover that leaves it in view (TabStream), over its picture once its first frame is in */
+.pane-stream {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  opacity: 0;
+}
+.pane-stream.on {
+  opacity: 1;
+}
 .pane-frozen {
   position: absolute;
   inset: 0;

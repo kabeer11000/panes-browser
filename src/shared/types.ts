@@ -549,6 +549,11 @@ export interface PanesApi {
   onTourKey(cb: (e: KeyLike) => void): () => void
   /** Hide the native page view (so renderer overlays can show); snapshots the active tab first. */
   setOverlay(open: boolean, snapshot?: boolean, sharp?: boolean): Promise<void>
+  /**
+   * What is over the pages leaves them in view (the search popover, a card): they wait in the window's corner, still
+   * painting, so the interface can stream them under it instead of showing pictures (PaneStream).
+   */
+  setOverlayLive(on: boolean): void
   /** Shift the page views right by x and down by y pixels, keeping their size (the hover sidebar or top bar sliding out). */
   setSlide(x: number, y: number): void
   minimizeWindow(): void

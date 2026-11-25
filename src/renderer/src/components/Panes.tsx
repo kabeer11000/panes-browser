@@ -15,7 +15,8 @@ import { TabTitle } from './TabTitle'
 import { CloseIcon, GripIcon } from './icons'
 import { NewTab } from './NewTab'
 import { TabFavicon } from './TabFavicon'
-import { holdOverlay, releaseOverlay } from '@renderer/overlay'
+import { holdOverlay, releaseOverlay, useOverlayLive } from '@renderer/overlay'
+import { TabStream } from './TabStream'
 import { getSlide, getSlideY } from '@renderer/slide'
 
 interface Props {
@@ -338,6 +339,7 @@ function Pane({
   smartNewTab,
   dither
 }: PaneProps): React.JSX.Element {
+  const liveUnder = useOverlayLive()
   return (
     <motion.div
       className={'pane' + (header && focused ? ' focused' : '') + (dragging ? ' dragging' : '')}
@@ -389,6 +391,8 @@ function Pane({
           />
         )}
         {thumb && tab.url && <img className="pane-frozen" src={thumb} alt="" draggable={false} />}
+        {/* under a popover that leaves it in view, the page goes on live over its picture */}
+        {liveUnder && tab.url && <TabStream tab={tab.id} className="pane-stream" />}
         {/* A tab that has never been on screen has no snapshot: show who it is while its page loads. */}
         {!thumb && tab.url && (
           <div className="pane-wait" aria-hidden="true">
