@@ -375,7 +375,7 @@ Found by checking which of Electron's app-side hooks Panes handles (unhandled = 
 - [x] Ctrl+G / Ctrl+Shift+G find next / previous
 - [ ] Global Privacy Control setting (Sec-GPC header + navigator.globalPrivacyControl)
 - [ ] HTTPS-first: http navigations try https first, fall back with a notice
-- [ ] Middle-click autoscroll (Chrome on Windows)
-- [ ] window.prompt() (Electron does not implement it)
+- [x] Middle-click autoscroll (Chrome on Windows)
+- [x] window.prompt() (Electron does not implement it)
 Not now (large, say if wanted): install web apps (PWA), address/card autofill, page translation, QR code for a page.
 Already there: leave-site dialog, spellcheck + suggestions, HTML fullscreen, keyboard/pointer lock, device pickers, Ctrl+1-9, F3/F6/F11, print, find, PiP, picture/video context items.

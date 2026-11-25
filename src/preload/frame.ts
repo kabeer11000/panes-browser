@@ -5,9 +5,13 @@ import { captureShim } from '@shared/capture'
 import { dialogShim } from '@shared/jsDialogs'
 import { webShareShim } from '@shared/webShare'
 import { unseenShim } from '@shared/unseen'
+import { installAutoscroll } from './autoscroll'
 
 // Every frame of every tab, at document start, in the page's own world (see shared/passkeys.ts).
 webFrame.executeJavaScript(PASSKEY_SHIM).catch(() => undefined)
+
+// Middle-click autoscroll, as Chrome has it on Windows (elsewhere the wheel press is the page's, or pastes)
+if (process.platform === 'win32') installAutoscroll()
 
 /**
  * What the page is told about its permissions. Electron answers a page's look at a permission with yes or no only,
