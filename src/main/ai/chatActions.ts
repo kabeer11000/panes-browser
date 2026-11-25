@@ -32,7 +32,8 @@ import { needsConfirm } from '@shared/ai/automation'
 import { looksLikePdf, wrapDoc } from '@shared/ai/docs'
 import type { ToolPart } from '@shared/ai/chatConv'
 import type { AiSettings } from '@shared/ai/types'
-import type { DownloadInfo } from '@shared/types'
+import type { DownloadInfo, Settings } from '@shared/types'
+import { describeSettings } from '@shared/ai/browserSettings'
 import type { LocalSuggestion } from '@shared/search'
 import { displayHost } from '@shared/url'
 import { filterScript, type FilterResult } from '@shared/ai/pageFilter'
@@ -71,6 +72,9 @@ export interface ChatHost {
   readHidden: (url: string, cap: number) => Promise<{ title: string; text: string } | null>
   /** The bytes behind an address, in the normal session (for PDFs). */
   fetchBytes: (url: string) => Promise<{ mime: string; data: Uint8Array } | null>
+  /** Panes' own settings (get_settings / change_setting: only those in shared/ai/browserSettings.ts). */
+  browserSettings?: () => Settings
+  changeSetting?: (patch: Partial<Settings>) => void
 }
 
 const READ_TIMEOUT_MS = 3000
@@ -322,6 +326,22 @@ async function run(
   }
 
   switch (v.name) {
+    case 'get_settings': {
+      const all = host.browserSettings?.()
+      if (!all) return finish('error', 'Not available', 'Settings cannot be read here.')
+      return finish('done', 'Your settings', describeSettings(all))
+    }
+    case 'change_setting': {
+      if (!host.changeSetting)
+        return finish('error', 'Not available', 'Settings cannot be changed here.')
+      host.changeSetting({ [v.key]: v.value } as Partial<Settings>)
+      const now = host.browserSettings?.()[v.key]
+      return finish(
+        'done',
+        `${v.label}: ${String(v.value)}`,
+        `Done: ${v.key} is now ${JSON.stringify(now ?? v.value)}. Tell the person in a few words; it can be changed back the same way or in Settings.`
+      )
+    }
     case 'list_tabs': {
       const lines = tabs.map(
         (t) =>

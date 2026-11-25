@@ -5,6 +5,8 @@
  */
 
 import { KEYS, MEDIA_ACTIONS, type AutoKey, type MediaAction } from './automation'
+import { checkSettingChange, type AiSettingKey } from './browserSettings'
+import type { Settings } from '../types'
 
 export type ToolName =
   | 'list_tabs'
@@ -31,6 +33,8 @@ export type ToolName =
   | 'media_control'
   | 'scroll_to'
   | 'find_and_open'
+  | 'get_settings'
+  | 'change_setting'
 
 /** Where the chat runs: the docked panel and the canvas board (both may act), or the read-only popover. */
 export type ChatMode = 'panel' | 'popover' | 'canvas'
@@ -210,7 +214,11 @@ export const TOOLS: readonly ToolSpec[] = [
     schema: obj(
       {
         tabId: TAB_ID,
-        keep: { type: 'array', items: { type: 'string' }, description: 'Words an item must hold one of' },
+        keep: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Words an item must hold one of'
+        },
         hide: { type: 'array', items: { type: 'string' }, description: 'Words that hide an item' },
         reset: { type: 'boolean', description: 'Show every item again' }
       },
@@ -331,6 +339,33 @@ export const TOOLS: readonly ToolSpec[] = [
     local: false,
     confirm: false,
     schema: obj({ tabId: TAB_ID }, [])
+  },
+  {
+    name: 'get_settings',
+    description:
+      "Panes' own settings you may change (how it looks and behaves), each with its current value and what it takes.",
+    readOnly: true,
+    local: true,
+    confirm: false,
+    schema: obj({}, [])
+  },
+  {
+    name: 'change_setting',
+    description:
+      "Change one of Panes' own settings when the person asks (frosted glass, accent colour, interface size, tab layout, search engine...). Keys and values: from get_settings. Privacy and blocking cannot be changed here.",
+    readOnly: false,
+    local: true,
+    confirm: false,
+    schema: obj(
+      {
+        key: { type: 'string', description: 'A key from get_settings, such as frostedGlass' },
+        value: {
+          type: ['string', 'number', 'boolean'],
+          description: 'The new value: true or false, a number, a choice, or a hex colour'
+        }
+      },
+      ['key', 'value']
+    )
   }
 ]
 
@@ -403,6 +438,8 @@ export type ToolInput =
   | { name: 'go_back'; tabId: number }
   | { name: 'media_control'; tabId: number; action: MediaAction; amount: number }
   | { name: 'scroll_to'; tabId: number; target: string }
+  | { name: 'get_settings' }
+  | { name: 'change_setting'; key: AiSettingKey; value: Settings[AiSettingKey]; label: string }
 
 export type Validated = { ok: true; value: ToolInput } | { ok: false; error: string }
 
@@ -439,7 +476,14 @@ export function validateToolInput(name: string, input: unknown, currentTab?: num
   const tab = 'tabId must be the id of an open tab (or left out for the current tab)'
   switch (name) {
     case 'list_tabs':
+    case 'get_settings':
       return { ok: true, value: { name } }
+    case 'change_setting': {
+      const c = checkSettingChange(a.key, a.value)
+      return c.ok
+        ? { ok: true, value: { name, key: c.key, value: c.value, label: c.label } }
+        : bad(c.error)
+    }
     case 'read_tab':
     case 'switch_to_tab':
     case 'look_at_page':

@@ -143,7 +143,9 @@ const VERB: Record<ToolName, [one: string, many: string]> = {
   navigate: ['Went to a page', 'Went to {n} pages'],
   go_back: ['Went back', 'Went back {n} times'],
   scroll_to: ['Scrolled to a part of the page', 'Scrolled to {n} parts of the page'],
-  media_control: ['Controlled the video', 'Controlled the video {n} times']
+  media_control: ['Controlled the video', 'Controlled the video {n} times'],
+  get_settings: ['Looked at your settings', 'Looked at your settings'],
+  change_setting: ['Changed a setting', 'Changed {n} settings']
 }
 
 export interface StepGroup {

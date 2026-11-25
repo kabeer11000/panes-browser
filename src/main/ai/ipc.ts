@@ -97,6 +97,8 @@ export function registerAi(d: {
           : null
       },
       fetchBytes: (url) => content.bytes({ url }),
+      browserSettings: () => d.settings.get(),
+      changeSetting: (patch) => d.settings.update(patch),
       searchUrl: () =>
         (SEARCH_ENGINES[d.settings.get().searchEngine] ?? SEARCH_ENGINES.duckduckgo).url
     },
