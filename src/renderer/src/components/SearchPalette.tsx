@@ -270,13 +270,18 @@ export function SearchPalette({
     [draftKey]
   )
 
+  // A private or Tor tab in front: nothing from the person's own browsing is offered (history, bookmarks, pages by
+  // meaning, their open tabs), as an incognito window's address bar. It offered "switch to" their normal tabs, so an
+  // address typed in a private tab on the board went to a normal tab instead and the private tab stayed blank.
+  const privateMode = !!active && (active.private || active.tor)
   useEffect(() => {
+    if (privateMode) return
     let alive = true
     void window.api.suggestLocal(effective).then((r) => alive && setLocal(r))
     return () => {
       alive = false
     }
-  }, [effective])
+  }, [effective, privateMode])
 
   useEffect(() => {
     if (!effective) return
@@ -294,7 +299,7 @@ export function SearchPalette({
   // Pages that match by meaning (AI). They arrive on their own, after the ones that match by letters, and
   // are left out when the answer is slow: until one comes, what was shown stays.
   useEffect(() => {
-    if (effective.length < 3) return
+    if (effective.length < 3 || privateMode) return
     let alive = true
     const shown = [...tabs.map((t) => t.url), ...local.map((l) => l.url)]
     void window.api.suggestSemantic(effective, shown).then((r) => alive && setSimilar(r))
@@ -308,27 +313,39 @@ export function SearchPalette({
     () =>
       buildResults({
         query: effective,
-        tabs,
+        tabs: privateMode ? [] : tabs,
         activeId: active?.id ?? null,
-        local,
+        local: privateMode ? [] : local,
         remote: effective ? remote : [],
-        semantic: effective.length >= 3 ? similar : [],
+        semantic: effective.length >= 3 && !privateMode ? similar : [],
         engineName,
         now: openedAt,
         ai,
         hide
       }),
-    [effective, tabs, active?.id, local, remote, similar, engineName, openedAt, ai, hide]
+    [
+      effective,
+      tabs,
+      active?.id,
+      local,
+      remote,
+      similar,
+      engineName,
+      openedAt,
+      ai,
+      hide,
+      privateMode
+    ]
   )
   // before anything is typed: the tabs used last, as pictures, above the list (and not repeated in it)
   const recent = useMemo(
     () =>
-      effective || onPick
+      effective || onPick || privateMode
         ? []
         : rankTabs(tabs, '', active?.id ?? null, openedAt)
             .tabs.filter((t, i, all) => all.findIndex((x) => x.url === t.url) === i) // one per page
             .slice(0, RECENT_COUNT),
-    [effective, onPick, tabs, active?.id, openedAt]
+    [effective, onPick, privateMode, tabs, active?.id, openedAt]
   )
   const results = useMemo(() => {
     const inStrip = new Set(recent.map((t) => t.url))

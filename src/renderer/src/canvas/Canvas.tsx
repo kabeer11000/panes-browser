@@ -4902,6 +4902,18 @@ export function Canvas({
   )
   const openNew = (text: string, again = false): void => {
     const at = newAt
+    // A blank private or Tor tab (Ctrl+Shift+N on the board, or its card clicked) loads what was typed in itself and
+    // stays private. It was left out of every path below, so the address opened as a new normal tab (out of private)
+    // and the private tab stayed blank for good; nor is it sent to a normal card that has the same address.
+    const target =
+      (at?.fill !== undefined ? byId.get(at.fill) : undefined) ??
+      (activeId !== null ? byId.get(activeId) : undefined)
+    if (target && !target.url && (target.private || target.tor)) {
+      setNewAt(null)
+      void window.api.canvas.navigate(target.id, text)
+      showTab.current = { id: target.id, at: Date.now() }
+      return
+    }
     if (!again) {
       const dup = alreadyOpen(findItems(modelForRef.current), text)
       const card = dup !== null ? stRef.current?.cards.find((c) => c.id === dup) : undefined

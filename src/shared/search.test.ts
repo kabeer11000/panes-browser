@@ -284,3 +284,21 @@ describe('actions hidden where they make no sense', () => {
     )
   })
 })
+
+describe('rankTabs: an address typed is loaded, not a tab that shares a word with it', () => {
+  const tab = (id: number, url: string, title: string): TabInfo =>
+    ({ id, url, title, usedAt: 1, favicon: null }) as unknown as TabInfo
+  const tabs = [
+    tab(1, 'https://example.com/', 'Example Domain'),
+    tab(2, 'https://github.com/', 'GitHub')
+  ]
+  test('example.org does not make the example.com tab the Enter pick', () => {
+    expect(rankTabs(tabs, 'example.org', null, 2).strong).toBe(false)
+  })
+  test('the address of an open tab still switches to it', () => {
+    expect(rankTabs(tabs, 'github.com', null, 2).strong).toBe(true)
+  })
+  test('words still pick a tab', () => {
+    expect(rankTabs(tabs, 'github', null, 2).strong).toBe(true)
+  })
+})

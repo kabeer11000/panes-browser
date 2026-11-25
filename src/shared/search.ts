@@ -354,10 +354,20 @@ export function rankTabs(
     .filter((x) => x !== null)
     .sort((a, b) => b.score - a.score || b.t.usedAt - a.t.usedAt)
   const best = scored[0]
+  // an address typed (example.org): a tab is what was meant only if it is on that site. A tab that merely shares a
+  // word with it ("Example Domain" on example.com) took Enter, and the address typed never loaded
+  const typed = isUrlLike(query.trim())
+    ? displayHost(resolveInput(query.trim(), '')).toLowerCase()
+    : ''
+  const onTyped = (t: TabInfo): boolean => {
+    const h = displayHost(t.url).toLowerCase()
+    return h === typed || h.endsWith('.' + typed) || typed.endsWith('.' + h)
+  }
   return {
     tabs: scored.map((x) => x.t),
     strong:
       !!best &&
+      (!typed || onTyped(best.t)) &&
       tokens.length > 0 &&
       query.trim().length >= 2 &&
       best.t.id !== activeId &&
