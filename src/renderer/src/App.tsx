@@ -4,7 +4,7 @@ import { boardStep, browseWith, type BrowseSeen } from '@shared/browse'
 import { applyDrop, leaves } from '@shared/layout'
 import { NONE, click, type Selection } from '@shared/selection'
 import { stackEntries } from '@shared/stack'
-import { KIND_THEME, WELCOME_THEME, isWelcome, kindOf } from '@shared/tabkind'
+import { KIND_THEME, WELCOME_THEME, isWelcome } from '@shared/tabkind'
 import type { UpdateState } from '@shared/update'
 import { ChatPanel, type ChatDraft } from './components/chat/ChatPanel'
 import { loadChatWidth } from './components/chat/width'
@@ -86,7 +86,8 @@ function App(): React.JSX.Element {
     activeSpace,
     tor,
     notice,
-    nowPlaying
+    nowPlaying,
+    screenKind
   } = useTabs()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   // Opened by the pointer touching the left edge (a setting): it closes itself when the pointer leaves.
@@ -609,11 +610,12 @@ function App(): React.JSX.Element {
   const rowH = Math.round(BASE_ROW_H * effective.density)
   // Along the top there is no sidebar at all: the tab bar and the toolbar row are always there.
   const horizontal = effective.tabLayout === 'horizontal'
-  // the welcome tour is shown on its own: dark, with no sidebar or bars, so the whole window is the page
-  const immersive = isWelcome(active?.url)
   // The canvas board is a way to browse of its own, not a layer over the tabs: while it is up the sidebar, the top
   // bar(s), the tab stack and the edge watchers that bring them out are not there at all.
   const board = mode === 'canvas' || booting
+  // the welcome tour is shown on its own: dark, with no sidebar or bars, so the whole window is the page. Only in the
+  // tab view: on the board the tour is a tab behind it like any other, and must not dress the board
+  const immersive = !board && isWelcome(active?.url)
   const showSidebar = !horizontal && sidebarOpen && !immersive && !board
   // The search popover hangs off the address bar, which moves when the sidebar opens or closes: it ends with it.
   useEffect(() => {
@@ -714,8 +716,9 @@ function App(): React.JSX.Element {
   )
 
   const { accent, uiScale, density, addressSize, pageMargin, sidebarWidth } = effective
-  // a private or Tor tab on screen makes the whole window dark, Tor's in its own purple
-  const kind = kindOf(active)
+  // a private or Tor page on screen makes the whole window dark, Tor's in its own purple; on the board that is the page
+  // open in its preview, not the tab left active behind it (main's screenKind), so closing the preview puts it back
+  const kind = screenKind
   const scheme = useScheme(kind !== 'normal' || immersive ? 'dark' : activeSpace?.mode)
   const theme = immersive
     ? WELCOME_THEME

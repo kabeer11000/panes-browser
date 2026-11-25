@@ -207,6 +207,11 @@ export interface TabsState {
   tor: { state: TorState; progress: number; message: string; tabs: number }
   /** Something that just happened, said for a few seconds (a saved session). `id` tells one saying from the next. */
   notice: { id: number; text: string } | null
+  /**
+   * Whether what is on screen is a private or Tor page, which dresses the window: the active tab in the tab view; on
+   * the board, the page open in its preview only (a private tab behind the board does not make the board private).
+   */
+  screenKind: TabKind
 }
 
 export interface Rect {

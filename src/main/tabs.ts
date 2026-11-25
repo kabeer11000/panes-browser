@@ -869,6 +869,7 @@ export class TabManager {
         tabs: [...this.tabs.values()].filter((t) => t.tor).length
       },
       notice: this.message,
+      screenKind: this.boardKind(),
       activeSpaceId: this.activeSpaceId,
       tabGroups: [...this.groups.values()]
         .filter((g) => g.spaceId === this.activeSpaceId)
@@ -5607,8 +5608,9 @@ export class TabManager {
     this.win.webContents.send('tabs:state', state)
     this.taskbar.update(windowAttention(state.spaceAttention))
     this.onRefresh?.()
+    // what is on screen decides (boardKind): a private tab behind the board left the whole space dark, for good
     this.deps.spaces.setThemeOverride(
-      this.activeKind() !== 'normal' || this.activeIsWelcome() ? 'dark' : null
+      this.boardKind() !== 'normal' || (!this.canvasMode && this.activeIsWelcome()) ? 'dark' : null
     )
   }
 

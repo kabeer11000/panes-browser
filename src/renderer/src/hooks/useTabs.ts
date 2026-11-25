@@ -19,7 +19,8 @@ export function useTabs(): TabsView {
     spaceAttention: {},
     nowPlaying: [],
     tor: { state: 'off', progress: 0, message: '', tabs: 0 },
-    notice: null
+    notice: null,
+    screenKind: 'normal'
   })
   const [thumbs, setThumbs] = useState<Record<number, string>>({})
 
