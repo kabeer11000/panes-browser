@@ -809,6 +809,8 @@ export function Expanded({
   const [inboxOpen, setInboxOpen] = useState(false)
   /** The now-playing island's list is open over the page. */
   const [islandOpen, setIslandOpen] = useState(false)
+  // the island in the header lists what plays elsewhere: the page here has the header's mute button
+  const playingElsewhere = (island?.items ?? []).filter((t) => t.id !== tab)
   // a tab in the strip pointed at: its name stands in the header's title meanwhile (no tooltip over the strip)
   const [pointed, setPointed] = useState<Pick<
     CardModel,
@@ -1746,9 +1748,10 @@ export function Expanded({
             )}
           </div>
           <div className="cv-hzone cv-hzone-c">
-            {island && island.items.length > 0 && (
+            {/* what plays elsewhere: this page's own sound is the header's mute button, not a second control here */}
+            {island && playingElsewhere.length > 0 && (
               <NowPlaying
-                items={island.items}
+                items={playingElsewhere}
                 spaces={island.spaces}
                 activeSpaceId={island.activeSpaceId}
                 here={tab}
