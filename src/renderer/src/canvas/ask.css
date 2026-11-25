@@ -54,9 +54,15 @@
 .cv-dock-rz.on::after {
   opacity: 0.3;
 }
-/* the board's own controls keep to the room left beside it */
-.cv.docked .cv-bar {
-  left: calc((100% - min(var(--dock-w, 380px), calc(100% - 120px))) / 2);
+/* The board's own centred bars (the tools below, the tab strip above) stay centred on the window while the side panel
+   is open, and slide left only as far as they must to clear it (16px), never past the left edge. Centring them over
+   the room beside the panel moved them far left and left a wide gap before it. --self-w: useSelfWidth. */
+.cv.docked :is(.cv-bar, .cv-strip-row) {
+  left: clamp(
+    calc(var(--self-w, 0px) / 2 + 8px),
+    calc(100% - min(var(--dock-w, 380px), calc(100% - 120px)) - 16px - var(--self-w, 0px) / 2),
+    50%
+  );
 }
 .cv-dock-head {
   flex: none;

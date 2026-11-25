@@ -25,6 +25,7 @@ import {
   TidyIcon,
   GearIcon
 } from './icons'
+import { useSelfWidth } from './useSelfWidth'
 
 export type Tool =
   'select' | 'hand' | 'frame' | 'note' | 'connector' | 'line' | 'pen' | 'marker' | 'shape' | 'text'
@@ -137,6 +138,7 @@ export function Toolbar({
   const draw = DRAW.find((d) => d.id === tool) ?? lastDraw
   const [at, setAt] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
+  const barWidth = useSelfWidth<HTMLDivElement>()
   const shapesBox = useRef<HTMLDivElement>(null)
   const blocksBox = useRef<HTMLDivElement>(null)
   const drawsBox = useRef<HTMLDivElement>(null)
@@ -192,7 +194,15 @@ export function Toolbar({
     }
   })
   return (
-    <div className="cv-bar" role="toolbar" aria-label="Canvas tools" ref={box}>
+    <div
+      className="cv-bar"
+      role="toolbar"
+      aria-label="Canvas tools"
+      ref={(el) => {
+        box.current = el
+        barWidth(el)
+      }}
+    >
       <i className="cv-bar-pill" aria-hidden="true" />
       {NAV.map(toolButton)}
       <span className="cv-sep" aria-hidden="true" />

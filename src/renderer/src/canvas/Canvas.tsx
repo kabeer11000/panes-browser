@@ -147,6 +147,7 @@ import { RemoteCursors } from './Presence'
 import { PresentingElsewhere, ShareButton } from './ShareButton'
 import { BoardSpaces } from './BoardSpaces'
 import { SpaceChat } from './SpaceChat'
+import { useSelfWidth } from './useSelfWidth'
 import { LiveShare } from './LiveShare'
 import { usePresence } from '@renderer/components/useShare'
 import { canShareFile, isMirror, samePage } from '@shared/share/doc'
@@ -589,6 +590,7 @@ export function Canvas({
     [liveTabs, closing]
   )
   const moveRef = useRef<(v: Viewport) => void>(() => undefined)
+  const stripWidth = useSelfWidth<HTMLDivElement>()
   const shutRef = useRef<() => void>(() => undefined)
   const headingRef = useRef<(v: Viewport) => void>(() => undefined)
   const vp = useViewport(
@@ -6356,7 +6358,7 @@ export function Canvas({
       {/* the tab strip, top centre (as in the preview's header): what plays, the tabs used last, what is new */}
       {/* the bell beside it, on its own: always there, so the row never changes its shape when something comes in */}
       {phase === 'open' && !expanded && quick === null && (
-        <div className="cv-strip-row">
+        <div className="cv-strip-row" ref={stripWidth}>
           {(island.length > 0 || boardRow.length > 0) && (
             <div className="cv-strip board" role="toolbar" aria-label="Recent tabs">
               <NowPlaying

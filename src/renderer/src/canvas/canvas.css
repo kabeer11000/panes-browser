@@ -4665,9 +4665,6 @@
   animation: cv-fade 0.2s ease-out both;
   transition: left 0.34s var(--ease);
 }
-.cv.docked .cv-strip-row {
-  left: calc((100% - min(var(--dock-w, 380px), calc(100% - 120px))) / 2);
-}
 .cv-strip.board {
   position: relative;
   min-width: 0;
