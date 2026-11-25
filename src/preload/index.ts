@@ -34,6 +34,7 @@ const api: PanesApi = {
   onStackRelease: (cb) => subscribe<[]>('ui:stack-release', cb),
   createTab: (input) => ipcRenderer.send('tabs:create', input),
   closeTab: (id) => ipcRenderer.send('tabs:close', id),
+  closeTabs: (ids) => ipcRenderer.send('tabs:close-many', ids),
   activateTab: (id) => ipcRenderer.send('tabs:activate', id),
   navigate: (input) => ipcRenderer.send('tabs:navigate', input),
   back: () => ipcRenderer.send('tabs:back'),

@@ -250,6 +250,8 @@ export interface PanesApi {
   onStackRelease(cb: () => void): () => void
   createTab(input?: string): void
   closeTab(id: number): void
+  /** Close several at once: one update for them all (the board's bulk close). */
+  closeTabs(ids: number[]): void
   activateTab(id: number): void
   navigate(input: string): void
   back(): void

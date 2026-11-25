@@ -564,8 +564,11 @@ function pageAspect(): number {
   return ar >= 4 / 3 && ar <= 21 / 9 ? Math.round(ar * 100) / 100 : 16 / 10
 }
 
+/** How long a tab closed from the board stays hidden while its page closes (see `closing`). */
+const CLOSE_HOLD_MS = 6000
+
 export function Canvas({
-  tabs,
+  tabs: liveTabs,
   activeId,
   thumbs,
   spaceId,
@@ -577,6 +580,14 @@ export function Canvas({
   quiet = false
 }: Props): React.JSX.Element {
   const reduced = !!useReducedMotion()
+  // Tabs being closed from the board leave it at once, all together: main closes each page in its own time (a page
+  // may run its unload handler first), and cards that left one by one as their pages went stuttered. Kept out until
+  // main says they are gone; one whose page asked to stay ("Leave site?") comes back when the hold runs out.
+  const [closing, setClosing] = useState<ReadonlySet<number>>(() => new Set())
+  const tabs = useMemo(
+    () => (closing.size ? liveTabs.filter((t) => !closing.has(t.id)) : liveTabs),
+    [liveTabs, closing]
+  )
   const moveRef = useRef<(v: Viewport) => void>(() => undefined)
   const shutRef = useRef<() => void>(() => undefined)
   const headingRef = useRef<(v: Viewport) => void>(() => undefined)
@@ -1943,7 +1954,12 @@ export function Canvas({
         const t = byId.get(i)
         return t && !t.private && !t.tor
       }).length
-      for (const id of ids) window.api.closeTab(id)
+      setClosing((cur) => new Set([...cur, ...ids]))
+      window.setTimeout(
+        () => setClosing((cur) => new Set([...cur].filter((id) => !ids.includes(id)))),
+        CLOSE_HOLD_MS
+      )
+      window.api.closeTabs(ids)
       setSel(new Set())
       toastNow(
         ids.length === 1 ? 'Closed 1 tab' : `Closed ${ids.length} tabs`,

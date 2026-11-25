@@ -1526,6 +1526,27 @@ export class TabManager {
    * Chrome (unsaved work): it runs its beforeunload, and the tab goes once the page has gone (the destroyed handler in
    * wire closes it then), or stays if they choose to. A page that does not answer in time is closed anyway.
    */
+  /** closeMany is running: refresh waits for it (see refresh). */
+  private holdRefresh = 0
+  private refreshHeld = false
+
+  /**
+   * Close several tabs at once (the board's bulk close): each as close(id, true) would, but the window is told once,
+   * at the end, instead of after every tab.
+   */
+  closeMany(ids: number[]): void {
+    this.holdRefresh++
+    try {
+      for (const id of ids) this.close(id, true)
+    } finally {
+      this.holdRefresh--
+    }
+    if (this.holdRefresh === 0 && this.refreshHeld) {
+      this.refreshHeld = false
+      this.refresh()
+    }
+  }
+
   close(id: number, ask = false): void {
     const tab = this.tabs.get(id)
     if (!tab) return
@@ -5474,6 +5495,11 @@ export class TabManager {
   /** Push the tabs' state to the window again (something it shows changed without a tab event). */
   refresh(): void {
     if (this.win.isDestroyed()) return
+    // inside closeMany: once, at its end
+    if (this.holdRefresh > 0) {
+      this.refreshHeld = true
+      return
+    }
     this.pruneGroups()
     const visible = this.onScreenIds()
     const now = Date.now()

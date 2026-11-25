@@ -738,6 +738,9 @@ function createWindow(): void {
   ipcMain.handle('tabs:get', () => tabs.initialData())
   ipcMain.on('tabs:create', (_e, input?: string) => tabs.create(input))
   ipcMain.on('tabs:close', (_e, id: number) => tabs.close(id, true))
+  ipcMain.on('tabs:close-many', (_e, ids: unknown) => {
+    if (Array.isArray(ids)) tabs.closeMany(ids.filter((id): id is number => typeof id === 'number'))
+  })
   ipcMain.on('tabs:activate', (_e, id: number) => tabs.show(id))
   ipcMain.on('tabs:navigate', (_e, input: string) => tabs.navigate(input))
   ipcMain.on('tabs:back', () => tabs.back())
