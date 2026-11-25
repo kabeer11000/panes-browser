@@ -6,8 +6,8 @@
  *
  * - @napi-rs/canvas: its Mac package, from npm (the same version as the Windows one)
  * - adblock-rs: built from its Rust sources, so it cannot be fetched or cross-built here. Its Mac build comes from
- *   the Mac shell build (.github/workflows/mac.yml), which keeps it on the `mac-shell` release; it is the same until
- *   adblock-rs or Electron changes, and then that workflow is run once again.
+ *   .github/workflows/mac.yml, which keeps it on the `mac-shell` release named by its version; when adblock-rs
+ *   changes, `gh workflow run mac.yml -f native_only=true` builds just that (minutes, no app build).
  * - koffi: Windows only (the touchpad, memory trimming); a Mac never loads it, so it is left as it is.
  *
  * Writes dist/mac/app-darwin-<arch>.asar (or --out). Downloads are kept in dist/mac-native.
@@ -29,7 +29,15 @@ const cache = resolve('dist/mac-native')
 
 /** The release the Mac shell build keeps its native modules on (never the latest release). */
 export const MAC_SHELL_TAG = 'mac-shell'
-export const adblockAsset = (a: string): string => `adblock-rs-darwin-${a}.node`
+/** The adblock-rs version in node_modules: the Mac build taken must be the same one (its JavaScript is in the asar). */
+const adblockVersion = (
+  JSON.parse(readFileSync('node_modules/adblock-rs/package.json', 'utf8')) as { version: string }
+).version
+/**
+ * Its Mac build's name on the mac-shell release, by version, so a new adblock-rs can never be paired with the old
+ * native module (they were once kept under one name, downloaded once and reused for good).
+ */
+export const adblockAsset = (a: string): string => `adblock-rs-darwin-${a}-${adblockVersion}.node`
 
 function fail(message: string): never {
   console.error(`mac-layer: ${message}`)
@@ -50,8 +58,8 @@ async function adblockNode(): Promise<string> {
       .nothrow()
   if (got.exitCode !== 0 || !existsSync(file))
     fail(
-      `no ${adblockAsset(arch)} on the ${MAC_SHELL_TAG} release: run the Mac shell build once ` +
-        '(gh workflow run mac.yml)'
+      `no ${adblockAsset(arch)} on the ${MAC_SHELL_TAG} release: build it for this adblock-rs once ` +
+        '(gh workflow run mac.yml -f native_only=true)'
     )
   return file
 }

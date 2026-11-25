@@ -3,6 +3,7 @@
 # (scripts/mac-layer.ts, scripts/release.ts): a Mac Panes updates itself from those like a Windows one.
 #
 #   gh workflow run mac.yml [-f tag=v0.1.0-beta.96]
+#   gh workflow run mac.yml -f native_only=true     # adblock-rs changed: its Mac build only, from main, in minutes
 #
 # Puts the apps (dmg, zip; Apple Silicon and Intel) on that release (default: the latest), and the Mac build of the
 # ad blocker's native module on the `mac-shell` release, where the release machine takes it from. Signed ad hoc, not
@@ -16,6 +17,11 @@ on:
         description: 'Release to build and attach to (empty: the latest)'
         required: false
         default: ''
+      native_only:
+        description: 'Only build the ad blocker native module for the release machine (no app, no release assets)'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write # release assets
@@ -39,6 +45,7 @@ jobs:
     steps:
       - name: Which release
         id: rel
+        if: ${{ !inputs.native_only }}
         run: |
           tag="${{ inputs.tag }}"
           if [ -z "$tag" ]; then tag=$(gh release view --repo "${{ github.repository }}" --json tagName -q .tagName); fi
@@ -50,7 +57,8 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.rel.outputs.tag }}
+          # the release's own code, or (native only) main, where the new adblock-rs is
+          ref: ${{ inputs.native_only && github.ref || steps.rel.outputs.tag }}
 
       - uses: oven-sh/setup-bun@v2
 
@@ -61,9 +69,11 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build
+        if: ${{ !inputs.native_only }}
         run: bunx electron-vite build
 
       - name: Package
+        if: ${{ !inputs.native_only }}
         run: |
           bunx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never \
             -c.mac.identity=- \
@@ -73,6 +83,7 @@ jobs:
           ls -la dist
 
       - name: Attach the app to the release
+        if: ${{ !inputs.native_only }}
         run: |
           shopt -s nullglob
           files=(dist/Panes-*-mac-*.dmg dist/Panes-*-mac-*.zip)
@@ -81,9 +92,12 @@ jobs:
 
       - name: Keep the ad blocker's Mac build for the release machine
         run: |
-          cp node_modules/adblock-rs/js/index.node "adblock-rs-darwin-${{ matrix.arch }}.node"
+          # named by version (scripts/mac-layer.ts takes exactly the one in the release machine's node_modules)
+          version=$(node -p "require('./node_modules/adblock-rs/package.json').version")
+          asset="adblock-rs-darwin-${{ matrix.arch }}-$version.node"
+          cp node_modules/adblock-rs/js/index.node "$asset"
           gh release view mac-shell --repo "${{ github.repository }}" >/dev/null 2>&1 || \
             gh release create mac-shell --repo "${{ github.repository }}" --prerelease --latest=false \
               --title "Mac shell (native modules)" \
               --notes "Native modules from the Mac shell build, for making Mac app layers on the release machine. Not a release of Panes."
-          gh release upload mac-shell --repo "${{ github.repository }}" --clobber "adblock-rs-darwin-${{ matrix.arch }}.node"
+          gh release upload mac-shell --repo "${{ github.repository }}" --clobber "$asset"
