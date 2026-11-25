@@ -17,12 +17,38 @@ export interface BrowserSource {
   match: RegExp
   /** Where to find the browser's own password export, shown on the password step. */
   passwordExport: string
+  /**
+   * What to do on that page, step by step, once Panes has opened it (main/passwordGuide.ts shows them in a small
+   * window beside the browser). The last step, Panes taking the file in, is added by the guide.
+   */
+  passwordSteps: string[]
   /** The data folder is itself the profile (Opera), instead of holding Default, Profile 1... */
   singleProfile?: boolean
 }
 
 const chromiumExport = (scheme: string): string =>
   `Open ${scheme}://password-manager/settings and choose Export passwords.`
+
+/** Chrome's own password manager (Chrome, Brave, Vivaldi): its Settings page has the export. */
+const CHROMIUM_STEPS = [
+  'On the page that opened, find Export passwords and click Download file.',
+  'Confirm it is you when asked (your Windows PIN, password or fingerprint).',
+  'Save the file where it suggests: your Downloads folder.'
+]
+/** Edge and Opera keep the export behind the menu beside Saved passwords. */
+const MENU_STEPS = (menu: string): string[] => [
+  `Next to Saved passwords, open the ${menu} menu.`,
+  'Choose Export passwords, and confirm.',
+  'Confirm it is you when asked (your Windows PIN, password or fingerprint).',
+  'Save the file where it suggests: your Downloads folder.'
+]
+/** Firefox and the browsers made from it: about:logins. */
+const FIREFOX_STEPS = [
+  'On the page that opened, open the ... menu at the top right.',
+  'Choose Export passwords, then Export.',
+  'Confirm it is you if asked.',
+  'Save the file in your Downloads folder.'
+]
 
 export const BROWSER_SOURCES: BrowserSource[] = [
   {
@@ -35,6 +61,7 @@ export const BROWSER_SOURCES: BrowserSource[] = [
       linux: '~/.config/BraveSoftware/Brave-Browser'
     },
     match: /brave/i,
+    passwordSteps: CHROMIUM_STEPS,
     passwordExport: chromiumExport('brave')
   },
   {
@@ -47,6 +74,7 @@ export const BROWSER_SOURCES: BrowserSource[] = [
       linux: '~/.config/google-chrome'
     },
     match: /chrome/i,
+    passwordSteps: CHROMIUM_STEPS,
     passwordExport: chromiumExport('chrome')
   },
   {
@@ -59,6 +87,7 @@ export const BROWSER_SOURCES: BrowserSource[] = [
       linux: '~/.config/microsoft-edge'
     },
     match: /edge/i,
+    passwordSteps: MENU_STEPS('...'),
     passwordExport:
       'Open edge://settings/passwords, then the ... menu, and choose Export passwords.'
   },
@@ -72,6 +101,7 @@ export const BROWSER_SOURCES: BrowserSource[] = [
       linux: '~/.config/vivaldi'
     },
     match: /vivaldi/i,
+    passwordSteps: CHROMIUM_STEPS,
     passwordExport: chromiumExport('vivaldi')
   },
   {
@@ -84,6 +114,7 @@ export const BROWSER_SOURCES: BrowserSource[] = [
       linux: '~/.config/opera'
     },
     match: /opera/i,
+    passwordSteps: MENU_STEPS('...'),
     passwordExport: chromiumExport('opera'),
     singleProfile: true
   },
@@ -97,6 +128,7 @@ export const BROWSER_SOURCES: BrowserSource[] = [
       linux: '~/.mozilla/firefox'
     },
     match: /firefox/i,
+    passwordSteps: FIREFOX_STEPS,
     passwordExport: 'Open about:logins, then the ... menu, and choose Export passwords.'
   },
   {
@@ -109,6 +141,7 @@ export const BROWSER_SOURCES: BrowserSource[] = [
       linux: '~/.zen'
     },
     match: /\bzen\b/i,
+    passwordSteps: FIREFOX_STEPS,
     passwordExport: 'Open about:logins, then the ... menu, and choose Export passwords.'
   },
   {
@@ -121,6 +154,7 @@ export const BROWSER_SOURCES: BrowserSource[] = [
       linux: '~/.librewolf'
     },
     match: /librewolf/i,
+    passwordSteps: FIREFOX_STEPS,
     passwordExport: 'Open about:logins, then the ... menu, and choose Export passwords.'
   }
 ]

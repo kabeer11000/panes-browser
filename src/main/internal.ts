@@ -34,6 +34,7 @@ import { appVersion, rolledBackVersion } from './layers'
 import type { DownloadManager } from './downloads'
 import type { Importer } from './importer'
 import type { PasswordExport } from './passwordExport'
+import { PasswordGuide } from './passwordGuide'
 import type { BookmarkStore, HistoryStore } from './history'
 import { newPassword, type PasswordStore } from './passwords'
 import { isPermKind, originOf } from '@shared/permissions'
@@ -142,6 +143,8 @@ export function handleInternal<A extends unknown[], R>(
 
 /** IPC for panes:// pages. Every handler refuses callers that are not on the panes:// scheme. */
 export function registerInternalIpc(d: Deps): void {
+  /** The steps beside another browser while it exports its passwords (passwordGuide.ts). */
+  const passwordGuide = new PasswordGuide()
   const handle = handleInternal
 
   handle('int:update-state', () => d.updater.get())
@@ -277,7 +280,12 @@ export function registerInternalIpc(d: Deps): void {
   ipcMain.handle('int:passwords-from', (e: IpcMainInvokeEvent, sourceId: unknown) => {
     if (!e.senderFrame?.url.startsWith('panes://')) throw new Error('forbidden')
     const sender = e.sender
-    return d.passwordExport.start(String(sourceId), (r) => {
+    const id = String(sourceId)
+    const started = d.passwordExport.start(id, (r) => {
+      // the guide beside the other browser says how it went, then goes
+      passwordGuide.update(
+        r.timedOut ? { kind: 'timeout' } : { kind: 'imported', added: r.added, deleted: r.deleted }
+      )
       if (!sender.isDestroyed()) return sender.send('int:passwords-imported', r)
       // the page that asked is gone (the welcome tab closed on finish): the person still hears how it went
       if (!r.timedOut && Notification.isSupported())
@@ -288,6 +296,9 @@ export function registerInternalIpc(d: Deps): void {
             : 'Delete the exported file in Downloads: it holds your passwords in plain text.'
         }).show()
     })
+    // the browser opened at its export page: its steps, in a small window on top beside it
+    void started.then((r) => r.status === 'opened' && passwordGuide.open(id))
+    return started
   })
   // a finished download dragged out of the Downloads page: the system's drag, with the file (as the dock's)
   ipcMain.on('int:download-drag', (e, id: unknown) => {
@@ -297,7 +308,9 @@ export function registerInternalIpc(d: Deps): void {
     })
   })
   ipcMain.on('int:passwords-watch-cancel', (e) => {
-    if (e.senderFrame?.url.startsWith('panes://')) d.passwordExport.cancel()
+    if (!e.senderFrame?.url.startsWith('panes://')) return
+    d.passwordExport.cancel()
+    passwordGuide.close()
   })
   handle('int:import-passwords-delete', () => d.importer.deletePasswordsFile())
   handle('int:import-bookmarks-file', () => d.importer.bookmarksFile())
