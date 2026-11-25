@@ -93,7 +93,13 @@ export function Shell(): React.JSX.Element {
       <nav className="int-tabs" aria-label="Panes pages">
         <div className="int-tabs-pill">
           {INTERNAL_PAGES.map((p) => (
-            <a key={p} href={`panes://${p}`} aria-current={p === current ? 'page' : undefined}>
+            <a
+              key={p}
+              href={`panes://${p}`}
+              aria-current={p === current ? 'page' : undefined}
+              // only the current page shows its name: the others say it on hover
+              title={p === current ? undefined : PAGES[p].title}
+            >
               {PAGES[p].icon}
               <span>{PAGES[p].title}</span>
             </a>
