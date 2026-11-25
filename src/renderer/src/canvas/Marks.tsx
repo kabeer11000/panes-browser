@@ -271,7 +271,7 @@ function Label({
     const el = inner.current
     if (!editing || !el) return
     el.textContent = (m.text ?? '') + (first ?? '')
-    el.focus()
+    el.focus({ preventScroll: true })
     // the caret at the end of what is there
     const r = document.createRange()
     r.selectNodeContents(el)
@@ -389,7 +389,7 @@ function Editor({ m, onText }: { m: CanvasMark; onText: Props['onText'] }): Reac
   const area = useRef<HTMLTextAreaElement>(null)
   const multi = isBlock(m.kind)
   useEffect(() => {
-    area.current?.focus()
+    area.current?.focus({ preventScroll: true })
     if (!multi) area.current?.select()
   }, [multi])
   return (

@@ -8,10 +8,12 @@ import App from './App'
 import { Recover } from './Recover'
 import { installSpringTokens } from './motion'
 import { installTooltips } from './tooltip'
+import { installNoHiddenScroll } from './noHiddenScroll'
 
 document.documentElement.dataset.platform = window.api.platform
 installSpringTokens()
 installTooltips()
+installNoHiddenScroll() // focus near the board's edge never scrolls the interface away
 
 // before anything else listens: Ctrl+T then typing at once keeps every key (typeAhead.ts)
 installTypeAhead()

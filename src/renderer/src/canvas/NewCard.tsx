@@ -18,7 +18,7 @@ export function NewCard({ x, y, onOpen, onNote, onClose }: Props): React.JSX.Ele
   const input = useRef<HTMLInputElement>(null)
   const box = useRef<HTMLFormElement>(null)
   useEffect(() => {
-    input.current?.focus()
+    input.current?.focus({ preventScroll: true })
     const away = (e: PointerEvent): void => {
       if (!box.current?.contains(e.target as Node)) onClose()
     }

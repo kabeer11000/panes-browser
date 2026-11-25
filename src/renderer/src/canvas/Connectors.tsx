@@ -403,7 +403,7 @@ function LabelInput({
 }): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
-    input.current?.focus()
+    input.current?.focus({ preventScroll: true })
     input.current?.select()
   }, [])
   return (

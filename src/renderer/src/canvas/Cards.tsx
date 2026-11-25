@@ -699,7 +699,7 @@ export const FrameHead = memo(function FrameHead({
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (editing) {
-      input.current?.focus()
+      input.current?.focus({ preventScroll: true })
       input.current?.select()
     }
   }, [editing])
