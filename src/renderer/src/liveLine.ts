@@ -1,4 +1,5 @@
 import {
+  inOrder,
   ICE_SERVERS,
   sizeFor,
   videoRect,
@@ -177,24 +178,26 @@ function open(spaceId: number, hostRtc: number): Shared {
         redial = window.setTimeout(dial, 800)
       } else if (conn.connectionState === 'disconnected') redial = window.setTimeout(dial, 4000)
     }
-    off = window.api.share.onSignal(async (sid, from, data) => {
-      if (sid !== spaceId || from !== hostRtc || pc !== conn) return
-      const sig = parse<LiveSignal>(data)
-      if (!sig) return
-      if (sig.k === 'sdp' && sig.sdp.type === 'offer') {
-        await conn.setRemoteDescription(sig.sdp)
-        await conn.setLocalDescription(await conn.createAnswer())
-        send({ k: 'sdp', sdp: conn.localDescription!.toJSON() as never })
-      } else if (sig.k === 'ice') await conn.addIceCandidate(sig.c).catch(() => undefined)
-      // their picture restarted (or the host's Panes did): call again; if they really stopped, what shows it goes
-      // with their live tab
-      else if (sig.k === 'bye') {
-        line.state = 'connecting'
-        tell()
-        window.clearTimeout(redial)
-        redial = window.setTimeout(dial, 1200)
-      }
-    })
+    off = window.api.share.onSignal(
+      inOrder(async (sid, from, data) => {
+        if (sid !== spaceId || from !== hostRtc || pc !== conn) return
+        const sig = parse<LiveSignal>(data)
+        if (!sig) return
+        if (sig.k === 'sdp' && sig.sdp.type === 'offer') {
+          await conn.setRemoteDescription(sig.sdp)
+          await conn.setLocalDescription(await conn.createAnswer())
+          send({ k: 'sdp', sdp: conn.localDescription!.toJSON() as never })
+        } else if (sig.k === 'ice') await conn.addIceCandidate(sig.c).catch(() => undefined)
+        // their picture restarted (or the host's Panes did): call again; if they really stopped, what shows it goes
+        // with their live tab
+        else if (sig.k === 'bye') {
+          line.state = 'connecting'
+          tell()
+          window.clearTimeout(redial)
+          redial = window.setTimeout(dial, 1200)
+        }
+      })
+    )
     // the relay's ICE servers (TURN when it has a key) before anything is gathered; hello once they are in
     void window.api.share
       .ice(spaceId)

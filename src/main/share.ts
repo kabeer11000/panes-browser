@@ -41,8 +41,10 @@ import { JsonStore } from './store'
 import type { SpaceStore } from './spaces'
 import type { CanvasService } from './ai/canvas'
 
-/** The relay Panes uses (share/server, on Render). */
-export const SHARE_RELAY = 'https://panes-share.onrender.com'
+/** The relay Panes uses (share/server, on Render); PANES_SHARE_RELAY points a test copy at a local one. */
+export const SHARE_RELAY = (
+  process.env['PANES_SHARE_RELAY'] || 'https://panes-share.onrender.com'
+).replace(/\/+$/, '')
 const LOCAL = 'panes-local'
 /** How long a burst of changes from elsewhere is gathered before the board is rebuilt and sent (one frame or so). */
 const APPLY_MS = 30

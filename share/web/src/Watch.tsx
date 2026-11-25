@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  inOrder,
   ICE_SERVERS,
   videoBox,
   type LiveControl,
@@ -124,17 +125,19 @@ export function Watch({
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed') setState('gone')
     }
-    const off = r.onSignal(async (from, data) => {
-      if (from !== hostRtc) return
-      const sig = parse<LiveSignal>(data)
-      if (!sig) return
-      if (sig.k === 'sdp' && sig.sdp.type === 'offer') {
-        await pc.setRemoteDescription(sig.sdp)
-        await pc.setLocalDescription(await pc.createAnswer())
-        send({ k: 'sdp', sdp: pc.localDescription!.toJSON() as never })
-      } else if (sig.k === 'ice') await pc.addIceCandidate(sig.c).catch(() => undefined)
-      else if (sig.k === 'bye') setState('gone')
-    })
+    const off = r.onSignal(
+      inOrder(async (from, data) => {
+        if (from !== hostRtc) return
+        const sig = parse<LiveSignal>(data)
+        if (!sig) return
+        if (sig.k === 'sdp' && sig.sdp.type === 'offer') {
+          await pc.setRemoteDescription(sig.sdp)
+          await pc.setLocalDescription(await pc.createAnswer())
+          send({ k: 'sdp', sdp: pc.localDescription!.toJSON() as never })
+        } else if (sig.k === 'ice') await pc.addIceCandidate(sig.c).catch(() => undefined)
+        else if (sig.k === 'bye') setState('gone')
+      })
+    )
     let dead = false
     void r
       .iceServers()

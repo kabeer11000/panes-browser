@@ -208,3 +208,17 @@ export function driverKeyAllowed(key: string, mods: ReadonlyArray<string>): bool
   if (mods.includes('control')) return EDIT_KEYS.has(key.length === 1 ? key.toLowerCase() : key)
   return !BLOCKED_PLAIN.test(key) && key !== 'ContextMenu'
 }
+
+/**
+ * A signal handler that takes signals one at a time, in the order they came. Handled as they came, an ICE candidate
+ * could run while the offer before it was still being applied, and addIceCandidate before setRemoteDescription throws:
+ * the candidate was lost, and a call could hang at connecting.
+ */
+export function inOrder<A extends unknown[]>(
+  fn: (...a: A) => Promise<void> | void
+): (...a: A) => void {
+  let chain: Promise<void> = Promise.resolve()
+  return (...a) => {
+    chain = chain.then(() => fn(...a)).catch(() => undefined)
+  }
+}

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  inOrder,
   downscaleFor,
   driverKeyAllowed,
   electronKey,
@@ -181,5 +182,22 @@ describe('focus on video', () => {
   test('focusInset crops to exactly that part', () => {
     expect(focusInset([0.1, 0.2, 0.6, 0.5])).toBe('inset(20.00% 30.00% 30.00% 10.00%)')
     expect(focusInset([0, 0, 1, 1])).toBe('inset(0.00% 0.00% 0.00% 0.00%)')
+  })
+})
+
+describe('inOrder', () => {
+  test('a slow signal finishes before the next one starts, and a failure does not stop the rest', async () => {
+    const seen: string[] = []
+    const handle = inOrder(async (k: string) => {
+      if (k === 'offer') await new Promise((r) => setTimeout(r, 20))
+      if (k === 'bad') throw new Error('x')
+      seen.push(k)
+    })
+    handle('offer')
+    handle('ice')
+    handle('bad')
+    handle('ice2')
+    await new Promise((r) => setTimeout(r, 60))
+    expect(seen).toEqual(['offer', 'ice', 'ice2'])
   })
 })

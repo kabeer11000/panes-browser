@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { SharePerson } from '@shared/types'
-import { downscaleFor, ICE_SERVERS, type LiveControl, type LiveSignal } from '@shared/share/live'
+import {
+  downscaleFor,
+  ICE_SERVERS,
+  inOrder,
+  type LiveControl,
+  type LiveSignal
+} from '@shared/share/live'
 
 /**
  * The host's side of a tab shown live in a shared space (tasks/shared-spaces.md, shared browsing): the tab's picture
@@ -280,31 +286,33 @@ export function useLiveHost(
       if (!s) return
       for (const from of [...waiting]) void offer(from, s)
     }
-    const off = window.api.share.onSignal(async (sid, from, data) => {
-      if (sid !== spaceId) return
-      const sig = parse<LiveSignal>(data)
-      if (!sig) return
-      if (sig.k === 'hello') {
-        const s = await capture()
-        if (dead) return
-        if (!s) {
-          waiting.add(from)
-          retry ??= window.setInterval(() => void offerWaiting(), 2000)
-          return
-        }
-        await offer(from, s)
-      } else if (sig.k === 'sdp') {
-        await peers.current
-          .get(from)
-          ?.pc.setRemoteDescription(sig.sdp)
-          .catch(() => undefined)
-      } else if (sig.k === 'ice') {
-        await peers.current
-          .get(from)
-          ?.pc.addIceCandidate(sig.c)
-          .catch(() => undefined)
-      } else if (sig.k === 'bye') drop(from, true)
-    })
+    const off = window.api.share.onSignal(
+      inOrder(async (sid, from, data) => {
+        if (sid !== spaceId) return
+        const sig = parse<LiveSignal>(data)
+        if (!sig) return
+        if (sig.k === 'hello') {
+          const s = await capture()
+          if (dead) return
+          if (!s) {
+            waiting.add(from)
+            retry ??= window.setInterval(() => void offerWaiting(), 2000)
+            return
+          }
+          await offer(from, s)
+        } else if (sig.k === 'sdp') {
+          await peers.current
+            .get(from)
+            ?.pc.setRemoteDescription(sig.sdp)
+            .catch(() => undefined)
+        } else if (sig.k === 'ice') {
+          await peers.current
+            .get(from)
+            ?.pc.addIceCandidate(sig.c)
+            .catch(() => undefined)
+        } else if (sig.k === 'bye') drop(from, true)
+      })
+    )
     const all = peers.current
     return () => {
       dead = true
