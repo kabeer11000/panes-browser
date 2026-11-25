@@ -71,7 +71,9 @@ From the sticky-note board. Each item: what was found in the code, then the fix.
 - [x] Card shadow under the title row (9b1ad90; lift shadow, split target, pulse)
 - [ ] Ctrl+F find opens as a bar above the page (in the strip/sidebar) instead of floating on it. Native page views
       paint over the window's UI, so it needs its own small view over the page's top-right (like the popover).
-- [ ] Share popover on the board: too much text, reads AI-written. Cut to the essentials.
+- [x] Share popover on the board: too much text (38a4321; not checked on screen, the test instance would not open the board)
+- [x] Mute tab / mute site reliable: own tab mute kept apart from the page (shared/mute.ts). Leaving a muted site is
+      heard again, unmuting a site keeps tabs muted on their own, a tab's mute survives unload. Needs an on-screen check.
 - [ ] Split view: the panes' left and right border/outline is clipped.
 - [ ] Welcome screen redesign: calmer, typographic, less "vibe coded" (Dia/Arc-like restraint).
 

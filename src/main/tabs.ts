@@ -36,6 +36,7 @@ import { browseWith } from '@shared/browse'
 import { stageBackground } from '@shared/color'
 import { siteListed, ZOOM_LEVEL_MAX, ZOOM_LEVEL_MIN } from '@shared/memory'
 import { siteKey, siteThemeCss } from '@shared/sitetheme'
+import { isMuted, muteAfterSiteChange, toggledTabMute, type TabMute } from '@shared/mute'
 import {
   holdCapture,
   mergeCapture,
@@ -314,6 +315,9 @@ type TabView = WebContentsView | OffscreenPage
 interface Tab {
   /** A native view, or (offscreenPages) a page drawn off screen into the window's own canvases. */
   view: TabView
+  /** The person's own mute for this tab (shared/mute.ts), kept apart from the page so it outlives navigations and
+   * a page brought back after unloading; the page's audioMuted is worked out from it and the site (applyMute). */
+  mute?: TabMute
   favicon: string | null
   thumb: string | null
   /** When `thumb` was captured (ms since epoch); 0 before the first capture. */
@@ -2630,9 +2634,26 @@ export class TabManager {
     this.deps.settings.update({ mutedSites: muted ? [...rest, key] : rest })
     for (const t of this.tabs.values()) {
       const wc = liveContents(t)
-      if (wc && siteKey(wc.getURL()) === key) wc.audioMuted = muted
+      if (!wc || siteKey(wc.getURL()) !== key) continue
+      // muting the site silences its tabs, even one heard as an exception; a tab muted on its own stays muted
+      if (muted && t.mute === 'off') t.mute = undefined
+      this.applyMute(t)
     }
     this.refresh()
+  }
+
+  /** Whether this site is muted (Mute site). */
+  private siteMuted(url: string): boolean {
+    const site = siteKey(url)
+    return !!site && siteListed(site, this.deps.settings.get().mutedSites)
+  }
+
+  /** Put the tab's sound as its own choice and its site say (shared/mute.ts), on the page it has now or is going to. */
+  private applyMute(tab: Tab, url?: string): void {
+    const wc = liveContents(tab)
+    if (!wc) return
+    const muted = isMuted(tab.mute, this.siteMuted(url ?? wc.getURL()))
+    if (wc.audioMuted !== muted) wc.audioMuted = muted
   }
 
   /**
@@ -2708,7 +2729,9 @@ export class TabManager {
     })
     for (const t of playing.length > 0 ? playing : own) {
       const wc = liveContents(t)
-      if (wc && (playing.length > 0 || wc.audioMuted)) wc.audioMuted = playing.length > 0
+      if (!wc || !(playing.length > 0 || wc.audioMuted)) continue
+      t.mute = playing.length > 0 ? 'on' : 'off'
+      this.applyMute(t)
     }
     this.refresh()
   }
@@ -2738,7 +2761,8 @@ export class TabManager {
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
     if (!wc) return
-    wc.audioMuted = !wc.audioMuted
+    tab.mute = toggledTabMute(tab.mute, this.siteMuted(wc.getURL()))
+    this.applyMute(tab)
     this.refresh()
   }
 
@@ -3952,9 +3976,9 @@ export class TabManager {
       if (this.tryHttps(tab, wc, details.url)) return
       followIdentity(wc, this.identities(tab), details.url)
       tab.favicon = null
-      // a muted site stays muted wherever its tabs go
-      const site = siteKey(details.url)
-      if (site && siteListed(site, this.deps.settings.get().mutedSites)) wc.audioMuted = true
+      // the tab's own mute goes with it; a muted site is silent in any tab, and leaving one is heard again
+      if (siteKey(details.url) !== siteKey(wc.getURL())) tab.mute = muteAfterSiteChange(tab.mute)
+      this.applyMute(tab, details.url)
       // panes:// pages are separate documents, so the view shows its own background between
       // navigations. Match the page's stage colour so moving between them does not flash white.
       const space = this.deps.spaces.get(tab.spaceId)
