@@ -153,6 +153,8 @@ import { JsonStore } from './store'
 import { holdUnseen } from './unseen'
 import { hostOf, httpsUpgrade } from '@shared/httpsFirst'
 
+/** How far a touchpad pinch may magnify a page (visual zoom, over its layout). */
+const PINCH_MAX = 4
 /** The page's main video, as LiveVideo wants it (see TabManager.liveVideo). Runs in the page; reads only layout. */
 const LIVE_VIDEO_SCRIPT = `(() => {
   const W = innerWidth, H = innerHeight
@@ -4013,6 +4015,9 @@ export class TabManager {
       }
     })
     wc.on('did-finish-load', () => {
+      // Pinch to zoom magnifies the page where the fingers are, as on a Mac: the page keeps its layout and the view
+      // zooms over it (Electron leaves it off). Ctrl+wheel and Ctrl+= stay the page zoom that re-lays the page out.
+      void wc.setVisualZoomLevelLimits(1, PINCH_MAX).catch(() => undefined)
       if (tab.failed) return
       this.onPageLoaded?.({
         id,
