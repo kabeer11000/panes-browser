@@ -627,12 +627,10 @@
   margin: 0;
   padding: 4px;
   list-style: none;
-  border-radius: var(--r-4);
+  border-radius: var(--r-menu);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 8px 24px rgb(0 0 0 / 0.25);
+  box-shadow: var(--shadow-3), var(--rim);
 }
 .chat-mentions li {
   display: flex;

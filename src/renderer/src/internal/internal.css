@@ -972,7 +972,7 @@ button.u-row:disabled {
   gap: 12px;
   margin: 0 0 14px;
   padding: 8px 8px 8px 16px;
-  border-radius: var(--r-5);
+  border-radius: var(--r-menu);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
   box-shadow:

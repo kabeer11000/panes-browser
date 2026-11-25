@@ -59,7 +59,7 @@ body,
   display: flex;
   flex-direction: column;
   max-height: 100%;
-  border-radius: var(--r-5);
+  border-radius: var(--r-pop);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
   color: var(--fg);

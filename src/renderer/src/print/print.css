@@ -233,7 +233,7 @@ body,
   height: 36px;
   padding: 0 4px;
   transform: translateX(-50%);
-  border-radius: var(--r-4);
+  border-radius: var(--r-menu);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
   box-shadow:

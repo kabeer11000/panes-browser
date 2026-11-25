@@ -226,6 +226,8 @@ export function Composer(p: Props): React.JSX.Element {
           }}
           onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={onKey}
+          // a click anywhere else puts the tab list away, as every menu does (its rows keep the focus here)
+          onBlur={() => setPickClosed(true)}
         />
         {p.streaming ? (
           <button

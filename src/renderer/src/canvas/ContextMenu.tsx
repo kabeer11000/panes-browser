@@ -120,14 +120,13 @@ export function ContextMenu({
   // picks a row), and focus goes back where it was on close
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null
+    const menu = wrap.current // as it is now: by the cleanup the ref may already be empty
     levels.current[0]?.focus({ preventScroll: true })
     return () => {
       const now = document.activeElement
-      if (before?.isConnected && (!now || now === document.body || wrap.current?.contains(now)))
+      if (before?.isConnected && (!now || now === document.body || menu?.contains(now)))
         before.focus({ preventScroll: true })
     }
-    // once, on open
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // keys: capture, so the board's own shortcuts never see them while the menu is open

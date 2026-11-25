@@ -1027,3 +1027,29 @@
 .cv :is(.cv-nc, .cv-space-menu, .cv-share-pop) {
   --leave-y: -4px;
 }
+
+/* ---- one family of floating surfaces (consistency pass) ----
+   Every menu, list, toast and floating bar on the board: the menu radius and the board's floating shadow; every
+   popover and dialog: the popover radius. They had grown five radii (10 to 16px) and as many shadows. `.cv.cv` so
+   this holds whichever of canvas.css and this file loads last. The chat peek keeps its speech-bubble corner. */
+.cv.cv
+  :is(
+    .cv-menu,
+    .cv-ctx,
+    .cv-mention,
+    .cv-island-list,
+    .cv-space-menu,
+    .cv-quick,
+    .cv-toast,
+    .cv-confirm,
+    .cv-aioff,
+    .cv-kbar,
+    .cv-fbar
+  ) {
+  border-radius: var(--r-menu);
+  box-shadow: var(--float-shadow);
+}
+.cv.cv :is(.cv-nc, .cv-share-pop, .cv-cmd, .cv-new) {
+  border-radius: var(--r-pop);
+  box-shadow: var(--float-shadow);
+}
