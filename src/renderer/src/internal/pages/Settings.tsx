@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MAIL_HANDLERS } from '@shared/mailto'
 import { PHOTO_IDS, photoUrl } from '@shared/photos'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES } from '@shared/settings'
@@ -12,6 +12,18 @@ import { MemorySection } from './MemorySection'
 import { SitePermissions } from './SitePermissions'
 import { SpacesSection } from './SpacesSection'
 import { YouTubeSection } from './YouTubeSection'
+
+/** The page's categories, in order: one shows at a time, and search looks through them all. */
+const CATEGORIES = [
+  { id: 'general', label: 'General' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'tabs', label: 'Tabs and board' },
+  { id: 'privacy', label: 'Privacy and security' },
+  { id: 'performance', label: 'Performance' },
+  { id: 'ai', label: 'AI' },
+  { id: 'advanced', label: 'Advanced' }
+] as const
+type CategoryId = (typeof CATEGORIES)[number]['id']
 
 const ACCENTS = ['#8b8bff', '#5eb6ff', '#4ade80', '#fbbf24', '#fb7185', '#e879f9']
 
@@ -30,11 +42,30 @@ const RANGES: Array<{ label: string; ms: number | null }> = [
 ]
 
 export function Settings(): React.JSX.Element {
-  // panes://settings#appearance (from the command bar) scrolls to that group
+  const [cat, setCat] = useState<CategoryId>('general')
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  // Search: every row on the page, whoever drew it (some sections lay out their own), steps aside unless its words
+  // (label and hint, not its buttons) mention what is typed; a section with nothing left goes too (.set-body).
+  // After every render: rows that appear meanwhile (a list that loaded) are filtered as well.
+  const body = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    for (const row of body.current?.querySelectorAll<HTMLElement>('.u-row') ?? []) {
+      const words = (row.querySelector('.u-text') ?? row).textContent?.toLowerCase() ?? ''
+      row.hidden = !!q && !words.includes(q)
+    }
+  })
+  // panes://settings#appearance (from the command bar): the category holding that group, scrolled to it
   useEffect(() => {
     const go = (): void => {
       const id = location.hash.slice(1)
-      if (id && id !== 'ai')
+      if (!id) return
+      const home = (
+        document.getElementById(id) ?? document.querySelector(`[data-cat="${id}"]`)
+      )?.closest<HTMLElement>('[data-cat]')?.dataset.cat as CategoryId | undefined
+      if (home) setCat(home)
+      setQuery('')
+      if (id !== 'ai')
         window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }), 80)
     }
     go()
@@ -87,674 +118,722 @@ export function Settings(): React.JSX.Element {
 
   return (
     <>
-      <Group title="Search" id="search">
-        <Row label="Search engine" hint="Used when you type something that is not a web address.">
-          <Select
-            label="Search engine"
-            value={s.searchEngine}
-            options={Object.entries(SEARCH_ENGINES).map(([id, e]) => ({
-              value: id as SearchEngineId,
-              label: e.name
-            }))}
-            onChange={(v) => void update({ searchEngine: v })}
-          />
-        </Row>
-        <Row
-          label="Frosted glass"
-          hint="Bars, menus and popovers in every window become translucent, blurred behind. Off in efficient mode."
-        >
-          <Toggle
-            label="Frosted glass"
-            on={s.frostedGlass}
-            onChange={(v) => void update({ frostedGlass: v })}
-          />
-        </Row>
-        <Row
-          label="Tooltips"
-          hint="Names and shortcuts shown when you rest the pointer on a button."
-        >
-          <Toggle label="Tooltips" on={s.tooltips} onChange={(v) => void update({ tooltips: v })} />
-        </Row>
-        <Row
-          label="Search suggestions"
-          hint="Send what you type in the command bar to your search engine to get suggestions."
-        >
-          <Toggle
-            label="Search suggestions"
-            on={s.searchSuggestions}
-            onChange={(v) => void update({ searchSuggestions: v })}
-          />
-        </Row>
-        <Row label="Command bar style" hint="Grow out of the address bar, or open in the middle.">
-          <Segmented
-            label="Command bar style"
-            value={s.searchStyle}
-            options={[
-              { value: 'dropdown', label: 'Under bar' },
-              { value: 'center', label: 'Centered' }
-            ]}
-            onChange={(v) => void update({ searchStyle: v })}
-          />
-        </Row>
-      </Group>
-
-      <Group title="On startup" id="startup" footer="Restore brings back the tabs you had open.">
-        <Row label="When Panes opens">
-          <Segmented
-            label="When Panes opens"
-            value={s.startup}
-            options={[
-              { value: 'newtab', label: 'New tab' },
-              { value: 'restore', label: 'Restore tabs' }
-            ]}
-            onChange={(v) => void update({ startup: v })}
-          />
-        </Row>
-      </Group>
-
-      <Group title="Downloads" id="downloads">
-        <Row label="Save downloads to" hint={s.downloadDir ?? 'Your Downloads folder'}>
-          {s.downloadDir && (
-            <button className="int-btn small" onClick={() => void update({ downloadDir: null })}>
-              Reset
-            </button>
-          )}
-          <button
-            className="int-btn small"
-            onClick={() =>
-              void window.panesInternal
-                .pickDownloadDir()
-                .then((dir) => dir && setS((prev) => ({ ...prev, downloadDir: dir })))
-            }
-          >
-            Change
-          </button>
-        </Row>
-        <Row
-          label="Ask where to save each file"
-          hint="Panes opens the Save As window before every download, in the folder above."
-        >
-          <Toggle
-            label="Ask where to save each file"
-            on={s.downloadAsk}
-            onChange={(v) => void update({ downloadAsk: v })}
-          />
-        </Row>
-      </Group>
-
-      <Group
-        title="Default browser"
-        footer="Windows asks you to confirm this itself, so Panes opens its default apps page. Links and HTML or PDF files then open here."
-      >
-        <Row
-          label={isDefault ? 'Panes is your default browser' : 'Make Panes your default browser'}
-          hint={
-            isDefault
-              ? 'Links from other apps open in Panes.'
-              : 'Open links from other apps, and web files, in Panes.'
-          }
-        >
-          {isDefault ? (
-            <span className="int-sub">Default</span>
-          ) : (
+      <div className={'set-nav' + (q ? ' searching' : '')}>
+        <input
+          className="set-search"
+          type="search"
+          placeholder="Search settings"
+          aria-label="Search settings"
+          value={query}
+          spellCheck={false}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+        />
+        <div className="set-cats" role="tablist" aria-label="Settings categories">
+          {CATEGORIES.map((c) => (
             <button
-              className="int-btn primary small"
-              onClick={() => void window.panesInternal.defaultBrowserRequest()}
+              key={c.id}
+              type="button"
+              role="tab"
+              aria-selected={!q && cat === c.id}
+              className={!q && cat === c.id ? 'on' : undefined}
+              onClick={() => {
+                setQuery('')
+                setCat(c.id)
+                window.scrollTo({ top: 0 })
+              }}
             >
-              Make default
+              {c.label}
             </button>
-          )}
-        </Row>
-        <Row label="Ask me about this" hint="Show the offer in the sidebar until you answer.">
-          <Toggle
-            label="Ask me about this"
-            on={s.askDefaultBrowser}
-            onChange={(v) => void update({ askDefaultBrowser: v })}
-          />
-        </Row>
-      </Group>
-
-      <ImportSection />
-
-      <SpacesSection />
-
-      <Group
-        title="Tabs"
-        id="tabs"
-        footer="Vertical keeps tabs, spaces and the address bar in a sidebar you can tuck away. Horizontal puts tabs in a row along the top, with spaces at the left end."
-      >
-        <Row label="Tab layout">
-          <Segmented
-            label="Tab layout"
-            value={s.tabLayout}
-            options={[
-              { value: 'vertical', label: 'Sidebar' },
-              { value: 'horizontal', label: 'Along the top' }
-            ]}
-            onChange={(v) => void update({ tabLayout: v })}
-          />
-        </Row>
-        <Row
-          label="Browse with"
-          hint="Canvas makes the board the whole window: no tab sidebar or top bar, and new tabs land on the board. Each space can choose for itself."
-        >
-          <Segmented
-            label="Browse with"
-            value={s.browseWith}
-            options={[
-              { value: 'tabs', label: 'Tabs' },
-              { value: 'canvas', label: 'Canvas' }
-            ]}
-            onChange={(v) => void update({ browseWith: v })}
-          />
-        </Row>
-        <Row
-          label="Preview toolbar"
-          hint="Where a page opened from the board keeps its toolbar: above the page, or below it, nearer the hand."
-        >
-          <Segmented
-            label="Preview toolbar"
-            value={s.previewBar}
-            options={[
-              { value: 'top', label: 'Top' },
-              { value: 'bottom', label: 'Bottom' }
-            ]}
-            onChange={(v) => void update({ previewBar: v })}
-          />
-        </Row>
-        <Row
-          label="Pane view"
-          hint="Ctrl and scroll opens it. Full fills the page area with your tabs; Side strip keeps the page in view and scrolls your tabs down the right edge."
-        >
-          <Segmented
-            label="Pane view"
-            value={s.paneView}
-            options={[
-              { value: 'full', label: 'Full' },
-              { value: 'side', label: 'Side strip' }
-            ]}
-            onChange={(v) => void update({ paneView: v })}
-          />
-        </Row>
-        <Row
-          label="Letting go of Ctrl in pane view"
-          hint="Open tab switches to the tab you are on, as Alt+Tab does. Stay open keeps the view up so you can keep scrolling; click a tab, press Enter, or Esc to leave."
-        >
-          <Segmented
-            label="Letting go of Ctrl in pane view"
-            value={s.paneViewRelease}
-            options={[
-              { value: 'select', label: 'Open tab' },
-              { value: 'stay', label: 'Stay open' }
-            ]}
-            onChange={(v) => void update({ paneViewRelease: v })}
-          />
-        </Row>
-        <Row
-          label="Email links"
-          hint="What opens when you click an email address or use Send feedback. A web service opens its compose page in a tab."
-        >
-          <Select
-            label="Open email links with"
-            value={s.mailHandler}
-            options={MAIL_HANDLERS}
-            onChange={(v) => void update({ mailHandler: v })}
-          />
-        </Row>
-        <Row
-          label="Photo on the new tab page"
-          hint="A new landscape photo each day, fetched from picsum.photos (photos from Unsplash). Never shown or fetched in private or Tor tabs."
-        >
-          <Toggle
-            label="Photo on the new tab page"
-            on={s.newTabPhoto}
-            onChange={(v) => void update({ newTabPhoto: v })}
-          />
-        </Row>
-        {s.newTabPhoto && (
-          <div className="u-row">
-            <div className="u-text">
-              <div className="u-label">Background</div>
-              <div className="u-hint">Daily changes it every day. Or keep one.</div>
-              <div className="bg-picker" role="listbox" aria-label="New tab background">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={s.newTabPhotoId === null}
-                  className={'bg-daily' + (s.newTabPhotoId === null ? ' on' : '')}
-                  onClick={() => void update({ newTabPhotoId: null })}
-                >
-                  Daily
-                </button>
-                {PHOTO_IDS.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="option"
-                    aria-selected={s.newTabPhotoId === id}
-                    className={'bg-thumb' + (s.newTabPhotoId === id ? ' on' : '')}
-                    onClick={() => void update({ newTabPhotoId: id })}
-                  >
-                    <img src={photoUrl(id, 160, 90)} alt="" loading="lazy" draggable={false} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-        {s.newTabPhoto && (
-          <Row
-            label="Dithered look"
-            hint="The photo as two tones in your space's colours, in a print-like pattern. Off shows it as it is."
+          ))}
+        </div>
+      </div>
+      <div className={'set-body' + (q ? ' searching' : '')} ref={body}>
+        <div className="set-cat" data-cat="general" hidden={!q && cat !== 'general'}>
+          <Group
+            title="On startup"
+            id="startup"
+            footer="Restore brings back the tabs you had open."
           >
-            <Toggle
-              label="Dithered look"
-              on={s.newTabDither}
-              onChange={(v) => void update({ newTabDither: v })}
-            />
-          </Row>
-        )}
-        <Row
-          label="Address bar spans the whole row"
-          hint="With tabs along the top: the address bar stretches from side to side. Off keeps it in the middle."
-        >
-          <Toggle
-            label="Address bar spans the whole row"
-            on={s.fullWidthAddress}
-            onChange={(v) => void update({ fullWidthAddress: v })}
-          />
-        </Row>
-      </Group>
-
-      <Group
-        title="Appearance"
-        id="appearance"
-        footer="Accent colour highlights controls, focus rings and the split view glow."
-      >
-        <Row label="Accent colour">
-          <div className="swatches">
-            {ACCENTS.map((c) => (
+            <Row label="When Panes opens">
+              <Segmented
+                label="When Panes opens"
+                value={s.startup}
+                options={[
+                  { value: 'newtab', label: 'New tab' },
+                  { value: 'restore', label: 'Restore tabs' }
+                ]}
+                onChange={(v) => void update({ startup: v })}
+              />
+            </Row>
+          </Group>
+          <Group title="Search" id="search">
+            <Row
+              label="Search engine"
+              hint="Used when you type something that is not a web address."
+            >
+              <Select
+                label="Search engine"
+                value={s.searchEngine}
+                options={Object.entries(SEARCH_ENGINES).map(([id, e]) => ({
+                  value: id as SearchEngineId,
+                  label: e.name
+                }))}
+                onChange={(v) => void update({ searchEngine: v })}
+              />
+            </Row>
+            <Row
+              label="Search suggestions"
+              hint="Send what you type in the command bar to your search engine to get suggestions."
+            >
+              <Toggle
+                label="Search suggestions"
+                on={s.searchSuggestions}
+                onChange={(v) => void update({ searchSuggestions: v })}
+              />
+            </Row>
+            <Row
+              label="Command bar style"
+              hint="Grow out of the address bar, or open in the middle."
+            >
+              <Segmented
+                label="Command bar style"
+                value={s.searchStyle}
+                options={[
+                  { value: 'dropdown', label: 'Under bar' },
+                  { value: 'center', label: 'Centered' }
+                ]}
+                onChange={(v) => void update({ searchStyle: v })}
+              />
+            </Row>
+          </Group>
+          <Group title="Downloads" id="downloads">
+            <Row label="Save downloads to" hint={s.downloadDir ?? 'Your Downloads folder'}>
+              {s.downloadDir && (
+                <button
+                  className="int-btn small"
+                  onClick={() => void update({ downloadDir: null })}
+                >
+                  Reset
+                </button>
+              )}
               <button
-                key={c}
-                className={'swatch' + (s.accent.toLowerCase() === c ? ' on' : '')}
-                style={{ background: c }}
-                aria-label={c}
-                onClick={() => void update({ accent: c })}
+                className="int-btn small"
+                onClick={() =>
+                  void window.panesInternal
+                    .pickDownloadDir()
+                    .then((dir) => dir && setS((prev) => ({ ...prev, downloadDir: dir })))
+                }
+              >
+                Change
+              </button>
+            </Row>
+            <Row
+              label="Ask where to save each file"
+              hint="Panes opens the Save As window before every download, in the folder above."
+            >
+              <Toggle
+                label="Ask where to save each file"
+                on={s.downloadAsk}
+                onChange={(v) => void update({ downloadAsk: v })}
+              />
+            </Row>
+          </Group>
+          <Group
+            title="Default browser"
+            footer="Windows asks you to confirm this itself, so Panes opens its default apps page. Links and HTML or PDF files then open here."
+          >
+            <Row
+              label={
+                isDefault ? 'Panes is your default browser' : 'Make Panes your default browser'
+              }
+              hint={
+                isDefault
+                  ? 'Links from other apps open in Panes.'
+                  : 'Open links from other apps, and web files, in Panes.'
+              }
+            >
+              {isDefault ? (
+                <span className="int-sub">Default</span>
+              ) : (
+                <button
+                  className="int-btn primary small"
+                  onClick={() => void window.panesInternal.defaultBrowserRequest()}
+                >
+                  Make default
+                </button>
+              )}
+            </Row>
+            <Row label="Ask me about this" hint="Show the offer in the sidebar until you answer.">
+              <Toggle
+                label="Ask me about this"
+                on={s.askDefaultBrowser}
+                onChange={(v) => void update({ askDefaultBrowser: v })}
+              />
+            </Row>
+          </Group>
+          <ImportSection />
+        </div>
+        <div className="set-cat" data-cat="appearance" hidden={!q && cat !== 'appearance'}>
+          <Group
+            title="Appearance"
+            id="appearance"
+            footer="Accent colour highlights controls, focus rings and the split view glow."
+          >
+            <Row
+              label="Frosted glass"
+              hint="Bars, menus and popovers in every window become translucent, blurred behind. Off in efficient mode."
+            >
+              <Toggle
+                label="Frosted glass"
+                on={s.frostedGlass}
+                onChange={(v) => void update({ frostedGlass: v })}
+              />
+            </Row>
+            <Row
+              label="Tooltips"
+              hint="Names and shortcuts shown when you rest the pointer on a button."
+            >
+              <Toggle
+                label="Tooltips"
+                on={s.tooltips}
+                onChange={(v) => void update({ tooltips: v })}
+              />
+            </Row>
+            <Row label="Accent colour">
+              <div className="swatches">
+                {ACCENTS.map((c) => (
+                  <button
+                    key={c}
+                    className={'swatch' + (s.accent.toLowerCase() === c ? ' on' : '')}
+                    style={{ background: c }}
+                    aria-label={c}
+                    onClick={() => void update({ accent: c })}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={s.accent}
+                  aria-label="Custom accent colour"
+                  onChange={(e) => void update({ accent: e.target.value })}
+                />
+              </div>
+            </Row>
+            <Row
+              label="Hide the top bar when the sidebar is collapsed"
+              hint="Gives the page the whole window. Move the pointer to the top edge to bring it back."
+            >
+              <Toggle
+                label="Auto-hide top bar"
+                on={s.autoHideTopBar}
+                onChange={(v) => void update({ autoHideTopBar: v })}
+              />
+            </Row>
+            <Row
+              label="Open the sidebar from the left edge"
+              hint="With the sidebar collapsed, touching the left edge of the window brings it back, and it tucks away again when the pointer leaves."
+            >
+              <Toggle
+                label="Open the sidebar from the left edge"
+                on={s.sidebarHover}
+                onChange={(v) => void update({ sidebarHover: v })}
+              />
+            </Row>
+          </Group>
+          <Group title="Interface size" id="size">
+            {SLIDERS.map((sl) => (
+              <SliderRow
+                key={sl.key}
+                spec={sl}
+                value={s[sl.key]}
+                onChange={(v) => void update({ [sl.key]: v })}
               />
             ))}
-            <input
-              type="color"
-              value={s.accent}
-              aria-label="Custom accent colour"
-              onChange={(e) => void update({ accent: e.target.value })}
-            />
-          </div>
-        </Row>
-        <Row
-          label="Hide the top bar when the sidebar is collapsed"
-          hint="Gives the page the whole window. Move the pointer to the top edge to bring it back."
-        >
-          <Toggle
-            label="Auto-hide top bar"
-            on={s.autoHideTopBar}
-            onChange={(v) => void update({ autoHideTopBar: v })}
-          />
-        </Row>
-        <Row
-          label="Open the sidebar from the left edge"
-          hint="With the sidebar collapsed, touching the left edge of the window brings it back, and it tucks away again when the pointer leaves."
-        >
-          <Toggle
-            label="Open the sidebar from the left edge"
-            on={s.sidebarHover}
-            onChange={(v) => void update({ sidebarHover: v })}
-          />
-        </Row>
-      </Group>
-
-      <Group
-        title="Websites"
-        id="websites"
-        footer="Sites that already have a dark theme use it whenever the space is dark. This darkens the ones that do not."
-      >
-        <Row
-          label="Darken websites in dark spaces"
-          hint="Colours are inverted on pages without a dark theme. Pictures and video keep their colours."
-        >
-          <Toggle
-            label="Darken websites in dark spaces"
-            on={s.darkenSites}
-            onChange={(v) => void update({ darkenSites: v })}
-          />
-        </Row>
-      </Group>
-
-      <Group title="Interface size" id="size">
-        {SLIDERS.map((sl) => (
-          <SliderRow
-            key={sl.key}
-            spec={sl}
-            value={s[sl.key]}
-            onChange={(v) => void update({ [sl.key]: v })}
-          />
-        ))}
-        <Row label="Address bar shows" hint="What you see in the bar while you are not typing.">
-          <Segmented
-            label="Address bar shows"
-            value={s.urlDisplay}
-            options={[
-              { value: 'full', label: 'Full address' },
-              { value: 'host', label: 'Site name' }
-            ]}
-            onChange={(v) => void update({ urlDisplay: v })}
-          />
-        </Row>
-        <Row
-          label="Page blur behind overlays"
-          hint="How soft a page looks while the command bar or another overlay is open over it."
-        >
-          <Segmented
-            label="Page blur behind overlays"
-            value={s.frozenBlur}
-            options={[
-              { value: 'off', label: 'Off' },
-              { value: 'slight', label: 'Slight' },
-              { value: 'strong', label: 'Strong' }
-            ]}
-            onChange={(v) => void update({ frozenBlur: v })}
-          />
-        </Row>
-        <div className="u-row center">
-          <button
-            className="int-btn small"
-            onClick={() =>
-              void update({
-                uiScale: DEFAULT_SETTINGS.uiScale,
-                density: DEFAULT_SETTINGS.density,
-                sidebarWidth: DEFAULT_SETTINGS.sidebarWidth,
-                pageMargin: DEFAULT_SETTINGS.pageMargin,
-                addressSize: DEFAULT_SETTINGS.addressSize
-              })
-            }
-          >
-            Reset interface size
-          </button>
-        </div>
-      </Group>
-
-      <MemorySection s={s} update={update} />
-
-      <SitePermissions />
-
-      <Group title="Privacy" id="privacy">
-        <Row
-          label="Block ads and trackers"
-          hint="Filters requests at the network level on every site."
-        >
-          <Toggle
-            label="Block ads and trackers"
-            on={s.adblock}
-            onChange={(v) => void update({ adblock: v })}
-          />
-        </Row>
-        <Row
-          label="Block aggressively"
-          hint="Also blocks a site's own ads and trackers, not only other sites'. Some pages may break."
-        >
-          <Toggle
-            label="Block aggressively"
-            on={s.adblockAggressive}
-            onChange={(v) => void update({ adblockAggressive: v })}
-          />
-        </Row>
-        <Row
-          label="Try secure connections first"
-          hint="Opens http: pages over https: when the site has it, and goes back to http: when it does not."
-        >
-          <Toggle
-            label="Try secure connections first"
-            on={s.httpsFirst}
-            onChange={(v) => void update({ httpsFirst: v })}
-          />
-        </Row>
-        <Row
-          label="Ask sites not to sell or share my data"
-          hint="Sends Global Privacy Control with every visit. Some laws (California's, for one) make sites honour it."
-        >
-          <Toggle
-            label="Ask sites not to sell or share my data"
-            on={s.privacySignal}
-            onChange={(v) => void update({ privacySignal: v })}
-          />
-        </Row>
-        <Row
-          label="Help improve Panes"
-          hint="Sends which features you use, time per site and how fast Panes starts, every half hour. Never page contents, what you type or passwords; never private or Tor tabs."
-        >
-          <Toggle
-            label="Help improve Panes"
-            on={s.usageStats}
-            onChange={(v) => void update({ usageStats: v })}
-          />
-        </Row>
-      </Group>
-
-      <Group title="Network" id="network">
-        <Row
-          label="Use QUIC (HTTP/3)"
-          hint="A faster connection many sites offer. Turn it off if pages fail on your network: some, often at work, block or break it. Applies after a restart."
-        >
-          <Toggle
-            label="Use QUIC (HTTP/3)"
-            on={s.quic}
-            onChange={(v) => void update({ quic: v })}
-          />
-        </Row>
-        {s.quic !== quicAtOpen && (
-          <Row label="Restart to apply" hint="Your tabs come back as they were.">
-            <button className="int-btn small" onClick={() => void window.panesInternal.restart()}>
-              Restart Panes
-            </button>
-          </Row>
-        )}
-      </Group>
-
-      <YouTubeSection s={s} update={update} />
-
-      <AiSection s={s} update={update} />
-
-      <Group
-        title="Clear browsing data"
-        id="clear-data"
-        footer="Cookies and cache are always cleared for all time."
-      >
-        {CLEAR_OPTIONS.map((o) => (
-          <label key={o.kind} className="u-row tap">
-            <span className="u-label">{o.label}</span>
-            <input
-              type="checkbox"
-              checked={kinds.has(o.kind)}
-              onChange={() => toggleKind(o.kind)}
-            />
-          </label>
-        ))}
-        <Row label="Time range">
-          <Select
-            label="Time range"
-            value={range}
-            options={RANGES.map((r, i) => ({ value: i, label: r.label }))}
-            onChange={setRange}
-          />
-        </Row>
-        <div className="u-row center">
-          <button
-            className="int-btn danger"
-            disabled={kinds.size === 0}
-            onClick={() => void clear()}
-          >
-            {cleared ? 'Cleared' : 'Clear data'}
-          </button>
-        </div>
-      </Group>
-
-      {platform === 'win32' && (
-        <Group
-          title="Touchpad on the board"
-          footer="How two-finger panning feels on the canvas board. Scrolling in web pages follows Windows' own touchpad settings."
-        >
-          <Row label="Speed" hint="How far the board moves for the same finger travel.">
-            <Select
-              label="Touchpad speed on the board"
-              value={s.touchpadSpeed}
-              options={[
-                { value: 0.7, label: 'Slower' },
-                { value: 1, label: 'Normal' },
-                { value: 1.4, label: 'Faster' },
-                { value: 1.9, label: 'Fastest' }
-              ]}
-              onChange={(v) => void update({ touchpadSpeed: v })}
-            />
-          </Row>
-          <Row
-            label="Glide after lifting"
-            hint="How far the board carries on once your fingers leave the pad."
-          >
-            <Select
-              label="Glide after lifting"
-              value={s.touchpadGlide}
-              options={[
-                { value: 0, label: 'Off' },
-                { value: 180, label: 'Short' },
-                { value: 320, label: 'Normal' },
-                { value: 560, label: 'Long' }
-              ]}
-              onChange={(v) => void update({ touchpadGlide: v })}
-            />
-          </Row>
-          <Row
-            label="Smoothing"
-            hint="Smooth trails your fingers by a few milliseconds so the board moves evenly; Responsive follows them closest."
-          >
-            <Segmented
-              label="Touchpad smoothing"
-              value={s.touchpadSmoothing}
-              options={[
-                { value: 'responsive', label: 'Responsive' },
-                { value: 'balanced', label: 'Balanced' },
-                { value: 'smooth', label: 'Smooth' }
-              ]}
-              onChange={(v) => void update({ touchpadSmoothing: v })}
-            />
-          </Row>
-          <Row
-            label="Swipe down to close the preview"
-            hint="Two fingers sliding down from the touchpad's top edge put an open preview away. From the very edge leaves ordinary scrolling alone."
-          >
-            <Segmented
-              label="Swipe down to close the preview"
-              value={s.previewSwipe}
-              options={[
-                { value: 'off', label: 'Off' },
-                { value: 'edge', label: 'From the very edge' },
-                { value: 'easy', label: 'Easier' }
-              ]}
-              onChange={(v) => void update({ previewSwipe: v })}
-            />
-          </Row>
-        </Group>
-      )}
-
-      {platform === 'win32' && (
-        <Group
-          title="Touchpad swipes"
-          footer="Two fingers on a precision touchpad, in the tab view. A badge at the side of the page fills as you go; lift once it is full, or slide back to change your mind."
-        >
-          <Row
-            label="Swipe sideways to go back or forward"
-            hint="Two fingers sliding right go back, left go forward. Pages that scroll sideways themselves keep the swipe."
-          >
-            <Toggle
-              label="Swipe sideways to go back or forward"
-              on={s.swipeHistory}
-              onChange={(v) => void update({ swipeHistory: v })}
-            />
-          </Row>
-          <Row
-            label="Swipe in from the edge to switch tabs"
-            hint="Two fingers starting at the touchpad's left or right edge and sliding inwards go to the previous or next tab."
-          >
-            <Toggle
-              label="Swipe in from the edge to switch tabs"
-              on={s.swipeTabs}
-              onChange={(v) => void update({ swipeTabs: v })}
-            />
-          </Row>
-        </Group>
-      )}
-
-      {platform === 'win32' && (
-        <Group
-          title="Touchpad gesture"
-          footer="Windows keeps three-finger swipes for itself, and no app can see them. What it can do is press a shortcut for you: open the touchpad settings, set the swipe you want (for example three fingers up) to a custom shortcut, and press Ctrl+Shift+Space. Panes opens the panes view. The same page can move Show desktop to four fingers."
-        >
-          <Row label="Open the panes view" hint="The shortcut a gesture should send">
-            <kbd>Ctrl+Shift+Space</kbd>
-          </Row>
-          <Row label="Set up the gesture in Windows">
-            <button
-              className="int-btn small"
-              onClick={() => void window.panesInternal.openTouchpadSettings()}
+            <Row label="Address bar shows" hint="What you see in the bar while you are not typing.">
+              <Segmented
+                label="Address bar shows"
+                value={s.urlDisplay}
+                options={[
+                  { value: 'full', label: 'Full address' },
+                  { value: 'host', label: 'Site name' }
+                ]}
+                onChange={(v) => void update({ urlDisplay: v })}
+              />
+            </Row>
+            <Row
+              label="Page blur behind overlays"
+              hint="How soft a page looks while the command bar or another overlay is open over it."
             >
-              Open touchpad settings
-            </button>
-          </Row>
-        </Group>
-      )}
-
-      <Group
-        title="Debugging Panes"
-        footer="For testing Panes itself. Turning this on or off reloads the interface; your tabs stay open."
-      >
-        <Row
-          label="Debug tools"
-          hint="Ctrl+Shift+F12 opens DevTools on Panes' own interface, and React Scan outlines what re-renders."
-        >
-          <Toggle
-            label="Debug tools"
-            on={s.debugPanes}
-            onChange={(v) => void update({ debugPanes: v })}
-          />
-        </Row>
-      </Group>
-
-      <Group title="Shortcuts">
-        {[
-          ['Ctrl+T', 'New tab'],
-          ['Ctrl+L', 'Address bar'],
-          ['Ctrl+\\', 'Split view'],
-          ['Alt+Shift+Arrows', 'Move focused pane'],
-          ['Ctrl+Shift+A', 'All tabs'],
-          ['Ctrl+Shift+Space', 'Panes view (stays open)'],
-          ['Ctrl+Shift+N', 'New private tab'],
-          ['Ctrl+Shift+D', 'Save all tabs as a session'],
-          ['Ctrl+Shift+R', 'Hard reload'],
-          ['F3', 'Find next'],
-          ['Ctrl+Tab', 'Fly through tabs, release to land'],
-          ['Ctrl+scroll', 'Fly through tabs (not in PDFs)'],
-          ['Ctrl+PageDown/Up', 'Next or previous tab'],
-          ['Ctrl+D', 'Bookmark'],
-          ['Ctrl+F', 'Find in page'],
-          ['Ctrl+H', 'History'],
-          ['Ctrl+J', 'Downloads'],
-          ['Ctrl+B', 'Toggle sidebar'],
-          ['Ctrl +/-/0', 'Zoom'],
-          ['F12', 'Developer tools']
-        ].map(([k, label]) => (
-          <Row key={k} label={label}>
-            <kbd>{k}</kbd>
-          </Row>
-        ))}
-      </Group>
+              <Segmented
+                label="Page blur behind overlays"
+                value={s.frozenBlur}
+                options={[
+                  { value: 'off', label: 'Off' },
+                  { value: 'slight', label: 'Slight' },
+                  { value: 'strong', label: 'Strong' }
+                ]}
+                onChange={(v) => void update({ frozenBlur: v })}
+              />
+            </Row>
+            <div className="u-row center">
+              <button
+                className="int-btn small"
+                onClick={() =>
+                  void update({
+                    uiScale: DEFAULT_SETTINGS.uiScale,
+                    density: DEFAULT_SETTINGS.density,
+                    sidebarWidth: DEFAULT_SETTINGS.sidebarWidth,
+                    pageMargin: DEFAULT_SETTINGS.pageMargin,
+                    addressSize: DEFAULT_SETTINGS.addressSize
+                  })
+                }
+              >
+                Reset interface size
+              </button>
+            </div>
+          </Group>
+          <Group
+            title="Websites"
+            id="websites"
+            footer="Sites that already have a dark theme use it whenever the space is dark. This darkens the ones that do not."
+          >
+            <Row
+              label="Darken websites in dark spaces"
+              hint="Colours are inverted on pages without a dark theme. Pictures and video keep their colours."
+            >
+              <Toggle
+                label="Darken websites in dark spaces"
+                on={s.darkenSites}
+                onChange={(v) => void update({ darkenSites: v })}
+              />
+            </Row>
+          </Group>
+        </div>
+        <div className="set-cat" data-cat="tabs" hidden={!q && cat !== 'tabs'}>
+          <Group
+            title="Tabs"
+            id="tabs"
+            footer="Vertical keeps tabs, spaces and the address bar in a sidebar you can tuck away. Horizontal puts tabs in a row along the top, with spaces at the left end."
+          >
+            <Row label="Tab layout">
+              <Segmented
+                label="Tab layout"
+                value={s.tabLayout}
+                options={[
+                  { value: 'vertical', label: 'Sidebar' },
+                  { value: 'horizontal', label: 'Along the top' }
+                ]}
+                onChange={(v) => void update({ tabLayout: v })}
+              />
+            </Row>
+            <Row
+              label="Browse with"
+              hint="Canvas makes the board the whole window: no tab sidebar or top bar, and new tabs land on the board. Each space can choose for itself."
+            >
+              <Segmented
+                label="Browse with"
+                value={s.browseWith}
+                options={[
+                  { value: 'tabs', label: 'Tabs' },
+                  { value: 'canvas', label: 'Canvas' }
+                ]}
+                onChange={(v) => void update({ browseWith: v })}
+              />
+            </Row>
+            <Row
+              label="Preview toolbar"
+              hint="Where a page opened from the board keeps its toolbar: above the page, or below it, nearer the hand."
+            >
+              <Segmented
+                label="Preview toolbar"
+                value={s.previewBar}
+                options={[
+                  { value: 'top', label: 'Top' },
+                  { value: 'bottom', label: 'Bottom' }
+                ]}
+                onChange={(v) => void update({ previewBar: v })}
+              />
+            </Row>
+            <Row
+              label="Pane view"
+              hint="Ctrl and scroll opens it. Full fills the page area with your tabs; Side strip keeps the page in view and scrolls your tabs down the right edge."
+            >
+              <Segmented
+                label="Pane view"
+                value={s.paneView}
+                options={[
+                  { value: 'full', label: 'Full' },
+                  { value: 'side', label: 'Side strip' }
+                ]}
+                onChange={(v) => void update({ paneView: v })}
+              />
+            </Row>
+            <Row
+              label="Letting go of Ctrl in pane view"
+              hint="Open tab switches to the tab you are on, as Alt+Tab does. Stay open keeps the view up so you can keep scrolling; click a tab, press Enter, or Esc to leave."
+            >
+              <Segmented
+                label="Letting go of Ctrl in pane view"
+                value={s.paneViewRelease}
+                options={[
+                  { value: 'select', label: 'Open tab' },
+                  { value: 'stay', label: 'Stay open' }
+                ]}
+                onChange={(v) => void update({ paneViewRelease: v })}
+              />
+            </Row>
+            <Row
+              label="Email links"
+              hint="What opens when you click an email address or use Send feedback. A web service opens its compose page in a tab."
+            >
+              <Select
+                label="Open email links with"
+                value={s.mailHandler}
+                options={MAIL_HANDLERS}
+                onChange={(v) => void update({ mailHandler: v })}
+              />
+            </Row>
+            <Row
+              label="Photo on the new tab page"
+              hint="A new landscape photo each day, fetched from picsum.photos (photos from Unsplash). Never shown or fetched in private or Tor tabs."
+            >
+              <Toggle
+                label="Photo on the new tab page"
+                on={s.newTabPhoto}
+                onChange={(v) => void update({ newTabPhoto: v })}
+              />
+            </Row>
+            {s.newTabPhoto && (
+              <div className="u-row">
+                <div className="u-text">
+                  <div className="u-label">Background</div>
+                  <div className="u-hint">Daily changes it every day. Or keep one.</div>
+                  <div className="bg-picker" role="listbox" aria-label="New tab background">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={s.newTabPhotoId === null}
+                      className={'bg-daily' + (s.newTabPhotoId === null ? ' on' : '')}
+                      onClick={() => void update({ newTabPhotoId: null })}
+                    >
+                      Daily
+                    </button>
+                    {PHOTO_IDS.map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="option"
+                        aria-selected={s.newTabPhotoId === id}
+                        className={'bg-thumb' + (s.newTabPhotoId === id ? ' on' : '')}
+                        onClick={() => void update({ newTabPhotoId: id })}
+                      >
+                        <img src={photoUrl(id, 160, 90)} alt="" loading="lazy" draggable={false} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {s.newTabPhoto && (
+              <Row
+                label="Dithered look"
+                hint="The photo as two tones in your space's colours, in a print-like pattern. Off shows it as it is."
+              >
+                <Toggle
+                  label="Dithered look"
+                  on={s.newTabDither}
+                  onChange={(v) => void update({ newTabDither: v })}
+                />
+              </Row>
+            )}
+            <Row
+              label="Address bar spans the whole row"
+              hint="With tabs along the top: the address bar stretches from side to side. Off keeps it in the middle."
+            >
+              <Toggle
+                label="Address bar spans the whole row"
+                on={s.fullWidthAddress}
+                onChange={(v) => void update({ fullWidthAddress: v })}
+              />
+            </Row>
+          </Group>
+          <SpacesSection />
+          {platform === 'win32' && (
+            <Group
+              title="Touchpad on the board"
+              footer="How two-finger panning feels on the canvas board. Scrolling in web pages follows Windows' own touchpad settings."
+            >
+              <Row label="Speed" hint="How far the board moves for the same finger travel.">
+                <Select
+                  label="Touchpad speed on the board"
+                  value={s.touchpadSpeed}
+                  options={[
+                    { value: 0.7, label: 'Slower' },
+                    { value: 1, label: 'Normal' },
+                    { value: 1.4, label: 'Faster' },
+                    { value: 1.9, label: 'Fastest' }
+                  ]}
+                  onChange={(v) => void update({ touchpadSpeed: v })}
+                />
+              </Row>
+              <Row
+                label="Glide after lifting"
+                hint="How far the board carries on once your fingers leave the pad."
+              >
+                <Select
+                  label="Glide after lifting"
+                  value={s.touchpadGlide}
+                  options={[
+                    { value: 0, label: 'Off' },
+                    { value: 180, label: 'Short' },
+                    { value: 320, label: 'Normal' },
+                    { value: 560, label: 'Long' }
+                  ]}
+                  onChange={(v) => void update({ touchpadGlide: v })}
+                />
+              </Row>
+              <Row
+                label="Smoothing"
+                hint="Smooth trails your fingers by a few milliseconds so the board moves evenly; Responsive follows them closest."
+              >
+                <Segmented
+                  label="Touchpad smoothing"
+                  value={s.touchpadSmoothing}
+                  options={[
+                    { value: 'responsive', label: 'Responsive' },
+                    { value: 'balanced', label: 'Balanced' },
+                    { value: 'smooth', label: 'Smooth' }
+                  ]}
+                  onChange={(v) => void update({ touchpadSmoothing: v })}
+                />
+              </Row>
+              <Row
+                label="Swipe down to close the preview"
+                hint="Two fingers sliding down from the touchpad's top edge put an open preview away. From the very edge leaves ordinary scrolling alone."
+              >
+                <Segmented
+                  label="Swipe down to close the preview"
+                  value={s.previewSwipe}
+                  options={[
+                    { value: 'off', label: 'Off' },
+                    { value: 'edge', label: 'From the very edge' },
+                    { value: 'easy', label: 'Easier' }
+                  ]}
+                  onChange={(v) => void update({ previewSwipe: v })}
+                />
+              </Row>
+            </Group>
+          )}
+          {platform === 'win32' && (
+            <Group
+              title="Touchpad swipes"
+              footer="Two fingers on a precision touchpad, in the tab view. A badge at the side of the page fills as you go; lift once it is full, or slide back to change your mind."
+            >
+              <Row
+                label="Swipe sideways to go back or forward"
+                hint="Two fingers sliding right go back, left go forward. Pages that scroll sideways themselves keep the swipe."
+              >
+                <Toggle
+                  label="Swipe sideways to go back or forward"
+                  on={s.swipeHistory}
+                  onChange={(v) => void update({ swipeHistory: v })}
+                />
+              </Row>
+              <Row
+                label="Swipe in from the edge to switch tabs"
+                hint="Two fingers starting at the touchpad's left or right edge and sliding inwards go to the previous or next tab."
+              >
+                <Toggle
+                  label="Swipe in from the edge to switch tabs"
+                  on={s.swipeTabs}
+                  onChange={(v) => void update({ swipeTabs: v })}
+                />
+              </Row>
+            </Group>
+          )}
+          {platform === 'win32' && (
+            <Group
+              title="Touchpad gesture"
+              footer="Windows keeps three-finger swipes for itself, and no app can see them. What it can do is press a shortcut for you: open the touchpad settings, set the swipe you want (for example three fingers up) to a custom shortcut, and press Ctrl+Shift+Space. Panes opens the panes view. The same page can move Show desktop to four fingers."
+            >
+              <Row label="Open the panes view" hint="The shortcut a gesture should send">
+                <kbd>Ctrl+Shift+Space</kbd>
+              </Row>
+              <Row label="Set up the gesture in Windows">
+                <button
+                  className="int-btn small"
+                  onClick={() => void window.panesInternal.openTouchpadSettings()}
+                >
+                  Open touchpad settings
+                </button>
+              </Row>
+            </Group>
+          )}
+        </div>
+        <div className="set-cat" data-cat="privacy" hidden={!q && cat !== 'privacy'}>
+          <Group title="Privacy" id="privacy">
+            <Row
+              label="Block ads and trackers"
+              hint="Filters requests at the network level on every site."
+            >
+              <Toggle
+                label="Block ads and trackers"
+                on={s.adblock}
+                onChange={(v) => void update({ adblock: v })}
+              />
+            </Row>
+            <Row
+              label="Block aggressively"
+              hint="Also blocks a site's own ads and trackers, not only other sites'. Some pages may break."
+            >
+              <Toggle
+                label="Block aggressively"
+                on={s.adblockAggressive}
+                onChange={(v) => void update({ adblockAggressive: v })}
+              />
+            </Row>
+            <Row
+              label="Try secure connections first"
+              hint="Opens http: pages over https: when the site has it, and goes back to http: when it does not."
+            >
+              <Toggle
+                label="Try secure connections first"
+                on={s.httpsFirst}
+                onChange={(v) => void update({ httpsFirst: v })}
+              />
+            </Row>
+            <Row
+              label="Ask sites not to sell or share my data"
+              hint="Sends Global Privacy Control with every visit. Some laws (California's, for one) make sites honour it."
+            >
+              <Toggle
+                label="Ask sites not to sell or share my data"
+                on={s.privacySignal}
+                onChange={(v) => void update({ privacySignal: v })}
+              />
+            </Row>
+            <Row
+              label="Help improve Panes"
+              hint="Sends which features you use, time per site and how fast Panes starts, every half hour. Never page contents, what you type or passwords; never private or Tor tabs."
+            >
+              <Toggle
+                label="Help improve Panes"
+                on={s.usageStats}
+                onChange={(v) => void update({ usageStats: v })}
+              />
+            </Row>
+          </Group>
+          <SitePermissions />
+          <Group
+            title="Clear browsing data"
+            id="clear-data"
+            footer="Cookies and cache are always cleared for all time."
+          >
+            {CLEAR_OPTIONS.map((o) => (
+              <label key={o.kind} className="u-row tap">
+                <span className="u-label">{o.label}</span>
+                <input
+                  type="checkbox"
+                  checked={kinds.has(o.kind)}
+                  onChange={() => toggleKind(o.kind)}
+                />
+              </label>
+            ))}
+            <Row label="Time range">
+              <Select
+                label="Time range"
+                value={range}
+                options={RANGES.map((r, i) => ({ value: i, label: r.label }))}
+                onChange={setRange}
+              />
+            </Row>
+            <div className="u-row center">
+              <button
+                className="int-btn danger"
+                disabled={kinds.size === 0}
+                onClick={() => void clear()}
+              >
+                {cleared ? 'Cleared' : 'Clear data'}
+              </button>
+            </div>
+          </Group>
+          <Group title="Network" id="network">
+            <Row
+              label="Use QUIC (HTTP/3)"
+              hint="A faster connection many sites offer. Turn it off if pages fail on your network: some, often at work, block or break it. Applies after a restart."
+            >
+              <Toggle
+                label="Use QUIC (HTTP/3)"
+                on={s.quic}
+                onChange={(v) => void update({ quic: v })}
+              />
+            </Row>
+            {s.quic !== quicAtOpen && (
+              <Row label="Restart to apply" hint="Your tabs come back as they were.">
+                <button
+                  className="int-btn small"
+                  onClick={() => void window.panesInternal.restart()}
+                >
+                  Restart Panes
+                </button>
+              </Row>
+            )}
+          </Group>
+        </div>
+        <div className="set-cat" data-cat="performance" hidden={!q && cat !== 'performance'}>
+          <MemorySection s={s} update={update} />
+          <YouTubeSection s={s} update={update} />
+        </div>
+        <div className="set-cat" data-cat="ai" hidden={!q && cat !== 'ai'}>
+          <AiSection s={s} update={update} />
+        </div>
+        <div className="set-cat" data-cat="advanced" hidden={!q && cat !== 'advanced'}>
+          <Group
+            title="Debugging Panes"
+            footer="For testing Panes itself. Turning this on or off reloads the interface; your tabs stay open."
+          >
+            <Row
+              label="Debug tools"
+              hint="Ctrl+Shift+F12 opens DevTools on Panes' own interface, and React Scan outlines what re-renders."
+            >
+              <Toggle
+                label="Debug tools"
+                on={s.debugPanes}
+                onChange={(v) => void update({ debugPanes: v })}
+              />
+            </Row>
+          </Group>
+          <Group title="Shortcuts">
+            {[
+              ['Ctrl+T', 'New tab'],
+              ['Ctrl+L', 'Address bar'],
+              ['Ctrl+\\', 'Split view'],
+              ['Alt+Shift+Arrows', 'Move focused pane'],
+              ['Ctrl+Shift+A', 'All tabs'],
+              ['Ctrl+Shift+Space', 'Panes view (stays open)'],
+              ['Ctrl+Shift+N', 'New private tab'],
+              ['Ctrl+Shift+D', 'Save all tabs as a session'],
+              ['Ctrl+Shift+R', 'Hard reload'],
+              ['F3', 'Find next'],
+              ['Ctrl+Tab', 'Fly through tabs, release to land'],
+              ['Ctrl+scroll', 'Fly through tabs (not in PDFs)'],
+              ['Ctrl+PageDown/Up', 'Next or previous tab'],
+              ['Ctrl+D', 'Bookmark'],
+              ['Ctrl+F', 'Find in page'],
+              ['Ctrl+H', 'History'],
+              ['Ctrl+J', 'Downloads'],
+              ['Ctrl+B', 'Toggle sidebar'],
+              ['Ctrl +/-/0', 'Zoom'],
+              ['F12', 'Developer tools']
+            ].map(([k, label]) => (
+              <Row key={k} label={label}>
+                <kbd>{k}</kbd>
+              </Row>
+            ))}
+          </Group>
+        </div>
+        <p className="set-none">Nothing in Settings matches that.</p>
+      </div>
     </>
   )
 }

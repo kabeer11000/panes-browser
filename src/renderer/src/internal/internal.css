@@ -1587,3 +1587,65 @@ a.int-btn {
     transition: none;
   }
 }
+
+/* ---- Settings: categories and search (Settings.tsx) ---- */
+.set-nav {
+  position: sticky;
+  top: calc(var(--bar-h, 56px) - 8px);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 8px 0 10px;
+  background: var(--stage-bg);
+}
+.set-search {
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  outline: 0;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--fg);
+  font: inherit;
+}
+.set-search:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.set-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.set-cats button {
+  height: 30px;
+  padding: 0 13px;
+  border-radius: var(--r-pill);
+  color: var(--fg-dim);
+  font-weight: 550;
+  transition:
+    background-color var(--dur-fast),
+    color var(--dur-fast);
+}
+.set-cats button:hover:not(.on) {
+  background: var(--surface);
+  color: var(--fg);
+}
+.set-cats button.on {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+/* searching: every category shows, and a section with no matching row steps aside with its rows */
+.set-body.searching .u-section:not(:has(.u-row:not([hidden]))) {
+  display: none;
+}
+.set-none {
+  display: none;
+  color: var(--fg-dim);
+  text-align: center;
+}
+.set-body.searching:not(:has(.u-row:not([hidden]))) .set-none {
+  display: block;
+}
