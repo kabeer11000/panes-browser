@@ -77,6 +77,20 @@
 .cv-expand .cv-live-slot > img {
   transition: none;
 }
+/* the page streamed over its picture while a popover is over it (AsideStream): shown once its first frame is in */
+.cv-expand .cv-live-stream {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top left;
+  opacity: 0;
+  pointer-events: none;
+}
+.cv-expand .cv-live-stream.on {
+  opacity: 1;
+}
 /* the loading bar shows only for a page that is slow to come (not on every open, in flight) */
 .cv-expand .cv-live-bar {
   opacity: 0;

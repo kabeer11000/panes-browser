@@ -3562,7 +3562,8 @@ export class TabManager {
   streamSource(id: number): string | null {
     const t = this.tabs.get(id)
     const wc = t && liveContents(t)
-    if (!wc || (!this.streaming.has(id) && !this.liveShared.has(id))) return null
+    const aside = id === this.liveId && this.liveAside // the preview's page under a popover
+    if (!wc || (!this.streaming.has(id) && !this.liveShared.has(id) && !aside)) return null
     try {
       return wc.getMediaSourceId(this.win.webContents)
     } catch {
@@ -3788,9 +3789,11 @@ export class TabManager {
       const liveAt = companion ?? (id === this.liveId ? this.liveRect : null)
       const slides =
         (live && liveAt) || (!streamed && placed && !this.overlay && this.fullscreenId === null)
+      // stepped aside for a popover over it: parked in the window's corner at its own size (as a streaming tab is),
+      // so it keeps painting and the preview shows it live (a tab stream) under the popover, not a still picture
       const rect =
         live && liveAt && this.liveAside
-          ? { ...liveAt, x: PARKED_X }
+          ? { x: w - 3, y: h - 3, width: liveAt.width, height: liveAt.height }
           : live && liveAt
             ? { ...liveAt, x: liveAt.x + this.slideX, y: liveAt.y + this.slideY }
             : streamed
