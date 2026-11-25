@@ -23,8 +23,10 @@ import {
   TableIcon,
   TextIcon,
   TidyIcon,
-  GearIcon
+  GearIcon,
+  StopwatchIcon
 } from './icons'
+import { WIDGET_LABEL, type WidgetKind } from '@shared/widgets'
 import { useSelfWidth } from './useSelfWidth'
 
 export type Tool =
@@ -96,6 +98,8 @@ interface Props {
   onShapeKind: (k: ShapeKind) => void
   /** Put a block (heading, body text, table, checklist, code) in the middle of the view. */
   onBlock: (b: BlockChoice) => void
+  /** Put a stopwatch, timer or reminder in the middle of the view. */
+  onWidget: (w: WidgetKind) => void
   /** Tabs that can be @mentioned in the box. */
   mentionable: Array<{ tab: number; title: string }>
   onMention: (tab: number) => void
@@ -123,6 +127,7 @@ export function Toolbar({
   shapeKind,
   onShapeKind,
   onBlock,
+  onWidget,
   mentionable,
   onMention,
   onPrompt,
@@ -133,6 +138,7 @@ export function Toolbar({
 }: Props): React.JSX.Element {
   const [shapes, setShapes] = useState(false)
   const [blocks, setBlocks] = useState(false)
+  const [widgets, setWidgets] = useState(false)
   const [draws, setDraws] = useState(false)
   const [lastDraw, setLastDraw] = useState<ToolDef>(DRAW[0])
   const draw = DRAW.find((d) => d.id === tool) ?? lastDraw
@@ -141,6 +147,7 @@ export function Toolbar({
   const barWidth = useSelfWidth<HTMLDivElement>()
   const shapesBox = useRef<HTMLDivElement>(null)
   const blocksBox = useRef<HTMLDivElement>(null)
+  const widgetsBox = useRef<HTMLDivElement>(null)
   const drawsBox = useRef<HTMLDivElement>(null)
   useDismiss(
     shapes,
@@ -156,6 +163,11 @@ export function Toolbar({
     blocks,
     blocksBox,
     useCallback(() => setBlocks(false), [])
+  )
+  useDismiss(
+    widgets,
+    widgetsBox,
+    useCallback(() => setWidgets(false), [])
   )
   // the chosen tool's highlight glides from tool to tool (as in FigJam) instead of jumping
   useLayoutEffect(() => {
@@ -349,6 +361,37 @@ export function Toolbar({
                 }}
               >
                 {b.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* the board's widgets, in reach on the bar (they were only in the command menu and the right-click menu) */}
+      <div className="cv-split" ref={widgetsBox}>
+        <button
+          type="button"
+          className={'cv-tool' + (widgets ? ' open' : '')}
+          aria-label="Widgets"
+          title="Stopwatch, timer, reminder"
+          aria-haspopup="menu"
+          aria-expanded={widgets}
+          onClick={() => setWidgets((m) => !m)}
+        >
+          <StopwatchIcon />
+        </button>
+        {widgets && (
+          <div className="cv-menu" role="menu">
+            {(['stopwatch', 'timer', 'reminder'] as const).map((w) => (
+              <button
+                key={w}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setWidgets(false)
+                  onWidget(w)
+                }}
+              >
+                {WIDGET_LABEL[w]}
               </button>
             ))}
           </div>

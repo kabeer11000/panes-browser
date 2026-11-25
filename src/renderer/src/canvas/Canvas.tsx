@@ -6411,6 +6411,10 @@ export function Canvas({
         shapeKind={shapeKind}
         onShapeKind={setShapeKind}
         onBlock={addBlockAt}
+        onWidget={(k) => {
+          const v = vp.get()
+          placeWidget(k, { x: (size().w / 2 - v.x) / v.k, y: (size().h * 0.42 - v.y) / v.k })
+        }}
         mentionable={allTabs
           .filter((t) => !t.private && !t.tor && /^(https?|file):/i.test(t.url))
           .map((t) => ({ tab: t.id, title: t.aiTitle ?? t.title ?? t.url }))}

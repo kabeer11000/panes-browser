@@ -199,6 +199,13 @@ export const TableIcon = (): React.JSX.Element => (
     <path d="M2.4 6.6h11.2M2.4 9.8h11.2M6.2 6.6V13M9.8 6.6V13" />
   </Svg>
 )
+/** A stopwatch: the board's widgets (stopwatch, timer, reminder). */
+export const StopwatchIcon = (): React.JSX.Element => (
+  <Svg>
+    <circle cx="8" cy="9.2" r="4.8" />
+    <path d="M8 9.2V6.6M6.6 2.4h2.8M12.2 4.8l.9-.9" />
+  </Svg>
+)
 export const DocIcon = (): React.JSX.Element => (
   <Svg>
     <rect x="3.4" y="2" width="9.2" height="12" rx="1.6" />

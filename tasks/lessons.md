@@ -144,6 +144,7 @@ committed; the binding was further down, so mine was dead code (no-dupe-else-if 
 handleKey test passed because of the original line.
 - Grep the key across the whole function (`grep -n "k === 'd'"`) before adding a binding.
 - Gate commits on lint: `eslint ... && git commit`, not `;`.
-- Two import statements from the same module in one renderer file: the dev server served only one of them, so the
-  other names were "not defined" at runtime while typecheck and lint passed (2026-11-25, TabStrip's IncognitoIcon
-  crashed the board). Add names to the existing import; check a hot-reloaded change in the running app, not just tsc.
+- The dev server's watcher can miss a second write to the same file a moment after the first (a script that edits
+  the JSX, then the imports, in two writes): it keeps serving the first, so new imports are "not defined" at runtime
+  while tsc and lint pass, even after a reload (2026-11-25: TabStrip's IncognitoIcon, Toolbar's StopwatchIcon crashed
+  the board). Write each file once per edit, or `touch` it afterwards; check a change in the running app, not just tsc.
