@@ -299,6 +299,18 @@
 .cv-card.titled .cv-hover-cap {
   display: none;
 }
+/* everything drawn around the card itself (the lift's shadow, the split target, a citation's pulse) stops at the
+   picture too: the title row is bare board, and a shadow there read as a box around the words */
+.cv-card.titled[data-lift]::after,
+.cv-card.titled.split-into::before {
+  bottom: var(--under);
+}
+.cv-card.titled.pulse {
+  animation: none;
+}
+.cv-card.titled.pulse > :is(.cv-snap, .cv-video, .cv-image, .cv-pdf, .cv-shimmer, .cv-live) {
+  animation: cv-pulse 1.4s ease-out;
+}
 .cv-card.titled > .cv-chip-place {
   bottom: calc(var(--under) + 8px);
 }
@@ -990,11 +1002,11 @@
   gap: 2px;
   padding: 5px;
   border-radius: 14px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   box-shadow:
     0 0 0 1px var(--border),
     0 12px 32px rgb(0 0 0 / 0.3);
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-blur);
 }
 .cv-tool,
 .cv-zoom {
@@ -1782,11 +1794,11 @@
   gap: 1px;
   padding: 4px;
   border-radius: 11px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   box-shadow:
     0 0 0 1px var(--border),
     0 8px 24px rgb(0 0 0 / 0.24);
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-blur);
   transform-origin: 50% 100%;
   transform: translate(-50%, calc(-100% - 18px)) scale(calc(1 / var(--vk, 1)));
   translate: 0 0;
@@ -1934,11 +1946,11 @@
   gap: 2px;
   padding: 5px;
   border-radius: 11px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   box-shadow:
     0 0 0 1px var(--border),
     0 8px 24px rgb(0 0 0 / 0.24);
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-blur);
   transform-origin: 50% 100%;
   transform: translate(-50%, calc(-100% - 14px)) scale(calc(1 / var(--vk, 1)));
   animation: cv-kbar 0.16s var(--ease) both;
@@ -2036,11 +2048,11 @@
   translate: -50% -50%;
   padding: 6px;
   border-radius: 14px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   box-shadow:
     0 0 0 1px var(--border),
     0 16px 40px rgb(0 0 0 / 0.32);
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-blur);
   animation: cv-new 0.18s var(--ease) both;
 }
 @keyframes cv-new {
@@ -3325,11 +3337,11 @@
   translate: -50% 0;
   padding: var(--sp-2);
   border-radius: var(--r-5);
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   box-shadow:
     0 0 0 1px var(--border),
     var(--shadow-3);
-  backdrop-filter: blur(14px);
+  backdrop-filter: var(--glass-blur);
   animation: cv-fade var(--dur-fast) ease-out both;
 }
 .cv-cmd input {
