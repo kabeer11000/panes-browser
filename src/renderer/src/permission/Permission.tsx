@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { describeKinds } from '@shared/permissions'
 import type { PermissionAnswer, PermissionApi, PermissionPromptState } from '@shared/types'
 import { CertCard } from './CertCard'
+import { ConfirmCard } from './ConfirmCard'
 import { LoginCard } from './LoginCard'
 import { ShareDialog } from './ShareDialog'
 
@@ -70,6 +71,9 @@ export function Permission(): React.JSX.Element | null {
         onAnswer={answer}
       />
     )
+
+  if (state.confirm)
+    return <ConfirmCard key={id} ref={box} confirm={state.confirm} onAnswer={answer} />
 
   if (state.certs)
     return <CertCard key={id} ref={box} host={host(origin)} certs={state.certs} onAnswer={answer} />

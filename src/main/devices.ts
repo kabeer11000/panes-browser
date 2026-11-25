@@ -1,12 +1,4 @@
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  webContents,
-  type Session,
-  type WebContents,
-  type WebFrameMain
-} from 'electron'
+import { app, webContents, type Session, type WebContents, type WebFrameMain } from 'electron'
 import {
   choiceLabels,
   DEVICE_WORD,
@@ -32,40 +24,57 @@ function asker(frame: WebFrameMain | null): { wc: WebContents | null; origin: st
   return { wc: webContents.fromFrame(frame) ?? null, origin: frame.origin }
 }
 
-/** The chooser: the devices found, one to pick or Cancel. Resolves with the picked device's id, or null. */
+/** How Panes asks (PermissionManager.confirm): its own card, set by index.ts, as a site's question is asked. */
+type Ask = (
+  confirm: {
+    title: string
+    detail?: string
+    choices: Array<{ label: string; tone?: 'primary' | 'danger' }>
+    list?: boolean
+  },
+  wc: WebContents | null
+) => Promise<number | null>
+let ask: Ask | null = null
+export function askDevicesWith(fn: Ask): void {
+  ask = fn
+}
+
+/**
+ * The chooser: the devices found, one to pick or Cancel, on Panes' own card (not a system dialog). Resolves with the
+ * picked device's id, or null.
+ */
 async function choose(
   wc: WebContents | null,
   kind: DeviceKind,
   origin: string,
   list: readonly DeviceChoice[]
 ): Promise<string | null> {
-  const win = (wc && BrowserWindow.fromWebContents(wc)) || BrowserWindow.getAllWindows()[0]
+  if (!ask) return null
   const what = DEVICE_WORD[kind]
   const site = hostOf(origin)
   if (list.length === 0) {
-    const opts = {
-      type: 'info' as const,
-      buttons: ['OK'],
-      title: `Connect ${what}`,
-      message: `${site} wants to connect to ${what}`,
-      detail: 'No compatible devices found. Plug it in or turn it on, then try again on the site.'
-    }
-    await (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts))
+    await ask(
+      {
+        title: `${site} wants to connect to ${what}`,
+        detail:
+          'No compatible devices found. Plug it in or turn it on, then try again on the site.',
+        choices: [{ label: 'OK', tone: 'primary' }]
+      },
+      wc
+    )
     return null
   }
   const shown = list.slice(0, MAX_CHOICES)
-  const opts = {
-    type: 'question' as const,
-    buttons: [...choiceLabels(shown), 'Cancel'],
-    cancelId: shown.length,
-    defaultId: shown.length,
-    noLink: false, // on Windows, the devices are a list of large choices rather than a row of buttons
-    title: `Connect ${what}`,
-    message: `${site} wants to connect to ${what}`,
-    detail: 'Pick one to let the site use it.'
-  }
-  const { response } = await (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts))
-  return response < shown.length ? shown[response].id : null
+  const picked = await ask(
+    {
+      title: `${site} wants to connect to ${what}`,
+      detail: 'Pick one to let the site use it.',
+      choices: choiceLabels(shown).map((label) => ({ label })),
+      list: true
+    },
+    wc
+  )
+  return picked !== null && picked < shown.length ? shown[picked].id : null
 }
 
 /**

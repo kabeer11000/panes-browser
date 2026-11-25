@@ -210,3 +210,19 @@ body {
   font-size: var(--fs-s);
   line-height: 1.5;
 }
+
+/* Panes' own questions (ConfirmCard.tsx): a line of explanation under the title, and a red button for what loses
+   something (closing private tabs, leaving unsaved changes) */
+.perm-confirm-detail {
+  margin: 0;
+  color: var(--fg-dim);
+  font-size: var(--fs-m, 13px);
+  line-height: 1.45;
+}
+.perm-btn.danger {
+  background: color-mix(in srgb, #e5484d 88%, var(--popover-bg));
+  color: #fff;
+}
+.perm-btn.danger:hover {
+  background: #e5484d;
+}

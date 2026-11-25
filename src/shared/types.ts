@@ -1325,6 +1325,17 @@ export interface PermissionPromptState {
   login?: { host: string; realm: string; proxy: boolean; insecure: boolean; retry?: boolean }
   /** The site asks for a certificate that says who you are (client certificate): the ones this computer has. */
   certs?: Array<{ name: string; issuer: string; expires: number }>
+  /**
+   * Panes asks something of its own (instead of a system dialog): private tabs would close on a restart, a page has
+   * unsaved changes, which device to connect. `choices` in order; the answer is { action: 'choose', index }.
+   */
+  confirm?: {
+    title: string
+    detail?: string
+    choices: Array<{ label: string; tone?: 'primary' | 'danger' }>
+    /** Many choices (devices): one per row instead of buttons side by side. */
+    list?: boolean
+  }
 }
 
 export type PermissionAnswer =
@@ -1332,6 +1343,7 @@ export type PermissionAnswer =
   | { action: 'share'; sourceId: string; audio: boolean }
   | { action: 'login'; username: string; password: string }
   | { action: 'cert'; index: number }
+  | { action: 'choose'; index: number }
 
 /** What the permission card (a transparent view above the page) can do. */
 export interface PermissionApi {

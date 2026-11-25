@@ -78,7 +78,7 @@ import { showEditMenu } from './contextMenu'
 import { TabManager } from './tabs'
 import { registerTouchpad } from './touchpad'
 import { NavGestures } from './gestures'
-import { installBluetoothPicker, installDevicePickers } from './devices'
+import { askDevicesWith, installBluetoothPicker, installDevicePickers } from './devices'
 import { installCertBypass } from './certs'
 import { registerScreenTimeIpc, ScreenTimeService } from './screenTime'
 import { parseShareData, type ShareData } from '@shared/webShare'
@@ -468,6 +468,8 @@ function createWindow(): void {
   permissionManager.install(privateSession, new PermissionStore(false))
   permissionManager.install(torSession, new PermissionStore(false))
   // USB, HID, serial and Bluetooth devices: Chrome's chooser, in every session tabs use
+  askDevicesWith((c, wc) => permissionManager.confirm(c, wc))
+  tabs.confirm = (c, wc) => permissionManager.confirm(c, wc)
   for (const ses of [tabSession, privateSession, torSession]) installDevicePickers(ses)
   installBluetoothPicker()
   installCertBypass()
@@ -536,14 +538,13 @@ function createWindow(): void {
   const updater = new UpdateManager(async () => {
     const warning = privateTabsWarning(tabs.privateTabCount())
     if (!warning) return true
-    const { response } = await dialog.showMessageBox(win, {
-      type: 'question',
-      buttons: ['Restart', 'Later'],
-      defaultId: 1,
-      cancelId: 1,
-      ...warning
+    // Panes' own card, as a site's question is asked, not a system dialog
+    const picked = await permissionManager.confirm({
+      title: warning.message,
+      detail: warning.detail,
+      choices: [{ label: 'Later' }, { label: 'Restart', tone: 'danger' }]
     })
-    return response === 0
+    return picked === 1
   })
   updater.onChange((s) => {
     if (!win.isDestroyed()) win.webContents.send('ui:update', s)
@@ -1066,7 +1067,18 @@ function createWindow(): void {
   // the test driver reaches these over the main process inspector (scripts/drive.ts main)
   if (offscreenTest)
     Object.assign(globalThis, {
-      panesTest: { win, tabs, spaces, settings, permissions, loadAi, updater, gestures, share }
+      panesTest: {
+        win,
+        tabs,
+        spaces,
+        settings,
+        permissions,
+        permissionManager,
+        loadAi,
+        updater,
+        gestures,
+        share
+      }
     })
   win.on('close', () => tabs.shutdown())
   win.on('ready-to-show', () => {

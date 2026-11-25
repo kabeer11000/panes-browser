@@ -375,6 +375,26 @@ export class PermissionManager {
     )
   }
 
+  /**
+   * Panes' own question on the same card as a site's, instead of a system dialog: resolves with the index of the
+   * choice picked, or null when it was put away (Escape, or the page asking went away).
+   */
+  confirm(
+    confirm: NonNullable<PermissionPromptState['confirm']>,
+    wc: WebContents | null = null
+  ): Promise<number | null> {
+    const choices = confirm.choices.slice(0, 12)
+    const { outcome } = this.enqueue(
+      { origin: '', kinds: [], confirm: { ...confirm, choices } },
+      wc
+    )
+    return outcome.then((o) =>
+      o.action === 'choose' && Number.isInteger(o.index) && o.index >= 0 && o.index < choices.length
+        ? o.index
+        : null
+    )
+  }
+
   /** Make the card's page now, so the first question shows at once instead of after a page loads. */
   warm(): void {
     if (!this.d.win.isDestroyed()) this.ensureView()

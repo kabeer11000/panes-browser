@@ -2343,6 +2343,18 @@ export class TabManager {
     this.pageTab()?.view.webContents.stopFindInPage('clearSelection')
   }
 
+  /** Panes' own question card (PermissionManager.confirm), set by index.ts: closing a page with unsaved changes. */
+  confirm:
+    | ((
+        c: {
+          title: string
+          detail?: string
+          choices: Array<{ label: string; tone?: 'primary' | 'danger' }>
+        },
+        wc: WebContents | null
+      ) => Promise<number | null>)
+    | null = null
+
   /** The keyboard back to the page find searched (the find bar closed). */
   focusPage(): void {
     const wc = this.pageTab()?.view.webContents
@@ -3812,6 +3824,22 @@ export class TabManager {
     // no answer here Electron keeps the page, so typing an address or a link did nothing at all.
     wc.on('will-prevent-unload', (e) => {
       if (this.win.isDestroyed()) return e.preventDefault()
+      // Closing the tab: asked on Panes' own card, not a system dialog. The page stays for now (not prevented) and the
+      // tab closes only on Leave. A navigation away keeps the system's question: it is answered there and then.
+      if (this.unloadAsked.has(wc) && this.confirm) {
+        this.unloadStayed.add(wc) // the close's timer leaves it be while it is asked
+        void this.confirm(
+          {
+            title: 'Leave site?',
+            detail: 'Changes you made may not be saved.',
+            choices: [{ label: 'Stay' }, { label: 'Leave', tone: 'danger' }]
+          },
+          null
+        ).then((i) => {
+          if (i === 1 && this.tabs.get(id) === tab) this.close(id)
+        })
+        return
+      }
       const choice = dialog.showMessageBoxSync(this.win, {
         type: 'question',
         buttons: ['Leave', 'Stay'],
@@ -4131,7 +4159,8 @@ export class TabManager {
     // a link DevTools opens (a source file, a request's address, "Open in new tab"): a tab of Panes', in the page's
     // space, instead of nothing at all
     wc.on('devtools-open-url', (_e, url) => {
-      if (/^https?:\/\//i.test(url)) this.create(url, true, tab.spaceId, undefined, tab.private, tab.tor)
+      if (/^https?:\/\//i.test(url))
+        this.create(url, true, tab.spaceId, undefined, tab.private, tab.tor)
     })
     wc.setWindowOpenHandler(({ url, features, disposition }) => {
       // Sign-in flows (Google, Figma, ...) open a popup and message the page that opened it, so a
