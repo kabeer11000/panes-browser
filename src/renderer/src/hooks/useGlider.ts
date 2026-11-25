@@ -42,7 +42,8 @@ export function useGlider(
     const end = performance.now() + FOLLOW_MS
     const measure = (): void => {
       const item = box.querySelector<HTMLElement>(selector)
-      if (!item || hidden || item.classList.contains('floating')) {
+      // not laid out (its list hidden, as a Settings category not shown yet): nothing to measure until it is
+      if (!item || hidden || item.classList.contains('floating') || item.offsetWidth === 0) {
         el.style.opacity = '0'
         placed.current = false
         return
@@ -71,6 +72,13 @@ export function useGlider(
       if (performance.now() < end) raf = requestAnimationFrame(follow)
     }
     follow()
-    return () => cancelAnimationFrame(raf)
+    // shown later, or resized (a hidden Settings category opened, the window narrowed): measured again then. It
+    // stayed empty before, until the value changed.
+    const ro = new ResizeObserver(() => measure())
+    ro.observe(box)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [list, glider, selector, key, hidden])
 }
