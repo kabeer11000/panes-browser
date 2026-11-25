@@ -5994,8 +5994,9 @@ kbd {
    of its own every frame, and never in a view of its own over a page (data-float: popovers, the panel, the dock): a
    view cannot blur the page under it, so it would only be see-through, the "glass that is not blurred". */
 [data-glass='on']:not([data-fx='low']):not([data-float]) {
-  --glass-alpha: 72%;
-  --glass-blur: blur(28px) saturate(1.6);
+  /* see-through enough to read as glass over a plain dark board too (at 72% it looked solid there) */
+  --glass-alpha: 60%;
+  --glass-blur: blur(26px) saturate(1.8);
 }
 
 /* a space being dragged to another place in its picker (useReorder): lifted a touch, above its neighbours */
