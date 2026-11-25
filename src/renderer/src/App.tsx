@@ -34,7 +34,7 @@ import { Tour } from './components/Tour'
 import { SpaceSwitcher } from './components/SpaceSwitcher'
 import { WindowControls } from './components/WindowControls'
 import { useSpaceDir } from './hooks/useSpaceDir'
-import { holdOverlay, releaseOverlay } from './overlay'
+import { holdOverlay, releaseOverlay, releaseOverlayLater } from './overlay'
 import { getSlide, getSlideY, slideTo, slideYTo } from './slide'
 import { useScheme } from './useScheme'
 import { useSwipe } from './hooks/useSwipe'
@@ -1038,7 +1038,7 @@ function App(): React.JSX.Element {
                     activeSpaceId={activeSpaceId}
                     here={activeId}
                     onList={(open) =>
-                      void (open ? holdOverlay('island') : releaseOverlay('island'))
+                      open ? void holdOverlay('island') : releaseOverlayLater('island')
                     }
                   />
                 </div>

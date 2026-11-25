@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { EXIT_MS } from '@renderer/components/Presence'
 
 /**
@@ -10,6 +10,7 @@ import { EXIT_MS } from '@renderer/components/Presence'
  * bar) would bring the pages back over another that is just opening (the command bar).
  */
 const holders = new Map<string, boolean>() // owner -> whether a fresh snapshot is wanted
+const later = new Map<string, number>() // owner -> a release waiting for its popover's exit (releaseOverlayLater)
 let state: Promise<void> = Promise.resolve()
 
 /** `sharp`: the pictures must match the pages exactly (an overlay that leaves most of the page in view). */
@@ -18,6 +19,9 @@ export function holdOverlay(
   snapshot = true,
   sharp = owner !== 'drag'
 ): Promise<void> {
+  // held again before a delayed release came due (a popover reopened as it left): the hold carries on
+  window.clearTimeout(later.get(owner))
+  later.delete(owner)
   const first = holders.size === 0
   holders.set(owner, snapshot)
   if (first) state = window.api.setOverlay(true, snapshot, sharp)
@@ -33,24 +37,33 @@ export function releaseOverlay(owner: string): Promise<void> {
 }
 
 /**
- * Hold the pages aside while `on` (a popover or menu over the page is open), and give them back only after its exit
- * (<Presence>, EXIT_MS): given back at once, the page came back over the popover as it began to leave, so it seemed
- * to vanish instead of closing. Opened again before then, the hold just carries on.
+ * Give the pages back once a popover over them has played its exit (<Presence>, EXIT_MS): given back at once, the page
+ * came back over the popover as it began to leave, so it seemed to vanish instead of closing. Held again before then
+ * (holdOverlay), the hold carries on.
  */
+export function releaseOverlayLater(owner: string, ms = EXIT_MS): void {
+  window.clearTimeout(later.get(owner))
+  later.set(
+    owner,
+    window.setTimeout(() => {
+      later.delete(owner)
+      void releaseOverlay(owner)
+    }, ms)
+  )
+}
+
+/** Hold the pages aside while `on` (a popover or menu over the page is open); given back after its exit. */
 export function useOverlayHold(owner: string, on: boolean): void {
-  const timer = useRef<number | undefined>(undefined)
   useEffect(() => {
     if (!on) return
-    window.clearTimeout(timer.current)
     void holdOverlay(owner)
-    return () => {
-      timer.current = window.setTimeout(() => void releaseOverlay(owner), EXIT_MS)
-    }
+    return () => releaseOverlayLater(owner)
   }, [owner, on])
   // gone altogether (unmounted): given back now, there is nothing left to watch leave
   useEffect(
     () => () => {
-      window.clearTimeout(timer.current)
+      window.clearTimeout(later.get(owner))
+      later.delete(owner)
       void releaseOverlay(owner)
     },
     [owner]

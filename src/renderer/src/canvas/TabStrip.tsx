@@ -4,6 +4,7 @@ import type { PlayingTab, Space, TabInfo } from '@shared/types'
 import { attentionLabel, badgeText, messageAge, type Grouped } from '@shared/attention'
 import { isCapturing } from '@shared/capture'
 import { SiteIcon } from '@renderer/components/SiteIcon'
+import { Presence } from '@renderer/components/Presence'
 import { MiniPauseIcon, MiniPlayIcon } from './icons'
 import {
   CameraIcon,
@@ -349,13 +350,22 @@ export function NowPlaying({
           </button>
         )}
       </span>
-      {shown && (
-        <div className="cv-island-list" role="menu" aria-label="Now playing">
-          {items.map((t) => (
-            <IslandRow key={t.id} t={t} space={spaceOf(t.spaceId)} here={t.id === here} onGo={go} />
-          ))}
-        </div>
-      )}
+      {/* it leaves as the other menus do (<Presence>), and the page comes back after it (onList) */}
+      <Presence>
+        {shown && (
+          <div className="cv-island-list" role="menu" aria-label="Now playing">
+            {items.map((t) => (
+              <IslandRow
+                key={t.id}
+                t={t}
+                space={spaceOf(t.spaceId)}
+                here={t.id === here}
+                onGo={go}
+              />
+            ))}
+          </div>
+        )}
+      </Presence>
     </span>
   )
 }

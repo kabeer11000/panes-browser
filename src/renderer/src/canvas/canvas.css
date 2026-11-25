@@ -4880,6 +4880,7 @@
 }
 /* the list grows out of the pill, below it (above it when the preview's bar is at the bottom) */
 .cv-island-list {
+  --leave-y: -4px; /* it drops from the strip: it leaves upward (<Presence>) */
   position: absolute;
   top: calc(100% + 8px);
   left: -4px;
