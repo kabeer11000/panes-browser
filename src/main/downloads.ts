@@ -1,7 +1,8 @@
-import { app, nativeImage, shell, type DownloadItem, type Session } from 'electron'
+import { app, clipboard, Menu, nativeImage, shell, type DownloadItem, type Session } from 'electron'
 import { existsSync, renameSync, statSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
 import type { DownloadAction, DownloadInfo } from '@shared/types'
+import { canAlwaysOpen, downloadMenu, extensionOf, isActive } from '@shared/downloads'
 import { PAGE_SCRIPT, type PageHints } from '@shared/ai/evidence'
 import type { SettingsStore } from './settings'
 import { JsonStore } from './store'
@@ -47,6 +48,7 @@ const CHANGE_MS = 250 // how often progress is passed on while bytes arrive
 const THUMB = 160
 const SHOWN = 8 // downloads the bin can show: only these are given pictures
 const PAGE_SHOWN = 40 // and the most the downloads page asks for at a time
+const NOTE_MS = 2500 // how long a passing word ("Opening...") stands in for a row's status
 
 /**
  * A small picture of a finished file. An image is shrunk; anything else is asked for from the system's own
@@ -84,11 +86,21 @@ export class DownloadManager {
   private pages = new Map<number, DownloadPage>()
   private changeTimer: ReturnType<typeof setTimeout> | null = null
 
-  private store = new JsonStore<{ nextId: number; items: DownloadInfo[] }>('downloads', {
+  private store = new JsonStore<{
+    nextId: number
+    items: DownloadInfo[]
+    /** Extensions (lowercase) whose files open by themselves when they finish ("Always open files of this type"). */
+    alwaysOpen: string[]
+  }>('downloads', {
     nextId: 1,
-    items: []
+    items: [],
+    alwaysOpen: []
   })
   private live = new Map<number, DownloadItem>()
+  /** Bytes a second of each running download, as Chromium last measured it. */
+  private speeds = new Map<number, number>()
+  /** A passing word shown in place of a row's status, and when it goes. */
+  private notes = new Map<number, { text: string; until: number }>()
 
   constructor(
     private session: Session,
@@ -131,15 +143,28 @@ export class DownloadManager {
     return this.store.value.items
   }
 
-  /** The list as the downloads bin shows it: with a preview for each finished file (kept in memory, never saved). */
-  view(): DownloadInfo[] {
-    this.fetchPreviews()
+  /**
+   * The list as it is shown: each with its speed and passing word, and for the bin a preview of each finished file
+   * (kept in memory, never saved). panes://downloads polls this without the pictures, which are large and asked apart.
+   */
+  view(withPreviews = true): DownloadInfo[] {
+    if (withPreviews) this.fetchPreviews()
+    const now = Date.now()
     return this.store.value.items.map((d, i) => {
-      const preview = this.previews.get(d.id)
+      const preview = withPreviews ? this.previews.get(d.id) : undefined
       // only the rows the bin shows are checked, so a long list costs nothing
       const missing = i < SHOWN && d.state === 'completed' && !existsSync(d.savePath)
-      return preview || missing
-        ? { ...d, ...(preview && { preview }), ...(missing && { missing }) }
+      const speed = d.state === 'progressing' ? this.speeds.get(d.id) : undefined
+      const n = this.notes.get(d.id)
+      const note = n && n.until > now ? n.text : undefined
+      return preview || missing || speed || note
+        ? {
+            ...d,
+            ...(preview && { preview }),
+            ...(missing && { missing }),
+            ...(speed && { speed }),
+            ...(note && { note })
+          }
         : d
     })
   }
@@ -333,6 +358,7 @@ export class DownloadManager {
     this.changed(true)
 
     item.on('updated', (_e, state) => {
+      this.speeds.set(info.id, item.getCurrentBytesPerSecond())
       info.received = item.getReceivedBytes()
       info.total = item.getTotalBytes()
       info.state =
@@ -349,11 +375,16 @@ export class DownloadManager {
     info.state =
       state === 'completed' ? 'completed' : state === 'cancelled' ? 'cancelled' : 'interrupted'
     this.live.delete(info.id)
+    this.speeds.delete(info.id)
+    const openNow =
+      info.state === 'completed' && (info.openWhenDone || this.alwaysOpens(info.filename))
+    delete info.openWhenDone
     this.store.save()
     this.changed(true)
     const page = this.pages.get(info.id)
     this.pages.delete(info.id)
     if (info.state === 'completed') {
+      if (openNow) this.openFile(info)
       for (const l of this.doneListeners) l(info, page)
       this.asked.add(info.id)
       void previewFor(info.savePath).then((preview) => {
@@ -375,7 +406,27 @@ export class DownloadManager {
       delete info.suggestedName
       this.store.save()
       this.changed(true)
-    } else if (action === 'open') void shell.openPath(info.savePath)
+    } else if (action === 'open') {
+      // Chrome: a click on one still coming means "open it when it is here"
+      if (isActive(info)) this.act(id, 'open-when-done')
+      else if (info.state === 'completed') this.openFile(info)
+    } else if (action === 'open-when-done') {
+      if (!isActive(info)) return
+      info.openWhenDone = !info.openWhenDone
+      this.store.save()
+      this.changed(true)
+    } else if (action === 'always-open') {
+      if (!canAlwaysOpen(info.filename)) return
+      const ext = extensionOf(info.filename)
+      const list = this.store.value.alwaysOpen
+      this.store.value.alwaysOpen = list.includes(ext)
+        ? list.filter((e) => e !== ext)
+        : [...list, ext]
+      this.store.save()
+      this.changed(true)
+    } else if (action === 'copy-link') {
+      if (info.url) clipboard.writeText(info.url)
+    } else if (action === 'menu') this.menu(info)
     else if (action === 'show') shell.showItemInFolder(info.savePath)
     else if (action === 'cancel') item?.cancel()
     else if (action === 'pause') item?.pause()
@@ -390,9 +441,54 @@ export class DownloadManager {
       item?.cancel()
       this.store.value.items = this.store.value.items.filter((d) => d.id !== id)
       this.previews.delete(id)
+      this.notes.delete(id)
       this.store.save()
       this.changed(true)
     }
+  }
+
+  /** Whether finished files like this one open by themselves (never a kind that runs code). */
+  private alwaysOpens(filename: string): boolean {
+    return canAlwaysOpen(filename) && this.store.value.alwaysOpen.includes(extensionOf(filename))
+  }
+
+  /** Open a finished file with its app, saying "Opening..." on its row meanwhile (or why it could not). */
+  private openFile(info: DownloadInfo): void {
+    if (!existsSync(info.savePath)) return this.note(info.id, 'File moved or deleted')
+    this.note(info.id, 'Opening...')
+    void shell.openPath(info.savePath).then((err) => {
+      if (err) this.note(info.id, 'No app here opens this file')
+    })
+  }
+
+  private note(id: number, text: string): void {
+    this.notes.set(id, { text, until: Date.now() + NOTE_MS })
+    this.changed(true)
+    // the word goes again by itself: the lists are told once it is past
+    setTimeout(() => {
+      const n = this.notes.get(id)
+      if (n && n.until <= Date.now()) {
+        this.notes.delete(id)
+        this.changed(true)
+      }
+    }, NOTE_MS + 50)
+  }
+
+  /** The download's right-click menu (Chrome's), native so it can reach past the view it was asked from. */
+  private menu(info: DownloadInfo): void {
+    const items = downloadMenu(info, this.alwaysOpens(info.filename))
+    Menu.buildFromTemplate(
+      items.map((it) =>
+        it === 'separator'
+          ? { type: 'separator' as const }
+          : {
+              label: it.label,
+              enabled: it.enabled ?? true,
+              ...(it.checked !== undefined && { type: 'checkbox' as const, checked: it.checked }),
+              click: () => this.act(info.id, it.action)
+            }
+      )
+    ).popup()
   }
 
   clear(): void {

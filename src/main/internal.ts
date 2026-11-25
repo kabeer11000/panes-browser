@@ -181,7 +181,7 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:dump-open', (id: number) => d.dumps.open(Number(id)))
   handle('int:dump-rename', (id: number, name: unknown) => d.dumps.rename(Number(id), name))
   handle('int:dump-remove', (id: number) => d.dumps.remove(Number(id)))
-  handle('int:downloads-list', () => d.downloads.list())
+  handle('int:downloads-list', () => d.downloads.view(false))
   handle('int:download-action', (id: number, action: DownloadAction) => d.downloads.act(id, action))
   handle('int:pick-download-dir', async () => {
     const win = BrowserWindow.getFocusedWindow()

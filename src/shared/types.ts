@@ -874,6 +874,12 @@ export interface DownloadInfo {
   missing?: boolean
   /** A better name for a file that came with a meaningless one (AI), offered once it has finished. */
   suggestedName?: string
+  /** Opened by itself the moment it finishes (Chrome's "Open when done"). */
+  openWhenDone?: boolean
+  /** Bytes a second while it runs (not saved). */
+  speed?: number
+  /** A passing word in place of its status for a moment, such as "Opening..." (not saved). */
+  note?: string
 }
 
 /** A download that has just begun, and where on the window the pointer was, for the flight to the downloads bin. */
@@ -894,6 +900,13 @@ export type DownloadAction =
   /** Put the finished file on the canvas board (the download shelf). */
   | 'canvas'
   | 'dismiss-name'
+  /** Open the file the moment it finishes (toggles). */
+  | 'open-when-done'
+  /** Open every finished file of this one's kind by itself (toggles). */
+  | 'always-open'
+  | 'copy-link'
+  /** Show the download's right-click menu. */
+  | 'menu'
 export type ClearKind = 'history' | 'cookies' | 'cache' | 'downloads'
 
 /** API exposed to panes:// pages only. */

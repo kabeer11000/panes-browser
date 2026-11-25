@@ -7,7 +7,8 @@ import type {
   DownloadInfo,
   DownloadStart
 } from '@shared/types'
-import { formatBytes } from '@renderer/internal/format'
+import { downloadStatus, isActive as active } from '@shared/downloads'
+import { DownloadBar } from '@renderer/components/DownloadBar'
 import { CloseIcon, ReloadIcon } from '@renderer/components/icons'
 
 declare global {
@@ -36,7 +37,6 @@ const LINGER_MS = 1700
 
 const extOf = (name: string): string =>
   (/\.([a-z0-9]{1,5})$/i.exec(name)?.[1] ?? 'file').toUpperCase()
-const active = (d: DownloadInfo): boolean => d.state === 'progressing' || d.state === 'paused'
 
 function useDownloads(): DownloadInfo[] {
   const [list, setList] = useState<DownloadInfo[]>([])
@@ -436,7 +436,6 @@ function FanRow({
   // window's right edge, so the fan reaches to the left of it and bends that way
   const y = -(index + 1) * (ROW_H + FAN_GAP)
   const x = -(index * index * 2.2 + 6)
-  const pct = d && d.total > 0 ? Math.min(1, d.received / d.total) : 0
   // the AI's clearer name for a file that came as "download (2)" (Settings, AI); panes://downloads can also dismiss it
   const better = d && d.state === 'completed' && !d.missing ? d.suggestedName : undefined
   return (
@@ -470,8 +469,13 @@ function FanRow({
           <button
             type="button"
             className="dk-row-main"
-            disabled={d.state !== 'completed' || d.missing}
+            // a running one: a click means "open it when it is here" (Chrome), and the fan stays to show that
+            disabled={!active(d) && (d.state !== 'completed' || d.missing)}
             draggable={d.state === 'completed' && !d.missing}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              window.dock.act(d.id, 'menu')
+            }}
             onDragStart={(e) => {
               e.preventDefault() // the real drag is the system's, started by the main process
               window.dock.drag(d.id)
@@ -479,26 +483,14 @@ function FanRow({
             }}
             onClick={() => {
               window.dock.act(d.id, 'open')
-              onDone()
+              if (!active(d)) onDone()
             }}
           >
             <Face d={d} size={34} />
             <span className="dk-row-text">
               <span className="dk-row-title">{d.filename}</span>
               <span className={'dk-row-meta' + (better ? ' better' : '')}>
-                {better
-                  ? `Rename to ${better}?`
-                  : d.missing
-                    ? 'File moved or deleted'
-                    : d.state === 'completed'
-                      ? formatBytes(d.total || d.received)
-                      : d.state === 'progressing'
-                        ? `${formatBytes(d.received)}${d.total ? ` of ${formatBytes(d.total)}` : ''}`
-                        : d.state === 'paused'
-                          ? 'Paused'
-                          : d.state === 'cancelled'
-                            ? 'Cancelled'
-                            : 'Interrupted'}
+                {better ? `Rename to ${better}?` : downloadStatus(d)}
               </span>
             </span>
           </button>
@@ -622,9 +614,7 @@ function FanRow({
               <CloseIcon />
             </button>
           </span>
-          {active(d) && (
-            <span className="dk-row-bar" style={{ transform: `scaleX(${pct || 0.05})` }} />
-          )}
+          <DownloadBar d={d} className="dk-row-bar" />
         </>
       )}
     </motion.div>

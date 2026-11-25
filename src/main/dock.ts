@@ -38,7 +38,11 @@ const ACTIONS = [
   'remove',
   'accept-name',
   'dismiss-name',
-  'canvas'
+  'canvas',
+  'open-when-done',
+  'always-open',
+  'copy-link',
+  'menu'
 ]
 
 /**

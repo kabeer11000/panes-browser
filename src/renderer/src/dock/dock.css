@@ -299,11 +299,7 @@ body {
   left: 12px;
   right: 12px;
   bottom: 5px;
-  height: 2.5px;
-  border-radius: 2px;
-  background: var(--accent);
-  transform-origin: left;
-  transition: transform var(--dur) var(--ease);
+  height: 3px;
 }
 
 /* ---- redesign: the fanned rows are island cards with a light rim and a soft wide shadow (opaque: this view
@@ -332,7 +328,4 @@ body {
 }
 .dk-row-acts button:active {
   scale: var(--press);
-}
-.dk-row-bar {
-  border-radius: var(--r-pill);
 }

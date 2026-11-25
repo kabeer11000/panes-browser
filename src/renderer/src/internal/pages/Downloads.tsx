@@ -1,27 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DownloadAction, DownloadInfo } from '@shared/types'
 import { DownloadIcon } from '@renderer/components/icons'
-import { formatBytes, formatTime, host } from '@renderer/internal/format'
+import { formatTime, host } from '@renderer/internal/format'
+import { downloadStatus, isActive } from '@shared/downloads'
+import { DownloadBar } from '@renderer/components/DownloadBar'
 import { EmptyState } from '@renderer/internal/ui'
 
 const POLL_MS = 700
 
-const stateLabel = (d: DownloadInfo): string => {
-  switch (d.state) {
-    case 'progressing':
-      return d.total > 0
-        ? `${formatBytes(d.received)} of ${formatBytes(d.total)}`
-        : formatBytes(d.received)
-    case 'paused':
-      return `Paused, ${formatBytes(d.received)}`
-    case 'completed':
-      return `${formatBytes(d.total || d.received)} - ${host(d.url)}`
-    case 'cancelled':
-      return 'Cancelled'
-    default:
-      return 'Failed'
-  }
-}
+/** The row's status; a finished file also says where it came from. */
+const stateLabel = (d: DownloadInfo): string =>
+  d.state === 'completed' && !d.note && !d.missing && d.url
+    ? `${downloadStatus(d)} - ${host(d.url)}`
+    : downloadStatus(d)
 
 export function Downloads(): React.JSX.Element {
   const [items, setItems] = useState<DownloadInfo[]>([])
@@ -70,6 +61,11 @@ export function Downloads(): React.JSX.Element {
             className="u-row int-item download"
             // a finished file drags out like one from a folder: to the desktop, an email, a chat
             draggable={d.state === 'completed' && !d.missing}
+            // Chrome's menu for a download: open when done, always open this type, copy link...
+            onContextMenu={(e) => {
+              e.preventDefault()
+              act(d.id, 'menu')
+            }}
             onDragStart={(e) => {
               e.preventDefault() // the system's drag, started by main with the file itself
               window.panesInternal.downloadDrag(d.id)
@@ -108,21 +104,32 @@ export function Downloads(): React.JSX.Element {
                   </button>
                 </div>
               )}
-              {(d.state === 'progressing' || d.state === 'paused') && (
-                <div className="progress">
-                  <span
-                    style={{ width: d.total > 0 ? `${(d.received / d.total) * 100}%` : '30%' }}
-                  />
-                </div>
-              )}
+              <DownloadBar d={d} className="dl-progress" />
             </div>
             <div className="int-actions">
+              {isActive(d) && (
+                <button
+                  className={'int-btn small' + (d.openWhenDone ? ' on' : '')}
+                  aria-pressed={!!d.openWhenDone}
+                  onClick={() => act(d.id, 'open-when-done')}
+                >
+                  Open when done
+                </button>
+              )}
               {d.state === 'completed' && (
                 <>
-                  <button className="int-btn small" onClick={() => act(d.id, 'open')}>
+                  <button
+                    className="int-btn small"
+                    disabled={d.missing}
+                    onClick={() => act(d.id, 'open')}
+                  >
                     Open
                   </button>
-                  <button className="int-btn small" onClick={() => act(d.id, 'show')}>
+                  <button
+                    className="int-btn small"
+                    disabled={d.missing}
+                    onClick={() => act(d.id, 'show')}
+                  >
                     Show in folder
                   </button>
                 </>

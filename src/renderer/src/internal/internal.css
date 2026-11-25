@@ -347,19 +347,12 @@ button {
   gap: 6px;
   flex: none;
 }
-.progress {
+.dl-progress {
   margin-top: 8px;
-  height: 4px;
-  border-radius: var(--r-1);
-  background: var(--surface-active);
-  overflow: hidden;
 }
-.progress span {
-  display: block;
-  height: 100%;
-  border-radius: var(--r-1);
-  background: var(--accent);
-  transition: width var(--dur-slow) linear;
+.int-btn.small[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--fg);
 }
 
 input[type='checkbox'] {

@@ -5949,3 +5949,64 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* -- a download's progress (components/DownloadBar.tsx): the bin's fan and panes://downloads -- */
+.dl-bar {
+  --dl-ok: #2fa86a;
+  --dl-bad: #e5484d;
+  position: relative;
+  display: block;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+  overflow: hidden;
+}
+.dl-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition:
+    width var(--dur-slow) linear,
+    background-color var(--dur) var(--ease);
+}
+.dl-bar.unknown .dl-bar-fill {
+  width: 35%;
+  animation: dl-sweep 1.3s var(--ease) infinite;
+}
+.dl-bar.paused .dl-bar-fill {
+  background: color-mix(in srgb, var(--fg) 38%, transparent);
+  animation-play-state: paused;
+}
+.dl-bar.done .dl-bar-fill {
+  background: var(--dl-ok);
+}
+.dl-bar.done {
+  animation: dl-settle 0.3s var(--ease) 0.8s forwards;
+}
+.dl-bar.failed .dl-bar-fill {
+  background: var(--dl-bad);
+}
+@keyframes dl-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+@keyframes dl-settle {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dl-bar.unknown .dl-bar-fill {
+    width: 100%;
+    animation: none;
+    opacity: 0.45;
+  }
+  .dl-bar-fill {
+    transition: none;
+  }
+}
