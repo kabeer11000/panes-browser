@@ -31,6 +31,7 @@ import type { ClearKind, Rect, SpacePatch } from '@shared/types'
 import { Adblock } from './adblock'
 import { YouTube } from './youtube'
 import { applyPerformance, offscreenTest, runningMode } from './performance'
+import { registerUiFx } from './uiFx'
 import { loadAi } from './ai/sdk'
 import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
@@ -265,7 +266,13 @@ function createWindow(): void {
   const youtube = new YouTube(settings, adblock)
   youtube.attach(tabSession)
   youtube.attach(privateSession)
+  // efficient mode and frosted glass, on every one of Panes' own pages (uiFx.ts)
+  const uiFx = registerUiFx(() => ({
+    fx: runningMode() === 'efficient' ? 'low' : 'full',
+    glass: settings.get().frostedGlass
+  }))
   settings.onChange((s) => {
+    uiFx.refresh()
     if (s.debugPanes !== uiDebug) {
       uiDebug = s.debugPanes
       if (!uiDebug && win.webContents.isDevToolsOpened()) win.webContents.closeDevTools()
@@ -1064,13 +1071,6 @@ function createWindow(): void {
     flushTrace()
     noteLayerHealthy() // the code running now works: a new app layer is not rolled back
     youtube.probeDecoders(win.webContents)
-    const fx = runningMode() === 'efficient' ? 'low' : 'full'
-    void win.webContents
-      // remembered too, so the next start has it before its first paint (public/boot.js)
-      .executeJavaScript(
-        `document.documentElement.dataset.fx = '${fx}'; try { localStorage.setItem('panes:fx', '${fx}') } catch (e) {}`
-      )
-      .catch(() => undefined)
   })
   mark('setup-done')
   tabs.restoreOrNew(UpdateManager.takeRestoreFlag())

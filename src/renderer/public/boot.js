@@ -11,6 +11,8 @@ try {
   // the effects mode main sets once the page has loaded (efficient mode has an opaque window and no layout animation)
   var fx = localStorage.getItem('panes:fx')
   if (fx === 'low' || fx === 'full') document.documentElement.dataset.fx = fx
+  // frosted glass (Settings), set by main on every Panes page (main/uiFx.ts)
+  if (localStorage.getItem('panes:glass') === 'on') document.documentElement.dataset.glass = 'on'
   // closed on the canvas board: the app opens straight onto it, without painting the tabs first (App.tsx, BOOT_BOARD)
   if (localStorage.getItem('panes:board') === '1') document.documentElement.dataset.board = '1'
 } catch {

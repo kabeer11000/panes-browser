@@ -46,6 +46,10 @@
   --shadow-page: 0 0 0 1px rgb(255 255 255 / 0.05), 0 8px 28px -10px rgb(0 0 0 / 0.55);
   /* frosted islands: see-through with a blur, opaque enough to read without one (efficient mode drops the blur) */
   --blur: blur(28px) saturate(1.7);
+  /* Frosted glass (Settings > Appearance), for every bar, menu and popover in every window: a surface is
+     color-mix(<its colour> var(--glass-alpha), transparent) with backdrop-filter: var(--glass-blur). Off: solid. */
+  --glass-alpha: 100%;
+  --glass-blur: none;
   /* motion: the spring tokens, with plain fallbacks for a page that has not installed them */
   --ease: var(--spring-smooth, cubic-bezier(0.22, 1, 0.36, 1));
   --ease-snappy: var(--spring-snappy, cubic-bezier(0.3, 1.3, 0.5, 1));
@@ -5388,9 +5392,8 @@ time,
 .space-popover,
 .chat-menu,
 .pop-root .sp-card {
-  background: var(--glass);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow-3), var(--rim);
 }
 [data-fx='low'] .pal,
@@ -6009,4 +6012,12 @@ kbd {
   .dl-bar-fill {
     transition: none;
   }
+}
+
+/* Frosted glass on (main/uiFx.ts sets data-glass on every Panes page). Never in efficient mode, where a blur is a pass
+   of its own every frame, and never in a view of its own over a page (data-float: popovers, the panel, the dock): a
+   view cannot blur the page under it, so it would only be see-through, the "glass that is not blurred". */
+[data-glass='on']:not([data-fx='low']):not([data-float]) {
+  --glass-alpha: 72%;
+  --glass-blur: blur(28px) saturate(1.6);
 }

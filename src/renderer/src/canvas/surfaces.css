@@ -279,9 +279,9 @@
 .cv .cv-ctx {
   padding: 6px;
   border-radius: 14px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   box-shadow: var(--float-shadow);
-  backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: var(--glass-blur);
 }
 .cv .cv-ctx {
   min-width: 220px;
@@ -376,9 +376,9 @@
 /* ---- toasts and selection bars: the same floating surface ---- */
 .cv .cv-toast {
   border-radius: 14px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   box-shadow: var(--float-shadow);
-  backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: var(--glass-blur);
   animation: cv-toast-in var(--spring-bouncy-dur) var(--spring-bouncy) both;
 }
 @keyframes cv-toast-in {
@@ -683,27 +683,15 @@
 .cv .cv-bar,
 .cv .cv-strip.board,
 .cv .cv-strip-bellbox {
-  background: var(--chrome);
+  background: color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
   box-shadow: var(--chrome-edge);
-  backdrop-filter: none;
+  backdrop-filter: var(--glass-blur);
 }
 
-/* Frosted glass (Settings > Appearance): the same chrome, translucent with the board blurred behind, and the menus
-   and lists that float over it too. Never in efficient mode (data-fx=low): a blur is a pass of its own every frame. */
-[data-glass='on']:not([data-fx='low']) .cv {
-  --chrome: color-mix(in srgb, var(--popover-bg) 66%, transparent);
-  --glass-pop: color-mix(in srgb, var(--popover-bg) 78%, transparent);
-}
-[data-glass='on']:not([data-fx='low'])
-  .cv
-  :is(.cv-bar, .cv-strip.board, .cv-strip-bellbox) {
-  backdrop-filter: blur(22px) saturate(1.6);
-}
-[data-glass='on']:not([data-fx='low'])
-  .cv
-  :is(.cv-nc, .cv-chat, .cv-share-pop, .cv-ctx, .cv-space-menu) {
-  background: var(--glass-pop);
-  backdrop-filter: blur(28px) saturate(1.6);
+/* the board's own popovers take frosted glass too (styles.css, --glass-alpha / --glass-blur) */
+.cv :is(.cv-nc, .cv-chat, .cv-share-pop, .cv-space-menu) {
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
 }
 
 /* ---- the tab strip: every tab answers the pointer (a soft fill), the open one sits on the pill ---- */

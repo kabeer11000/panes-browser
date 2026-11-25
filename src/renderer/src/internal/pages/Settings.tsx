@@ -101,7 +101,7 @@ export function Settings(): React.JSX.Element {
         </Row>
         <Row
           label="Frosted glass"
-          hint="The board's bars and menus become translucent, the board blurred behind them. Off in efficient mode."
+          hint="Bars, menus and popovers in every window become translucent, blurred behind. Off in efficient mode."
         >
           <Toggle
             label="Frosted glass"
