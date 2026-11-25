@@ -1598,7 +1598,8 @@ a.int-btn {
   gap: 10px;
   margin: 0 0 18px;
   padding: 8px 0 10px;
-  background: var(--stage-bg);
+  background: color-mix(in srgb, var(--stage-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
 }
 .set-search {
   height: 36px;

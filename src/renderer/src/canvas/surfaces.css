@@ -703,6 +703,67 @@
   backdrop-filter: var(--glass-blur);
 }
 
+/* The board's own controls at its top (the space selector, Share once shared, the presenting pill) sit on the same
+   chrome as the toolbar and strip: solid with frosted glass off, frosted with it on. Their hover and state colours are
+   laid over that base, so the colour still says the state (they were a bare tint over the board, never solid, never
+   blurred). */
+.cv .cv-space-title {
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--fg) 3%, transparent),
+      color-mix(in srgb, var(--fg) 3%, transparent)
+    ),
+    color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
+}
+.cv .cv-space-title:hover,
+.cv .cv-space-title.on {
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--fg) 9%, transparent),
+      color-mix(in srgb, var(--fg) 9%, transparent)
+    ),
+    color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+}
+.cv .cv-share-btn.on {
+  background:
+    linear-gradient(rgb(var(--tone) / 0.16), rgb(var(--tone) / 0.16)),
+    color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
+}
+.cv .cv-share-btn.on:hover {
+  background:
+    linear-gradient(rgb(var(--tone) / 0.24), rgb(var(--tone) / 0.24)),
+    color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+}
+.cv .cv-share-btn.on.live {
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--fg) 7%, transparent),
+      color-mix(in srgb, var(--fg) 7%, transparent)
+    ),
+    color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+}
+.cv .cv-share-btn.on.live:hover {
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--fg) 11%, transparent),
+      color-mix(in srgb, var(--fg) 11%, transparent)
+    ),
+    color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+}
+.cv .cv-share-btn.on.showing {
+  background:
+    linear-gradient(rgb(var(--tone) / 0.2), rgb(var(--tone) / 0.2)),
+    color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+}
+.cv .cv-presenting {
+  background:
+    linear-gradient(rgb(255 59 48 / 0.14), rgb(255 59 48 / 0.14)),
+    color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
+}
+
 /* ---- the tab strip: every tab answers the pointer (a soft fill), the open one sits on the pill ---- */
 .cv .cv-recent button:not(.on):hover {
   background: color-mix(in srgb, var(--fg) 8%, transparent);
