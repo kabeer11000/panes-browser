@@ -317,10 +317,7 @@
 .cv-card.titled.sel {
   outline: none;
 }
-.cv-card.titled.sel > :is(.cv-snap, .cv-video, .cv-image, .cv-pdf, .cv-shimmer) {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
+/* the ring itself: surfaces.css (.cv .cv-card.sel), one rounded ring on the picture for every kind of card */
 .cv-under {
   position: absolute;
   left: 0;
@@ -1077,7 +1074,8 @@
   min-width: 230px;
   padding: 5px;
   border-radius: 12px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 12px 32px rgb(0 0 0 / 0.3);
@@ -1173,7 +1171,8 @@
   padding: 9px 10px 9px 16px;
   border-radius: 12px;
   font-size: 13px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 10px 28px rgb(0 0 0 / 0.3);
@@ -1641,7 +1640,8 @@
   padding: 9px 10px 9px 16px;
   border-radius: 12px;
   font-size: 13px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 10px 28px rgb(0 0 0 / 0.3);
@@ -2207,7 +2207,8 @@
   pointer-events: auto;
   font-size: 13px;
   line-height: 1;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 2px 4px rgb(0 0 0 / 0.08),
@@ -2356,7 +2357,8 @@
   max-width: 360px;
   padding: 5px;
   border-radius: 12px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 12px 32px rgb(0 0 0 / 0.3);
@@ -3477,7 +3479,8 @@
   min-width: 0;
   padding: 5px;
   border-radius: 14px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 14px 40px rgb(0 0 0 / 0.4);
@@ -3861,7 +3864,8 @@
   width: min(460px, calc(100% - 40px));
   padding: 6px 12px;
   border-radius: var(--r-5);
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 10px 30px rgb(0 0 0 / 0.25);
@@ -4376,7 +4380,8 @@
   gap: 2px;
   padding: 5px 6px;
   border-radius: 14px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 0.5px rgb(0 0 0 / 0.08),
     0 1px 2px rgb(0 0 0 / 0.06),
@@ -4671,7 +4676,8 @@
   gap: 4px;
   padding: 3px;
   border-radius: 11px;
-  background: color-mix(in srgb, var(--popover-bg) 86%, transparent);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 12%, transparent),
     0 8px 24px rgb(0 0 0 / 0.22);
@@ -4886,7 +4892,8 @@
   overflow-y: auto;
   padding: 6px;
   border-radius: 16px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow: var(--float-shadow, 0 0 0 1px var(--border), 0 18px 50px rgb(0 0 0 / 0.45));
   transform-origin: top left;
   animation: cv-nc-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
@@ -4984,7 +4991,8 @@
   text-align: left;
   opacity: 1;
   color: var(--fg);
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 12%, transparent),
     0 8px 24px rgb(0 0 0 / 0.28);
@@ -5273,7 +5281,8 @@
   width: 300px;
   padding: 2px 14px 14px;
   border-radius: var(--r-6);
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 24px 60px rgb(0 0 0 / 0.45);
@@ -5330,7 +5339,8 @@
   max-width: 260px;
   padding: 8px 12px;
   border-radius: 14px 14px 4px 14px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 12px 32px rgb(0 0 0 / 0.3);

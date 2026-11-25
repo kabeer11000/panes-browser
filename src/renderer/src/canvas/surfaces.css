@@ -400,7 +400,8 @@
 .cv .cv-kbar,
 .cv .cv-fbar {
   border-radius: 12px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow: var(--float-shadow);
 }
 
@@ -485,7 +486,21 @@
 .cv .cv-card.sel {
   outline: none;
 }
-.cv .cv-card.sel > :is(.cv-snap, .cv-doc, .cv-video, .cv-answer, .cv-private, .cv-blank, .cv-pdf) {
+.cv
+  .cv-card.sel
+  > :is(
+    .cv-snap,
+    .cv-doc,
+    .cv-video,
+    .cv-answer,
+    .cv-private,
+    .cv-blank,
+    .cv-pdf,
+    .cv-image,
+    .cv-live,
+    .cv-shimmer
+  ) {
+  border-radius: 14px;
   box-shadow:
     0 0 0 calc(2px * var(--hs, 1)) var(--accent),
     0 0 0 calc(6px * var(--hs, 1)) color-mix(in srgb, var(--accent) 16%, transparent),
@@ -688,12 +703,6 @@
   backdrop-filter: var(--glass-blur);
 }
 
-/* the board's own popovers take frosted glass too (styles.css, --glass-alpha / --glass-blur) */
-.cv :is(.cv-nc, .cv-chat, .cv-share-pop, .cv-space-menu) {
-  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
-  backdrop-filter: var(--glass-blur);
-}
-
 /* ---- the tab strip: every tab answers the pointer (a soft fill), the open one sits on the pill ---- */
 .cv .cv-recent button:not(.on):hover {
   background: color-mix(in srgb, var(--fg) 8%, transparent);
@@ -794,7 +803,8 @@
   display: flex;
   flex-direction: column;
   border-radius: 16px;
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow: var(--float-shadow);
   overflow: hidden;
   animation: cv-nc-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;

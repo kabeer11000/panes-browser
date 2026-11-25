@@ -22,7 +22,8 @@ body,
   display: flex;
   flex-direction: column;
   border-radius: var(--r-5);
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   color: var(--fg);
   font-size: var(--fs-m);
   box-shadow:

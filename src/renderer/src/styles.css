@@ -1822,7 +1822,8 @@ button {
   right: 0;
   bottom: calc(100% + 8px);
   border-radius: var(--r-6);
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 24px 60px rgb(0 0 0 / 0.5);
@@ -2770,7 +2771,8 @@ kbd {
   display: flex;
   flex-direction: column;
   border-radius: var(--r-5);
-  background: var(--popover-bg);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   box-shadow:
     0 0 0 1px var(--border),
     0 18px 48px rgb(0 0 0 / 0.38);
@@ -4908,7 +4910,8 @@ kbd {
   gap: 6px;
   padding: 16px 16px 12px;
   border-radius: var(--r-pop);
-  background: var(--popover-bg, var(--card-bg));
+  background: color-mix(in srgb, var(--popover-bg, var(--card-bg)) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
   color: var(--fg);
   box-shadow: var(--shadow-3), var(--rim);
   animation: tour-in var(--dur) var(--ease-snappy) both;
