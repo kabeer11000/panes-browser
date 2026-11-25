@@ -55,6 +55,7 @@ import { registerDock } from './dock'
 import { registerTabCard } from './tabcard'
 import { setChromeThemeSource } from './chromeTheme'
 import { PasswordStore, registerPasswordIpc } from './passwords'
+import { FormDataStore, registerFormData } from './formData'
 import {
   notifyInternalPages,
   registerInternalIpc,
@@ -466,6 +467,11 @@ function createWindow(): void {
     hidden: (wc) => tabs.isHidden(wc)
   })
   permissionManager.install(tabSession, permissions)
+  // addresses and cards: offered in forms, and saved on the card above (formData.ts)
+  registerFormData(new FormDataStore(), {
+    permissions: permissionManager,
+    live: (wc) => tabs.isLiveShared(wc)
+  })
   // a site allowed to notify is never frozen while hidden: it could not tell of anything new
   tabs.notifies = (url) => {
     const origin = originOf(url)

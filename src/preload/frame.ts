@@ -6,12 +6,18 @@ import { dialogShim } from '@shared/jsDialogs'
 import { webShareShim } from '@shared/webShare'
 import { unseenShim } from '@shared/unseen'
 import { installAutoscroll } from './autoscroll'
+import { installFormFill } from './formFill'
+import { installAutofill } from './autofill'
 
 // Every frame of every tab, at document start, in the page's own world (see shared/passkeys.ts).
 webFrame.executeJavaScript(PASSKEY_SHIM).catch(() => undefined)
 
 // Middle-click autoscroll, as Chrome has it on Windows (elsewhere the wheel press is the page's, or pastes)
 if (process.platform === 'win32') installAutoscroll()
+// Saved addresses and cards offered in forms, in every frame (card fields are often in a payment provider's frame)
+installFormFill()
+// Saved logins, in the top frame only (they are kept per site, and a site's frame is not the site)
+if (window === window.top) installAutofill()
 
 /**
  * What the page is told about its permissions. Electron answers a page's look at a permission with yes or no only,

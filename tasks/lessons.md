@@ -148,3 +148,5 @@ handleKey test passed because of the original line.
   the JSX, then the imports, in two writes): it keeps serving the first, so new imports are "not defined" at runtime
   while tsc and lint pass, even after a reload (2026-11-25: TabStrip's IncognitoIcon, Toolbar's StopwatchIcon crashed
   the board). Write each file once per edit, or `touch` it afterwards; check a change in the running app, not just tsc.
+- Regex edits through sed or a python heredoc lose `\b` (it becomes a backspace or a bare `b`), and the file still parses. Make regex edits with the Edit tool, then grep the line back.
+- The dev server does not rebuild preloads reliably on save: after a preload or shared change a page uses, check out/preload/<name>.js has it, or restart `bun run dev`.

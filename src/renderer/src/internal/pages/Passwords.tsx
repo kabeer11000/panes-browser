@@ -3,6 +3,7 @@ import type { LoginSummary } from '@shared/types'
 import { ChevronDownIcon, KeyIcon, SearchIcon } from '@renderer/components/icons'
 import { Site } from '@renderer/internal/Site'
 import { EmptyState, Group, Row } from '@renderer/internal/ui'
+import { FormDataSection } from './FormDataSection'
 
 interface Draft {
   id: number | null
@@ -306,6 +307,8 @@ export function Passwords(): React.JSX.Element {
           }}
         />
       </Group>
+
+      <FormDataSection />
     </>
   )
 }

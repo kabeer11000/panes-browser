@@ -9,6 +9,7 @@ import type { CaptureKind, CaptureState } from './capture'
 import type { SpaceAttention, TabAttention } from './attention'
 import type { TabDump } from './dumps'
 import type { MenuEntry } from './menu'
+import type { Address, Card } from './formFill'
 import type { KeyLike } from './tour'
 import type { PasswordExportResult } from './passwordExport'
 import type { PrintOptions } from './print'
@@ -1080,6 +1081,15 @@ export interface InternalApi {
   passwordSave(login: LoginInput): Promise<boolean>
   passwordEdit(id: number, username: string, password: string): Promise<boolean>
   passwordRemove(id: number): Promise<void>
+  /** Saved addresses and cards (shown in full here, as the passwords page shows a password on request). */
+  formDataList(): Promise<FormEntry[]>
+  /** Adds one, or changes the one with `id`; false when it cannot be kept (a bad card number, no keychain). */
+  formDataSave(entry: {
+    id?: number
+    kind: 'address' | 'card'
+    value: Address | Card
+  }): Promise<boolean>
+  formDataRemove(id: number): Promise<void>
   passwordsImport(csv: string): Promise<{ added: number; skipped: number }>
   passwordsExport(): Promise<string>
   passwordGenerate(): Promise<string>
@@ -1469,4 +1479,15 @@ export interface MenuApi {
   onShow(cb: (m: MenuShow) => void): () => void
   pick(seq: number, id: string): void
   close(seq: number): void
+}
+
+/** A saved address or card (main/formData.ts), for panes://passwords and for filling a form. */
+export type FormEntry =
+  { id: number; kind: 'address'; address: Address } | { id: number; kind: 'card'; card: Card }
+
+/** A saved address or card as a page's fill menu lists it (never a card's whole number). */
+export interface FormEntrySummary {
+  id: number
+  label: string
+  sub: string
 }

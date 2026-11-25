@@ -1,6 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { InternalApi } from '@shared/types'
-import { installAutofill } from './autofill'
 import { installSelectionWatch } from './selection'
 
 // This script is attached to every tab; it only exposes anything to panes:// pages.
@@ -86,6 +85,9 @@ if (location.protocol === 'panes:') {
     spaceUpdate: (id, patch) => ipcRenderer.invoke('int:space-update', id, patch),
     spaceDelete: (id) => ipcRenderer.invoke('int:space-delete', id),
     passwordsList: () => ipcRenderer.invoke('int:passwords-list'),
+    formDataList: () => ipcRenderer.invoke('int:formdata-list'),
+    formDataSave: (entry) => ipcRenderer.invoke('int:formdata-save', entry),
+    formDataRemove: (id) => ipcRenderer.invoke('int:formdata-remove', id),
     passwordReveal: (id) => ipcRenderer.invoke('int:password-reveal', id),
     passwordSave: (login) => ipcRenderer.invoke('int:password-save', login),
     passwordEdit: (id, username, password) =>
@@ -117,6 +119,5 @@ if (location.protocol === 'panes:') {
   }
   contextBridge.exposeInMainWorld('panesInternal', api)
 } else {
-  installAutofill()
   installSelectionWatch()
 }

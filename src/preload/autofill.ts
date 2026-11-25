@@ -1,5 +1,6 @@
 import { ipcRenderer } from 'electron'
 import { usernameFieldIndex } from '@shared/passwords'
+import { openFillMenu, type FillMenu } from './fillMenu'
 
 interface Account {
   id: number
@@ -83,42 +84,16 @@ function setValue(el: HTMLInputElement, value: string): void {
   el.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
-const STYLE = `
-:host { all: initial; }
-.menu {
-  font: 13px system-ui, sans-serif;
-  min-width: 220px;
-  padding: 4px;
-  border-radius: 10px;
-  background: #26262b;
-  color: #f2f2f4;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 12px 32px rgb(0 0 0 / 0.4);
-}
-@media (prefers-color-scheme: light) {
-  .menu { background: #fff; color: #1b1b1f; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.1), 0 12px 32px rgb(0 0 0 / 0.18); }
-  .row:hover, .row.on { background: rgb(0 0 0 / 0.07); }
-}
-.row { display: flex; flex-direction: column; padding: 7px 10px; border-radius: 7px; cursor: default; }
-.row:hover, .row.on { background: rgb(255 255 255 / 0.1); }
-.row small { opacity: 0.6; font-size: 11px; }
-`
-
 /** Saves logins as they are submitted and offers to fill them when a login field is focused. */
 export function installAutofill(): void {
   if (location.protocol !== 'http:' && location.protocol !== 'https:') return
 
-  let host: HTMLElement | null = null
-  let rows: HTMLElement[] = []
-  let current = -1
+  let menu: FillMenu | null = null
   let accounts: Account[] = []
-  let anchor: HTMLInputElement | null = null
 
   const close = (): void => {
-    host?.remove()
-    host = null
-    rows = []
-    current = -1
-    anchor = null
+    menu?.close()
+    menu = null
   }
 
   const fill = async (id: number, field: HTMLInputElement): Promise<void> => {
@@ -134,46 +109,18 @@ export function installAutofill(): void {
     found.password.focus()
   }
 
-  const highlight = (i: number): void => {
-    current = (i + rows.length) % rows.length
-    rows.forEach((r, n) => r.classList.toggle('on', n === current))
-  }
-
   const open = (field: HTMLInputElement): void => {
     close()
-    anchor = field
-    const box = field.getBoundingClientRect()
-    host = document.createElement('div')
-    host.style.cssText = `position:fixed;z-index:2147483647;left:${box.left}px;top:${box.bottom + 4}px;`
-    const root = host.attachShadow({ mode: 'closed' })
-    const style = document.createElement('style')
-    style.textContent = STYLE
-    const menu = document.createElement('div')
-    menu.className = 'menu'
-    menu.setAttribute('role', 'listbox')
-    rows = accounts.map((a) => {
-      const row = document.createElement('div')
-      row.className = 'row'
-      row.setAttribute('role', 'option')
-      row.textContent = a.username || 'No username'
-      const site = document.createElement('small')
-      site.textContent = location.hostname
-      row.append(site)
-      // mousedown, not click, so the field keeps focus and the menu is not closed by its blur
-      row.addEventListener('mousedown', (e) => {
-        e.preventDefault()
-        void fill(a.id, field)
-      })
-      menu.append(row)
-      return row
-    })
-    root.append(style, menu)
-    document.documentElement.append(host)
+    menu = openFillMenu(
+      field,
+      accounts.map((a) => ({ label: a.username || 'No username', sub: location.hostname })),
+      (i) => void fill(accounts[i].id, field)
+    )
   }
 
   const offer = async (target: EventTarget | null): Promise<void> => {
     if (!(target instanceof HTMLInputElement) || target.value !== '' || !visible(target)) return
-    if (target === anchor || !loginFields(target)) return
+    if (target === menu?.field || !loginFields(target)) return
     accounts = (await ipcRenderer.invoke('pw:accounts')) as Account[]
     if (accounts.length > 0 && document.activeElement === target) open(target)
   }
@@ -196,15 +143,8 @@ export function installAutofill(): void {
   document.addEventListener(
     'keydown',
     (e) => {
-      if (host && anchor) {
-        if (e.key === 'Escape') close()
-        else if (e.key === 'ArrowDown' || e.key === 'ArrowUp')
-          highlight(current + (e.key === 'ArrowDown' ? 1 : -1))
-        else if (e.key === 'Enter' && current >= 0) {
-          void fill(accounts[current].id, anchor)
-        } else return
-        e.preventDefault()
-        e.stopPropagation()
+      if (menu) {
+        if (menu.key(e) && e.key === 'Escape') menu = null
         return
       }
       if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
