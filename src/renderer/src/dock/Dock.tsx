@@ -20,8 +20,10 @@ declare global {
 // Geometry, in step with the main process (see dock.ts): the bin's view is WIDTH by HEIGHT at the window's corner (INSET short of
 // its right edge); the bin sits MARGIN_R from that edge and MARGIN_B from the bottom; tucked away only the top SLIVER
 // of the view shows.
-const HEIGHT = 96
+const HEIGHT = 112
 const SLIVER = 12
+/** Two frames (a timer: frames do not run while hidden): the bin is drawn at the edge before the view rises. */
+const MOVE_AFTER_MS = 34
 const BIN = 68
 const INSET = 8 // the window's right edge left free by the bin's view
 const MARGIN_R = 24
@@ -177,6 +179,7 @@ function Bin(): React.JSX.Element {
     let cancelled = false
     let controls: { stop: () => void } | null = null
     let riseTimer: number | undefined
+    let moveTimer: number | undefined
     if (mode === 'peek') {
       if (shown.current === 'peek') return
       const settle = (): void => {
@@ -194,18 +197,23 @@ function Bin(): React.JSX.Element {
         void (controls as unknown as Promise<void>).then(settle)
       }
     } else {
-      // the view rises to the bin's place; the bin starts where it was, at the edge, and slides up
-      window.dock.setMode(mode)
+      // The bin is drawn at the edge first, and only then does the view rise to its place; then the bin slides up.
+      // Moving the view in the same moment showed the view's last frame (the bin all the way out) where it had risen
+      // to, for a frame, before the bin was drawn low again: the flash.
       ty.set(HIDE_Y)
       shown.current = mode
+      moveTimer = window.setTimeout(() => {
+        if (!cancelled) window.dock.setMode(mode)
+      }, MOVE_AFTER_MS)
       // a moment for the view to take its new place before the bin slides up (a timer: frames do not run while hidden)
       riseTimer = window.setTimeout(() => {
         if (!cancelled) controls = animate(ty, 0, { type: 'spring', stiffness: 340, damping: 24 })
-      }, 50)
+      }, MOVE_AFTER_MS + 50)
     }
     return () => {
       cancelled = true
       window.clearTimeout(riseTimer)
+      window.clearTimeout(moveTimer)
       controls?.stop()
     }
   }, [mode, ty])

@@ -15,8 +15,9 @@ import type { DownloadManager } from './downloads'
 
 // The bin's view is only as big as the bin and a little room round it, and stops short of the window's right edge, so the
 // page's scrollbar and anything at its extreme right can still be reached.
-const WIDTH = 100
-const HEIGHT = 96
+// room around the 68px bin for its shadow on the left and above (it was cut off at 8px and 12px)
+const WIDTH = 124
+const HEIGHT = 112
 const INSET = 8 // the window's right edge left free
 const SLIVER = 12 // how much of it shows, at the window's bottom edge, while the bin is tucked away: also the strip of page it covers
 const OVERLAY_HIDE_MS = 260 // the fan's exit animation, before its view goes
