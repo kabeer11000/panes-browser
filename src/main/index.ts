@@ -6,7 +6,6 @@ import {
   clipboard,
   dialog,
   ipcMain,
-  Menu,
   nativeTheme,
   powerMonitor,
   screen,
@@ -83,6 +82,7 @@ import { media } from './ai/automation'
 import { addFileToBoard } from './ai/canvasAssistant'
 import { flushAllStores } from './store'
 import { showEditMenu } from './contextMenu'
+import { popupMenu } from './menuFloat'
 import { TabManager } from './tabs'
 import { registerTouchpad } from './touchpad'
 import { NavGestures } from './gestures'
@@ -839,15 +839,25 @@ function createWindow(): void {
       const body = encodeURIComponent(
         [shared.text, shared.url].filter(Boolean).join(String.fromCharCode(10, 10))
       )
-      Menu.buildFromTemplate([
-        { label: shared.title ? `Share “${shared.title.slice(0, 50)}”` : 'Share', enabled: false },
-        { type: 'separator' },
-        {
-          label: shared.url ? 'Copy link' : 'Copy text',
-          click: pick(() => clipboard.writeText(link))
-        },
-        { label: 'Email', click: pick(() => tabs.mail(`mailto:?subject=${subject}&body=${body}`)) }
-      ]).popup({ window: win, callback: () => setTimeout(() => resolve(picked), 0) })
+      popupMenu(
+        win,
+        [
+          {
+            label: shared.title ? `Share “${shared.title.slice(0, 50)}”` : 'Share',
+            enabled: false
+          },
+          { type: 'separator' },
+          {
+            label: shared.url ? 'Copy link' : 'Copy text',
+            click: pick(() => clipboard.writeText(link))
+          },
+          {
+            label: 'Email',
+            click: pick(() => tabs.mail(`mailto:?subject=${subject}&body=${body}`))
+          }
+        ],
+        { callback: () => resolve(picked) }
+      )
     })
   })
   ipcMain.on('tabs:action', (_e, id: unknown) => typeof id === 'string' && tabs.runAction(id))

@@ -1,4 +1,12 @@
-import { app, clipboard, Menu, nativeImage, shell, type DownloadItem, type Session } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  nativeImage,
+  shell,
+  type DownloadItem,
+  type Session
+} from 'electron'
 import { existsSync, renameSync, statSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
 import type { DownloadAction, DownloadInfo } from '@shared/types'
@@ -6,6 +14,7 @@ import { canAlwaysOpen, downloadMenu, extensionOf, isActive } from '@shared/down
 import { PAGE_SCRIPT, type PageHints } from '@shared/ai/evidence'
 import type { SettingsStore } from './settings'
 import { JsonStore } from './store'
+import { popupMenu } from './menuFloat'
 
 /** "name (1).ext" style de-duplication so a download never overwrites an existing file. */
 function uniquePath(dir: string, filename: string, taken: ReadonlySet<string>): string {
@@ -474,10 +483,14 @@ export class DownloadManager {
     }, NOTE_MS + 50)
   }
 
-  /** The download's right-click menu (Chrome's), native so it can reach past the view it was asked from. */
+  /** The download's right-click menu (Chrome's), in its own view over the window so it can reach past the view it was
+   *  asked from (the dock, the bar). */
   private menu(info: DownloadInfo): void {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    if (!win) return
     const items = downloadMenu(info, this.alwaysOpens(info.filename))
-    Menu.buildFromTemplate(
+    popupMenu(
+      win,
       items.map((it) =>
         it === 'separator'
           ? { type: 'separator' as const }
@@ -488,7 +501,7 @@ export class DownloadManager {
               click: () => this.act(info.id, it.action)
             }
       )
-    ).popup()
+    )
   }
 
   clear(): void {

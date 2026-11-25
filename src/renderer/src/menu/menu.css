@@ -1,0 +1,13 @@
+/* the menu view (main/menuFloat.ts): transparent over the whole window, only the menu drawn */
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+.cv.menu-host {
+  border-radius: 0;
+  background: transparent;
+}

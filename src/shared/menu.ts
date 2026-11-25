@@ -90,17 +90,19 @@ function pick(
 
 /**
  * A context menu opened at the pointer: right and down from it, flipped left at the right edge and up at the bottom
- * (so it never covers the point it was opened at when it can help it), moved off anything in `avoid`.
+ * (so it never covers the point it was opened at when it can help it), moved off anything in `avoid`. `up`: it ends at
+ * the point instead (opened from a button at the bottom), unless there is no room above.
  */
 export function placeMenu(
   at: { x: number; y: number },
   size: { w: number; h: number },
   bounds: { w: number; h: number },
   avoid: readonly Rect[] = [],
-  margin = 8
+  margin = 8,
+  up = false
 ): Placed {
   const fitsRight = at.x + size.w + margin <= bounds.w
-  const fitsDown = at.y + size.h + margin <= bounds.h
+  const fitsDown = up ? at.y - size.h - margin < 0 : at.y + size.h + margin <= bounds.h
   const r = { x: at.x, left: false }
   const l = { x: at.x - size.w, left: true }
   const d = { y: at.y, up: false }
@@ -183,4 +185,56 @@ export function inTriangle(p: Pt, a: Pt, b: Pt, c: Pt): boolean {
 export function safeTriangle(from: Pt, sub: Rect): [Pt, Pt, Pt] {
   const nearX = from.x <= sub.x ? sub.x : sub.x + sub.w
   return [from, { x: nearX, y: sub.y }, { x: nearX, y: sub.y + sub.h }]
+}
+
+/** The parts of an Electron menu template a Panes-drawn menu shows (MenuItemConstructorOptions fits it). */
+export interface TemplateItem {
+  label?: string
+  type?: string
+  enabled?: boolean
+  visible?: boolean
+  checked?: boolean
+  accelerator?: string
+  submenu?: unknown
+  click?: unknown
+}
+
+/** A shortcut as the menu shows it: CmdOrCtrl is Ctrl, or Cmd on a Mac. */
+export const shortcutLabel = (accelerator: string, mac: boolean): string =>
+  accelerator.replace(/\b(CmdOrCtrl|CommandOrControl)\b/g, mac ? 'Cmd' : 'Ctrl')
+
+/**
+ * An Electron menu template as a Panes-drawn menu (main/menuFloat.ts): the entries to draw, and the click of each by
+ * its id. Hidden items go; an item with nothing to show (a bare role) goes too, so callers spell those out.
+ */
+export function fromTemplate(
+  items: readonly TemplateItem[],
+  mac: boolean
+): { entries: MenuEntry[]; clicks: Map<string, () => void> } {
+  const clicks = new Map<string, () => void>()
+  const walk = (list: readonly TemplateItem[], path: string): MenuEntry[] =>
+    tidyMenu(
+      list.flatMap((it, i): MenuEntry[] => {
+        if (it.visible === false) return []
+        if (it.type === 'separator') return ['sep']
+        if (!it.label) return []
+        const id = path + i
+        const sub = Array.isArray(it.submenu) ? walk(it.submenu as TemplateItem[], id + '.') : null
+        if (typeof it.click === 'function') {
+          const click = it.click as () => void
+          clicks.set(id, () => click())
+        }
+        return [
+          {
+            id,
+            label: it.label,
+            ...(it.accelerator && { keys: shortcutLabel(it.accelerator, mac) }),
+            ...(it.enabled === false && { disabled: true }),
+            ...((it.type === 'checkbox' || it.type === 'radio') && { checked: !!it.checked }),
+            ...(sub && { items: sub })
+          }
+        ]
+      })
+    )
+  return { entries: walk(items, ''), clicks }
 }

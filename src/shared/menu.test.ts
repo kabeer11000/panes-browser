@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  fromTemplate,
+  shortcutLabel,
   inTriangle,
   placeMenu,
   placeSubmenu,
@@ -122,5 +124,50 @@ describe('tidyMenu', () => {
       'sep'
     ]
     expect(tidyMenu(items)).toEqual([{ id: 'a', label: 'A' }, 'sep', { id: 'b', label: 'B' }])
+  })
+})
+
+describe('fromTemplate', () => {
+  test('labels, shortcuts, states and submenus; clicks by id', () => {
+    let hit = ''
+    const { entries, clicks } = fromTemplate(
+      [
+        { label: 'Back', accelerator: 'Alt+Left', enabled: false },
+        { type: 'separator' },
+        { type: 'separator' },
+        { label: 'Hidden', visible: false },
+        { label: 'Print...', accelerator: 'CmdOrCtrl+P', click: () => (hit = 'print') },
+        {
+          label: 'Colour',
+          submenu: [
+            { label: 'Red', type: 'radio', checked: true, click: () => (hit = 'red') },
+            { label: 'Blue', type: 'radio', checked: false }
+          ]
+        },
+        { type: 'separator' }
+      ],
+      false
+    )
+    expect(entries).toEqual([
+      { id: '0', label: 'Back', keys: 'Alt+Left', disabled: true },
+      'sep',
+      { id: '4', label: 'Print...', keys: 'Ctrl+P' },
+      {
+        id: '5',
+        label: 'Colour',
+        items: [
+          { id: '5.0', label: 'Red', checked: true },
+          { id: '5.1', label: 'Blue', checked: false }
+        ]
+      }
+    ])
+    clicks.get('5.0')?.()
+    expect(hit).toBe('red')
+    clicks.get('4')?.()
+    expect(hit).toBe('print')
+  })
+  test('Cmd on a Mac; a bare role is left out', () => {
+    expect(shortcutLabel('CmdOrCtrl+Shift+T', true)).toBe('Cmd+Shift+T')
+    expect(fromTemplate([{ type: 'normal' }], false).entries).toEqual([])
   })
 })

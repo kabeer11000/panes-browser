@@ -162,7 +162,8 @@ describe('tool arguments', () => {
       'filter_page',
       'scroll_page',
       'scroll_to',
-      'media_control'
+      'media_control',
+      'change_setting'
     ])
     expect(weak.some((t) => t.confirm)).toBe(false)
     expect(toolsFor(false)).toHaveLength(TOOLS.length)

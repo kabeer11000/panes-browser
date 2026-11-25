@@ -3,7 +3,6 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
-  Menu,
   Notification,
   nativeTheme,
   powerMonitor,
@@ -21,6 +20,7 @@ import {
 } from 'electron'
 import { stopCaptureIn } from './permissions'
 import { writeFileSync } from 'fs'
+import { popupMenu } from './menuFloat'
 import { pathToFileURL } from 'url'
 import {
   GROUP_COLORS,
@@ -5104,7 +5104,7 @@ export class TabManager {
     if (!tab) return
     if (picked.length > 1 && picked.includes(id)) {
       // several tabs picked with Shift or Ctrl: the actions that make sense for all of them
-      Menu.buildFromTemplate([
+      popupMenu(this.win, [
         { label: `Add ${picked.length} tabs to split view`, click: () => this.splitMany(picked) },
         {
           label: `Duplicate ${picked.length} tabs`,
@@ -5112,7 +5112,7 @@ export class TabManager {
         },
         { type: 'separator' },
         { label: `Close ${picked.length} tabs`, click: () => picked.forEach((t) => this.close(t)) }
-      ]).popup({ window: this.win })
+      ])
       return
     }
     const others = [...this.groups.values()].filter(
@@ -5184,7 +5184,7 @@ export class TabManager {
       },
       { label: 'Close tab', click: () => this.close(id, true) }
     )
-    Menu.buildFromTemplate(items).popup({ window: this.win })
+    popupMenu(this.win, items)
   }
 
   /** The browser's own pages and actions, for layouts with no sidebar footer to hold them. */
@@ -5193,55 +5193,63 @@ export class TabManager {
       label,
       click: () => this.openInternal(to)
     })
-    Menu.buildFromTemplate([
-      { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => this.newTabOrCard() },
-      { label: 'New Tor tab', click: () => this.newTorTab() },
-      {
-        label: 'New private tab',
-        accelerator: 'CmdOrCtrl+Shift+N',
-        click: () => this.newPrivateTab()
-      },
-      {
-        label: 'Reopen closed tab',
-        accelerator: 'CmdOrCtrl+Shift+T',
-        click: () => this.reopenClosed()
-      },
-      { type: 'separator' },
-      page('Bookmarks', 'bookmarks'),
-      page('History', 'history'),
-      page('Downloads', 'downloads'),
-      page('Passwords', 'passwords'),
-      page('Private and Tor', 'privacy'),
-      page('Screen time', 'screen-time'),
-      { type: 'separator' },
-      { label: 'Find in page', accelerator: 'CmdOrCtrl+F', click: () => this.command('find') },
-      { label: 'Print...', accelerator: 'CmdOrCtrl+P', click: () => this.printPage() },
-      { label: 'Save all tabs as a session', click: () => this.dumpTabs() },
-      { label: 'Save page as...', click: () => void this.savePage() },
-      { label: 'Open file...', click: () => void this.openFile() },
-      { label: 'View page source', accelerator: 'CmdOrCtrl+U', click: () => this.viewSource() },
-      { type: 'separator' },
-      {
-        label: 'Canvas',
-        accelerator: 'CmdOrCtrl+Shift+K',
-        click: () => this.command('toggle-canvas')
-      },
-      ...(this.deps.settings.get().ai.enabled
-        ? [
-            {
-              label: 'Chat',
-              accelerator: 'CmdOrCtrl+Shift+L',
-              click: () => this.command('toggle-chat')
-            }
-          ]
-        : []),
-      { type: 'separator' },
-      { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => this.openInternal('settings') },
-      { label: 'AI settings', click: () => this.openInternal('settings', 'ai') },
-      page('About and updates', 'software'),
-      { label: 'Welcome tour', click: () => this.create('panes://welcome') },
-      { label: 'Send feedback', click: () => this.sendFeedback() }
-    ]).popup({ window: this.win, x, y })
+    popupMenu(
+      this.win,
+      [
+        { label: 'New tab', accelerator: 'CmdOrCtrl+T', click: () => this.newTabOrCard() },
+        { label: 'New Tor tab', click: () => this.newTorTab() },
+        {
+          label: 'New private tab',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => this.newPrivateTab()
+        },
+        {
+          label: 'Reopen closed tab',
+          accelerator: 'CmdOrCtrl+Shift+T',
+          click: () => this.reopenClosed()
+        },
+        { type: 'separator' },
+        page('Bookmarks', 'bookmarks'),
+        page('History', 'history'),
+        page('Downloads', 'downloads'),
+        page('Passwords', 'passwords'),
+        page('Private and Tor', 'privacy'),
+        page('Screen time', 'screen-time'),
+        { type: 'separator' },
+        { label: 'Find in page', accelerator: 'CmdOrCtrl+F', click: () => this.command('find') },
+        { label: 'Print...', accelerator: 'CmdOrCtrl+P', click: () => this.printPage() },
+        { label: 'Save all tabs as a session', click: () => this.dumpTabs() },
+        { label: 'Save page as...', click: () => void this.savePage() },
+        { label: 'Open file...', click: () => void this.openFile() },
+        { label: 'View page source', accelerator: 'CmdOrCtrl+U', click: () => this.viewSource() },
+        { type: 'separator' },
+        {
+          label: 'Canvas',
+          accelerator: 'CmdOrCtrl+Shift+K',
+          click: () => this.command('toggle-canvas')
+        },
+        ...(this.deps.settings.get().ai.enabled
+          ? [
+              {
+                label: 'Chat',
+                accelerator: 'CmdOrCtrl+Shift+L',
+                click: () => this.command('toggle-chat')
+              }
+            ]
+          : []),
+        { type: 'separator' },
+        {
+          label: 'Settings',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => this.openInternal('settings')
+        },
+        { label: 'AI settings', click: () => this.openInternal('settings', 'ai') },
+        page('About and updates', 'software'),
+        { label: 'Welcome tour', click: () => this.create('panes://welcome') },
+        { label: 'Send feedback', click: () => this.sendFeedback() }
+      ],
+      { x, y }
+    )
   }
 
   /**
@@ -5335,22 +5343,12 @@ export class TabManager {
         { label: 'Close preview', accelerator: 'Esc', click: pick('close') }
       ]
       // a point low in the window (the preview's toolbar set at the bottom): the menu ends there instead of starting
-      // there, so it rises from the button rather than running off the window. Native menus cannot be bottom-aligned,
-      // so its height is reckoned from its items (ponytail: estimate; a measured height would need a custom menu).
+      // there, so it rises from the button rather than running off the window
       const [, winH] = this.win.getContentSize()
-      const rise =
-        y !== undefined && y > winH * 0.6
-          ? items.reduce(
-              (h, it) => h + (it.type === 'separator' ? 9 : it.visible === false ? 0 : 26),
-              8
-            )
-          : 0
-      Menu.buildFromTemplate(items).popup({
-        window: this.win,
-        ...(x !== undefined && y !== undefined
-          ? { x: Math.round(x), y: Math.max(0, Math.round(y - rise)) }
-          : {}),
-        callback: () => setTimeout(() => resolve(null), 0)
+      popupMenu(this.win, items, {
+        ...(x !== undefined && y !== undefined && { x: Math.round(x), y: Math.round(y) }),
+        up: y !== undefined && y > winH * 0.6,
+        callback: () => resolve(null)
       })
     })
   }
@@ -5358,7 +5356,7 @@ export class TabManager {
   groupMenu(id: number): void {
     const group = this.groups.get(id)
     if (!group) return
-    Menu.buildFromTemplate([
+    popupMenu(this.win, [
       { label: 'Rename', click: () => this.send('ui:rename-group', id) },
       {
         label: group.collapsed ? 'Expand' : 'Collapse',
@@ -5376,7 +5374,7 @@ export class TabManager {
       { type: 'separator' },
       { label: 'Ungroup', click: () => this.ungroup(id) },
       { label: 'Close group', click: () => this.closeGroup(id) }
-    ]).popup({ window: this.win })
+    ])
   }
 
   // ---- memory saver ----

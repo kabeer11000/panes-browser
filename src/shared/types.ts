@@ -8,6 +8,7 @@ import type { TabKind } from './tabkind'
 import type { CaptureKind, CaptureState } from './capture'
 import type { SpaceAttention, TabAttention } from './attention'
 import type { TabDump } from './dumps'
+import type { MenuEntry } from './menu'
 import type { KeyLike } from './tour'
 import type { PasswordExportResult } from './passwordExport'
 import type { PrintOptions } from './print'
@@ -1449,4 +1450,23 @@ export interface AskShow {
   needsQuestion: boolean
   /** Under the selection (the card then grows downward) or above it. */
   below: boolean
+}
+
+/** A Panes-drawn menu to show (main/menuFloat.ts), at a point in the window's content. */
+export interface MenuShow {
+  /** Which opening it is: what the view sends back names it, so a late answer for an old menu is let go. */
+  seq: number
+  x: number
+  y: number
+  title?: string
+  /** It ends at the point (opened from a button low in the window). */
+  up?: boolean
+  items: MenuEntry[]
+}
+
+/** The menu view's bridge (preload/menu.ts). */
+export interface MenuApi {
+  onShow(cb: (m: MenuShow) => void): () => void
+  pick(seq: number, id: string): void
+  close(seq: number): void
 }

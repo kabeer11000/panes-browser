@@ -1,12 +1,12 @@
 import {
   clipboard,
-  Menu,
   type BrowserWindow,
   type ContextMenuParams,
   type MenuItemConstructorOptions,
   type WebContents
 } from 'electron'
 import { highlightLink } from '@shared/textFragment'
+import { popupMenu } from './menuFloat'
 
 interface Actions {
   openTab: (url: string) => void
@@ -46,21 +46,47 @@ function editItems(wc: WebContents, p: ContextMenuParams): MenuItemConstructorOp
       sep
     )
   }
+  // spelled out, not roles: a role acts on whatever has the keyboard, which is the menu's own view while it is up
   items.push(
-    { role: 'undo', enabled: p.editFlags.canUndo },
-    { role: 'redo', enabled: p.editFlags.canRedo },
+    {
+      label: 'Undo',
+      accelerator: 'CmdOrCtrl+Z',
+      enabled: p.editFlags.canUndo,
+      click: () => wc.undo()
+    },
+    {
+      label: 'Redo',
+      accelerator: 'CmdOrCtrl+Y',
+      enabled: p.editFlags.canRedo,
+      click: () => wc.redo()
+    },
     sep,
-    { role: 'cut', enabled: p.editFlags.canCut },
-    { role: 'copy', enabled: p.editFlags.canCopy },
-    { role: 'paste', enabled: p.editFlags.canPaste },
-    { role: 'selectAll' }
+    {
+      label: 'Cut',
+      accelerator: 'CmdOrCtrl+X',
+      enabled: p.editFlags.canCut,
+      click: () => wc.cut()
+    },
+    {
+      label: 'Copy',
+      accelerator: 'CmdOrCtrl+C',
+      enabled: p.editFlags.canCopy,
+      click: () => wc.copy()
+    },
+    {
+      label: 'Paste',
+      accelerator: 'CmdOrCtrl+V',
+      enabled: p.editFlags.canPaste,
+      click: () => wc.paste()
+    },
+    { label: 'Select all', accelerator: 'CmdOrCtrl+A', click: () => wc.selectAll() }
   )
   return items
 }
 
 /** Right-click in a text field of Panes' own window (the search box, the find bar, ...). */
 export function showEditMenu(win: BrowserWindow, wc: WebContents, p: ContextMenuParams): void {
-  if (p.isEditable) Menu.buildFromTemplate(editItems(wc, p)).popup({ window: win })
+  if (p.isEditable) popupMenu(win, editItems(wc, p))
 }
 
 export function showContextMenu(
@@ -121,7 +147,7 @@ export function showContextMenu(
     const text = p.selectionText.trim()
     const short = text.length > 28 ? text.slice(0, 28) + '...' : text
     items.push(
-      { role: 'copy' },
+      { label: 'Copy', accelerator: 'CmdOrCtrl+C', click: () => wc.copy() },
       ...(() => {
         const link = highlightLink(p.pageURL, text)
         return link
@@ -157,5 +183,5 @@ export function showContextMenu(
     )
   }
   items.push({ label: 'Inspect', click: () => wc.inspectElement(p.x, p.y) })
-  Menu.buildFromTemplate(items).popup({ window: win })
+  popupMenu(win, items)
 }

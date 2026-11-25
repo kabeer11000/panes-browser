@@ -46,6 +46,7 @@ export function ContextMenu({
   title,
   items,
   avoid = [],
+  up = false,
   onPick,
   onClose
 }: {
@@ -57,6 +58,8 @@ export function ContextMenu({
   items: MenuEntry[]
   /** Boxes on the board it must not cover, relative to the board. */
   avoid?: Rect[]
+  /** It ends at the point rather than starting there (opened from a button low in the window). */
+  up?: boolean
   onPick: (id: string) => void
   onClose: () => void
 }): React.JSX.Element {
@@ -304,6 +307,7 @@ export function ContextMenu({
           anchor={x}
           anchorY={y}
           avoid={avoid}
+          up={up}
           register={register}
           levelAt={levelAt}
           onRow={(i, p) => hover(d, i, p)}
@@ -356,6 +360,7 @@ function Level({
   anchor,
   anchorY,
   avoid,
+  up,
   register,
   levelAt,
   onRow,
@@ -370,6 +375,7 @@ function Level({
   anchor: number
   anchorY: number
   avoid: Rect[]
+  up: boolean
   /** Each level's element, kept by the menu for focus and the pointer's way into a submenu. */
   register: (depth: number, el: HTMLDivElement | null) => void
   levelAt: (depth: number) => HTMLDivElement | null
@@ -386,7 +392,7 @@ function Level({
     if (!el || !board) return
     const bounds = { w: board.clientWidth, h: board.clientHeight }
     const size = { w: el.offsetWidth, h: el.scrollHeight }
-    if (depth === 0) return setAt(placeMenu({ x: anchor, y: anchorY }, size, bounds, avoid))
+    if (depth === 0) return setAt(placeMenu({ x: anchor, y: anchorY }, size, bounds, avoid, 8, up))
     const parent = levelAt(depth - 1)
     const row = parent?.querySelector<HTMLElement>('[aria-expanded="true"]')
     if (!parent || !row) return
