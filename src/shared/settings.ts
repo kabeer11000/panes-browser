@@ -46,6 +46,7 @@ export const DEFAULT_SETTINGS: Settings = {
   frostedGlass: false,
   tooltips: true,
   usageStats: false,
+  formFill: true,
   sidebarHover: false,
   tabLayout: 'vertical',
   touchpadSpeed: 1,

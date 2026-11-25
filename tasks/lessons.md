@@ -150,3 +150,4 @@ handleKey test passed because of the original line.
   the board). Write each file once per edit, or `touch` it afterwards; check a change in the running app, not just tsc.
 - Regex edits through sed or a python heredoc lose `\b` (it becomes a backspace or a bare `b`), and the file still parses. Make regex edits with the Edit tool, then grep the line back.
 - The dev server does not rebuild preloads reliably on save: after a preload or shared change a page uses, check out/preload/<name>.js has it, or restart `bun run dev`.
+- Python `open(p,'w')` on Windows writes CRLF. Pass `newline=''` or run prettier on every file a script rewrote before committing.

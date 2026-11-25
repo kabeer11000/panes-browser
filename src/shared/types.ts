@@ -658,6 +658,8 @@ export interface Settings {
   tooltips: boolean
   /** Send usage statistics (counts and times, never contents) to Panes' relay; asked on the welcome tour. */
   usageStats: boolean
+  /** Offer saved addresses and cards in forms, and offer to save new ones (main/formData.ts). */
+  formFill: boolean
   /** With the sidebar collapsed, open it when the pointer touches the left edge; it tucks away again when the pointer leaves. */
   sidebarHover: boolean
   /** Tabs down the side (a sidebar) or along the top. */

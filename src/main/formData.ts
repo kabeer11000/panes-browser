@@ -190,16 +190,21 @@ const FIELD_KINDS = new Set<string>([
  */
 export function registerFormData(
   store: FormDataStore,
-  d: { permissions: PermissionManager; live: (wc: WebContents) => boolean }
+  d: {
+    permissions: PermissionManager
+    live: (wc: WebContents) => boolean
+    /** The setting (formFill): off, nothing is offered, filled or asked about. */
+    on: () => boolean
+  }
 ): void {
   ipcMain.handle('ff:offers', (e, kind: unknown) => {
-    const at = usable(e, d.live)
+    const at = d.on() ? usable(e, d.live) : null
     if (!at || (kind !== 'address' && kind !== 'card')) return []
     if (kind === 'card' && !at.secure) return []
     return store.summaries(kind)
   })
   ipcMain.handle('ff:fill', (e, id: unknown) => {
-    const at = usable(e, d.live)
+    const at = d.on() ? usable(e, d.live) : null
     if (!at || typeof id !== 'number') return null
     const entry = store.get(id)
     if (!entry || (entry.kind === 'card' && !at.secure)) return null
@@ -209,7 +214,7 @@ export function registerFormData(
   // one question at a time per tab: a form sent twice (a double click) is not asked about twice
   const asking = new Set<WebContents>()
   ipcMain.on('ff:submit', (e, raw: unknown) => {
-    const at = usable(e, d.live)
+    const at = d.on() ? usable(e, d.live) : null
     if (!at || !store.available || !Array.isArray(raw) || asking.has(e.sender)) return
     const fields = raw
       .slice(0, 60)

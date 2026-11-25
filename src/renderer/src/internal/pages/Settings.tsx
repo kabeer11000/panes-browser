@@ -713,6 +713,16 @@ export function Settings(): React.JSX.Element {
               />
             </Row>
             <Row
+              label="Save and fill addresses and cards"
+              hint="Forms offer what you saved, and Panes offers to save a new address or card when you send one. Kept encrypted on this computer; manage them in Passwords."
+            >
+              <Toggle
+                label="Save and fill addresses and cards"
+                on={s.formFill}
+                onChange={(v) => void update({ formFill: v })}
+              />
+            </Row>
+            <Row
               label="Help improve Panes"
               hint="Sends which features you use, time per site and how fast Panes starts, every half hour. Never page contents, what you type or passwords; never private or Tor tabs."
             >
