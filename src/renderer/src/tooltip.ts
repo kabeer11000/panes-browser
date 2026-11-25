@@ -143,6 +143,8 @@ function place(el: Element): boolean {
 }
 
 function show(el: Element): void {
+  // turned off in Settings (main/uiFx.ts marks every Panes page): the title is still taken, so no system box either
+  if (document.documentElement.dataset.tips === 'off') return
   const text = el.getAttribute('data-tip')
   if (!text || !el.isConnected) return
   ensure()

@@ -13,6 +13,7 @@ try {
   if (fx === 'low' || fx === 'full') document.documentElement.dataset.fx = fx
   // frosted glass (Settings), set by main on every Panes page (main/uiFx.ts)
   if (localStorage.getItem('panes:glass') === 'on') document.documentElement.dataset.glass = 'on'
+  if (localStorage.getItem('panes:tips') === 'off') document.documentElement.dataset.tips = 'off'
   // closed on the canvas board: the app opens straight onto it, without painting the tabs first (App.tsx, BOOT_BOARD)
   if (localStorage.getItem('panes:board') === '1') document.documentElement.dataset.board = '1'
 } catch {

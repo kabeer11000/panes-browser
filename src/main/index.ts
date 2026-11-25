@@ -269,7 +269,8 @@ function createWindow(): void {
   // efficient mode and frosted glass, on every one of Panes' own pages (uiFx.ts)
   const uiFx = registerUiFx(() => ({
     fx: runningMode() === 'efficient' ? 'low' : 'full',
-    glass: settings.get().frostedGlass
+    glass: settings.get().frostedGlass,
+    tips: settings.get().tooltips
   }))
   settings.onChange((s) => {
     uiFx.refresh()

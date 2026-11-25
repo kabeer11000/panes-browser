@@ -110,6 +110,12 @@ export function Settings(): React.JSX.Element {
           />
         </Row>
         <Row
+          label="Tooltips"
+          hint="Names and shortcuts shown when you rest the pointer on a button."
+        >
+          <Toggle label="Tooltips" on={s.tooltips} onChange={(v) => void update({ tooltips: v })} />
+        </Row>
+        <Row
           label="Search suggestions"
           hint="Send what you type in the command bar to your search engine to get suggestions."
         >

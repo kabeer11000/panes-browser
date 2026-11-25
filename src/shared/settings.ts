@@ -44,6 +44,7 @@ export const DEFAULT_SETTINGS: Settings = {
   newTabDither: true,
   autoHideTopBar: false,
   frostedGlass: false,
+  tooltips: true,
   usageStats: false,
   sidebarHover: false,
   tabLayout: 'vertical',

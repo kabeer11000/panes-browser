@@ -3,12 +3,12 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 
 /**
- * How Panes' own pages look: efficient mode (`data-fx`) and frosted glass (`data-glass`), stamped on the root of every
+ * How Panes' own pages look: efficient mode (`data-fx`), frosted glass (`data-glass`) and tooltips (`data-tips`), stamped on the root of every
  * one of its pages, whichever window or view it is in (the main window, panes:// pages, popovers, the panel, the dock,
  * print...), so one setting means the same everywhere. styles.css turns these into --glass-alpha / --glass-blur.
  * Each page also keeps them for its next start (public/boot.js reads them before the first paint).
  */
-export function registerUiFx(state: () => { fx: 'low' | 'full'; glass: boolean }): {
+export function registerUiFx(state: () => { fx: 'low' | 'full'; glass: boolean; tips: boolean }): {
   refresh: () => void
 } {
   const base = (
@@ -21,12 +21,14 @@ export function registerUiFx(state: () => { fx: 'low' | 'full'; glass: boolean }
   }
   const apply = (wc: WebContents): void => {
     if (!isUi(wc)) return
-    const { fx, glass } = state()
+    const { fx, glass, tips } = state()
     const g = glass ? 'on' : 'off'
+    const t = tips ? 'on' : 'off'
     void wc
       .executeJavaScript(
-        `(() => { const d = document.documentElement.dataset; d.fx = '${fx}'; d.glass = '${g}';` +
-          ` try { localStorage.setItem('panes:fx', '${fx}'); localStorage.setItem('panes:glass', '${g}') } catch (e) {} })()`
+        `(() => { const d = document.documentElement.dataset; d.fx = '${fx}'; d.glass = '${g}'; d.tips = '${t}';` +
+          ` try { localStorage.setItem('panes:fx', '${fx}'); localStorage.setItem('panes:glass', '${g}');` +
+          ` localStorage.setItem('panes:tips', '${t}') } catch (e) {} })()`
       )
       .catch(() => undefined)
   }
