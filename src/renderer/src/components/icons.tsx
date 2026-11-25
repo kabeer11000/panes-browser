@@ -170,8 +170,9 @@ export const DownloadIcon = (): React.JSX.Element => (
 )
 export const SettingsIcon = (): React.JSX.Element => (
   <Svg>
-    <circle cx="8" cy="8" r="2.2" />
-    <path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" />
+    {/* a cog with eight teeth (the rays it had read as a sun) */}
+    <path d="M12.68 6.55 14.25 6.6v2.8l-1.57.05-.35.84 1.07 1.14-1.97 1.97-1.14-1.07-.84.35-.05 1.57H6.6l-.05-1.57-.84-.35-1.14 1.07-1.97-1.97 1.07-1.14-.35-.84-1.57-.05V6.6l1.57-.05.35-.84-1.07-1.14L4.57 2.6l1.14 1.07.84-.35.05-1.57h2.8l.05 1.57.84.35 1.14-1.07 1.97 1.97-1.07 1.14z" />
+    <circle cx="8" cy="8" r="2" />
   </Svg>
 )
 export const CameraIcon = (): React.JSX.Element => (

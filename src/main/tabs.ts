@@ -444,7 +444,7 @@ function historyOf(wc: WebContents): NavHistory | null {
 
 export class TabManager {
   private tabs = new Map<number, Tab>() // insertion order is display order
-  /** The welcome tour is on screen: dark and alone in the window. */
+  /** The welcome tour is on screen, alone in the window. */
   activeIsWelcome(): boolean {
     const wc = this.current() && liveContents(this.current()!)
     return !!wc && isWelcome(wc.getURL())
@@ -5724,10 +5724,9 @@ export class TabManager {
     this.win.webContents.send('tabs:state', state)
     this.taskbar.update(windowAttention(state.spaceAttention))
     this.onRefresh?.()
-    // what is on screen decides (boardKind): a private tab behind the board left the whole space dark, for good
-    this.deps.spaces.setThemeOverride(
-      this.boardKind() !== 'normal' || (!this.canvasMode && this.activeIsWelcome()) ? 'dark' : null
-    )
+    // what is on screen decides (boardKind): a private tab behind the board left the whole space dark, for good. The
+    // welcome tour is not forced dark: it wears the light or dark picked for the space being set up (Welcome.tsx).
+    this.deps.spaces.setThemeOverride(this.boardKind() !== 'normal' ? 'dark' : null)
   }
 
   /** Print... from a menu or the command bar: the same dialog as Ctrl+P. */

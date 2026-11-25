@@ -14,7 +14,7 @@ export const KIND_THEME = {
 /** Tor's purple, for its logo and highlights. */
 export const TOR_PURPLE = '#7d4698'
 
-/** The welcome tour is shown on its own: dark, with no sidebar or bars around it, so the whole window is the page. */
+/** The welcome tour is shown on its own, with no sidebar or bars around it, so the whole window is the page. */
 export const WELCOME_THEME = { color: '#08080c', color2: null, tint: 0, grain: 0 } as const
 
 export const isWelcome = (url: string | undefined | null): boolean =>

@@ -613,7 +613,7 @@ function App(): React.JSX.Element {
   // The canvas board is a way to browse of its own, not a layer over the tabs: while it is up the sidebar, the top
   // bar(s), the tab stack and the edge watchers that bring them out are not there at all.
   const board = mode === 'canvas' || booting
-  // the welcome tour is shown on its own: dark, with no sidebar or bars, so the whole window is the page. Only in the
+  // the welcome tour is shown on its own, with no sidebar or bars, so the whole window is the page. Only in the
   // tab view: on the board the tour is a tab behind it like any other, and must not dress the board
   const immersive = !board && isWelcome(active?.url)
   const showSidebar = !horizontal && sidebarOpen && !immersive && !board
@@ -719,7 +719,8 @@ function App(): React.JSX.Element {
   // a private or Tor page on screen makes the whole window dark, Tor's in its own purple; on the board that is the page
   // open in its preview, not the tab left active behind it (main's screenKind), so closing the preview puts it back
   const kind = screenKind
-  const scheme = useScheme(kind !== 'normal' || immersive ? 'dark' : activeSpace?.mode)
+  // the welcome tour follows the space's light or dark as it is picked there (it is the space being set up)
+  const scheme = useScheme(kind !== 'normal' ? 'dark' : activeSpace?.mode)
   const theme = immersive
     ? WELCOME_THEME
     : kind !== 'normal'

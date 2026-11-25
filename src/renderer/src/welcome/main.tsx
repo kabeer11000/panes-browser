@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client'
 import { Welcome } from './Welcome'
 import { installSpringTokens } from '@renderer/motion'
 
-// The tour fills the window on its own and is always dark, whatever the space will be.
+// Dark until the space being set up is known (then it wears that space's light or dark, Welcome.tsx).
 document.documentElement.dataset.scheme = 'dark'
 // See-through until the space's colour is known, so the view's own background shows meanwhile.
 document.documentElement.style.setProperty('--stage-bg', 'transparent')

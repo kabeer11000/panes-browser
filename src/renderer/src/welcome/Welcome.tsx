@@ -6,6 +6,7 @@ import { onboardingUpdate, type UpdateState } from '@shared/update'
 import { DEFAULT_SETTINGS, SEARCH_ENGINES, SPACE_LOOKS } from '@shared/settings'
 import type { MemoryStats, SearchEngineId, Settings, Space, SpaceMode } from '@shared/types'
 import { Segmented, Toggle } from '@renderer/internal/ui'
+import { useScheme } from '@renderer/useScheme'
 import { ImportStep } from './ImportStep'
 import { preloadImportSources } from '@renderer/internal/pages/importSources'
 import { AiStep } from './AiStep'
@@ -33,11 +34,12 @@ const KEYS: Array<[string, string]> = [
   ['Ctrl Shift K', 'Open the canvas board']
 ]
 
-/** The tour is always dark (it fills the window on its own), in the colours of the space being set up. */
-function wear(space: Space, accentSetting: string): void {
+/** The tour wears the space being set up: its colours, and light or dark as picked (it shows at once). */
+function wear(space: Space, accentSetting: string, dark: boolean): void {
+  document.documentElement.dataset.scheme = dark ? 'dark' : 'light'
   const root = document.documentElement.style
   for (const [k, v] of Object.entries(
-    chromeVars(space, true, accentSetting, DEFAULT_SETTINGS.accent)
+    chromeVars(space, dark, accentSetting, DEFAULT_SETTINGS.accent)
   ))
     root.setProperty(k, v)
   root.removeProperty('--stage-bg')
@@ -228,16 +230,17 @@ export function Welcome(): React.JSX.Element {
 
   // the page wears the space's colours, and changes with them as they are picked
   const accentSetting = s?.accent
+  const dark = useScheme(space?.mode) === 'dark'
   useEffect(() => {
-    if (space && accentSetting) wear(space, accentSetting)
-  }, [space, accentSetting])
+    if (space && accentSetting) wear(space, accentSetting, dark)
+  }, [space, accentSetting, dark])
   // Pointing at a colour on the look step sweeps the whole window to it; leaving puts the chosen one back.
   const preview = useCallback(
     (look: { color: string; color2: string | null } | null) => {
       if (!space || !accentSetting) return
-      wear(look ? { ...space, ...look } : space, accentSetting)
+      wear(look ? { ...space, ...look } : space, accentSetting, dark)
     },
-    [space, accentSetting]
+    [space, accentSetting, dark]
   )
 
   const index = STEPS.indexOf(step)
@@ -433,10 +436,7 @@ export function Welcome(): React.JSX.Element {
                     ]}
                     onChange={(mode) => updateSpace({ mode })}
                   />
-                  <p className="wl-note">
-                    Light or dark takes over once you start browsing. You can make more spaces
-                    later, each with its own look.
-                  </p>
+                  <p className="wl-note">You can make more spaces later, each with its own look.</p>
                 </>
               )}
 
