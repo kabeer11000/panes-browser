@@ -5173,9 +5173,10 @@ export class TabManager {
       ...saveItems,
       { type: 'separator' },
       {
-        label: tab.unloaded ? 'Tab is unloaded' : 'Unload tab',
-        // the page on screen cannot be thrown away; pages that are not web pages have nothing to reload from
-        enabled: !tab.unloaded && id !== this.activeId,
+        label: tab.unloaded ? 'Tab is unloaded' : inCall(tab.capture) ? 'In a call' : 'Unload tab',
+        // the page on screen cannot be thrown away; pages that are not web pages have nothing to reload from; and a
+        // call would be hung up
+        enabled: !tab.unloaded && id !== this.activeId && !inCall(tab.capture),
         click: () => {
           this.unload(id)
           this.refresh()
