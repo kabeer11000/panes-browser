@@ -93,7 +93,6 @@ class TabCard {
     this.view.setBounds({ x, y, width, height })
   }
 
-
   /**
    * Give back its renderer process if it is hidden and has gone unused a while and memory is short (releaseHelper);
    * it is made again the next time it is needed. True when it was let go.

@@ -4,11 +4,15 @@ import { buildTorrc, parseBootstrap, snowflakeBridges, snowflakeProgram, torBund
 describe('snowflakeProgram', () => {
   test('reads the program from the bundle, refuses anything that is not a plain file name', () => {
     const cfg = (s: string): unknown => ({ pluggableTransports: { snowflake: s } })
-    expect(snowflakeProgram(cfg('ClientTransportPlugin snowflake exec ${pt_path}lyrebird.exe'))).toBe(
-      'lyrebird.exe'
+    expect(
+      snowflakeProgram(cfg('ClientTransportPlugin snowflake exec ${pt_path}lyrebird.exe'))
+    ).toBe('lyrebird.exe')
+    expect(snowflakeProgram(cfg('ClientTransportPlugin snowflake exec ${pt_path}lyrebird'))).toBe(
+      'lyrebird'
     )
-    expect(snowflakeProgram(cfg('ClientTransportPlugin snowflake exec ${pt_path}lyrebird'))).toBe('lyrebird')
-    expect(snowflakeProgram(cfg('ClientTransportPlugin snowflake exec ${pt_path}../evil.exe'))).toBeNull()
+    expect(
+      snowflakeProgram(cfg('ClientTransportPlugin snowflake exec ${pt_path}../evil.exe'))
+    ).toBeNull()
     expect(snowflakeProgram({})).toBeNull()
     expect(snowflakeProgram(null)).toBeNull()
   })
@@ -43,7 +47,10 @@ describe('buildTorrc', () => {
   test('adds the Snowflake transport and its bridges', () => {
     const t = buildTorrc({
       ...base,
-      snowflake: { exec: 'pluggable_transports\\lyrebird.exe', bridges: ['snowflake 192.0.2.3:80 AB'] }
+      snowflake: {
+        exec: 'pluggable_transports\\lyrebird.exe',
+        bridges: ['snowflake 192.0.2.3:80 AB']
+      }
     })
     // relative and unquoted: Tor would take the quotes and anything after a space as part of the program name
     expect(t).toContain('ClientTransportPlugin snowflake exec pluggable_transports\\lyrebird.exe')

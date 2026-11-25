@@ -93,9 +93,7 @@ export function parseUrls(text: string, max = 20): string[] | null {
 const norm = (t: string): string => t.replace(/\r\n?/g, '\n').trim()
 
 export type PasteWhat =
-  | { kind: 'clip'; clip: Clip }
-  | { kind: 'urls'; urls: string[] }
-  | { kind: 'none' }
+  { kind: 'clip'; clip: Clip } | { kind: 'urls'; urls: string[] } | { kind: 'none' }
 
 /**
  * What Ctrl+V means: the held tabs while the system clipboard still has what was put there for them (`system` null:
@@ -121,7 +119,10 @@ export function layoutBoxes(boxes: Array<Box | undefined>): Box[] {
 }
 
 /** How far to shift the boxes so they sit centred on the point, keeping their layout. */
-export function pasteOffset(boxes: Box[], at: { x: number; y: number }): { dx: number; dy: number } {
+export function pasteOffset(
+  boxes: Box[],
+  at: { x: number; y: number }
+): { dx: number; dy: number } {
   const b = boundsOf(boxes)
   if (!b) return { dx: 0, dy: 0 }
   return { dx: Math.round(at.x - (b.x + b.w / 2)), dy: Math.round(at.y - (b.y + b.h / 2)) }
@@ -248,7 +249,8 @@ export function restoreOnBoard(
   )
   if (notes.length === 0 && cards.length === 0) return cur
   const items = { ...cur.items }
-  for (const c of cards) if (before.items[String(c.id)]) items[String(c.id)] = before.items[String(c.id)]
+  for (const c of cards)
+    if (before.items[String(c.id)]) items[String(c.id)] = before.items[String(c.id)]
   const home = <T extends { frame?: string | null }>(x: T): T =>
     x.frame && !frames.has(x.frame) ? { ...x, frame: null } : x
   return {

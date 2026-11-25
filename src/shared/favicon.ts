@@ -29,7 +29,10 @@ export function iconMime(b: Uint8Array): string | null {
   if (at(4, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66)) return 'image/avif'
   if (at(0, 0x42, 0x4d)) return 'image/bmp'
   // SVG: text that starts (after a BOM, spaces, an XML header or comments) with an <svg element
-  const head = new TextDecoder().decode(b.subarray(0, 512)).replace(/^\uFEFF/, '').trimStart()
+  const head = new TextDecoder()
+    .decode(b.subarray(0, 512))
+    .replace(/^\uFEFF/, '')
+    .trimStart()
   if (
     /^(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE svg[^>]*>\s*)?<svg[\s>]/i.test(head)
   )

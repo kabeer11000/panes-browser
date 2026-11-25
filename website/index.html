@@ -1,391 +1,1163 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Panes, a new browser for Windows and Mac</title>
-<meta name="description" content="Panes is a calm, fast browser for Windows and Mac. Every tab can become a card on one canvas, with notes, split view, Spaces, a built-in ad blocker and an assistant that can run on your own computer." />
-<meta name="theme-color" content="#f4f1ec" />
-<meta property="og:title" content="Panes: browse like you think" />
-<meta property="og:description" content="A new browser for Windows and Mac, now in beta. Your tabs, on a canvas." />
-<meta property="og:image" content="clips/TabsToCanvas.jpg" />
-<link rel="icon" href="favicon.ico" />
-<link rel="apple-touch-icon" href="app-icon.png" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css" />
-<script>document.documentElement.classList.add('js')</script>
-</head>
-<body>
-<!-- One sticker drawing, used by the brand mark and every sticker on the page: Panes' icon (a violet tab behind a
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Panes, a new browser for Windows and Mac</title>
+    <meta
+      name="description"
+      content="Panes is a calm, fast browser for Windows and Mac. Every tab can become a card on one canvas, with notes, split view, Spaces, a built-in ad blocker and an assistant that can run on your own computer."
+    />
+    <meta name="theme-color" content="#f4f1ec" />
+    <meta property="og:title" content="Panes: browse like you think" />
+    <meta
+      property="og:description"
+      content="A new browser for Windows and Mac, now in beta. Your tabs, on a canvas."
+    />
+    <meta property="og:image" content="clips/TabsToCanvas.jpg" />
+    <link rel="icon" href="favicon.ico" />
+    <link rel="apple-touch-icon" href="app-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script>
+      document.documentElement.classList.add('js')
+    </script>
+  </head>
+  <body>
+    <!-- One sticker drawing, used by the brand mark and every sticker on the page: Panes' icon (a violet tab behind a
      peach pane) with a white die-cut rim and a gloss that slides across on hover. -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <radialGradient id="pane-fill" cx="50%" cy="38%" r="70%">
-      <stop offset="0" stop-color="#d4717b" />
-      <stop offset="0.55" stop-color="#e78d7c" />
-      <stop offset="1" stop-color="#fbb784" />
-    </radialGradient>
-    <clipPath id="pane-clip"><rect x="92" y="118" width="328" height="190" rx="40" /><rect x="52" y="262" width="408" height="250" rx="44" /></clipPath>
-    <symbol id="sticker" viewBox="0 0 512 560">
-      <g class="rim">
-        <rect x="92" y="118" width="328" height="190" rx="40" fill="#fff" stroke="#fff" stroke-width="56" stroke-linejoin="round" />
-        <rect x="52" y="262" width="408" height="250" rx="44" fill="#fff" stroke="#fff" stroke-width="56" stroke-linejoin="round" />
-      </g>
-      <rect x="92" y="118" width="328" height="190" rx="40" fill="#b57fff" />
-      <rect x="52" y="262" width="408" height="250" rx="44" fill="url(#pane-fill)" />
-      <g clip-path="url(#pane-clip)"><rect class="gloss" x="300" y="-260" width="90" height="900" fill="#fff" opacity="0.32" transform="rotate(32 256 280)" /></g>
-    </symbol>
-  </defs>
-</svg>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <radialGradient id="pane-fill" cx="50%" cy="38%" r="70%">
+          <stop offset="0" stop-color="#d4717b" />
+          <stop offset="0.55" stop-color="#e78d7c" />
+          <stop offset="1" stop-color="#fbb784" />
+        </radialGradient>
+        <clipPath id="pane-clip">
+          <rect x="92" y="118" width="328" height="190" rx="40" />
+          <rect x="52" y="262" width="408" height="250" rx="44" />
+        </clipPath>
+        <symbol id="sticker" viewBox="0 0 512 560">
+          <g class="rim">
+            <rect
+              x="92"
+              y="118"
+              width="328"
+              height="190"
+              rx="40"
+              fill="#fff"
+              stroke="#fff"
+              stroke-width="56"
+              stroke-linejoin="round"
+            />
+            <rect
+              x="52"
+              y="262"
+              width="408"
+              height="250"
+              rx="44"
+              fill="#fff"
+              stroke="#fff"
+              stroke-width="56"
+              stroke-linejoin="round"
+            />
+          </g>
+          <rect x="92" y="118" width="328" height="190" rx="40" fill="#b57fff" />
+          <rect x="52" y="262" width="408" height="250" rx="44" fill="url(#pane-fill)" />
+          <g clip-path="url(#pane-clip)">
+            <rect
+              class="gloss"
+              x="300"
+              y="-260"
+              width="90"
+              height="900"
+              fill="#fff"
+              opacity="0.32"
+              transform="rotate(32 256 280)"
+            />
+          </g>
+        </symbol>
+      </defs>
+    </svg>
 
-<header class="top" id="top">
-  <div class="haze" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-  <div class="wrap">
-    <a class="brand" href="#hero" aria-label="Panes"><span class="badge"><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span>panes</a>
-    <nav aria-label="Primary">
-      <a class="hide" href="#look">Have a look</a>
-      <a class="hide" href="#inside">What's inside</a>
-      <a class="btn" href="#download">Download</a>
-    </nav>
-  </div>
-</header>
-
-<main>
-<div class="journey" id="journey">
-  <section class="hero" id="hero">
-    <div class="wrap">
-      <div class="copy">
-        <p class="eyebrow rise" style="--d:.05s">A new browser for Windows and Mac, now in beta</p>
-        <h1 class="display rise" style="--d:.12s">Browse like you <span class="hl">think.</span></h1>
-        <p class="lede rise" style="--d:.24s">Thirty tabs in a strip, each one a sliver of a favicon. Panes keeps your tabs down the side, and one key lays every one of them out as a card on a canvas, where you can see, sort, scribble on and come back to all of&nbsp;them.</p>
-        <div class="get rise" style="--d:.36s">
-          <a class="btn big" data-dl="primary" href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.95/Panes-setup.exe"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" /></svg><span>Download the beta</span></a>
-          <p class="fine">For Windows 10 and 11, and macOS 12 or later. <a class="alt" data-dl="other" href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.96/Panes-0.1.0-beta.96-mac-arm64.dmg">Also for Mac</a></p>
-        </div>
-        <p class="aside-link rise" style="--d:.44s">Coming from Chrome or Edge? <a href="#moving">Bring everything over in one go.</a></p>
+    <header class="top" id="top">
+      <div class="haze" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="wrap">
+        <a class="brand" href="#hero" aria-label="Panes"
+          ><span class="badge"
+            ><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span
+          >panes</a
+        >
+        <nav aria-label="Primary">
+          <a class="hide" href="#look">Have a look</a>
+          <a class="hide" href="#inside">What's inside</a>
+          <a class="btn" href="#download">Download</a>
+        </nav>
       </div>
-    </div>
-    <div class="map" id="map">
-      <div class="dots" aria-hidden="true"></div>
-      <figure class="stop lead"><div class="shot"><video muted loop playsinline preload="auto" poster="clips/TabsToCanvas.jpg" src="clips/TabsToCanvas.mp4" aria-label="Panes' canvas button pressed: every tab in the sidebar flies out and lands as a card on one board"></video></div></figure>
-    </div>
-    <div class="stickers" id="stickers" aria-hidden="true">
-      <span class="sticker" data-k="a" style="--w:118px; --x:61%; --y:15%; --r:-9deg"><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span>
-      <span class="sticker" data-k="b" style="--w:92px; --x:91%; --y:72%; --r:11deg"><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span>
-      <span class="sticker" data-k="c" style="--w:74px; --x:54%; --y:80%; --r:-4deg"><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span>
-    </div>
-    <p class="hint" id="hint" aria-hidden="true">
-      <svg viewBox="0 0 20 20"><path d="M7 9V4.5a1.5 1.5 0 0 1 3 0V9m0-1V3.5a1.5 1.5 0 0 1 3 0V9m0-.5a1.5 1.5 0 0 1 3 0V12a6 6 0 0 1-6 6h-.6a5 5 0 0 1-4.2-2.3L3 12.3a1.5 1.5 0 0 1 2.4-1.8L7 12" /></svg>
-      <span class="say">Go on, move one. It'll stay where you leave it.</span>
-      <button type="button" class="reset" hidden>Put them back</button>
-    </p>
-  </section>
+    </header>
 
-  <!-- The walk: one clip and its words at a time, joined by a dotted trail that starts at the hero's clip.
+    <main>
+      <div class="journey" id="journey">
+        <section class="hero" id="hero">
+          <div class="wrap">
+            <div class="copy">
+              <p class="eyebrow rise" style="--d: 0.05s">
+                A new browser for Windows and Mac, now in beta
+              </p>
+              <h1 class="display rise" style="--d: 0.12s">
+                Browse like you <span class="hl">think.</span>
+              </h1>
+              <p class="lede rise" style="--d: 0.24s">
+                Thirty tabs in a strip, each one a sliver of a favicon. Panes keeps your tabs down
+                the side, and one key lays every one of them out as a card on a canvas, where you
+                can see, sort, scribble on and come back to all of&nbsp;them.
+              </p>
+              <div class="get rise" style="--d: 0.36s">
+                <a
+                  class="btn big"
+                  data-dl="primary"
+                  href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.95/Panes-setup.exe"
+                  ><svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10 3v10m0 0-4-4m4 4 4-4M4 16h12" /></svg
+                  ><span>Download the beta</span></a
+                >
+                <p class="fine">
+                  For Windows 10 and 11, and macOS 12 or later.
+                  <a
+                    class="alt"
+                    data-dl="other"
+                    href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.96/Panes-0.1.0-beta.96-mac-arm64.dmg"
+                    >Also for Mac</a
+                  >
+                </p>
+              </div>
+              <p class="aside-link rise" style="--d: 0.44s">
+                Coming from Chrome or Edge? <a href="#moving">Bring everything over in one go.</a>
+              </p>
+            </div>
+          </div>
+          <div class="map" id="map">
+            <div class="dots" aria-hidden="true"></div>
+            <figure class="stop lead">
+              <div class="shot">
+                <video
+                  muted
+                  loop
+                  playsinline
+                  preload="auto"
+                  poster="clips/TabsToCanvas.jpg"
+                  src="clips/TabsToCanvas.mp4"
+                  aria-label="Panes' canvas button pressed: every tab in the sidebar flies out and lands as a card on one board"
+                ></video>
+              </div>
+            </figure>
+          </div>
+          <div class="stickers" id="stickers" aria-hidden="true">
+            <span class="sticker" data-k="a" style="--w: 118px; --x: 61%; --y: 15%; --r: -9deg"
+              ><svg viewBox="0 0 512 560"><use href="#sticker" /></svg
+            ></span>
+            <span class="sticker" data-k="b" style="--w: 92px; --x: 91%; --y: 72%; --r: 11deg"
+              ><svg viewBox="0 0 512 560"><use href="#sticker" /></svg
+            ></span>
+            <span class="sticker" data-k="c" style="--w: 74px; --x: 54%; --y: 80%; --r: -4deg"
+              ><svg viewBox="0 0 512 560"><use href="#sticker" /></svg
+            ></span>
+          </div>
+          <p class="hint" id="hint" aria-hidden="true">
+            <svg viewBox="0 0 20 20">
+              <path
+                d="M7 9V4.5a1.5 1.5 0 0 1 3 0V9m0-1V3.5a1.5 1.5 0 0 1 3 0V9m0-.5a1.5 1.5 0 0 1 3 0V12a6 6 0 0 1-6 6h-.6a5 5 0 0 1-4.2-2.3L3 12.3a1.5 1.5 0 0 1 2.4-1.8L7 12"
+              />
+            </svg>
+            <span class="say">Go on, move one. It'll stay where you leave it.</span>
+            <button type="button" class="reset" hidden>Put them back</button>
+          </p>
+        </section>
+
+        <!-- The walk: one clip and its words at a time, joined by a dotted trail that starts at the hero's clip.
        Each clip is clips/<Shot>.mp4 with a poster beside it, rendered from the feature film (../panes-video). -->
-  <section id="look" class="walk" aria-label="A look around Panes">
-    <div class="wrap">
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Spaces.jpg" src="clips/Spaces.mp4" aria-label="Switching Spaces in Panes: each one floods the window with its own colour and its own tabs"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">Spaces</p>
-          <h2 class="display">A place for each part of your day.</h2>
-          <p>Work, home, the thesis. Each Space keeps its own tabs, its own colour and, if you like, its own logins, so the two halves of your life can be signed in to the same site as different people. <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>1</kbd> to <kbd>9</kbd> hops between them.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Notes.jpg" src="clips/Notes.mp4" aria-label="Notes, sticky cards and ink drawn straight onto Panes' canvas, beside the pages they are about"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">The canvas</p>
-          <h2 class="display">Think right on the page.</h2>
-          <p><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>K</kbd> turns your tabs into cards on one board, grouped by topic. Write notes beside them, draw arrows between them, and open any card to use it live.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Overview.jpg" src="clips/Overview.mp4" aria-label="Pulling far out on Panes' canvas until every section of the board is in view, then diving back in"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">Overview</p>
-          <h2 class="display">See everything at once.</h2>
-          <p>Pinch or scroll out and the whole board fits the window, every section named. Click one and you're back in, right where it is.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Live.jpg" src="clips/Live.mp4" aria-label="A video playing inside a card on the canvas opens to fill the window without missing a frame"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">Live cards</p>
-          <h2 class="display">It keeps playing.</h2>
-          <p>A card isn't a screenshot. The video carries on as you move around the board, and opens to fill the window without skipping a beat. Long ones can float off into picture in picture.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Search.jpg" src="clips/Search.mp4" aria-label="Typing a few letters into Panes' search: the tab that is already open jumps to the top"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">Find anything</p>
-          <h2 class="display">Half a word is enough.</h2>
-          <p>Type a few letters and Panes finishes the site name, then offers searches, your history and the tabs you already have open, so you go back to a page instead of opening it twice.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Restore.jpg" src="clips/Restore.mp4" aria-label="Panes quits and relaunches, and every card comes back at once"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">Right where you left it</p>
-          <h2 class="display">Quit. Reopen. All there.</h2>
-          <p>Close Panes, restart the computer, come back next week. Your tabs, cards and notes are there, and <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>T</kbd> brings back the ones you closed.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Split.jpg" src="clips/Split.mp4" aria-label="Tabs dragged onto the page in Panes, splitting it into panes side by side"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">Split view</p>
-          <h2 class="display">Split it any way you like.</h2>
-          <p>Drop a tab on the page, or press <kbd>Ctrl</kbd> <kbd>\</kbd>. Drag the divider to give either side the room it needs. Every pane stays live.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Privacy.jpg" src="clips/Privacy.mp4" aria-label="A private tab and a Tor tab opened among ordinary tabs, then the built-in ad blocker counting what it stopped"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">Private by design</p>
-          <h2 class="display">Nobody's business.</h2>
-          <p>Ads and trackers are blocked from the first page, with no extension to install. Open a private tab when you want one, or a Tor tab when you want more, right beside the rest.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Agent.jpg" src="clips/Agent.mp4" aria-label="Asking Panes' assistant to play some music and find flights: it opens the sites, does the steps and asks before it books"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">The assistant</p>
-          <h2 class="display">Just ask.</h2>
-          <p><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>L</kbd> opens a chat that reads the page you're on. Ask it to find something, or to go and do it: it opens the sites and works through the steps.</p>
-          <p class="note">It stops and asks before anything that matters, like paying.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/AiTidy.jpg" src="clips/AiTidy.mp4" aria-label="Panes' canvas regrouped by meaning: cards glide into named sections"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">Tidy</p>
-          <h2 class="display">Sorted by what it's about.</h2>
-          <p>One click groups the canvas by meaning. Recipes find recipes, flights find flights, and every group gets a name you'd have picked yourself.</p>
-        </div>
-      </div>
-      <div class="leg">
-        <figure class="stop"><div class="shot"><video muted loop playsinline preload="none" poster="clips/Lock.jpg" src="clips/Lock.mp4" aria-label="The models Panes can use: this computer, ChatGPT, Gemini, OpenRouter, or your own server"></video></div></figure>
-        <div class="words reveal">
-          <p class="eyebrow">Your model, your call</p>
-          <h2 class="display">On device. Or bring your own.</h2>
-          <p>The assistant can run entirely on this computer. Or plug in ChatGPT, Gemini, OpenRouter or a server of your own. Panes works fine with none of them.</p>
-        </div>
-      </div>
-    </div>
-  </section>
+        <section id="look" class="walk" aria-label="A look around Panes">
+          <div class="wrap">
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Spaces.jpg"
+                    src="clips/Spaces.mp4"
+                    aria-label="Switching Spaces in Panes: each one floods the window with its own colour and its own tabs"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">Spaces</p>
+                <h2 class="display">A place for each part of your day.</h2>
+                <p>
+                  Work, home, the thesis. Each Space keeps its own tabs, its own colour and, if you
+                  like, its own logins, so the two halves of your life can be signed in to the same
+                  site as different people. <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>1</kbd> to
+                  <kbd>9</kbd> hops between them.
+                </p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Notes.jpg"
+                    src="clips/Notes.mp4"
+                    aria-label="Notes, sticky cards and ink drawn straight onto Panes' canvas, beside the pages they are about"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">The canvas</p>
+                <h2 class="display">Think right on the page.</h2>
+                <p>
+                  <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>K</kbd> turns your tabs into cards on one
+                  board, grouped by topic. Write notes beside them, draw arrows between them, and
+                  open any card to use it live.
+                </p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Overview.jpg"
+                    src="clips/Overview.mp4"
+                    aria-label="Pulling far out on Panes' canvas until every section of the board is in view, then diving back in"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">Overview</p>
+                <h2 class="display">See everything at once.</h2>
+                <p>
+                  Pinch or scroll out and the whole board fits the window, every section named.
+                  Click one and you're back in, right where it is.
+                </p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Live.jpg"
+                    src="clips/Live.mp4"
+                    aria-label="A video playing inside a card on the canvas opens to fill the window without missing a frame"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">Live cards</p>
+                <h2 class="display">It keeps playing.</h2>
+                <p>
+                  A card isn't a screenshot. The video carries on as you move around the board, and
+                  opens to fill the window without skipping a beat. Long ones can float off into
+                  picture in picture.
+                </p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Search.jpg"
+                    src="clips/Search.mp4"
+                    aria-label="Typing a few letters into Panes' search: the tab that is already open jumps to the top"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">Find anything</p>
+                <h2 class="display">Half a word is enough.</h2>
+                <p>
+                  Type a few letters and Panes finishes the site name, then offers searches, your
+                  history and the tabs you already have open, so you go back to a page instead of
+                  opening it twice.
+                </p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Restore.jpg"
+                    src="clips/Restore.mp4"
+                    aria-label="Panes quits and relaunches, and every card comes back at once"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">Right where you left it</p>
+                <h2 class="display">Quit. Reopen. All there.</h2>
+                <p>
+                  Close Panes, restart the computer, come back next week. Your tabs, cards and notes
+                  are there, and <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>T</kbd> brings back the ones
+                  you closed.
+                </p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Split.jpg"
+                    src="clips/Split.mp4"
+                    aria-label="Tabs dragged onto the page in Panes, splitting it into panes side by side"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">Split view</p>
+                <h2 class="display">Split it any way you like.</h2>
+                <p>
+                  Drop a tab on the page, or press <kbd>Ctrl</kbd> <kbd>\</kbd>. Drag the divider to
+                  give either side the room it needs. Every pane stays live.
+                </p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Privacy.jpg"
+                    src="clips/Privacy.mp4"
+                    aria-label="A private tab and a Tor tab opened among ordinary tabs, then the built-in ad blocker counting what it stopped"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">Private by design</p>
+                <h2 class="display">Nobody's business.</h2>
+                <p>
+                  Ads and trackers are blocked from the first page, with no extension to install.
+                  Open a private tab when you want one, or a Tor tab when you want more, right
+                  beside the rest.
+                </p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Agent.jpg"
+                    src="clips/Agent.mp4"
+                    aria-label="Asking Panes' assistant to play some music and find flights: it opens the sites, does the steps and asks before it books"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">The assistant</p>
+                <h2 class="display">Just ask.</h2>
+                <p>
+                  <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>L</kbd> opens a chat that reads the page
+                  you're on. Ask it to find something, or to go and do it: it opens the sites and
+                  works through the steps.
+                </p>
+                <p class="note">It stops and asks before anything that matters, like paying.</p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/AiTidy.jpg"
+                    src="clips/AiTidy.mp4"
+                    aria-label="Panes' canvas regrouped by meaning: cards glide into named sections"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">Tidy</p>
+                <h2 class="display">Sorted by what it's about.</h2>
+                <p>
+                  One click groups the canvas by meaning. Recipes find recipes, flights find
+                  flights, and every group gets a name you'd have picked yourself.
+                </p>
+              </div>
+            </div>
+            <div class="leg">
+              <figure class="stop">
+                <div class="shot">
+                  <video
+                    muted
+                    loop
+                    playsinline
+                    preload="none"
+                    poster="clips/Lock.jpg"
+                    src="clips/Lock.mp4"
+                    aria-label="The models Panes can use: this computer, ChatGPT, Gemini, OpenRouter, or your own server"
+                  ></video>
+                </div>
+              </figure>
+              <div class="words reveal">
+                <p class="eyebrow">Your model, your call</p>
+                <h2 class="display">On device. Or bring your own.</h2>
+                <p>
+                  The assistant can run entirely on this computer. Or plug in ChatGPT, Gemini,
+                  OpenRouter or a server of your own. Panes works fine with none of them.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
 
-  <svg class="jtrails" id="jtrails" aria-hidden="true">
-    <defs><mask id="jmask" maskUnits="userSpaceOnUse"><path class="jdraw" id="jdraw" /></mask></defs>
-    <path class="jtrail ahead" id="jahead" />
-    <path class="jtrail" id="jwalked" mask="url(#jmask)" />
-  </svg>
-  <div class="pin" id="jpin" aria-hidden="true"><b>You are here</b><i></i></div>
-</div>
+        <svg class="jtrails" id="jtrails" aria-hidden="true">
+          <defs>
+            <mask id="jmask" maskUnits="userSpaceOnUse"><path class="jdraw" id="jdraw" /></mask>
+          </defs>
+          <path class="jtrail ahead" id="jahead" />
+          <path class="jtrail" id="jwalked" mask="url(#jmask)" />
+        </svg>
+        <div class="pin" id="jpin" aria-hidden="true"><b>You are here</b><i></i></div>
+      </div>
 
-<!-- For people moving over from another browser: what carries over, row by row. List only what Panes really has. -->
-<section id="moving" class="band">
-  <div class="wrap">
-    <div class="head reveal">
-      <div>
-        <p class="eyebrow">Coming from Chrome?</p>
-        <h2 class="display">Your stuff comes with you.</h2>
-      </div>
-      <p class="aside">Panes brings over what you had from Chrome, Edge, Brave, Firefox, Vivaldi, Opera, Zen or LibreWolf, then gives every tab a bit more room.</p>
-    </div>
-    <ul class="moves reveal">
-      <li class="key" aria-hidden="true"><span>Before</span><span>In Panes</span></li>
-      <li><span class="from"><span class="vh">Before: </span>Bookmarks, history, search engine</span><b><span class="vh">In Panes: </span>Import, in one go</b><p>Pick the browser on the welcome screen and it's all brought across, read straight from the other browser's own files.</p></li>
-      <li><span class="from"><span class="vh">Before: </span>The tabs you had open</span><b><span class="vh">In Panes: </span>One tidy group</b><p>Your open tabs arrive as a group named after the old browser, asleep until you click one.</p></li>
-      <li><span class="from"><span class="vh">Before: </span>Saved passwords</span><b><span class="vh">In Panes: </span>A guided export</b><p>Panes never digs passwords out of another browser. It shows you where to export them, then takes the file.</p></li>
-      <li><span class="from"><span class="vh">Before: </span>Profiles</span><b><span class="vh">In Panes: </span>Spaces</b><p>Each with its own tabs, colour and, if you want, its own logins. <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>1</kbd> to <kbd>9</kbd> switches.</p></li>
-      <li><span class="from"><span class="vh">Before: </span>The tab strip</span><b><span class="vh">In Panes: </span>Vertical tabs, or the canvas</b><p>Titles you can read, down the side. <kbd>Ctrl</kbd> <kbd>B</kbd> tucks them away, <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>K</kbd> lays them all out as cards.</p></li>
-      <li><span class="from"><span class="vh">Before: </span>Tab groups</span><b><span class="vh">In Panes: </span>Groups</b><p><kbd>Ctrl</kbd> <kbd>G</kbd> groups the tabs you've picked, and the canvas sorts them by topic for you.</p></li>
-      <li><span class="from"><span class="vh">Before: </span>An ad-blocking extension</span><b><span class="vh">In Panes: </span>Built in</b><p>The same lists the big blockers use, kept up to date every day. Nothing to install.</p></li>
-      <li><span class="from"><span class="vh">Before: </span>Incognito</span><b><span class="vh">In Panes: </span>Private tabs, and Tor</b><p><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>N</kbd> for a private tab. A Tor tab when private isn't enough.</p></li>
-      <li><span class="from"><span class="vh">Before: </span>A split-screen extension</span><b><span class="vh">In Panes: </span><span class="hl">Split view</span></b><p>Drop a tab on the page or press <kbd>Ctrl</kbd> <kbd>\</kbd>.</p></li>
-    </ul>
-  </div>
-</section>
-
-<section id="inside">
-  <div class="wrap">
-    <div class="head reveal">
-      <div>
-        <p class="eyebrow">The whole lot</p>
-        <h2 class="display">What's inside.</h2>
-      </div>
-      <p class="aside">Everything built so far, from the basics you'd expect to the things only Panes does. Pick a tab.</p>
-    </div>
-    <div class="board reveal">
-      <div class="board-head">
-        <span class="brand"><span class="badge"><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span>panes</span>
-        <small>Everything inside<br>Beta, 2026</small>
-      </div>
-      <!-- Vertical tabs: each turns the board to its list. Edit a list's features here; the counts follow. -->
-      <div class="inner">
-        <div class="vtabs" role="tablist" aria-label="Features" aria-orientation="vertical">
-          <button class="vtab" type="button" role="tab" id="t-canvas" aria-controls="p-canvas" aria-selected="true"><i style="--c:#b57fff"></i><span>The canvas</span><b class="count"></b></button>
-          <button class="vtab" type="button" role="tab" id="t-tabs" aria-controls="p-tabs" aria-selected="false"><i style="--c:#6e7bff"></i><span>Tabs &amp; split</span><b class="count"></b></button>
-          <button class="vtab" type="button" role="tab" id="t-spaces" aria-controls="p-spaces" aria-selected="false"><i style="--c:#e5754c"></i><span>Spaces</span><b class="count"></b></button>
-          <button class="vtab" type="button" role="tab" id="t-ask" aria-controls="p-ask" aria-selected="false"><i style="--c:#2bb3a3"></i><span>The assistant</span><b class="count"></b></button>
-          <button class="vtab" type="button" role="tab" id="t-private" aria-controls="p-private" aria-selected="false"><i style="--c:#d0a33a"></i><span>Private by design</span><b class="count"></b></button>
-          <button class="vtab" type="button" role="tab" id="t-everyday" aria-controls="p-everyday" aria-selected="false"><i style="--c:#ff7ac8"></i><span>Everyday</span><b class="count"></b></button>
-          <button class="vtab" type="button" role="tab" id="t-windows" aria-controls="p-windows" aria-selected="false"><i style="--c:#7ab4ff"></i><span>Fast and light</span><b class="count"></b></button>
+      <!-- For people moving over from another browser: what carries over, row by row. List only what Panes really has. -->
+      <section id="moving" class="band">
+        <div class="wrap">
+          <div class="head reveal">
+            <div>
+              <p class="eyebrow">Coming from Chrome?</p>
+              <h2 class="display">Your stuff comes with you.</h2>
+            </div>
+            <p class="aside">
+              Panes brings over what you had from Chrome, Edge, Brave, Firefox, Vivaldi, Opera, Zen
+              or LibreWolf, then gives every tab a bit more room.
+            </p>
+          </div>
+          <ul class="moves reveal">
+            <li class="key" aria-hidden="true"><span>Before</span><span>In Panes</span></li>
+            <li>
+              <span class="from"
+                ><span class="vh">Before: </span>Bookmarks, history, search engine</span
+              ><b><span class="vh">In Panes: </span>Import, in one go</b>
+              <p>
+                Pick the browser on the welcome screen and it's all brought across, read straight
+                from the other browser's own files.
+              </p>
+            </li>
+            <li>
+              <span class="from"><span class="vh">Before: </span>The tabs you had open</span
+              ><b><span class="vh">In Panes: </span>One tidy group</b>
+              <p>
+                Your open tabs arrive as a group named after the old browser, asleep until you click
+                one.
+              </p>
+            </li>
+            <li>
+              <span class="from"><span class="vh">Before: </span>Saved passwords</span
+              ><b><span class="vh">In Panes: </span>A guided export</b>
+              <p>
+                Panes never digs passwords out of another browser. It shows you where to export
+                them, then takes the file.
+              </p>
+            </li>
+            <li>
+              <span class="from"><span class="vh">Before: </span>Profiles</span
+              ><b><span class="vh">In Panes: </span>Spaces</b>
+              <p>
+                Each with its own tabs, colour and, if you want, its own logins. <kbd>Ctrl</kbd>
+                <kbd>Alt</kbd> <kbd>1</kbd> to <kbd>9</kbd> switches.
+              </p>
+            </li>
+            <li>
+              <span class="from"><span class="vh">Before: </span>The tab strip</span
+              ><b><span class="vh">In Panes: </span>Vertical tabs, or the canvas</b>
+              <p>
+                Titles you can read, down the side. <kbd>Ctrl</kbd> <kbd>B</kbd> tucks them away,
+                <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>K</kbd> lays them all out as cards.
+              </p>
+            </li>
+            <li>
+              <span class="from"><span class="vh">Before: </span>Tab groups</span
+              ><b><span class="vh">In Panes: </span>Groups</b>
+              <p>
+                <kbd>Ctrl</kbd> <kbd>G</kbd> groups the tabs you've picked, and the canvas sorts
+                them by topic for you.
+              </p>
+            </li>
+            <li>
+              <span class="from"><span class="vh">Before: </span>An ad-blocking extension</span
+              ><b><span class="vh">In Panes: </span>Built in</b>
+              <p>
+                The same lists the big blockers use, kept up to date every day. Nothing to install.
+              </p>
+            </li>
+            <li>
+              <span class="from"><span class="vh">Before: </span>Incognito</span
+              ><b><span class="vh">In Panes: </span>Private tabs, and Tor</b>
+              <p>
+                <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>N</kbd> for a private tab. A Tor tab when
+                private isn't enough.
+              </p>
+            </li>
+            <li>
+              <span class="from"><span class="vh">Before: </span>A split-screen extension</span
+              ><b><span class="vh">In Panes: </span><span class="hl">Split view</span></b>
+              <p>Drop a tab on the page or press <kbd>Ctrl</kbd> <kbd>\</kbd>.</p>
+            </li>
+          </ul>
         </div>
-        <div class="panels">
-          <div class="panel-list on" role="tabpanel" id="p-canvas" aria-labelledby="t-canvas" tabindex="0">
-            <p class="blurb">Every tab you have open, laid out where you can see it, sort it and think next to it.</p>
-            <ul class="ways">
-              <li><h3>Every tab is a card <kbd>Ctrl Shift K</kbd></h3><p>One key turns the sidebar into a board. Each card shows its page as you left it.</p></li>
-              <li><h3>Grouped by topic</h3><p>Cards land in named sections, and you can drag them anywhere you like after that.</p></li>
-              <li><h3>Notes and ink</h3><p>Write on the board beside your pages, draw arrows, circle things. It's your desk, not a list.</p></li>
-              <li><h3>Live, not a picture</h3><p>Open a card to use the page for real. A video keeps playing as you move around the board.</p></li>
-              <li><h3>See it all</h3><p>Pull out and the whole board fits the window, every section named. Click one to dive back in.</p></li>
-              <li><h3>Find a card as you type <kbd>Ctrl F</kbd></h3><p>On the board, start typing and the matching cards light up.</p></li>
-              <li><h3>Tidy by meaning</h3><p>Let the assistant regroup the board by what each page is about, and name the groups.</p></li>
-              <li><h3>Kept on disk</h3><p>Quit and reopen, and every card, note and section is back at once.</p></li>
+      </section>
+
+      <section id="inside">
+        <div class="wrap">
+          <div class="head reveal">
+            <div>
+              <p class="eyebrow">The whole lot</p>
+              <h2 class="display">What's inside.</h2>
+            </div>
+            <p class="aside">
+              Everything built so far, from the basics you'd expect to the things only Panes does.
+              Pick a tab.
+            </p>
+          </div>
+          <div class="board reveal">
+            <div class="board-head">
+              <span class="brand"
+                ><span class="badge"
+                  ><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span
+                >panes</span
+              >
+              <small>Everything inside<br />Beta, 2026</small>
+            </div>
+            <!-- Vertical tabs: each turns the board to its list. Edit a list's features here; the counts follow. -->
+            <div class="inner">
+              <div class="vtabs" role="tablist" aria-label="Features" aria-orientation="vertical">
+                <button
+                  class="vtab"
+                  type="button"
+                  role="tab"
+                  id="t-canvas"
+                  aria-controls="p-canvas"
+                  aria-selected="true"
+                >
+                  <i style="--c: #b57fff"></i><span>The canvas</span><b class="count"></b>
+                </button>
+                <button
+                  class="vtab"
+                  type="button"
+                  role="tab"
+                  id="t-tabs"
+                  aria-controls="p-tabs"
+                  aria-selected="false"
+                >
+                  <i style="--c: #6e7bff"></i><span>Tabs &amp; split</span><b class="count"></b>
+                </button>
+                <button
+                  class="vtab"
+                  type="button"
+                  role="tab"
+                  id="t-spaces"
+                  aria-controls="p-spaces"
+                  aria-selected="false"
+                >
+                  <i style="--c: #e5754c"></i><span>Spaces</span><b class="count"></b>
+                </button>
+                <button
+                  class="vtab"
+                  type="button"
+                  role="tab"
+                  id="t-ask"
+                  aria-controls="p-ask"
+                  aria-selected="false"
+                >
+                  <i style="--c: #2bb3a3"></i><span>The assistant</span><b class="count"></b>
+                </button>
+                <button
+                  class="vtab"
+                  type="button"
+                  role="tab"
+                  id="t-private"
+                  aria-controls="p-private"
+                  aria-selected="false"
+                >
+                  <i style="--c: #d0a33a"></i><span>Private by design</span><b class="count"></b>
+                </button>
+                <button
+                  class="vtab"
+                  type="button"
+                  role="tab"
+                  id="t-everyday"
+                  aria-controls="p-everyday"
+                  aria-selected="false"
+                >
+                  <i style="--c: #ff7ac8"></i><span>Everyday</span><b class="count"></b>
+                </button>
+                <button
+                  class="vtab"
+                  type="button"
+                  role="tab"
+                  id="t-windows"
+                  aria-controls="p-windows"
+                  aria-selected="false"
+                >
+                  <i style="--c: #7ab4ff"></i><span>Fast and light</span><b class="count"></b>
+                </button>
+              </div>
+              <div class="panels">
+                <div
+                  class="panel-list on"
+                  role="tabpanel"
+                  id="p-canvas"
+                  aria-labelledby="t-canvas"
+                  tabindex="0"
+                >
+                  <p class="blurb">
+                    Every tab you have open, laid out where you can see it, sort it and think next
+                    to it.
+                  </p>
+                  <ul class="ways">
+                    <li>
+                      <h3>Every tab is a card <kbd>Ctrl Shift K</kbd></h3>
+                      <p>
+                        One key turns the sidebar into a board. Each card shows its page as you left
+                        it.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Grouped by topic</h3>
+                      <p>
+                        Cards land in named sections, and you can drag them anywhere you like after
+                        that.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Notes and ink</h3>
+                      <p>
+                        Write on the board beside your pages, draw arrows, circle things. It's your
+                        desk, not a list.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Live, not a picture</h3>
+                      <p>
+                        Open a card to use the page for real. A video keeps playing as you move
+                        around the board.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>See it all</h3>
+                      <p>
+                        Pull out and the whole board fits the window, every section named. Click one
+                        to dive back in.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Find a card as you type <kbd>Ctrl F</kbd></h3>
+                      <p>On the board, start typing and the matching cards light up.</p>
+                    </li>
+                    <li>
+                      <h3>Tidy by meaning</h3>
+                      <p>
+                        Let the assistant regroup the board by what each page is about, and name the
+                        groups.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Kept on disk</h3>
+                      <p>Quit and reopen, and every card, note and section is back at once.</p>
+                    </li>
+                  </ul>
+                </div>
+                <div
+                  class="panel-list"
+                  role="tabpanel"
+                  id="p-tabs"
+                  aria-labelledby="t-tabs"
+                  tabindex="0"
+                >
+                  <p class="blurb">
+                    Tabs down the side, with titles you can read, and as many pages on screen as you
+                    need.
+                  </p>
+                  <ul class="ways">
+                    <li>
+                      <h3>Vertical tabs</h3>
+                      <p>
+                        Drag to reorder. Fold the whole strip away with <kbd>Ctrl B</kbd> and it
+                        peeks out when you need it.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Flick through <kbd>Ctrl Tab</kbd></h3>
+                      <p>Fly through your tabs without reaching for the mouse.</p>
+                    </li>
+                    <li>
+                      <h3>Split view <kbd>Ctrl \</kbd></h3>
+                      <p>
+                        Drop a tab on the page to put two side by side, or more. Drag the divider to
+                        resize.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>All tabs at once <kbd>Ctrl Shift A</kbd></h3>
+                      <p>Every open tab in one grid, to pick from or close in bulk.</p>
+                    </li>
+                    <li>
+                      <h3>Groups <kbd>Ctrl G</kbd></h3>
+                      <p>
+                        Put related tabs under one name and colour, and fold them away together.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Closed by mistake <kbd>Ctrl Shift T</kbd></h3>
+                      <p>Brings back the tabs you closed, even after a restart.</p>
+                    </li>
+                    <li>
+                      <h3>Quiet tabs sleep</h3>
+                      <p>
+                        Tabs you haven't touched in a while let go of their memory, and wake when
+                        you click them.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>A tab that only downloads</h3>
+                      <p>
+                        closes itself once the file has started, so you're not left with a blank
+                        one.
+                      </p>
+                    </li>
+                  </ul>
+                </div>
+                <div
+                  class="panel-list"
+                  role="tabpanel"
+                  id="p-spaces"
+                  aria-labelledby="t-spaces"
+                  tabindex="0"
+                >
+                  <p class="blurb">
+                    Separate places for separate parts of life, each with its own tabs and its own
+                    look.
+                  </p>
+                  <ul class="ways">
+                    <li>
+                      <h3>Tabs that stay put</h3>
+                      <p>
+                        Each Space keeps its own tabs and groups. Switching never mixes them up.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Its own colour</h3>
+                      <p>
+                        The whole window takes on the Space's colour, so you always know where you
+                        are.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Separate logins, if you want</h3>
+                      <p>
+                        Be signed in to the same site as two different people, one in each Space.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Hop between them <kbd>Ctrl Alt 1–9</kbd></h3>
+                      <p>
+                        Or click a Space in the sidebar. Right-click one to rename it or change its
+                        colour.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>A board per Space</h3>
+                      <p>The canvas shows the Space you're in, so work stays on the work board.</p>
+                    </li>
+                  </ul>
+                </div>
+                <div
+                  class="panel-list"
+                  role="tabpanel"
+                  id="p-ask"
+                  aria-labelledby="t-ask"
+                  tabindex="0"
+                >
+                  <p class="blurb">
+                    An assistant that knows what's on the page, and can run on your own computer.
+                  </p>
+                  <ul class="ways">
+                    <li>
+                      <h3>Ask about the page <kbd>Ctrl Shift L</kbd></h3>
+                      <p>
+                        The chat reads the page you're on, so you can ask what it says without
+                        copying a thing.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Ask it to do it</h3>
+                      <p>
+                        It opens the sites and works through the steps for you, and asks first
+                        before anything that matters.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Tidy a page</h3>
+                      <p>
+                        Ask for just the recipe, just the table or just the steps, and the page is
+                        cut down to that.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Group the board by meaning</h3>
+                      <p>
+                        One click sorts your cards into named sections by what each page is about.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>On this computer</h3>
+                      <p>Run a model locally, and nothing you ask leaves the machine.</p>
+                    </li>
+                    <li>
+                      <h3>Or bring your own</h3>
+                      <p>
+                        ChatGPT, Gemini, OpenRouter, or a server of your own. Or switch it all off.
+                      </p>
+                    </li>
+                  </ul>
+                </div>
+                <div
+                  class="panel-list"
+                  role="tabpanel"
+                  id="p-private"
+                  aria-labelledby="t-private"
+                  tabindex="0"
+                >
+                  <p class="blurb">
+                    The web, without the people watching it. Most of this is on before you change a
+                    setting.
+                  </p>
+                  <ul class="ways">
+                    <li>
+                      <h3>Ads blocked, built in</h3>
+                      <p>
+                        uBlock Origin's and EasyList's lists, refreshed every day, with no extension
+                        to install.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Private tabs <kbd>Ctrl Shift N</kbd></h3>
+                      <p>
+                        Nothing saved, nothing remembered, sitting right beside your ordinary tabs.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Tor tabs</h3>
+                      <p>
+                        When private isn't enough, open a tab that goes through the Tor network.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>You decide, per site</h3>
+                      <p>
+                        Location, camera, microphone and notifications are asked for once, and can
+                        be taken back any time from the site panel.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Kept on your computer</h3>
+                      <p>
+                        History, bookmarks and settings live on your machine. There's no account to
+                        make.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>One process per tab</h3>
+                      <p>
+                        A page that misbehaves stays in its own box and can't take the others down.
+                      </p>
+                    </li>
+                  </ul>
+                </div>
+                <div
+                  class="panel-list"
+                  role="tabpanel"
+                  id="p-everyday"
+                  aria-labelledby="t-everyday"
+                  tabindex="0"
+                >
+                  <p class="blurb">
+                    The things a browser has to get right, done with the same care as the rest.
+                  </p>
+                  <ul class="ways">
+                    <li>
+                      <h3>Reader mode <kbd>Ctrl Shift E</kbd></h3>
+                      <p>Just the words and pictures, set for reading.</p>
+                    </li>
+                    <li>
+                      <h3>Passwords and passkeys</h3>
+                      <p>
+                        Saved and filled in for you, with a guided import from your old browser.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Picture in picture</h3>
+                      <p>Long videos keep playing in a corner while you get on with it.</p>
+                    </li>
+                    <li>
+                      <h3>Find in page <kbd>Ctrl F</kbd></h3>
+                      <p>Quick, with every match counted.</p>
+                    </li>
+                    <li>
+                      <h3>Downloads <kbd>Ctrl J</kbd></h3>
+                      <p>Files land in a bin at the bottom right, ready to open or drag out.</p>
+                    </li>
+                    <li>
+                      <h3>History and bookmarks <kbd>Ctrl H</kbd></h3>
+                      <p>
+                        Proper pages of their own, not an afterthought. <kbd>Ctrl D</kbd> bookmarks
+                        the page.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>PDFs and printing</h3>
+                      <p>Open PDFs right in a tab, and print with a clear preview.</p>
+                    </li>
+                    <li>
+                      <h3>A tour that waits for you</h3>
+                      <p>
+                        Five short stops, and you do each one yourself. Type "tour" in the address
+                        bar to take it again.
+                      </p>
+                    </li>
+                  </ul>
+                </div>
+                <div
+                  class="panel-list"
+                  role="tabpanel"
+                  id="p-windows"
+                  aria-labelledby="t-windows"
+                  tabindex="0"
+                >
+                  <p class="blurb">
+                    Built for the touchpads, screens and habits people really have, on Windows and
+                    on the Mac.
+                  </p>
+                  <ul class="ways">
+                    <li>
+                      <h3>Touchpad gestures</h3>
+                      <p>
+                        Swipe with two fingers to go back and forward, and pinch the canvas in and
+                        out.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Updates itself, in the background</h3>
+                      <p>
+                        Most updates are a small download that's ready next time you open Panes. No
+                        installer to click through.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Starts fast</h3>
+                      <p>
+                        The window is up and themed before the first page has finished loading. No
+                        white flash.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Easy on memory</h3>
+                      <p>
+                        Tabs you aren't using let go of what they hold, so a long day doesn't slow
+                        the machine down.
+                      </p>
+                    </li>
+                    <li>
+                      <h3>Springy, not showy</h3>
+                      <p>Everything moves on springs, quick to start and calm to settle.</p>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="define-wrap">
+        <div class="wrap define reveal">
+          <p class="word">pane <span>/peɪn/ · noun</span></p>
+          <p class="def">
+            A single sheet of glass in a window. Something to look <em>through</em>, set beside the
+            others so you can see more than one thing at&nbsp;once.
+          </p>
+        </div>
+      </section>
+
+      <section class="closing" id="download">
+        <div class="wrap closer">
+          <div class="panel reveal">
+            <div>
+              <p class="eyebrow">Free, and it updates itself</p>
+              <h2 class="display">Give your tabs some room.</h2>
+              <p class="lede">
+                For Windows and Mac. Download it, open it, and bring your old browser's things
+                across on the welcome screen. It updates itself to the newest version the first time
+                it opens.
+              </p>
+            </div>
+            <div class="get">
+              <div class="dls">
+                <a
+                  class="btn big"
+                  data-dl="win"
+                  href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.95/Panes-setup.exe"
+                  ><svg viewBox="0 0 20 20" aria-hidden="true" class="os">
+                    <path
+                      d="M3 4.6 8.7 3.8v5.6H3zm6.6-.9L17 2.7v6.7H9.6zM3 10.4h5.7V16L3 15.2zm6.6 0H17v6.9l-7.4-1z"
+                    /></svg
+                  >Windows</a
+                >
+                <a
+                  class="btn big alt-btn"
+                  data-dl="mac"
+                  href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.96/Panes-0.1.0-beta.96-mac-arm64.dmg"
+                  ><svg viewBox="0 0 20 20" aria-hidden="true" class="os">
+                    <path
+                      d="M13.6 10.6c0-1.9 1.6-2.8 1.6-2.9-.9-1.3-2.2-1.4-2.7-1.5-1.1-.1-2.2.7-2.8.7s-1.5-.7-2.4-.6A3.6 3.6 0 0 0 4.2 8.1c-1.3 2.2-.3 5.5.9 7.3.6.9 1.3 1.9 2.3 1.8.9 0 1.3-.6 2.4-.6s1.4.6 2.4.6 1.6-.9 2.2-1.8c.7-1 1-2 1-2.1 0 0-1.8-.7-1.8-2.7zM11.9 5c.5-.6.8-1.4.7-2.2-.7 0-1.6.5-2.1 1.1-.5.5-.9 1.3-.8 2.1.8.1 1.6-.4 2.2-1z"
+                    /></svg
+                  >Mac</a
+                >
+              </div>
+              <p class="fine">
+                <span data-dl-note>Apple Silicon.</span>
+                <a
+                  class="alt"
+                  data-dl="mac-x64"
+                  href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.96/Panes-0.1.0-beta.96-mac-x64.dmg"
+                  >Intel Mac?</a
+                >
+                Linux is on the way.
+              </p>
+            </div>
+          </div>
+          <div class="patches" aria-hidden="true">
+            <span class="patch"
+              ><svg viewBox="0 0 512 560"><use href="#sticker" /></svg
+            ></span>
+            <span class="patch"
+              ><svg viewBox="0 0 512 560"><use href="#sticker" /></svg
+            ></span>
+            <span class="patch"
+              ><svg viewBox="0 0 512 560"><use href="#sticker" /></svg
+            ></span>
+          </div>
+        </div>
+
+        <div class="wrap steps-wrap">
+          <div class="beta reveal">
+            <h3 class="display">It's a beta. A real one.</h3>
+            <ul>
+              <li>
+                Things will break now and then. When they do, the feedback button in the menu goes
+                straight to us.
+              </li>
+              <li>
+                The apps aren't signed with a paid certificate yet, so Windows and macOS stop to ask
+                the first time. That's expected.
+              </li>
+              <li>
+                The download may be a few versions behind. Panes fetches the newest the first time
+                it opens, in a few seconds.
+              </li>
+              <li>Updates arrive often, sometimes more than once a day.</li>
             </ul>
           </div>
-          <div class="panel-list" role="tabpanel" id="p-tabs" aria-labelledby="t-tabs" tabindex="0">
-            <p class="blurb">Tabs down the side, with titles you can read, and as many pages on screen as you need.</p>
-            <ul class="ways">
-              <li><h3>Vertical tabs</h3><p>Drag to reorder. Fold the whole strip away with <kbd>Ctrl B</kbd> and it peeks out when you need it.</p></li>
-              <li><h3>Flick through <kbd>Ctrl Tab</kbd></h3><p>Fly through your tabs without reaching for the mouse.</p></li>
-              <li><h3>Split view <kbd>Ctrl \</kbd></h3><p>Drop a tab on the page to put two side by side, or more. Drag the divider to resize.</p></li>
-              <li><h3>All tabs at once <kbd>Ctrl Shift A</kbd></h3><p>Every open tab in one grid, to pick from or close in bulk.</p></li>
-              <li><h3>Groups <kbd>Ctrl G</kbd></h3><p>Put related tabs under one name and colour, and fold them away together.</p></li>
-              <li><h3>Closed by mistake <kbd>Ctrl Shift T</kbd></h3><p>Brings back the tabs you closed, even after a restart.</p></li>
-              <li><h3>Quiet tabs sleep</h3><p>Tabs you haven't touched in a while let go of their memory, and wake when you click them.</p></li>
-              <li><h3>A tab that only downloads</h3><p>closes itself once the file has started, so you're not left with a blank one.</p></li>
-            </ul>
-          </div>
-          <div class="panel-list" role="tabpanel" id="p-spaces" aria-labelledby="t-spaces" tabindex="0">
-            <p class="blurb">Separate places for separate parts of life, each with its own tabs and its own look.</p>
-            <ul class="ways">
-              <li><h3>Tabs that stay put</h3><p>Each Space keeps its own tabs and groups. Switching never mixes them up.</p></li>
-              <li><h3>Its own colour</h3><p>The whole window takes on the Space's colour, so you always know where you are.</p></li>
-              <li><h3>Separate logins, if you want</h3><p>Be signed in to the same site as two different people, one in each Space.</p></li>
-              <li><h3>Hop between them <kbd>Ctrl Alt 1–9</kbd></h3><p>Or click a Space in the sidebar. Right-click one to rename it or change its colour.</p></li>
-              <li><h3>A board per Space</h3><p>The canvas shows the Space you're in, so work stays on the work board.</p></li>
-            </ul>
-          </div>
-          <div class="panel-list" role="tabpanel" id="p-ask" aria-labelledby="t-ask" tabindex="0">
-            <p class="blurb">An assistant that knows what's on the page, and can run on your own computer.</p>
-            <ul class="ways">
-              <li><h3>Ask about the page <kbd>Ctrl Shift L</kbd></h3><p>The chat reads the page you're on, so you can ask what it says without copying a thing.</p></li>
-              <li><h3>Ask it to do it</h3><p>It opens the sites and works through the steps for you, and asks first before anything that matters.</p></li>
-              <li><h3>Tidy a page</h3><p>Ask for just the recipe, just the table or just the steps, and the page is cut down to that.</p></li>
-              <li><h3>Group the board by meaning</h3><p>One click sorts your cards into named sections by what each page is about.</p></li>
-              <li><h3>On this computer</h3><p>Run a model locally, and nothing you ask leaves the machine.</p></li>
-              <li><h3>Or bring your own</h3><p>ChatGPT, Gemini, OpenRouter, or a server of your own. Or switch it all off.</p></li>
-            </ul>
-          </div>
-          <div class="panel-list" role="tabpanel" id="p-private" aria-labelledby="t-private" tabindex="0">
-            <p class="blurb">The web, without the people watching it. Most of this is on before you change a setting.</p>
-            <ul class="ways">
-              <li><h3>Ads blocked, built in</h3><p>uBlock Origin's and EasyList's lists, refreshed every day, with no extension to install.</p></li>
-              <li><h3>Private tabs <kbd>Ctrl Shift N</kbd></h3><p>Nothing saved, nothing remembered, sitting right beside your ordinary tabs.</p></li>
-              <li><h3>Tor tabs</h3><p>When private isn't enough, open a tab that goes through the Tor network.</p></li>
-              <li><h3>You decide, per site</h3><p>Location, camera, microphone and notifications are asked for once, and can be taken back any time from the site panel.</p></li>
-              <li><h3>Kept on your computer</h3><p>History, bookmarks and settings live on your machine. There's no account to make.</p></li>
-              <li><h3>One process per tab</h3><p>A page that misbehaves stays in its own box and can't take the others down.</p></li>
-            </ul>
-          </div>
-          <div class="panel-list" role="tabpanel" id="p-everyday" aria-labelledby="t-everyday" tabindex="0">
-            <p class="blurb">The things a browser has to get right, done with the same care as the rest.</p>
-            <ul class="ways">
-              <li><h3>Reader mode <kbd>Ctrl Shift E</kbd></h3><p>Just the words and pictures, set for reading.</p></li>
-              <li><h3>Passwords and passkeys</h3><p>Saved and filled in for you, with a guided import from your old browser.</p></li>
-              <li><h3>Picture in picture</h3><p>Long videos keep playing in a corner while you get on with it.</p></li>
-              <li><h3>Find in page <kbd>Ctrl F</kbd></h3><p>Quick, with every match counted.</p></li>
-              <li><h3>Downloads <kbd>Ctrl J</kbd></h3><p>Files land in a bin at the bottom right, ready to open or drag out.</p></li>
-              <li><h3>History and bookmarks <kbd>Ctrl H</kbd></h3><p>Proper pages of their own, not an afterthought. <kbd>Ctrl D</kbd> bookmarks the page.</p></li>
-              <li><h3>PDFs and printing</h3><p>Open PDFs right in a tab, and print with a clear preview.</p></li>
-              <li><h3>A tour that waits for you</h3><p>Five short stops, and you do each one yourself. Type "tour" in the address bar to take it again.</p></li>
-            </ul>
-          </div>
-          <div class="panel-list" role="tabpanel" id="p-windows" aria-labelledby="t-windows" tabindex="0">
-            <p class="blurb">Built for the touchpads, screens and habits people really have, on Windows and on the Mac.</p>
-            <ul class="ways">
-              <li><h3>Touchpad gestures</h3><p>Swipe with two fingers to go back and forward, and pinch the canvas in and out.</p></li>
-              <li><h3>Updates itself, in the background</h3><p>Most updates are a small download that's ready next time you open Panes. No installer to click through.</p></li>
-              <li><h3>Starts fast</h3><p>The window is up and themed before the first page has finished loading. No white flash.</p></li>
-              <li><h3>Easy on memory</h3><p>Tabs you aren't using let go of what they hold, so a long day doesn't slow the machine down.</p></li>
-              <li><h3>Springy, not showy</h3><p>Everything moves on springs, quick to start and calm to settle.</p></li>
-            </ul>
-          </div>
+          <ol class="steps reveal">
+            <li>
+              <b>1</b>
+              <div>
+                <h3>Download</h3>
+                <p>
+                  Run the installer on Windows. On a Mac, open the disk image and drag Panes into
+                  Applications.
+                </p>
+              </div>
+            </li>
+            <li>
+              <b>2</b>
+              <div>
+                <h3>The first time it asks</h3>
+                <p>
+                  On Windows, if SmartScreen steps in, choose <em>More info</em>, then
+                  <em>Run anyway</em>. On a Mac, if it says Panes can't be opened, choose
+                  <em>Done</em>, then
+                  <em>System Settings › Privacy &amp; Security › Open Anyway</em>. Only once.
+                </p>
+              </div>
+            </li>
+            <li>
+              <b>3</b>
+              <div>
+                <h3>Bring your things</h3>
+                <p>Pick your old browser on the welcome screen, and you're in.</p>
+              </div>
+            </li>
+          </ol>
         </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap">
+        <a class="brand" href="#hero"
+          ><span class="badge"
+            ><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span
+          >panes</a
+        >
+        <span>Made for people with too many tabs.</span>
+        <nav aria-label="Footer">
+          <a href="#look">Have a look</a>
+          <a href="#inside">What's inside</a>
+          <a href="https://github.com/kabeer11000/panes-browser/releases">Releases</a>
+        </nav>
       </div>
-    </div>
-  </div>
-</section>
+    </footer>
 
-<section class="define-wrap">
-  <div class="wrap define reveal">
-    <p class="word">pane <span>/peɪn/ · noun</span></p>
-    <p class="def">A single sheet of glass in a window. Something to look <em>through</em>, set beside the others so you can see more than one thing at&nbsp;once.</p>
-  </div>
-</section>
-
-<section class="closing" id="download">
-  <div class="wrap closer">
-    <div class="panel reveal">
-      <div>
-        <p class="eyebrow">Free, and it updates itself</p>
-        <h2 class="display">Give your tabs some room.</h2>
-        <p class="lede">For Windows and Mac. Download it, open it, and bring your old browser's things across on the welcome screen. It updates itself to the newest version the first time it opens.</p>
-      </div>
-      <div class="get">
-        <div class="dls">
-          <a class="btn big" data-dl="win" href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.95/Panes-setup.exe"><svg viewBox="0 0 20 20" aria-hidden="true" class="os"><path d="M3 4.6 8.7 3.8v5.6H3zm6.6-.9L17 2.7v6.7H9.6zM3 10.4h5.7V16L3 15.2zm6.6 0H17v6.9l-7.4-1z" /></svg>Windows</a>
-          <a class="btn big alt-btn" data-dl="mac" href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.96/Panes-0.1.0-beta.96-mac-arm64.dmg"><svg viewBox="0 0 20 20" aria-hidden="true" class="os"><path d="M13.6 10.6c0-1.9 1.6-2.8 1.6-2.9-.9-1.3-2.2-1.4-2.7-1.5-1.1-.1-2.2.7-2.8.7s-1.5-.7-2.4-.6A3.6 3.6 0 0 0 4.2 8.1c-1.3 2.2-.3 5.5.9 7.3.6.9 1.3 1.9 2.3 1.8.9 0 1.3-.6 2.4-.6s1.4.6 2.4.6 1.6-.9 2.2-1.8c.7-1 1-2 1-2.1 0 0-1.8-.7-1.8-2.7zM11.9 5c.5-.6.8-1.4.7-2.2-.7 0-1.6.5-2.1 1.1-.5.5-.9 1.3-.8 2.1.8.1 1.6-.4 2.2-1z" /></svg>Mac</a>
-        </div>
-        <p class="fine"><span data-dl-note>Apple Silicon.</span> <a class="alt" data-dl="mac-x64" href="https://github.com/kabeer11000/panes-browser/releases/download/v0.1.0-beta.96/Panes-0.1.0-beta.96-mac-x64.dmg">Intel Mac?</a> Linux is on the way.</p>
-      </div>
-    </div>
-    <div class="patches" aria-hidden="true">
-      <span class="patch"><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span>
-      <span class="patch"><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span>
-      <span class="patch"><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span>
-    </div>
-  </div>
-
-  <div class="wrap steps-wrap">
-    <div class="beta reveal">
-      <h3 class="display">It's a beta. A real one.</h3>
-      <ul>
-        <li>Things will break now and then. When they do, the feedback button in the menu goes straight to us.</li>
-        <li>The apps aren't signed with a paid certificate yet, so Windows and macOS stop to ask the first time. That's expected.</li>
-        <li>The download may be a few versions behind. Panes fetches the newest the first time it opens, in a few seconds.</li>
-        <li>Updates arrive often, sometimes more than once a day.</li>
-      </ul>
-    </div>
-    <ol class="steps reveal">
-      <li><b>1</b><div><h3>Download</h3><p>Run the installer on Windows. On a Mac, open the disk image and drag Panes into Applications.</p></div></li>
-      <li><b>2</b><div><h3>The first time it asks</h3><p>On Windows, if SmartScreen steps in, choose <em>More info</em>, then <em>Run anyway</em>. On a Mac, if it says Panes can't be opened, choose <em>Done</em>, then <em>System Settings › Privacy &amp; Security › Open Anyway</em>. Only once.</p></div></li>
-      <li><b>3</b><div><h3>Bring your things</h3><p>Pick your old browser on the welcome screen, and you're in.</p></div></li>
-    </ol>
-  </div>
-</section>
-</main>
-
-<footer class="foot">
-  <div class="wrap">
-    <a class="brand" href="#hero"><span class="badge"><svg viewBox="0 0 512 560"><use href="#sticker" /></svg></span>panes</a>
-    <span>Made for people with too many tabs.</span>
-    <nav aria-label="Footer">
-      <a href="#look">Have a look</a>
-      <a href="#inside">What's inside</a>
-      <a href="https://github.com/kabeer11000/panes-browser/releases">Releases</a>
-    </nav>
-  </div>
-</footer>
-
-<script src="main.js"></script>
-</body>
+    <script src="main.js"></script>
+  </body>
 </html>

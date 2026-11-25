@@ -72,7 +72,8 @@ export class UpdateManager {
   private lib(): Promise<AppUpdater> {
     this.updater ??= import('electron-updater').then((m) => {
       // a CommonJS package: import() puts its exports under default (its autoUpdater is a getter it cannot see)
-      const autoUpdater = m.autoUpdater ?? (m as unknown as { default: typeof m }).default.autoUpdater
+      const autoUpdater =
+        m.autoUpdater ?? (m as unknown as { default: typeof m }).default.autoUpdater
       this.wire(autoUpdater)
       return autoUpdater
     })

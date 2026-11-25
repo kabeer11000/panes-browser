@@ -45,7 +45,9 @@ async function interfaceTarget(): Promise<string> {
   }>
   // the dev server's root, or index.html in a built copy (not panes://, which has no window.api)
   const ui = list.find(
-    (t) => t.type === 'page' && /^(https?:\/\/localhost:\d+\/?|file:.*\/index\.html)$/.test(t.url.split('#')[0])
+    (t) =>
+      t.type === 'page' &&
+      /^(https?:\/\/localhost:\d+\/?|file:.*\/index\.html)$/.test(t.url.split('#')[0])
   )
   if (!ui) throw new Error(`no interface page on port ${port}`)
   return ui.webSocketDebuggerUrl
@@ -116,19 +118,28 @@ if (stress) startStress()
 await sleep(2000)
 
 const loaded = (await run(FRAMES(5))) as Record<string, number>
-const report = spawnSync('bun', ['scripts/perf-report.ts', String(port), '--sample', '5', ...(asJson ? ['--json'] : [])], {
-  encoding: 'utf8'
-})
+const report = spawnSync(
+  'bun',
+  ['scripts/perf-report.ts', String(port), '--sample', '5', ...(asJson ? ['--json'] : [])],
+  {
+    encoding: 'utf8'
+  }
+)
 stopStress()
 
 const fmt = (f: Record<string, number>): string =>
   f.frames === 0
     ? 'no frames ran (is the window covered or minimised?)'
     : `${f.frames} frames  p50 ${f.p50.toFixed(1)}  p95 ${f.p95.toFixed(1)}  p99 ${f.p99.toFixed(1)}  max ${f.max.toFixed(1)} ms`
-if (asJson) console.log(JSON.stringify({ tabs: tabCount, stress, quiet, loaded, report: report.stdout.trim() }))
+if (asJson)
+  console.log(
+    JSON.stringify({ tabs: tabCount, stress, quiet, loaded, report: report.stdout.trim() })
+  )
 else {
   console.log(`interface frame times, before the tabs:  ${fmt(quiet)}`)
-  console.log(`interface frame times, ${tabCount} tabs${stress ? ' + CPU stress' : ''}: ${fmt(loaded)}\n`)
+  console.log(
+    `interface frame times, ${tabCount} tabs${stress ? ' + CPU stress' : ''}: ${fmt(loaded)}\n`
+  )
   console.log(report.stdout)
 }
 

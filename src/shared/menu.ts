@@ -71,8 +71,7 @@ function pick(
 ): Placed {
   const maxH = size.h > bounds.h - margin * 2 ? Math.max(0, bounds.h - margin * 2) : undefined
   const h = maxH ?? size.h
-  const clampX = (x: number): number =>
-    Math.max(margin, Math.min(x, bounds.w - size.w - margin))
+  const clampX = (x: number): number => Math.max(margin, Math.min(x, bounds.w - size.w - margin))
   const clampY = (y: number): number => Math.max(margin, Math.min(y, bounds.h - h - margin))
   let best: Placed | null = null
   let bestCost = Infinity
@@ -148,11 +147,7 @@ export function typeAhead(
   query: string,
   disabled: readonly boolean[] = []
 ): number {
-  const norm = (s: string): string =>
-    s
-      .normalize('NFD')
-      .replace(/\p{M}/gu, '')
-      .toLowerCase()
+  const norm = (s: string): string => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
   let q = norm(query)
   if (!q) return -1
   const same = [...q].every((c) => c === q[0])

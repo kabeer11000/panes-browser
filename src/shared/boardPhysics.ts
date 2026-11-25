@@ -216,8 +216,10 @@ export class Camera {
    */
   get restingView(): View {
     const pan = this.pan
-    let x = pan?.kind === 'spring' ? pan.tx : pan?.kind === 'coast' ? this.x + this.vx * pan.tau : this.x
-    let y = pan?.kind === 'spring' ? pan.ty : pan?.kind === 'coast' ? this.y + this.vy * pan.tau : this.y
+    let x =
+      pan?.kind === 'spring' ? pan.tx : pan?.kind === 'coast' ? this.x + this.vx * pan.tau : this.x
+    let y =
+      pan?.kind === 'spring' ? pan.ty : pan?.kind === 'coast' ? this.y + this.vy * pan.tau : this.y
     const z = this.zoom
     const l = z ? clamp(z.tl, this.lmin, this.lmax) : this.l
     if (z?.anchor) {

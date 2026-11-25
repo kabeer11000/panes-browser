@@ -109,7 +109,10 @@ export function useSidebarClip(o: {
       if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || textOwnsKeys(e.target)) return
       const k = e.key.toLowerCase()
       if (k !== 'c' && k !== 'x') return
-      const chosen = picked.size > 0 ? tabs.filter((t) => picked.has(t.id)) : tabs.filter((t) => t.id === activeId)
+      const chosen =
+        picked.size > 0
+          ? tabs.filter((t) => picked.has(t.id))
+          : tabs.filter((t) => t.id === activeId)
       if (chosen.length === 0) return
       e.preventDefault()
       copyEntries(k === 'x' ? 'cut' : 'copy', spaceId, chosen.map(tabEntry))

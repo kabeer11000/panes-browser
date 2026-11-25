@@ -22,7 +22,9 @@ const list = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()) as Ar
 }>
 // the interface page: the dev server's root, or index.html in a built copy (not panes://, which has no window.api)
 const ui = list.find(
-  (t) => t.type === 'page' && /^(https?:\/\/localhost:\d+\/?|file:.*\/index\.html)$/.test(t.url.split('#')[0])
+  (t) =>
+    t.type === 'page' &&
+    /^(https?:\/\/localhost:\d+\/?|file:.*\/index\.html)$/.test(t.url.split('#')[0])
 )
 if (!ui) throw new Error(`no interface page on port ${port}`)
 const ws = new WebSocket(ui.webSocketDebuggerUrl)

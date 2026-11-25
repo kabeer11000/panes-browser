@@ -24,7 +24,9 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux"
   },
-  "trustedDependencies": ["adblock-rs"],
+  "trustedDependencies": [
+    "adblock-rs"
+  ],
   "dependencies": {
     "@ai-sdk/google": "^4.0.114",
     "@ai-sdk/openai": "^4.0.111",

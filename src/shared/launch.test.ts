@@ -9,7 +9,13 @@ describe('linksFromArgv', () => {
     const join = 'panes://join/' + 'a'.repeat(22) + '#' + 'b'.repeat(43)
     expect(
       linksFromArgv(
-        [join, 'panes://settings', 'panes://join/short#x', join + 'x', 'panes://join/' + 'a'.repeat(22)],
+        [
+          join,
+          'panes://settings',
+          'panes://join/short#x',
+          join + 'x',
+          'panes://join/' + 'a'.repeat(22)
+        ],
         toUrl,
         exists
       )

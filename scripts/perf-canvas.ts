@@ -29,7 +29,8 @@ const targets = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()) as
   webSocketDebuggerUrl: string
 }>
 const ui = targets.find(
-  (t) => t.type === 'page' && (/\/index\.html/.test(t.url) || /^http:\/\/localhost:\d+\/$/.test(t.url))
+  (t) =>
+    t.type === 'page' && (/\/index\.html/.test(t.url) || /^http:\/\/localhost:\d+\/$/.test(t.url))
 )
 if (!ui) throw new Error(`no interface page on port ${port}`)
 
@@ -41,21 +42,28 @@ ws.onmessage = (e) => {
   const m = JSON.parse(String(e.data)) as { id?: number; result?: Record<string, unknown> }
   if (m.id !== undefined) waiting.get(m.id)?.(m.result ?? {})
 }
-const send = (method: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> =>
+const send = (
+  method: string,
+  params: Record<string, unknown> = {}
+): Promise<Record<string, unknown>> =>
   new Promise((resolve) => {
     const id = ++seq
     waiting.set(id, resolve)
     ws.send(JSON.stringify({ id, method, params }))
   })
 const evaluate = async <T>(expression: string): Promise<T> =>
-  ((await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })) as {
-    result: { value: T }
-  }).result.value
+  (
+    (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })) as {
+      result: { value: T }
+    }
+  ).result.value
 
 await send('Performance.enable')
 
 // ---- set up: tabs, then the board ----
-const have = await evaluate<number>('window.api.getState().then((s) => (s.tabs ?? s.state?.tabs ?? []).length)')
+const have = await evaluate<number>(
+  'window.api.getState().then((s) => (s.tabs ?? s.state?.tabs ?? []).length)'
+)
 for (let i = have; i < TABS; i++) {
   await evaluate(`window.api.createTab('https://example.com/?panes-perf=${i}')`)
   await sleep(120)
@@ -73,11 +81,17 @@ const cards = await evaluate<number>('document.querySelectorAll(".cv-card").leng
 
 // ---- measuring ----
 const startFrames = (): Promise<unknown> =>
-  evaluate(`(() => { window.__f = []; let last = performance.now(); const tick = (t) => { window.__f.push(t - last); last = t; if (window.__f) window.__fr = requestAnimationFrame(tick) }; window.__fr = requestAnimationFrame(tick) })()`)
+  evaluate(
+    `(() => { window.__f = []; let last = performance.now(); const tick = (t) => { window.__f.push(t - last); last = t; if (window.__f) window.__fr = requestAnimationFrame(tick) }; window.__fr = requestAnimationFrame(tick) })()`
+  )
 const stopFrames = (): Promise<number[]> =>
-  evaluate<number[]>(`(() => { cancelAnimationFrame(window.__fr); const f = window.__f.slice(1); window.__f = null; return f })()`)
+  evaluate<number[]>(
+    `(() => { cancelAnimationFrame(window.__fr); const f = window.__f.slice(1); window.__f = null; return f })()`
+  )
 const metrics = async (): Promise<Record<string, number>> => {
-  const r = (await send('Performance.getMetrics')) as { metrics: Array<{ name: string; value: number }> }
+  const r = (await send('Performance.getMetrics')) as {
+    metrics: Array<{ name: string; value: number }>
+  }
   return Object.fromEntries(r.metrics.map((m) => [m.name, m.value]))
 }
 
@@ -105,15 +119,25 @@ async function measure(name: string, run: () => Promise<void>): Promise<Gesture>
   const d = (k: string): number => r1(((m1[k] ?? 0) - (m0[k] ?? 0)) * 1000)
   return {
     name,
-    frames: { p50: r1(pct(f, 50)), p95: r1(pct(f, 95)), max: r1(Math.max(0, ...f)), over33: f.filter((x) => x > 33.4).length, n: f.length },
+    frames: {
+      p50: r1(pct(f, 50)),
+      p95: r1(pct(f, 95)),
+      max: r1(Math.max(0, ...f)),
+      over33: f.filter((x) => x > 33.4).length,
+      n: f.length
+    },
     scriptMs: d('ScriptDuration'),
     layoutMs: d('LayoutDuration'),
     styleMs: d('RecalcStyleDuration')
   }
 }
 
-const mouse = (type: string, x: number, y: number, extra: Record<string, unknown> = {}): Promise<unknown> =>
-  send('Input.dispatchMouseEvent', { type, x, y, ...extra })
+const mouse = (
+  type: string,
+  x: number,
+  y: number,
+  extra: Record<string, unknown> = {}
+): Promise<unknown> => send('Input.dispatchMouseEvent', { type, x, y, ...extra })
 const size = await evaluate<{ w: number; h: number }>('({ w: innerWidth, h: innerHeight })')
 const cx = Math.round(size.w / 2)
 const cy = Math.round(size.h / 2)
@@ -144,7 +168,10 @@ async function gestures(): Promise<Gesture[]> {
       await measure('drag a card (60 moves)', async () => {
         await mouse('mousePressed', card.x, card.y, { button: 'left', clickCount: 1 })
         for (let i = 1; i <= 60; i++) {
-          await mouse('mouseMoved', card.x + i * 4, card.y + Math.round(Math.sin(i / 6) * 40), { button: 'left', buttons: 1 })
+          await mouse('mouseMoved', card.x + i * 4, card.y + Math.round(Math.sin(i / 6) * 40), {
+            button: 'left',
+            buttons: 1
+          })
           await sleep(16)
         }
         for (let i = 60; i >= 0; i -= 4) {
@@ -160,7 +187,12 @@ async function gestures(): Promise<Gesture[]> {
         await mouse('mouseReleased', card.x, card.y, { button: 'left', clickCount: 2 })
         await sleep(1200)
         for (const type of ['keyDown', 'keyUp'] as const)
-          await send('Input.dispatchKeyEvent', { type, key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+          await send('Input.dispatchKeyEvent', {
+            type,
+            key: 'Escape',
+            code: 'Escape',
+            windowsVirtualKeyCode: 27
+          })
         await sleep(900)
       })
     )

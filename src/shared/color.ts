@@ -217,6 +217,7 @@ export function chromeVars(
     '--tint': `${Math.round(safe * 100)}%`,
     '--accent': accent,
     // what reads on a solid accent surface (a chosen tool, a primary button): white or near-black, whichever is clearer
-    '--accent-fg': contrastRatio(accent, '#ffffff') >= contrastRatio(accent, '#16161a') ? '#ffffff' : '#16161a'
+    '--accent-fg':
+      contrastRatio(accent, '#ffffff') >= contrastRatio(accent, '#16161a') ? '#ffffff' : '#16161a'
   }
 }

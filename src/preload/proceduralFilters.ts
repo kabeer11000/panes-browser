@@ -32,7 +32,7 @@ type OperatorResult = HTMLElement[]
 type UnboundStringFunc = (arg: string, element: HTMLElement) => OperatorResult
 type UnboundChildRuleOrStringFunc = (
   arg: string | ProceduralSelector,
-  element: HTMLElement,
+  element: HTMLElement
 ) => OperatorResult
 type UnboundOperatorFunc = UnboundStringFunc | UnboundChildRuleOrStringFunc
 type OperatorFunc = (element: HTMLElement) => OperatorResult
@@ -47,10 +47,7 @@ type CompiledProceduralSelector = CompiledProceduralOperator[]
 
 type NeedlePosition = number
 type TextMatchRule = (targetText: string, exact?: boolean) => boolean
-type KeyValueMatchRules = [
-  keyMatchRule: TextMatchRule,
-  valueMatchRule: TextMatchRule | undefined,
-]
+type KeyValueMatchRules = [keyMatchRule: TextMatchRule, valueMatchRule: TextMatchRule | undefined]
 
 /**
  *
@@ -88,11 +85,7 @@ const _compileRegEx = (regexText: string): RegExp => {
 //
 // If `exact` is true, then the string case it tested
 // for an exact match (the regex case is not affected).
-const _testMatches = (
-  test: string,
-  value: string,
-  exact: boolean = false,
-): boolean => {
+const _testMatches = (test: string, value: string, exact: boolean = false): boolean => {
   if (test[0] === '/') {
     return value.match(_compileRegEx(test)) !== null
   }
@@ -140,26 +133,22 @@ const _extractKeyFromStr = (text: string): [string, number?] => {
 const _extractValueMatchRuleFromStr = (
   text: string,
   uriEncode = false,
-  needlePosition = 0,
+  needlePosition = 0
 ): TextMatchRule => {
   const testCaseStr = _extractValueFromStr(text, uriEncode, needlePosition)
   const testCaseFunc = _testMatches.bind(undefined, testCaseStr)
   return testCaseFunc
 }
 
-const _extractValueFromStr = (
-  text: string,
-  uriEncode = false,
-  needlePosition = 0,
-): string => {
+const _extractValueFromStr = (text: string, uriEncode = false, needlePosition = 0): string => {
   const isQuotedCase = text[needlePosition] === '"'
   let endIndex: number
 
   if (isQuotedCase) {
     if (text.at(-1) !== '"') {
       throw new Error(
-        `Unable to parse value rule from ${text}. Value rule starts with `
-          + '" but doesn\'t end with "',
+        `Unable to parse value rule from ${text}. Value rule starts with ` +
+          '" but doesn\'t end with "'
       )
     }
     needlePosition += 1
@@ -170,9 +159,7 @@ const _extractValueFromStr = (
 
   let testCaseStr = text.slice(needlePosition, endIndex)
   if (uriEncode) {
-    testCaseStr = testCaseStr.replace(/\P{ASCII}/gu, (c) =>
-      encodeURIComponent(c),
-    )
+    testCaseStr = testCaseStr.replace(/\P{ASCII}/gu, (c) => encodeURIComponent(c))
   }
 
   return testCaseStr
@@ -254,18 +241,13 @@ const _allChildrenRecursive = (element: HTMLElement): HTMLElement[] => {
 
 const _stripCssOperator = (operator: string, selector: string): string => {
   if (selector[0] !== operator) {
-    throw new Error(
-      `Expected to find ${operator} in initial position of "${selector}`,
-    )
+    throw new Error(`Expected to find ${operator} in initial position of "${selector}`)
   }
   return selector.replace(operator, '').trimStart()
 }
 
 // Implementation of ":css-selector" rule
-const operatorCssSelector = (
-  selector: CSSSelector,
-  element: HTMLElement,
-): OperatorResult => {
+const operatorCssSelector = (selector: CSSSelector, element: HTMLElement): OperatorResult => {
   const trimmedSelector = selector.trimStart()
   if (trimmedSelector.startsWith('+')) {
     const subOperator = _stripCssOperator('+', trimmedSelector)
@@ -301,21 +283,16 @@ const operatorCssSelector = (
   return []
 }
 
-const _hasPlainSelectorCase = (
-  selector: CSSSelector,
-  element: HTMLElement,
-): OperatorResult => {
+const _hasPlainSelectorCase = (selector: CSSSelector, element: HTMLElement): OperatorResult => {
   return element.matches(selector) ? [element] : []
 }
 
 const _hasProceduralSelectorCase = (
   selector: ProceduralSelector,
-  element: HTMLElement,
+  element: HTMLElement
 ): OperatorResult => {
   const shouldBeGreedy = selector[0]?.type !== 'css-selector'
-  const initElements = shouldBeGreedy
-    ? _allChildrenRecursive(element)
-    : [element]
+  const initElements = shouldBeGreedy ? _allChildrenRecursive(element) : [element]
   const matches = compileAndApplyProceduralSelector(selector, initElements)
   return matches.length === 0 ? [] : [element]
 }
@@ -323,7 +300,7 @@ const _hasProceduralSelectorCase = (
 // Implementation of ":has" rule
 const operatorHas = (
   instruction: CSSSelector | ProceduralSelector,
-  element: HTMLElement,
+  element: HTMLElement
 ): OperatorResult => {
   if (W.Array.isArray(instruction)) {
     return _hasProceduralSelectorCase(instruction, element)
@@ -333,25 +310,19 @@ const operatorHas = (
 }
 
 // Implementation of ":has-text" rule
-const operatorHasText = (
-  instruction: string,
-  element: HTMLElement,
-): OperatorResult => {
+const operatorHasText = (instruction: string, element: HTMLElement): OperatorResult => {
   const text = element.innerText
   const valueTest = _extractValueMatchRuleFromStr(instruction)
   return valueTest(text) ? [element] : []
 }
 
-const _notPlainSelectorCase = (
-  selector: CSSSelector,
-  element: HTMLElement,
-): OperatorResult => {
+const _notPlainSelectorCase = (selector: CSSSelector, element: HTMLElement): OperatorResult => {
   return element.matches(selector) ? [] : [element]
 }
 
 const _notProceduralSelectorCase = (
   selector: ProceduralSelector,
-  element: HTMLElement,
+  element: HTMLElement
 ): OperatorResult => {
   const matches = compileAndApplyProceduralSelector(selector, [element])
   return matches.length === 0 ? [element] : []
@@ -360,7 +331,7 @@ const _notProceduralSelectorCase = (
 // Implementation of ":not" rule
 const operatorNot = (
   instruction: CSSSelector | ProceduralSelector,
-  element: HTMLElement,
+  element: HTMLElement
 ): OperatorResult => {
   if (Array.isArray(instruction)) {
     return _notProceduralSelectorCase(instruction, element)
@@ -370,10 +341,7 @@ const operatorNot = (
 }
 
 // Implementation of ":matches-property" rule
-const operatorMatchesProperty = (
-  instruction: string,
-  element: HTMLElement,
-): OperatorResult => {
+const operatorMatchesProperty = (instruction: string, element: HTMLElement): OperatorResult => {
   const [keyTest, valueTest] = _parseKeyValueMatchRules(instruction)
   for (const [propName, propValue] of Object.entries(element)) {
     if (!keyTest(propName)) {
@@ -388,10 +356,7 @@ const operatorMatchesProperty = (
 }
 
 // Implementation of ":min-text-length" rule
-const operatorMinTextLength = (
-  instruction: string,
-  element: HTMLElement,
-): OperatorResult => {
+const operatorMinTextLength = (instruction: string, element: HTMLElement): OperatorResult => {
   const minLength = +instruction
   if (minLength === W.NaN) {
     throw new Error(`min-text-length: Invalid arg, ${instruction}`)
@@ -400,20 +365,14 @@ const operatorMinTextLength = (
 }
 
 // Implementation of ":matches-attr" rule
-const operatorMatchesAttr = (
-  instruction: string,
-  element: HTMLElement,
-): OperatorResult => {
+const operatorMatchesAttr = (instruction: string, element: HTMLElement): OperatorResult => {
   const [keyTest, valueTest] = _parseKeyValueMatchRules(instruction)
   for (const attrName of element.getAttributeNames()) {
     if (!keyTest(attrName)) {
       continue
     }
     const attrValue = element.getAttribute(attrName)
-    if (
-      attrValue === null
-      || (valueTest !== undefined && !valueTest(attrValue))
-    ) {
+    if (attrValue === null || (valueTest !== undefined && !valueTest(attrValue))) {
       continue
     }
     return [element]
@@ -425,7 +384,7 @@ const operatorMatchesAttr = (
 const operatorMatchesCSS = (
   beforeOrAfter: string | null,
   cssInstruction: string,
-  element: HTMLElement,
+  element: HTMLElement
 ): OperatorResult => {
   const [cssKey, expectedVal] = _parseCSSInstruction(cssInstruction)
   const elmStyle = W.getComputedStyle(element, beforeOrAfter)
@@ -445,27 +404,18 @@ const operatorMatchesCSS = (
 }
 
 // Implementation of ":matches-media" rule
-const operatorMatchesMedia = (
-  instruction: string,
-  element: HTMLElement,
-): OperatorResult => {
+const operatorMatchesMedia = (instruction: string, element: HTMLElement): OperatorResult => {
   return W.matchMedia(instruction).matches ? [element] : []
 }
 
 // Implementation of ":matches-path" rule
-const operatorMatchesPath = (
-  instruction: string,
-  element: HTMLElement,
-): OperatorResult => {
+const operatorMatchesPath = (instruction: string, element: HTMLElement): OperatorResult => {
   const pathAndQuery = W.location.pathname + W.location.search
   const matchRule = _extractValueMatchRuleFromStr(instruction, true)
   return matchRule(pathAndQuery) ? [element] : []
 }
 
-const _upwardIntCase = (
-  intNeedle: NeedlePosition,
-  element: HTMLElement,
-): OperatorResult => {
+const _upwardIntCase = (intNeedle: NeedlePosition, element: HTMLElement): OperatorResult => {
   if (intNeedle < 1 || intNeedle >= 256) {
     throw new Error(`upward: invalid arg, ${intNeedle}`)
   }
@@ -484,7 +434,7 @@ const _upwardIntCase = (
 
 const _upwardProceduralSelectorCase = (
   selector: ProceduralSelector,
-  element: HTMLElement,
+  element: HTMLElement
 ): OperatorResult => {
   const childFilter = compileProceduralSelector(selector)
   let needle: ParentNode | HTMLElement | null = element
@@ -502,10 +452,7 @@ const _upwardProceduralSelectorCase = (
   return []
 }
 
-const _upwardPlainSelectorCase = (
-  selector: CSSSelector,
-  element: HTMLElement,
-): OperatorResult => {
+const _upwardPlainSelectorCase = (selector: CSSSelector, element: HTMLElement): OperatorResult => {
   let needle: ParentNode | HTMLDocument | null = element
   while (needle !== null) {
     const currentElement = _asHTMLElement(needle)
@@ -523,7 +470,7 @@ const _upwardPlainSelectorCase = (
 // Implementation of ":upward" rule
 const operatorUpward = (
   instruction: string | ProceduralSelector,
-  element: HTMLElement,
+  element: HTMLElement
 ): OperatorResult => {
   if (W.Number.isInteger(+instruction)) {
     return _upwardIntCase(+instruction, element)
@@ -535,16 +482,13 @@ const operatorUpward = (
 }
 
 // Implementation of ":xpath" rule
-const operatorXPath = (
-  instruction: string,
-  element: HTMLElement,
-): HTMLElement[] => {
+const operatorXPath = (instruction: string, element: HTMLElement): HTMLElement[] => {
   const result = W.document.evaluate(
     instruction,
     element,
     null,
     W.XPathResult.UNORDERED_NODE_ITERATOR_TYPE,
-    null,
+    null
   )
   const matches: HTMLElement[] = []
   let currentNode: Node | null
@@ -558,9 +502,9 @@ const operatorXPath = (
 }
 
 const ruleTypeToFuncMap: Record<OperatorType, UnboundOperatorFunc> = {
-  'contains': operatorHasText,
+  contains: operatorHasText,
   'css-selector': operatorCssSelector,
-  'has': operatorHas,
+  has: operatorHas,
   'has-text': operatorHasText,
   'matches-attr': operatorMatchesAttr,
   'matches-css': operatorMatchesCSS.bind(undefined, null),
@@ -570,28 +514,24 @@ const ruleTypeToFuncMap: Record<OperatorType, UnboundOperatorFunc> = {
   'matches-path': operatorMatchesPath,
   'matches-property': operatorMatchesProperty,
   'min-text-length': operatorMinTextLength,
-  'not': operatorNot,
-  'upward': operatorUpward,
-  'xpath': operatorXPath,
+  not: operatorNot,
+  upward: operatorUpward,
+  xpath: operatorXPath
 }
 
-const compileProceduralSelector = (
-  operators: ProceduralSelector,
-): CompiledProceduralSelector => {
+const compileProceduralSelector = (operators: ProceduralSelector): CompiledProceduralSelector => {
   const outputOperatorList: CompiledProceduralOperator[] = []
   for (const operator of operators) {
     const anOperatorFunc = ruleTypeToFuncMap[operator.type]
     const args: [string] = [operator.arg]
     if (anOperatorFunc === undefined) {
-      throw new Error(
-        `Not sure what to do with operator of type ${operator.type}`,
-      )
+      throw new Error(`Not sure what to do with operator of type ${operator.type}`)
     }
 
     outputOperatorList.push({
       type: operator.type,
       func: anOperatorFunc.bind(undefined, ...args),
-      args,
+      args
     })
   }
 
@@ -606,7 +546,7 @@ const fastPathOperatorTypes: OperatorType[] = ['matches-media', 'matches-path']
 
 const _determineInitNodesAndIndex = (
   selector: CompiledProceduralSelector,
-  initNodes?: HTMLElement[],
+  initNodes?: HTMLElement[]
 ): [number, HTMLElement[]] => {
   let nodesToConsider: HTMLElement[]
   let index = 0
@@ -644,7 +584,7 @@ const _determineInitNodesAndIndex = (
 
 const applyCompiledSelector = (
   selector: CompiledProceduralSelector,
-  initNodes?: HTMLElement[],
+  initNodes?: HTMLElement[]
 ): HTMLElement[] => {
   const initState = _determineInitNodesAndIndex(selector, initNodes)
   let [index, nodesToConsider] = initState
@@ -680,16 +620,12 @@ const applyCompiledSelector = (
 
 const compileAndApplyProceduralSelector = (
   selector: ProceduralSelector,
-  initElements: HTMLElement[],
+  initElements: HTMLElement[]
 ): HTMLElement[] => {
   const compiled = compileProceduralSelector(selector)
   return applyCompiledSelector(compiled, initElements)
 }
 
-export {
-  applyCompiledSelector,
-  compileProceduralSelector,
-  compileAndApplyProceduralSelector,
-}
+export { applyCompiledSelector, compileProceduralSelector, compileAndApplyProceduralSelector }
 
 export type { ProceduralOperator, ProceduralSelector }

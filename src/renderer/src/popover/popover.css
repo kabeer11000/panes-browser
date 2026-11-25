@@ -26,9 +26,7 @@ body {
    floats over a native page view its blur cannot see, so the card came out see-through. The popover tint is laid over
    the solid card colour so it still matches the window. */
 .pop-root .sp-card {
-  background:
-    linear-gradient(var(--popover-bg), var(--popover-bg)),
-    var(--card-bg);
+  background: linear-gradient(var(--popover-bg), var(--popover-bg)), var(--card-bg);
   backdrop-filter: none;
   box-shadow:
     inset 0 0 0 1px var(--border),
