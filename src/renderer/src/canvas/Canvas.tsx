@@ -122,7 +122,7 @@ import type { PlayingTab, Settings, Space, TabInfo } from '@shared/types'
 import { WindowControls } from '@renderer/components/WindowControls'
 import { displayHost } from '@shared/url'
 import { tabTitle } from '@renderer/tabTitle'
-import { keptBoardRow, keptRecent } from '@shared/ai/previewBar'
+import { keptBoardRow, keptRecent, RECENT_ON_BOARD } from '@shared/ai/previewBar'
 import { AiGlow } from './AiGlow'
 import { CardView, FrameBar, FrameHead, FrameView, NoteView } from './Cards'
 import { WidgetView } from './Widgets'
@@ -5014,13 +5014,18 @@ export function Canvas({
   // what plays is first in the strip already: it is not listed again among the tabs
   const playingHere = island[0]?.spaceId === spaceId ? island[0].id : undefined
   // the board's row skips it; the preview's row is kept in place, so a tab never vanishes from it on switching away
-  const withWaiting = (row: number[], keep = false): number[] => [
-    ...row.filter((id) => keep || id !== playingHere || id === expanded?.id),
-    ...waiting
-      .map((w) => w.id)
-      .filter((id) => !row.includes(id) && id !== playingHere && named(id))
-      .slice(0, 2)
-  ]
+  // never past the row's size: a waiting tab only takes a seat that is free (the deck lists them all anyway), so the
+  // row is never longer than it is meant to be, nor does it grow and shrink as messages come and go
+  const withWaiting = (row: number[], keep = false): number[] => {
+    const kept = row.filter((id) => keep || id !== playingHere || id === expanded?.id)
+    return [
+      ...kept,
+      ...waiting
+        .map((w) => w.id)
+        .filter((id) => !row.includes(id) && id !== playingHere && named(id))
+        .slice(0, Math.max(0, Math.min(2, RECENT_ON_BOARD - kept.length)))
+    ]
+  }
   const previewRow = withWaiting(strip, true)
   // on the board, no page is open: the tabs used last, then what waits
   const boardRow = withWaiting(boardWant)

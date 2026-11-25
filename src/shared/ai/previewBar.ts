@@ -103,32 +103,36 @@ export function seated(
 }
 
 /**
- * The preview's recent tabs row (see seated): the open tab and the ones used last, each in its seat. A tab opened
- * after everything in the row was last used is the newest: it joins at the left. `left`, the page the preview was
- * just showing, always stays in the row (the way back is one click, as Ctrl+Tab's last tab), whatever the tabs' times
- * say at this moment (they reach the window a beat after the switch).
+ * The preview's recent tabs row. It holds still while the preview is open: a tab in it keeps its seat for as long as it
+ * is open, whatever the tabs' times say, so picking one (even the last on the right) moves nothing. It changes only
+ * when it must, and then in place: a closed tab leaves (the others keep their order) and the next most recent tab
+ * fills the end; a page opened from outside the row takes the rightmost seat that is not `left` (the page the preview
+ * was just showing: the way back stays one click, as Ctrl+Tab's last tab). Never more than `n`, the board's row size,
+ * so opening the preview from the board moves nothing either.
  */
 export function keptRecent(
   row: readonly number[],
   tabs: readonly RecentTab[],
   open: number,
   onBoard: (id: number) => boolean,
-  left?: number | null
+  left?: number | null,
+  n = RECENT_ON_BOARD
 ): number[] {
   const byId = new Map(tabs.map((t) => [t.id, t]))
-  const alive = row.filter((id) => byId.has(id))
-  // the open one is in use right now (its time keeps moving): the row's others say when the row was last touched
-  const newest = Math.max(
-    0,
-    ...alive.filter((id) => id !== open).map((id) => recency(byId.get(id)!))
-  )
-  const isNew = (id: number): boolean => (byId.get(id)?.openedAt ?? 0) > newest
-  const back = left != null && left !== open && byId.has(left) && onBoard(left) ? left : null
-  const others = recentOthers(tabs, open, onBoard, RECENT_IN_PREVIEW + 1).filter(
-    (id) => id !== back
-  )
-  const want = [open, ...(back !== null ? [back] : []), ...others].slice(0, RECENT_IN_PREVIEW + 1)
-  return seated(row, want, isNew, RECENT_IN_PREVIEW + 1, open)
+  const shown = (id: number): boolean => byId.has(id) && onBoard(id)
+  const out = row.filter(shown).slice(0, n)
+  if (!out.includes(open) && shown(open)) {
+    if (out.length < n) out.push(open)
+    else {
+      const i = out.findLastIndex((id) => id !== left)
+      out[i < 0 ? out.length - 1 : i] = open
+    }
+  }
+  for (const id of recentOthers(tabs, open, onBoard, n)) {
+    if (out.length >= n) break
+    if (!out.includes(id)) out.push(id)
+  }
+  return out
 }
 
 /** The board's row (no page open), held still the same way. */

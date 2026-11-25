@@ -3,6 +3,7 @@ import {
   pageCaps,
   keptBoardRow,
   keptRecent,
+  RECENT_ON_BOARD,
   recentOthers,
   restRect,
   sameRect,
@@ -88,47 +89,42 @@ describe('recentOthers', () => {
   })
 })
 
-describe('keptRecent', () => {
+describe('keptRecent (the preview row holds still)', () => {
   const at = (...ids: number[]): { id: number; usedAt: number }[] =>
     ids.map((id, i) => ({ id, usedAt: 100 - i }))
-  test('a closed tab is replaced in its own seat by the next most recent; the others do not move', () => {
-    // row was [1, 2, 3, 4]; 3 closed; 5 is the most recent tab not shown
-    expect(keptRecent([1, 2, 3, 4], at(5, 1, 2, 4, 6), 1, () => true)).toEqual([1, 2, 5, 4])
+  const all = (): boolean => true
+  test('picking any tab in the row, the last on the right too, moves nothing', () => {
+    // 5 was open; the person picks 4 (rightmost): it is now the most recent tab, yet every seat stays
+    const row = [1, 2, 3, 5, 4]
+    expect(keptRecent(row, at(4, 5, 1, 2, 3, 9), 4, all)).toEqual(row)
   })
-  test('stays put when nothing closed', () => {
-    expect(keptRecent([2, 1, 3, 4], at(1, 2, 3, 4, 5), 2, () => true)).toEqual([2, 1, 3, 4])
+  test('never longer than the board row, even with many recent tabs', () => {
+    expect(keptRecent([], at(1, 2, 3, 4, 5, 6, 7, 8), 1, all)).toHaveLength(RECENT_ON_BOARD)
+    expect(keptRecent([1, 2, 3, 4, 5, 6, 7], at(1, 2, 3, 4, 5, 6, 7), 1, all)).toHaveLength(
+      RECENT_ON_BOARD
+    )
   })
-  test('a card outside the row takes a seat at its end; the row does not start over', () => {
-    expect(keptRecent([1, 2], at(1, 2, 3), 3, () => true)).toEqual([1, 2, 3])
+  test('opening the preview from the board row moves nothing', () => {
+    const board = [3, 1, 4, 2, 5]
+    expect(keptRecent(board, at(1, 2, 3, 4, 5, 6), 4, all)).toEqual(board)
   })
-  test('picking a tab in the row moves nothing (it was the reorder the user saw)', () => {
-    // 3 was open, the person picks 1: 1 is now the most recent, 3 the next; every tab keeps its seat
-    expect(
-      keptRecent([3, 1, 2, 4], [...at(1, 3, 2, 4), { id: 5, usedAt: 1 }], 1, () => true)
-    ).toEqual([3, 1, 2, 4])
+  test('a closed tab leaves; the others keep their order and the next recent fills the end', () => {
+    expect(keptRecent([1, 2, 3, 4, 5], at(6, 1, 2, 4, 5), 1, all)).toEqual([1, 2, 4, 5, 6])
   })
-  test('shrinks only when there is nothing left to show', () => {
-    expect(keptRecent([1, 2, 3], at(1, 3), 1, () => true)).toEqual([1, 3])
+  test('a page from outside the row takes the rightmost seat that is not the way back', () => {
+    // 5 is the way back (the page just left); 9 opened from elsewhere takes 4's seat, nothing else moves
+    expect(keptRecent([1, 2, 3, 4, 5], at(9, 1, 2, 3, 4, 5), 9, all, 5)).toEqual([1, 2, 3, 9, 5])
   })
-  test('a tab opened after the row was last used joins at the left; the last one makes room', () => {
-    const tabs = [...at(1, 2, 3, 4), { id: 9, usedAt: 0, openedAt: 200 }]
-    expect(keptRecent([1, 2, 3, 4], tabs, 3, () => true)).toEqual([9, 1, 2, 3])
+  test('with room, a page from outside joins at the end', () => {
+    expect(keptRecent([1, 2], at(1, 2, 3), 3, all)).toEqual([1, 2, 3])
   })
-  test('the open tab never makes room, even last in the row', () => {
-    const tabs = [...at(1, 2, 3, 4), { id: 9, usedAt: 0, openedAt: 200 }]
-    expect(keptRecent([1, 2, 3, 4], tabs, 4, () => true)).toEqual([9, 1, 2, 4])
+  test('only tabs with a card on the board', () => {
+    expect(keptRecent([1, 2, 3], at(1, 2, 3, 4), 1, (id) => id !== 2)).toEqual([1, 3, 4])
   })
-  test('the open tab being in use now does not keep a newly opened one out', () => {
-    const tabs = [
-      { id: 1, usedAt: 500 },
-      ...at(2, 3, 4).map((t) => ({ ...t })),
-      { id: 9, usedAt: 0, openedAt: 200 }
-    ]
-    expect(keptRecent([1, 2, 3, 4], tabs, 1, () => true)).toEqual([9, 1, 2, 3])
-  })
-  test('a tab opened before the row was last used does not barge in', () => {
-    const tabs = [...at(1, 2, 3, 4), { id: 9, usedAt: 0, openedAt: 50 }]
-    expect(keptRecent([1, 2, 3, 4], tabs, 1, () => true)).toEqual([1, 2, 3, 4])
+  test('stable: asked again with the same tabs, the same row', () => {
+    const tabs = at(1, 2, 3, 4, 5, 6)
+    const once = keptRecent([], tabs, 2, all)
+    expect(keptRecent(once, tabs, 2, all)).toEqual(once)
   })
 })
 
@@ -196,16 +192,16 @@ describe('keptRecent: the page just left stays in the row (the way back)', () =>
   test('switching from 5 to 2 keeps 5, even though its time is old', () => {
     expect(keptRecent([1, 8, 7, 5], tabs, 2, () => true, 5)).toContain(5)
   })
-  test('without the page left, the old behaviour (5 goes)', () => {
-    expect(keptRecent([1, 8, 7, 5], tabs, 2, () => true)).not.toContain(5)
+  test('a full row: the open page takes the rightmost seat that is not the way back', () => {
+    expect(keptRecent([1, 8, 7, 6, 5], tabs, 2, () => true, 5)).toEqual([1, 8, 7, 2, 5])
   })
   test('a page left that closed, or has no card, is not kept', () => {
     expect(keptRecent([1, 8, 7, 5], tabs, 2, (id) => id !== 5, 5)).not.toContain(5)
     expect(keptRecent([1, 8, 7, 5], tabs, 2, () => true, 42)).not.toContain(42)
   })
-  test('the row stays four long and the open tab stays in it', () => {
+  test('the row stays as long as the board row and the open tab stays in it', () => {
     const row = keptRecent([1, 8, 7, 5], tabs, 2, () => true, 5)
-    expect(row).toHaveLength(4)
+    expect(row).toHaveLength(RECENT_ON_BOARD)
     expect(row).toContain(2)
     expect(new Set(row).size).toBe(row.length)
   })
