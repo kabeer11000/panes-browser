@@ -431,9 +431,9 @@ function Level({
   // the highlight is one pill gliding to the row under the pointer (or the keys), as on the toolbar
   const pill = useRef<HTMLDivElement>(null)
   const lit = useRef(false)
-  const onFocus = (e: React.FocusEvent): void => {
+  /** The pill onto a row (gliding there once one is lit), or away (null, or a row that cannot be picked). */
+  const light = (row: HTMLElement | null): void => {
     const p = pill.current
-    const row = (e.target as HTMLElement).closest<HTMLElement>('[data-i]')
     if (!p) return
     if (!row || row.classList.contains('danger') || row.getAttribute('aria-disabled')) {
       p.style.opacity = '0'
@@ -447,12 +447,26 @@ function Level({
     p.style.opacity = '1'
     lit.current = true
   }
+  const openRow = (): HTMLElement | null =>
+    open === undefined
+      ? null
+      : (box.current?.querySelector<HTMLElement>(`[data-i="${open}"]`) ?? null)
+  const onFocus = (e: React.FocusEvent): void =>
+    light((e.target as HTMLElement).closest<HTMLElement>('[data-i]'))
+  // Off into its submenu (or elsewhere): the row whose submenu is open stays lit, as in every system menu; it lost
+  // its highlight the moment the pointer went in, so the submenu seemed to come from nowhere.
   const onBlur = (e: React.FocusEvent): void => {
     if (box.current?.contains(e.relatedTarget as Node | null) && e.relatedTarget !== box.current)
       return
-    if (pill.current) pill.current.style.opacity = '0'
-    lit.current = false
+    light(openRow())
   }
+  // its open submenu changed while the focus is elsewhere (in the submenu): the pill follows the open row
+  useEffect(() => {
+    if (box.current?.contains(document.activeElement) && document.activeElement !== box.current)
+      return
+    light(openRow())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
   // a column for the check mark, kept for every row of a level that has choices, so labels line up
   const lead = list.some((e) => e !== 'sep' && e.checked !== undefined)
   const pt = (e: React.PointerEvent): Pt => {
