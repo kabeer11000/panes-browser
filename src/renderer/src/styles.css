@@ -3252,19 +3252,30 @@ kbd {
 }
 /* every scrolling list and menu without a shadow of its own (one with a shadow scrolls in an inner list instead,
    as the board's notifications do) */
+/* One rule for every one of them (a second copy of the keyframes once overrode these with other names, so most
+   lists lost their bottom fade). Readers and documents scroll here too: their text fades under the edge as well. */
 .tab-list,
+.taskview,
 .pal-list,
 .perm-sources,
+.perm-certs,
 .space-pop-scroll,
 .cv-cmd-list,
 .cv-space-menu,
 .cv-dock-scroll,
 .cv-bell-scroll,
+.cv-chat-list,
+.cv-nc-list,
+.cv-reader,
+.cv-pdf-reader,
+.cv-answer-full,
 .pn-body,
 .share-grid,
 .chat-history,
 .chat-scroll,
-.ask-body {
+.ask-body,
+.pr-scroll,
+.pr-form {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
@@ -5893,58 +5904,6 @@ kbd {
 .space-shared svg {
   display: block;
   fill: currentColor;
-}
-
-/* ---- scroll fades: a list fades out at an edge that has more beyond it, and only there ----
-   Driven by the list's own scroll (a scroll-driven animation): at the top only the bottom edge fades, at the end only
-   the top, in between both. A list too short to scroll has no scroll timeline, so the animation does not run and it
-   gets no fade at all. */
-@property --fade-top {
-  syntax: '<length>';
-  inherits: false;
-  initial-value: 0px;
-}
-@property --fade-bottom {
-  syntax: '<length>';
-  inherits: false;
-  initial-value: 0px;
-}
-@keyframes scroll-fade {
-  0% {
-    --fade-top: 0px;
-    --fade-bottom: 28px;
-  }
-  8% {
-    --fade-top: 28px;
-  }
-  92% {
-    --fade-bottom: 28px;
-  }
-  100% {
-    --fade-top: 28px;
-    --fade-bottom: 0px;
-  }
-}
-:is(
-  .tab-list,
-  .pal-list,
-  .space-pop-scroll,
-  .cv-cmd-list,
-  .cv-space-menu,
-  .cv-chat-list,
-  .cv-nc-list,
-  .chat-scroll,
-  .chat-history
-) {
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--fade-top),
-    #000 calc(100% - var(--fade-bottom)),
-    transparent 100%
-  );
-  animation: scroll-fade linear both;
-  animation-timeline: scroll(self block);
 }
 
 /* the tab shown live to a shared space (Sidebar.tsx): a small red tag, as a recording light */
