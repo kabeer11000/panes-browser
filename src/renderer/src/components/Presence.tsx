@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { reducedMotion } from '@renderer/motion'
 
 /** How long a leaving popover plays its exit (--dur-exit, a little over: the spring's tail is invisible). */
-const EXIT_MS = 180
+export const EXIT_MS = 180
 
 /**
  * Lets a popover or menu leave instead of vanishing: when `children` turns falsy, the last one stays mounted for its

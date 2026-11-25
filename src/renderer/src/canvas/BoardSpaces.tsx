@@ -1,5 +1,5 @@
 import { useReorder } from '@renderer/hooks/useReorder'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { Space } from '@shared/types'
 import { attentionLabel, badgeText } from '@shared/attention'
 import { useSpaceMarks } from '@renderer/hooks/useSpaceAudio'
@@ -7,7 +7,7 @@ import { SpaceAvatar } from '@renderer/components/SpaceAvatar'
 import { SpacePopover } from '@renderer/components/SpacePopover'
 import { Presence } from '@renderer/components/Presence'
 import { PlusIcon } from '@renderer/components/icons'
-import { holdOverlay, releaseOverlay } from '@renderer/overlay'
+import { useOverlayHold } from '@renderer/overlay'
 import { useDismiss } from './useDismiss'
 
 /**
@@ -34,12 +34,7 @@ export function BoardSpaces({
   const elsewhere = spaces.some((s) => s.id !== activeSpaceId && spaceAttention[s.id])
 
   // the live page is a native view over the board: while a list or the settings is open it stands aside as a picture
-  const over = open || edited !== undefined
-  useEffect(() => {
-    if (!over) return
-    void holdOverlay('board-spaces')
-    return () => void releaseOverlay('board-spaces')
-  }, [over])
+  useOverlayHold('board-spaces', open || edited !== undefined)
 
   // drag a space up or down the list to put it elsewhere (useReorder), as in the sidebar
   const {

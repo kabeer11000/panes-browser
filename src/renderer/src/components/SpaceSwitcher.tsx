@@ -1,12 +1,12 @@
 import { useReorder } from '@renderer/hooks/useReorder'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
-import { memo, useEffect, useId, useState } from 'react'
+import { memo, useId, useState } from 'react'
 import type { Space } from '@shared/types'
 import { attentionLabel, badgeText } from '@shared/attention'
 import { useSpaceMarks } from '@renderer/hooks/useSpaceAudio'
 import { PlusIcon, SpeakerIcon } from './icons'
 import { SpaceAvatar } from './SpaceAvatar'
-import { holdOverlay, releaseOverlay } from '@renderer/overlay'
+import { useOverlayHold } from '@renderer/overlay'
 import { SpacePopover } from './SpacePopover'
 import { Presence } from './Presence'
 
@@ -49,12 +49,7 @@ export const SpaceSwitcher = memo(function SpaceSwitcher({
   // Page views are native and take every click over them, so while the editor is open the page is swapped
   // for its snapshot (as for the search popover). That also lets a click anywhere outside close the editor,
   // and keeps a dropped-down editor from hiding behind the page.
-  const dropsOverPage = editing !== undefined
-  useEffect(() => {
-    if (!dropsOverPage) return
-    void holdOverlay(owner)
-    return () => void releaseOverlay(owner)
-  }, [dropsOverPage, owner])
+  useOverlayHold(owner, editing !== undefined)
 
   // drag a space along the row to put it elsewhere (useReorder): the others slide aside, the new order is kept
   const {

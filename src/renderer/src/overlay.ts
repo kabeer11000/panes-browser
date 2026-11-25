@@ -1,3 +1,6 @@
+import { useEffect, useRef } from 'react'
+import { EXIT_MS } from '@renderer/components/Presence'
+
 /**
  * Page views are native and paint over the window's own UI, so anything that draws UI over the page
  * (the command bar, the space editor, the site panel, a drag in progress) first asks main to swap each
@@ -27,4 +30,29 @@ export function releaseOverlay(owner: string): Promise<void> {
   // wait for the opening to finish, and check nobody took hold in the meantime
   state = state.then(() => (holders.size === 0 ? window.api.setOverlay(false) : undefined))
   return state
+}
+
+/**
+ * Hold the pages aside while `on` (a popover or menu over the page is open), and give them back only after its exit
+ * (<Presence>, EXIT_MS): given back at once, the page came back over the popover as it began to leave, so it seemed
+ * to vanish instead of closing. Opened again before then, the hold just carries on.
+ */
+export function useOverlayHold(owner: string, on: boolean): void {
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    if (!on) return
+    window.clearTimeout(timer.current)
+    void holdOverlay(owner)
+    return () => {
+      timer.current = window.setTimeout(() => void releaseOverlay(owner), EXIT_MS)
+    }
+  }, [owner, on])
+  // gone altogether (unmounted): given back now, there is nothing left to watch leave
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current)
+      void releaseOverlay(owner)
+    },
+    [owner]
+  )
 }
