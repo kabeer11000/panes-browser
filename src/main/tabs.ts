@@ -1191,6 +1191,34 @@ export class TabManager {
   }
 
   /**
+   * DevTools as Chrome's shortcuts open it: Ctrl+Shift+J on the Console, Ctrl+Shift+C picking an element on the page.
+   * Opened first if it is closed (the panel is chosen once its front end has loaded); pressed again while it is open
+   * on that panel, it closes, as the plain toggle does.
+   */
+  private devToolsAt(tab: Tab | null | undefined, what: 'console' | 'inspect'): void {
+    const wc = tab?.view.webContents
+    if (!wc || wc.isDestroyed()) return
+    const go = (): void => {
+      const dt = wc.devToolsWebContents
+      if (!dt || dt.isDestroyed()) return
+      const js =
+        what === 'console'
+          ? "DevToolsAPI.showPanel('console')"
+          : 'DevToolsAPI.enterInspectElementMode()'
+      void dt.executeJavaScript(js).catch(() => undefined)
+    }
+    if (wc.isDevToolsOpened()) return go()
+    wc.once('devtools-opened', () => {
+      const dt = wc.devToolsWebContents
+      if (!dt) return
+      // the front end needs a moment after it opens before its panels can be picked
+      if (dt.isLoading()) dt.once('did-finish-load', () => setTimeout(go, 150))
+      else setTimeout(go, 150)
+    })
+    this.toggleDevTools(tab)
+  }
+
+  /**
    * A frozen page runs no script and draws nothing: a script sent to it, or a picture asked of it, would wait until
    * it is shown. Every such call wakes it first, here in one place for every caller (it rests again at the next sweep
    * if it is still hidden and idle).
@@ -4100,6 +4128,11 @@ export class TabManager {
       // Chromium's wheel delta is positive for scroll-up; the renderer expects DOM units (down is positive).
       this.send('ui:stack-wheel', wheelTicksY !== 0 ? -wheelTicksY * 100 : -deltaY)
     })
+    // a link DevTools opens (a source file, a request's address, "Open in new tab"): a tab of Panes', in the page's
+    // space, instead of nothing at all
+    wc.on('devtools-open-url', (_e, url) => {
+      if (/^https?:\/\//i.test(url)) this.create(url, true, tab.spaceId, undefined, tab.private, tab.tor)
+    })
     wc.setWindowOpenHandler(({ url, features, disposition }) => {
       // Sign-in flows (Google, Figma, ...) open a popup and message the page that opened it, so a
       // real popup window must stay linked to its opener. Ordinary links still become tabs. An empty page
@@ -4338,7 +4371,8 @@ export class TabManager {
       else if (k === 'b') this.openInternal('bookmarks')
       else if (k === 'g')
         this.findAgain(false) // as Shift+F3
-      else if (k === 'j' || k === 'c') this.toggleDevTools(this.current())
+      else if (k === 'j') this.devToolsAt(this.current(), 'console')
+      else if (k === 'c') this.devToolsAt(this.current(), 'inspect')
       else if (k === 'pagedown') this.moveActive(1)
       else if (k === 'pageup') this.moveActive(-1)
       else if (k === 'tab') this.send('ui:stack-wheel', -STACK_STEP)
