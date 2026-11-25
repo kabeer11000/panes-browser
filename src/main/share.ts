@@ -113,7 +113,7 @@ export interface ShareDeps {
   /** The space's normal tabs (no private or Tor ones), in tab order. */
   tabsOf: (spaceId: number) => Array<{ id: number; url: string }>
   /** A tab's picture (a JPEG data address) and when it was taken; null and 0 when it has none. */
-  thumbOf: (tabId: number) => string | null
+  thumbOf: (tabId: number) => Buffer | null
   thumbAt: (tabId: number) => number
   /** Showing a tab live (main/tabs.ts): keep it painting or stop; its address and title; input from the driver. */
   setLiveShared: (tabId: number, on: boolean) => boolean
@@ -243,7 +243,7 @@ export class ShareService {
         if (!at || (was && (at <= was.at || Date.now() - was.sent < PIC_EVERY_MS))) continue
         const data = this.d.thumbOf(c.id)
         if (!data) continue
-        const img = nativeImage.createFromDataURL(data)
+        const img = nativeImage.createFromBuffer(data)
         if (img.isEmpty()) continue
         budget--
         const jpeg = img.resize({ width: PIC_WIDTH, quality: 'good' }).toJPEG(PIC_QUALITY)

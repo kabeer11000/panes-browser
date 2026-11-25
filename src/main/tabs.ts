@@ -109,6 +109,7 @@ import {
   type TabFacts
 } from '@shared/memory'
 import { join } from 'path'
+import { TabPics } from './tabPics'
 import { internalUrl, type InternalPage } from '@shared/settings'
 import { pdfFileName } from '@shared/print'
 import {
@@ -332,7 +333,8 @@ interface Tab {
    * a page brought back after unloading; the page's audioMuted is worked out from it and the site (applyMute). */
   mute?: TabMute
   favicon: string | null
-  thumb: string | null
+  /** Whether the tab has a picture (its bytes are in `pics`). */
+  thumb: boolean
   /** When `thumb` was captured (ms since epoch); 0 before the first capture. */
   thumbAt: number
   /** The picture was taken at (nearly) the page's own size, not shrunk for the overview. */
@@ -654,6 +656,8 @@ export class TabManager {
   /** One empty view shared by every unloaded tab, so they hold no page and no renderer process. */
   private inert: WebContentsView | null = null
   private saved = new SavedPages()
+  /** The tabs' pictures: small ones in memory, big ones on disk (tabPics.ts). */
+  private pics = new TabPics(join(app.getPath('userData'), 'tab-pictures'))
   private shownBefore = new Set<number>()
 
   private fullscreenId: number | null = null
@@ -743,8 +747,6 @@ export class TabManager {
   // Pictures go to the window as panes-thumb:// addresses (served by thumbBytes), not as data addresses: a picture is
   // tens of kilobytes of base64, a third bigger than its bytes, copied through IPC and every React prop that held it.
   private thumbVer = new Map<number, number>()
-  /** Pictures of tabs just closed, kept a moment (a closing card still shows its picture as it goes). */
-  private goneThumbs = new Map<number, string>()
 
   /** The window's address for a tab's picture; `fresh`: the picture changed (a new version, so a new address). */
   private thumbLink(id: number, fresh: boolean): string {
@@ -755,9 +757,14 @@ export class TabManager {
 
   /** A tab's picture, as bytes, for panes-thumb:// (main/index.ts); null when it has none. */
   thumbBytes(id: number): Buffer | null {
-    const data = this.tabs.get(id)?.thumb ?? this.goneThumbs.get(id)
-    const comma = data?.indexOf(',') ?? -1
-    return data && comma > 0 ? Buffer.from(data.slice(comma + 1), 'base64') : null
+    return this.pics.get(id)
+  }
+
+  /** A tab's new picture: kept (on disk if big, never for a private or Tor tab) and the window told. */
+  private setThumb(id: number, t: Tab, jpeg: Buffer): void {
+    this.pics.set(id, jpeg, !t.private && !t.tor)
+    t.thumb = true
+    this.send('tabs:thumb', id, this.thumbLink(id, true))
   }
 
   /** The session was saved with the board up: it comes back on the board (see restoreOrNew), until it is left. */
@@ -1367,7 +1374,7 @@ export class TabManager {
       identity: null,
       pinned: false,
       favicon: null,
-      thumb: null,
+      thumb: false,
       thumbAt: 0,
       thumbSharp: false,
       thumbSize: { w: 0, h: 0 },
@@ -1634,13 +1641,12 @@ export class TabManager {
     const ids = this.own()
     const idx = ids.indexOf(id)
     if (tab.thumbTimer) clearTimeout(tab.thumbTimer)
-    if (tab.thumb) {
-      this.goneThumbs.set(id, tab.thumb)
+    // its picture is kept a moment: a closing card still shows it as it goes
+    if (tab.thumb)
       setTimeout(() => {
-        this.goneThumbs.delete(id)
-        if (!this.tabs.has(id)) this.thumbVer.delete(id)
+        this.pics.delete(id)
+        this.thumbVer.delete(id)
       }, 30_000).unref()
-    }
     this.tabs.delete(id)
     this.dropCopy(tab)
     this.destroyView(tab)
@@ -4531,12 +4537,11 @@ export class TabManager {
       const width = sharp ? img.getSize().width : THUMB_WIDTH
       const picture = sharp ? img : img.resize({ width, quality: 'good' })
       const jpeg = picture.toJPEG(sharp ? 82 : 72)
-      tab.thumb = 'data:image/jpeg;base64,' + jpeg.toString('base64')
       tab.thumbSharp = sharp
       const at = this.rects[id]
       tab.thumbSize = at ? { w: at.width, h: at.height } : { w: 0, h: 0 }
       tab.thumbAt = Date.now()
-      this.send('tabs:thumb', id, this.thumbLink(id, true))
+      this.setThumb(id, tab, jpeg)
     } catch {
       tab.dirty = true // tab closed or view torn down mid-capture
     }
@@ -4677,11 +4682,10 @@ export class TabManager {
       const jpeg = (w < full ? img.resize({ width: w, quality: 'good' }) : img).toJPEG(
         w > CANVAS_THUMB_WIDTH ? 80 : 70
       )
-      tab.thumb = 'data:image/jpeg;base64,' + jpeg.toString('base64')
       tab.thumbSharp = w >= full
       tab.thumbSize = { w: 0, h: 0 }
       tab.thumbAt = Date.now()
-      this.send('tabs:thumb', id, this.thumbLink(id, true))
+      this.setThumb(id, tab, jpeg)
     } catch {
       // closed mid-capture
     }
@@ -4876,29 +4880,27 @@ export class TabManager {
   }
 
   /** The picture a normal tab has (null for private and Tor tabs, which are never kept or shown elsewhere). */
-  thumbOf(id: number): string | null {
+  thumbOf(id: number): Buffer | null {
     const t = this.tabs.get(id)
-    return t && !t.private && !t.tor ? t.thumb || null : null
+    return t && !t.private && !t.tor && t.thumb ? this.pics.get(id) : null
   }
 
   /** Give a tab with no picture one from the disk cache (an unloaded tab after a restart). */
   /** A picture of the page as it is right now (the canvas preview's, as it closes): the tab's picture from now on. */
-  takeThumb(id: number, dataUrl: string, takenAt = Date.now()): void {
+  takeThumb(id: number, jpeg: Buffer, takenAt = Date.now()): void {
     const t = this.tabs.get(id)
     // never over a newer one (a picture kept from the preview is handed over a moment after it was taken)
     if (!t || t.private || t.tor || t.thumbAt > takenAt) return
-    t.thumb = dataUrl
     t.thumbAt = takenAt
     t.thumbSharp = false
     t.dirty = false
-    this.send('tabs:thumb', id, this.thumbLink(id, true))
+    this.setThumb(id, t, jpeg)
   }
 
-  seedThumb(id: number, dataUrl: string): void {
+  seedThumb(id: number, jpeg: Buffer): void {
     const t = this.tabs.get(id)
     if (!t || t.private || t.tor || t.thumb) return
-    t.thumb = dataUrl
-    this.send('tabs:thumb', id, this.thumbLink(id, true))
+    this.setThumb(id, t, jpeg)
   }
 
   // ---- dark websites ----

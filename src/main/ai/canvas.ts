@@ -142,7 +142,7 @@ export class CanvasService {
       const file = this.thumbFile(t.url)
       if (!file || !existsSync(file)) continue
       try {
-        tabs.seedThumb(t.id, 'data:image/jpeg;base64,' + readFileSync(file).toString('base64'))
+        tabs.seedThumb(t.id, readFileSync(file))
       } catch {
         // an unreadable cache file is just no picture
       }
@@ -209,7 +209,7 @@ export class CanvasService {
         const data = this.deps.tabs.thumbOf(t.id)
         if (!file || !data) continue
         if (existsSync(file) && statSync(file).mtimeMs >= t.thumbAt) continue
-        const image = nativeImage.createFromDataURL(data)
+        const image = nativeImage.createFromBuffer(data)
         const w = image.getSize().width
         const kept = w > THUMB_WIDTH ? image.resize({ width: THUMB_WIDTH, quality: 'good' }) : image
         writeFileSync(file, kept.toJPEG(72))
@@ -618,7 +618,7 @@ export function registerCanvas(d: {
     kept = null
     setTimeout(() => {
       const small = k.img.getSize().width > 960 ? k.img.resize({ width: 960 }) : k.img
-      d.tabs.takeThumb(k.id, 'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64'), k.at)
+      d.tabs.takeThumb(k.id, small.toJPEG(80), k.at)
     }, 450)
   }
   const capture = async (tabId: number): Promise<Electron.NativeImage | null> => {
@@ -641,7 +641,7 @@ export function registerCanvas(d: {
     if (!img) return null
     if (thumb !== false) {
       const small = img.getSize().width > 960 ? img.resize({ width: 960 }) : img
-      d.tabs.takeThumb(tabId, 'data:image/jpeg;base64,' + small.toJPEG(80).toString('base64'))
+      d.tabs.takeThumb(tabId, small.toJPEG(80))
     } else kept = { id: tabId, img, at: Date.now() }
     return 'data:image/jpeg;base64,' + img.toJPEG(82).toString('base64')
   })
