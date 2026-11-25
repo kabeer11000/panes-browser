@@ -1,0 +1,85 @@
+/* the find bar's own view (main/findFloat.ts): transparent, the card inset by FIND_PAD so its shadow has room */
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+#root {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 6px 12px 14px;
+  box-sizing: border-box;
+}
+.find-card {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  height: 40px;
+  padding: 0 5px 0 12px;
+  box-sizing: border-box;
+  border-radius: var(--r-pill, 999px);
+  background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-2), var(--rim);
+  color: var(--fg);
+  font-size: var(--fs-m, 13px);
+  animation: find-in var(--dur) var(--ease-snappy, ease-out) both;
+}
+@keyframes find-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+.find-card input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.find-count {
+  flex: none;
+  padding: 0 6px;
+  color: var(--fg-dim);
+  font-size: var(--fs-s, 12px);
+  font-variant-numeric: tabular-nums;
+}
+.find-sep {
+  flex: none;
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: var(--hairline);
+}
+.find-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--fg-dim);
+  transition:
+    background-color var(--dur-fast),
+    color var(--dur-fast);
+}
+.find-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--fg);
+}
+.find-btn:disabled {
+  opacity: 0.4;
+}
+.find-btn svg {
+  width: 16px;
+  height: 16px;
+}

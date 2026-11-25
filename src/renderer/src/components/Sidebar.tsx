@@ -5,7 +5,6 @@ import type { TabGroup } from '@shared/tabgroups'
 import type { LoginEdits, PasswordPrompt, Settings, Space, TabInfo, TabsState } from '@shared/types'
 import { TabTitle } from './TabTitle'
 import { AddressBar } from './AddressBar'
-import { FindBar } from './FindBar'
 import { SavePrompt } from './SavePrompt'
 import { SharingBar } from './SharingBar'
 import {
@@ -58,8 +57,6 @@ interface Props {
   picked: ReadonlySet<number>
   onOpenSearch: () => void
   rowH: number
-  findKey: number | null
-  onCloseFind: () => void
   passwordPrompt: PasswordPrompt | null
   /** Version of a downloaded update waiting for a restart, or null. */
   updateVersion: string | null
@@ -101,8 +98,6 @@ export function Sidebar({
   picked,
   onOpenSearch,
   rowH,
-  findKey,
-  onCloseFind,
   passwordPrompt,
   updateVersion,
   defaultPrompt,
@@ -393,8 +388,6 @@ export function Sidebar({
           <span className="tab-title">New tab</span>
         </button>
       </motion.div>
-
-      {findKey !== null && <FindBar focusKey={findKey} onClose={onCloseFind} />}
 
       <div className="sidebar-foot no-drag">
         <SpaceSwitcher

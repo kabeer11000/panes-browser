@@ -32,6 +32,7 @@ import { Adblock } from './adblock'
 import { YouTube } from './youtube'
 import { applyPerformance, offscreenTest, runningMode } from './performance'
 import { registerUiFx } from './uiFx'
+import { FindFloat } from './findFloat'
 import { loadAi } from './ai/sdk'
 import { rewriteClientHints } from './identity'
 import { DownloadManager } from './downloads'
@@ -306,6 +307,8 @@ function createWindow(): void {
     chromeUa: chromeUserAgent(),
     icon
   })
+  new FindFloat(win, tabs) // Ctrl+F in the tab view: a bar over the page's top right (findFloat.ts)
+
   const ai = registerAi({ settings, tabs, history, downloads })
   suggester.setSemantic((q, exclude) => ai.features.semantic(q, exclude))
   registerTouchpad()

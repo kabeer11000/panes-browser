@@ -18,7 +18,6 @@ import { TaskView } from './components/TaskView'
 import { Canvas } from './canvas/Canvas'
 import { AddressBar } from './components/AddressBar'
 import { SharingBar } from './components/SharingBar'
-import { FindBar } from './components/FindBar'
 import {
   CanvasIcon,
   ChatIcon,
@@ -113,7 +112,6 @@ function App(): React.JSX.Element {
   const [startBoard, setStartBoard] = useState<boolean | null>(null)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
   const [settingsReady, setSettingsReady] = useState(false)
-  const [findKey, setFindKey] = useState<number | null>(null)
   // The chat panel: docked beside the page, so the page views are laid out smaller while it is open.
   const [chatOpen, setChatOpen] = useState(false)
   const [chatWidth, setChatWidth] = useState(loadChatWidth)
@@ -466,8 +464,6 @@ function App(): React.JSX.Element {
         // on the canvas board a new tab asks what to open there, instead of swapping the board for search
         if (modeRef.current === 'canvas') window.dispatchEvent(new Event('panes:canvas-new'))
         else void openOverlay('search')
-      } else if (cmd === 'find') {
-        setFindKey((k) => (k ?? 0) + 1)
       } else if (cmd === 'toggle-sidebar') {
         toggleSidebar()
       } else if (cmd === 'toggle-chat') {
@@ -667,7 +663,7 @@ function App(): React.JSX.Element {
   // at the bar, and a little of its foot runs off the window instead.
   const [barShown, setBarShown] = useState(false)
   // the bar stays out while search, a save-password prompt or find is using it, whatever the pointer does
-  const barHeld = mode === 'search' || searchPending || !!passwordPrompt || findKey !== null
+  const barHeld = mode === 'search' || searchPending || !!passwordPrompt
   useEffect(() => {
     autoHideRef.current = barAutoHidden
   }, [barAutoHidden])
@@ -959,8 +955,6 @@ function App(): React.JSX.Element {
             picked={pickedIds}
             onOpenSearch={() => void openOverlay('search')}
             rowH={rowH}
-            findKey={showSidebar ? findKey : null}
-            onCloseFind={() => setFindKey(null)}
             passwordPrompt={passwordPrompt}
             onAnswerPassword={answerPassword}
             updateVersion={updateVersion}
@@ -1056,9 +1050,6 @@ function App(): React.JSX.Element {
               <div className="strip-side end">
                 {!showSidebar && <StatusChips tor={tor} notice={notice} space={activeSpaceInfo} />}
                 {!showSidebar && <SharingBar tabs={tabs} activeId={activeId} />}
-                {!showSidebar && findKey !== null && (
-                  <FindBar focusKey={findKey} onClose={() => setFindKey(null)} />
-                )}
                 <button
                   className="icon-btn no-drag"
                   onClick={window.api.toggleSplit}

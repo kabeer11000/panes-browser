@@ -845,6 +845,17 @@ export interface FindResult {
   matches: number
 }
 
+/** The find bar's own view (main/findFloat.ts), floating over the page's top right as Chrome's does. */
+export interface FindApi {
+  /** Search the page; again with the same text: the next (or previous) match. Empty text clears it. */
+  find(text: string, forward?: boolean): void
+  /** Clear the highlights and put the bar away. */
+  close(): void
+  onResult(cb: (result: FindResult) => void): () => void
+  /** Shown again (Ctrl+F once more): select what is typed. */
+  onFocus(cb: () => void): () => void
+}
+
 export interface HistoryEntry {
   id: number
   url: string

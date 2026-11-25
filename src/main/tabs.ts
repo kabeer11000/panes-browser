@@ -2312,6 +2312,29 @@ export class TabManager {
     this.pageTab()?.view.webContents.stopFindInPage('clearSelection')
   }
 
+  /** The keyboard back to the page find searched (the find bar closed). */
+  focusPage(): void {
+    const wc = this.pageTab()?.view.webContents
+    if (wc && !wc.isDestroyed()) wc.focus()
+  }
+
+  /** Set by the floating find bar (findFloat.ts): Ctrl+F in the tab view opens it, over the page. */
+  onFind: (() => void) | null = null
+  /** And told each search's result, and each time the pages are laid out again (it follows its page). */
+  onFindResult: ((r: { active: number; matches: number }) => void) | null = null
+  onLayout: (() => void) | null = null
+
+  /** The page find searches, and where it is in the window (content coordinates), or null when there is none. */
+  findTarget(): { id: number; rect: Rect } | null {
+    const id = this.pageTabId()
+    const r = id === null ? undefined : this.rects[id]
+    if (id === null || !r || r.width <= 0 || r.height <= 0) return null
+    return {
+      id,
+      rect: { x: r.x + this.slideX, y: r.y + this.slideY, width: r.width, height: r.height }
+    }
+  }
+
   private zoom(delta: number | null, tab = this.pageTab()): void {
     const wc = tab?.view.webContents
     if (!wc) return
@@ -3728,6 +3751,7 @@ export class TabManager {
       if (show && slides && rect)
         this.slid.set(tab.view, { ...rect, x: rect.x - this.slideX, y: rect.y - this.slideY })
     }
+    this.onLayout?.() // the floating find bar keeps to its page
   }
 
   // ---- events ----
@@ -3920,7 +3944,9 @@ export class TabManager {
     wc.on('found-in-page', (_e, r) => {
       // the page find runs in: the active tab, or the canvas preview's
       if (this.pageTab() === tab) {
-        this.send('ui:find-result', { active: r.activeMatchOrdinal, matches: r.matches })
+        const result = { active: r.activeMatchOrdinal, matches: r.matches }
+        this.send('ui:find-result', result)
+        this.onFindResult?.(result)
       }
     })
     wc.on('cursor-changed', (_e, type) => this.cursorOf.set(wc, type))
@@ -5598,6 +5624,8 @@ export class TabManager {
       if (!this.win.isDestroyed()) this.win.webContents.focus()
       return this.send('canvas:preview-key', cmd === 'find' ? 'find' : 'address')
     }
+    // the tab view's find floats over the page, in a view of its own (findFloat.ts)
+    if (cmd === 'find' && this.onFind && !this.canvasMode) return this.onFind()
     this.send('ui:command', cmd)
   }
 
