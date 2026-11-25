@@ -18,6 +18,8 @@ bun run build                # typecheck + electron-vite build (needs user appro
 bun run build:win | build:unpack | release:win   # electron-builder (release:win publishes)
 ```
 
+Shared spaces bench (local relay, no app needed): `bun scripts/share-bench.ts` (latency, bursts, late join, pictures, relay restart, three-way typing).
+
 Perf tooling (needs a running Panes started with `--remote-debugging-port`, see headers in each file): `bun scripts/perf-report.ts`, `perf-load.ts`, `perf-close.ts`.
 
 Env vars: `PANES_USERDATA=<dir>` redirects the data folder (tests, side-by-side copies; also scopes the single-instance lock). `PANES_TRACE_STARTUP=1` appends startup timings to `startup-trace.log` in the data folder.

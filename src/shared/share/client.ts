@@ -34,6 +34,12 @@ export interface ShareClientOptions {
 
 const REMOTE = Symbol('share-remote')
 
+/**
+ * Local changes and cursor moves go out at most this often, merged: the relay allows a person 60 messages a second
+ * (240 at once) and closes a faster connection, and a drag or a held key makes far more changes than that.
+ */
+export const FLUSH_MS = 50
+
 export class ShareClient {
   readonly doc: Y.Doc
   readonly awareness: awarenessProtocol.Awareness
@@ -43,8 +49,14 @@ export class ShareClient {
   private ws: WebSocket | null = null
   private keys: Promise<RoomKeys>
   private have: number
-  /** Sealed updates sent and not yet acknowledged, in order: sent again after a reconnect. */
+  /** Updates sent and not yet acknowledged, in order (one per message): sent again, merged, after a reconnect. */
   private unacked: Uint8Array[] = []
+  /** Local changes not sent yet (merged into one at the next flush). */
+  private pending: Uint8Array[] = []
+  private flushTimer: ReturnType<typeof setTimeout> | undefined
+  private awareTimer: ReturnType<typeof setTimeout> | undefined
+  private awareAt = 0
+  private flushAt = 0
   private peers = new Set<number>()
   private closed = false
   private retry = 0
@@ -127,6 +139,8 @@ export class ShareClient {
     awarenessProtocol.removeAwarenessStates(this.awareness, [this.doc.clientID], 'local')
     this.doc.off('update', this.onLocal)
     this.awareness.off('update', this.onAware)
+    clearTimeout(this.flushTimer)
+    clearTimeout(this.awareTimer)
     this.ws?.close()
     this.awareness.destroy()
   }
@@ -171,7 +185,8 @@ export class ShareClient {
       // refused at the door (a wrong token) is not worth retrying. Anything else is: it used to give up after five
       // failed tries (16 s), and a relay redeploy or a dropped network outlasts that, leaving the space offline
       // until Panes restarted
-      if (e.code === 1008) return this.setStatus('refused')
+      // ('too fast' is the relay's rate limit, not a refusal: try again)
+      if (e.code === 1008 && e.reason !== 'too fast') return this.setStatus('refused')
       this.setStatus('offline')
       const wait = Math.min(30_000, 500 * 2 ** this.retry++) * (0.75 + Math.random() / 2)
       this.timer = setTimeout(() => void this.connect(), wait)
@@ -207,8 +222,12 @@ export class ShareClient {
         return
       }
       case T.SYNCED: {
-        // what was made offline goes now, then everyone sees where this person is
-        for (const u of this.unacked) this.send(frame(T.UPDATE, [], u))
+        // what was made offline goes now, as one message (however much it was), then everyone sees where this
+        // person is
+        this.unacked = [...this.unacked, ...this.pending]
+        this.pending = []
+        if (this.unacked.length > 1) this.unacked = [Y.mergeUpdates(this.unacked)]
+        for (const u of this.unacked) this.send(frame(T.UPDATE, [], await seal(key, u)))
         this.setStatus('live')
         this.onAware({ added: [this.doc.clientID], updated: [], removed: [] }, 'local')
         return
@@ -252,11 +271,25 @@ export class ShareClient {
 
   private onLocal = (update: Uint8Array, origin: unknown): void => {
     if (origin === REMOTE) return
-    void this.keys.then(async ({ key }) => {
-      const sealed = await seal(key, update)
-      this.unacked.push(sealed)
-      if (this.status === 'live') this.send(frame(T.UPDATE, [], sealed))
-    })
+    this.pending.push(update)
+    // the first change goes at once; changes right after it wait for the rest of FLUSH_MS and go together
+    if (this.status === 'live' && this.flushTimer === undefined)
+      this.flushTimer = setTimeout(
+        () => void this.flush(),
+        Math.max(0, this.flushAt + FLUSH_MS - Date.now())
+      )
+  }
+
+  /** The changes made since the last flush, as one message (kept until the relay acknowledges it). */
+  private async flush(): Promise<void> {
+    this.flushTimer = undefined
+    if (this.status !== 'live' || this.pending.length === 0) return
+    this.flushAt = Date.now()
+    const update = this.pending.length === 1 ? this.pending[0] : Y.mergeUpdates(this.pending)
+    this.pending = []
+    this.unacked.push(update)
+    const { key } = await this.keys
+    this.send(frame(T.UPDATE, [], await seal(key, update)))
   }
 
   private onAware = (
@@ -266,7 +299,17 @@ export class ShareClient {
     if (origin === REMOTE) return
     const ids = [...changes.added, ...changes.updated, ...changes.removed]
     if (!ids.includes(this.doc.clientID) || this.status !== 'live') return
-    const update = awarenessProtocol.encodeAwarenessUpdate(this.awareness, [this.doc.clientID])
-    void this.keys.then(async ({ key }) => this.send(frame(T.AWARE, [0], await seal(key, update))))
+    // the newest state, at most every FLUSH_MS: a cursor moves far more often than the relay passes messages
+    if (this.awareTimer !== undefined) return
+    const wait = Math.max(0, this.awareAt + FLUSH_MS - Date.now())
+    this.awareTimer = setTimeout(() => {
+      this.awareTimer = undefined
+      this.awareAt = Date.now()
+      if (this.status !== 'live') return
+      const update = awarenessProtocol.encodeAwarenessUpdate(this.awareness, [this.doc.clientID])
+      void this.keys.then(async ({ key }) =>
+        this.send(frame(T.AWARE, [0], await seal(key, update)))
+      )
+    }, wait)
   }
 }

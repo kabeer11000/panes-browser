@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import * as Y from 'yjs'
-import { ShareClient, type ShareStatus } from '../../src/shared/share/client'
+import { FLUSH_MS, ShareClient, type ShareStatus } from '../../src/shared/share/client'
 import { newRoom, roomKeys } from '../../src/shared/share/crypto'
 import { startRelay, STUN_SERVERS } from './relay'
 
@@ -21,6 +21,8 @@ afterAll(() => {
   relay.stop()
   rmSync(dir, { recursive: true, force: true })
 })
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 /** Waits until `ok()` holds (polling), failing after a while. */
 async function until(ok: () => boolean, what: string, ms = 3000): Promise<void> {
@@ -84,7 +86,9 @@ describe('relay + clients', () => {
     const room = newRoom()
     const a = join_(room)
     await until(() => a.status() === 'live', 'a live')
+    // two messages (changes made together go as one, FLUSH_MS)
     a.doc.getText('t').insert(0, 'one')
+    await sleep(FLUSH_MS + 20)
     a.doc.getText('t').insert(3, ' two')
     await until(() => a.have() >= 2, 'acked')
     const late = join_(room)
@@ -155,7 +159,11 @@ describe('relay + clients', () => {
     const room = newRoom()
     const a = join_(room)
     await until(() => a.status() === 'live', 'a live')
-    for (let i = 0; i < 30; i++) a.doc.getText('t').insert(0, 'x')
+    // 30 messages: one change per flush (changes made together go as one, FLUSH_MS)
+    for (let i = 0; i < 30; i++) {
+      a.doc.getText('t').insert(0, 'x')
+      await sleep(FLUSH_MS + 10)
+    }
     await until(() => a.have() >= 30, 'all acked')
     // ask a's client to compact, as the relay would
     await (a.c as unknown as { receive: (d: Uint8Array) => Promise<void> }).receive(
