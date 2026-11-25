@@ -27,17 +27,18 @@
   background: var(--board, var(--overlay-solid));
 }
 
-/* the panel scales from its top-left corner (Expanded's flight is computed for that origin) */
+/* the panel scales from its top-left corner (Expanded's flight is computed for that origin). Its will-change is set
+   only while it flies (Expanded draw): kept at rest, an opacity layer stopped every frosted menu in the preview from
+   blurring what is behind it (a backdrop-filter only sees inside such a layer) */
 .cv-expand > .cv-panel {
   transform-origin: 0 0;
-  will-change: transform, opacity;
 }
-/* its own layer (will-change): lifted over the body, or the page drawn off screen in the body covers what drops
-   from the header (the notifications list, menus) */
+/* its own layer: lifted over the body, or the page drawn off screen in the body covers what drops from the header (the
+   notifications list, menus). A transform layer, not an opacity one, for the same reason as above */
 .cv-expand > .cv-panel > .cv-panel-head {
   position: relative;
   z-index: 2;
-  will-change: opacity;
+  will-change: transform;
 }
 
 /* In flight only: a soft, wide shadow and a 1px light rim on the clipped edge (clip-path would cut a shadow off the

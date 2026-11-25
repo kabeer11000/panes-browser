@@ -1010,10 +1010,12 @@ export function Expanded({
     if (hd) hd.style.opacity = p >= 1 ? '' : String(Math.max(0, Math.min(1, (p - 0.9) / 0.08)))
     if (!el) return
     if (p >= 1 || !f) {
-      // at rest: no transform at all (crisp text, the native page lines up with it exactly)
+      // at rest: no transform at all (crisp text, the native page lines up with it exactly), and no layer of its own,
+      // so the frosted menus in it blur what is behind them (see preview.css)
       el.style.transform = ''
       el.style.clipPath = ''
       el.style.opacity = ''
+      el.style.willChange = ''
       if (edge.current) edge.current.style.opacity = '0'
       return
     }
@@ -1028,6 +1030,7 @@ export function Expanded({
     // the corners keep their size on screen as it grows (the clip is in the panel's own, scaled, units)
     const rad = f.r0 + (restRadius.current - f.r0) * p
     const op = Math.max(0, Math.min(1, p / f.fade))
+    el.style.willChange = 'transform, opacity' // its own layer only while it flies
     el.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`
     el.style.clipPath = `inset(${it}px ${ir}px ${ib}px ${il}px round ${rad / s}px)`
     el.style.opacity = String(op)
