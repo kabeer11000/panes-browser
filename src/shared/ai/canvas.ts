@@ -165,6 +165,8 @@ export interface CanvasState {
    * A section lays them out as one unit: next to each other in one row, never wrapped apart.
    */
   split?: number[]
+  /** Other people's tabs (their card ids, see share/doc.ts mirrorId) this person took off their own board. */
+  hiddenMirrors?: number[]
 }
 export type CardView = 'reader' | 'snapshot'
 export interface TabLite {
@@ -1987,12 +1989,19 @@ export function forDisk(s: CanvasState): CanvasState {
     marks: sanitizeMarks(s.marks),
     views: cleanViews(s.views),
     previews: cleanPreviews(s.previews),
+    ...(s.hiddenMirrors?.length ? { hiddenMirrors: cleanHidden(s.hiddenMirrors) } : {}),
     notes: notesIn(
       s.notes,
       s.frames.filter((f) => f.kind !== 'private')
     )
   })
 }
+
+/** Other people's tabs hidden from this board: card ids (negative), each once, a few hundred at most. */
+export const cleanHidden = (v: unknown): number[] =>
+  Array.isArray(v)
+    ? [...new Set(v.filter((n): n is number => Number.isSafeInteger(n) && n < 0))].slice(-500)
+    : []
 
 /** Notes whose section is not among `frames` become loose (old boards have no `frame` on notes at all). */
 const notesIn = (notes: CanvasNote[], frames: CanvasFrame[]): CanvasNote[] => {

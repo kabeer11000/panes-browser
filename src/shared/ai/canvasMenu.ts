@@ -103,6 +103,21 @@ export function shareItems(f: ShareFacts): MenuAction[] {
   ]
 }
 
+/**
+ * Someone else's tab on a shared board: what this person can do with it. It is theirs, so nothing that would change
+ * it (moving, closing, sharing); opening it here makes a tab of this person's own. Hiding takes it off this board only.
+ */
+export function othersMenu(f: { owner: string; live: boolean; link: boolean }): MenuEntry[] {
+  const first = f.owner.split(' ')[0] || f.owner
+  return tidyMenu([
+    { id: 'open', label: f.live ? `Watch ${first}'s tab live` : 'Open', keys: 'Enter' },
+    { id: 'pop', label: 'Open as my own tab', disabled: !f.link },
+    { id: 'copy', label: 'Copy link', disabled: !f.link },
+    'sep',
+    { id: 'hide', label: `Hide ${first}'s tab from my board` }
+  ])
+}
+
 export function cardMenu(f: CardFacts): MenuEntry[] {
   const ai = !f.private
   const aiOn = f.ai !== false
@@ -311,6 +326,8 @@ export interface BoardFacts {
   undo: string | null
   /** AI is on and ready: Arrange goes by topic and the board can be asked about; else by site, and no asking. */
   ai?: boolean
+  /** Other people's tabs this person hid from their board (a shared space): they can come back. */
+  hidden?: number
 }
 
 /** What Arrange does: by topic with AI, else by site (the grouping that needs no model). */
@@ -346,6 +363,15 @@ export function boardMenu(f: BoardFacts): MenuEntry[] {
       keys: 'Ctrl+Z',
       disabled: !f.undo
     },
+    ...(f.hidden
+      ? [
+          'sep' as const,
+          {
+            id: 'unhide',
+            label: f.hidden === 1 ? 'Show the tab you hid' : `Show the ${f.hidden} tabs you hid`
+          }
+        ]
+      : []),
     'sep',
     // the tabs open now, kept to bring back later (panes://sessions)
     { id: 'save-session', label: 'Save tabs as a session', keys: 'Ctrl+Shift+D' },

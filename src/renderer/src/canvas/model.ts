@@ -55,6 +55,9 @@ export interface CardModel {
   current: boolean
   isTab: boolean
   streaming: boolean
+  /** Someone else's tab in a shared space: whose (their name and colour); never this person's own. */
+  ownerName?: string
+  ownerColor?: string
 }
 
 export const sameModel = (a: CardModel, b: CardModel): boolean => {

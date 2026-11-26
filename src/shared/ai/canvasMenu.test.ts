@@ -8,6 +8,7 @@ import {
   sectionMenu,
   selectionMenu,
   isShareAct,
+  othersMenu,
   parseShareFacts,
   shareItems,
   type CardFacts
@@ -217,5 +218,21 @@ describe('sharing items, the same in every menu', () => {
     expect(parseShareFacts(null)).toBeNull()
     expect(isShareAct('share-live')).toBe(true)
     expect(isShareAct('close')).toBe(false)
+  })
+})
+
+describe("someone else's tab", () => {
+  const ids = (m: ReturnType<typeof othersMenu>): string[] =>
+    (m.filter((e) => e !== 'sep') as MenuAction[]).map((e) => e.id)
+  test('only what this person can do: open, open as their own, copy, hide; nothing that changes it', () => {
+    const m = othersMenu({ owner: 'Ana Khan', live: false, link: true })
+    expect(ids(m)).toEqual(['open', 'pop', 'copy', 'hide'])
+    for (const no of ['close', 'move', 'share-tab', 'share-live', 'duplicate'])
+      expect(ids(m)).not.toContain(no)
+    expect((m.at(-1) as MenuAction).label).toBe("Hide Ana's tab from my board")
+  })
+  test('presented live: opening it watches it', () => {
+    const m = othersMenu({ owner: 'Ana', live: true, link: true })
+    expect((m[0] as MenuAction).label).toBe("Watch Ana's tab live")
   })
 })

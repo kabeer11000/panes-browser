@@ -526,6 +526,16 @@ export const CardView = memo(
                   </svg>
                 </span>
               )}
+              {m.ownerName && !m.liveBy && (
+                <span
+                  className="cv-owner-tag"
+                  style={{ '--oc': m.ownerColor ?? '#888' } as React.CSSProperties}
+                  title={`${m.ownerName}'s tab, shared with everyone here`}
+                >
+                  <i aria-hidden="true">{m.ownerName.slice(0, 1).toUpperCase()}</i>
+                  {m.ownerName.split(' ')[0]}
+                </span>
+              )}
               {m.liveBy && (
                 <span
                   className="cv-live-tag"

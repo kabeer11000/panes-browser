@@ -87,6 +87,7 @@ import {
   boardMenu,
   cardMenu,
   isShareAct,
+  othersMenu,
   type ShareAct,
   type ShareFacts,
   markMenu,
@@ -3093,13 +3094,16 @@ export function Canvas({
         selRef.current.has(key) && selRef.current.size > 1 && !inSplit && what !== 'frame'
       const picked = (p: string): string[] =>
         [...selRef.current].filter((k) => k[0] === p).map((k) => k.slice(2))
-      const group = bulk
-        ? picked('c').map(Number)
-        : inSplit
-          ? [...splitRef.current]
-          : what === 'card'
-            ? [Number(id)]
-            : []
+      // someone else's tab is where they put it: a drag never moves it here (it would only snap back)
+      const group = (
+        bulk
+          ? picked('c').map(Number)
+          : inSplit
+            ? [...splitRef.current]
+            : what === 'card'
+              ? [Number(id)]
+              : []
+      ).filter((c) => !isMirror(c))
       g = {
         kind: 'item',
         what,
@@ -3452,7 +3456,7 @@ export function Canvas({
         if (asGroup) setSel(new Set(g.cards.map((c) => `c:${c}`)))
         else if (g.what === 'card' && !selRef.current.has(key)) {
           setSel(new Set([key]))
-          g.cards = [Number(g.id)]
+          g.cards = isMirror(Number(g.id)) ? [] : [Number(g.id)]
         } else if (g.what !== 'card' && !selRef.current.has(key)) setSel(new Set([key]))
         const want: string[] = []
         if (g.what === 'card') for (const id of g.cards) want.push(`[data-cid="${id}"]`)
@@ -3807,6 +3811,7 @@ export function Canvas({
       muted: !!tab?.muted,
       ringing: tab?.attention.call === 'ringing',
       liveBy: liveHost?.name,
+      ...(item?.owner ? { ownerName: item.owner.name, ownerColor: item.owner.color } : {}),
       sharedOut:
         (!virtual || canShareFile(item)) && !!card.shared && !!thisSpace?.shared
           ? sharingPaused(card, tab?.url ?? '')
@@ -5534,6 +5539,34 @@ export function Canvas({
       const m = modelForRef.current({ id })
       if (!m || m.kind === 'pending') return
       setSel(new Set([`c:${id}`]))
+      // someone else's tab: theirs, so only what this person can do with it (shared/ai/canvasMenu.ts othersMenu)
+      if (isMirror(id)) {
+        const url = s0.items[String(id)]?.url ?? ''
+        return show(
+          othersMenu({
+            owner: m.ownerName ?? 'Someone',
+            live: !!m.liveBy,
+            link: /^https?:/i.test(url)
+          }),
+          (act) => {
+            if (act === 'open') expandRef.current(id, false)
+            else if (act === 'pop') leaveRef.current(id)
+            else if (act === 'copy') void navigator.clipboard.writeText(url)
+            else if (act === 'hide') {
+              setSel(new Set())
+              edit(
+                (s) => ({
+                  ...s,
+                  hiddenMirrors: [...(s.hiddenMirrors ?? []).filter((x) => x !== id), id],
+                  cards: s.cards.filter((c) => c.id !== id)
+                }),
+                { undo: 'Hide a tab' }
+              )
+            }
+          },
+          m.title || m.site
+        )
+      }
       const card = s0.cards.find((c) => c.id === id)
       const item = isVirtual(id) ? s0.items[String(id)] : undefined
       const tab = isVirtual(id)
@@ -5710,10 +5743,13 @@ export function Canvas({
         paste: true,
         canPaste: boardClip.canPaste,
         undo: topUndo,
-        ai: aiAvailable
+        ai: aiAvailable,
+        hidden: s0.hiddenMirrors?.length ?? 0
       }),
       (act) => {
-        if (act === 'page') askNew(at.x, at.y)
+        if (act === 'unhide')
+          edit((st0) => ({ ...st0, hiddenMirrors: [] }), { undo: 'Show hidden tabs' })
+        else if (act === 'page') askNew(at.x, at.y)
         else if (act === 'note') {
           const made = addNote(
             stRef.current!,

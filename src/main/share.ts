@@ -214,12 +214,14 @@ export class ShareService {
     all: () => Array<{ id: number; url: string }>
     live?: number
     files: (file: string) => string | null
+    who: { name: string; color: string }
   } {
     const room = this.rooms.get(spaceId)
     const live = room?.liveTab
     return {
       files: (file) => (room ? this.sealedFor(room, file) : null),
       by: this.who,
+      who: { name: this.me.name, color: this.me.color },
       title: (id) => this.d.tabTitle(id),
       url: (id) => this.d.tabUrl(id, spaceId),
       all: () => this.d.tabsOf(spaceId).filter((t) => t.id === live),
@@ -393,6 +395,8 @@ export class ShareService {
     this.store.save()
     for (const room of this.rooms.values()) {
       room.client.awareness.setLocalStateField('user', this.me)
+      // their tabs' cards carry the name too (TabMirror.who): renamed there as well
+      if (room.last) writeDiff(room.doc, room.last, room.last, LOCAL, this.tabsOut(room.spaceId))
       this.tell(room)
     }
   }
@@ -559,9 +563,12 @@ export class ShareService {
     const room = this.rooms.get(spaceId)
     if (!room) return
     writeDiff(room.doc, room.last, state, LOCAL, this.tabsOut(spaceId))
+    // someone's tabs hidden or shown again on this board: read the room into it again (readInto keeps them off)
+    const hidChanged =
+      (room.last?.hiddenMirrors ?? []).join() !== (state.hiddenMirrors ?? []).join()
     room.last = state
     // the room has changes this board was not made with: the two together go back to it
-    if (room.sentN > room.tookN) this.applySoon(room)
+    if (room.sentN > room.tookN || hidChanged) this.applySoon(room)
   }
 
   /**

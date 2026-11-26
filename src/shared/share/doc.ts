@@ -89,6 +89,16 @@ export interface TabMirror {
   pic?: string
   /** A tab on a file of its owner's computer, shared: the file, sealed into the room's store (see sealedFor). */
   sealed?: string
+  /** Whose tab it is, as they are named in the space: shown on its card everywhere, even when they are away. */
+  who?: { name: string; color: string }
+}
+
+/** An owner as written by someone in the room, checked: a short name and a colour; null for anything else. */
+function ownerOf(v: unknown): { name: string; color: string } | null {
+  const o = v as { name?: unknown; color?: unknown } | null
+  if (!o || typeof o.name !== 'string' || !o.name.trim()) return null
+  const color = typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : '#888888'
+  return { name: o.name.trim().slice(0, 40), color }
 }
 
 const isShared = (c: CanvasCard): boolean => c.id < 0 && !isMirror(c.id)
@@ -276,6 +286,8 @@ export function writeDiff(
     live?: number
     /** Files of this computer shared on the board: each one's sealed id once it is in the room (see sharedOf). */
     files?: (file: string) => string | null
+    /** Who this person is in the space: their tabs' cards carry it. */
+    who?: { name: string; color: string }
   }
 ): void {
   const was = prev ? sharedOf(prev, tabs?.files) : null
@@ -304,7 +316,8 @@ export function writeDiff(
         tabs.pic,
         tabs.url,
         tabs.live,
-        tabs.files
+        tabs.files,
+        tabs.who
       )
   }, origin)
 }
@@ -323,7 +336,8 @@ function writeTabs(
   pic?: (id: number) => string | undefined,
   urlOf?: (id: number) => string | null,
   live?: number,
-  files?: (file: string) => string | null
+  files?: (file: string) => string | null,
+  who?: { name: string; color: string }
 ): void {
   const map = doc.getMap<TabMirror>('tabs')
   const mine = new Set<string>()
@@ -351,6 +365,7 @@ function writeTabs(
     const v: TabMirror = { card: c, title: path !== null ? SHARED_FILE_TITLE : title(c.id), by }
     if (p) v.pic = p
     if (sealed) v.sealed = sealed
+    if (who) v.who = who
     if (!same(map.get(key), v)) map.set(key, v)
   }
   for (const [key, v] of map) if (v.by === by && !mine.has(key)) map.delete(key)
@@ -443,8 +458,10 @@ export function readInto(
   const entries: Array<[string, TabMirror]> = []
   doc.getMap<TabMirror>('tabs').forEach((v, key) => entries.push([key, v]))
   entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)) // the same one wins on every board
+  const hidden = new Set(local.hiddenMirrors ?? [])
   for (const [key, v] of entries) {
     if (v.by === me) continue
+    if (hidden.has(mirrorId(key))) continue // hidden from this board by its person (their own choice, here only)
     const page = samePage(v.card.url)
     if (pages.has(page)) continue
     pages.add(page)
@@ -453,9 +470,11 @@ export function readInto(
     const image = v.pic ? picOf?.(v.pic) : undefined
     // a tab on a file of its owner's: it opens here as this computer's copy of the file, once that is here
     const copy = v.sealed ? fileOf?.(v.sealed) : undefined
+    const owner = ownerOf(v.who)
     const item = itemFor(copy ? sharedOpenUrl(copy) : v.card.url, v.title, {
       source: 'tab',
-      ...(image ? { image } : {})
+      ...(image ? { image } : {}),
+      ...(owner ? { owner } : {})
     })
     items[String(id)] = copy ? { ...item, file: copy, sealed: v.sealed } : fromRoom(item)
   }

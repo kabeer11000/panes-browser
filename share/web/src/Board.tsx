@@ -144,7 +144,8 @@ function Card({
       {letter}
     </span>
   )
-  const tab = item?.source === 'tab' && <span className="wb-tabtag">Tab</span>
+  // someone's tab says whose it is (Board's owner tag); one without an owner (an older Panes) says it is a tab
+  const tab = item?.source === 'tab' && !item.owner && <span className="wb-tabtag">Tab</span>
   if (picture && !broken)
     return (
       <div className={'wb-snap' + (item?.kind === 'image' || sealed ? ' whole' : '')}>
@@ -558,6 +559,16 @@ export function Board({
               title={live ? `${live.name} is presenting this tab: click to watch` : undefined}
             >
               <Card url={href} item={item} fileOf={fileOf} />
+              {!live && item?.owner && (
+                <span
+                  className="wb-ownertag"
+                  style={{ '--oc': item.owner.color } as React.CSSProperties}
+                  title={`${item.owner.name}'s tab`}
+                >
+                  <i aria-hidden="true">{item.owner.name.slice(0, 1).toUpperCase()}</i>
+                  {item.owner.name.split(' ')[0]}
+                </span>
+              )}
               {live && (
                 <span className="wb-livetag" style={{ '--pc': live.color } as React.CSSProperties}>
                   <i aria-hidden="true" />

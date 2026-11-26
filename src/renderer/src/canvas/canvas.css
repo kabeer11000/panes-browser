@@ -5790,6 +5790,33 @@
   box-shadow: 0 0 0 2px rgb(255 59 48 / 0.25);
 }
 
+/* someone else's tab on a shared board (Cards.tsx): whose, on its corner, in their colour */
+.cv-owner-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px 0 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--oc) 88%, #000);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+}
+.cv-owner-tag i {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.25);
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 700;
+}
+
 /* a private or Tor tab in the tab strip (TabStrip.tsx): its kind's mark where a site icon would be */
 .cv-strip-kind {
   flex: none;

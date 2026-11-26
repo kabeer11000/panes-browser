@@ -34,6 +34,8 @@ export interface CanvasItem {
   sealed?: string
   /** The tab that shows this page, if there is one. */
   tab?: number
+  /** Someone else's tab in a shared space: whose (share/doc.ts readInto). Never this person's own. */
+  owner?: { name: string; color: string }
   /** How it was placed (by suggestion, or by the person). */
   placement?: Placement
 }

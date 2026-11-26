@@ -376,3 +376,52 @@ describe('tabs on files of this computer', () => {
     expect(a.getMap('tabs').size).toBe(0)
   })
 })
+
+describe('whose tab it is', () => {
+  test("a tab's card carries its owner, checked, to the others' boards", () => {
+    const [a, b] = pair()
+    writeDiff(a, null, withCards([card(7, 'https://a.example/')]), undefined, {
+      by: 'ana',
+      title: titles,
+      who: { name: '  Ana Khan  ', color: '#112233' }
+    })
+    const seen = readInto(b, emptyState('x'), 'ben')
+    expect(seen.items[String(seen.cards[0]!.id)]!.owner).toEqual({
+      name: 'Ana Khan',
+      color: '#112233'
+    })
+  })
+  test('a bad owner from the room is left out, a bad colour made grey', () => {
+    const [a, b] = pair()
+    a.getMap('tabs').set('ana:7', {
+      card: card(7, 'https://a.example/'),
+      title: 't',
+      by: 'ana',
+      who: { name: 'Ana', color: 'url(javascript:x)' }
+    })
+    a.getMap('tabs').set('cy:2', {
+      card: card(2, 'https://c.example/'),
+      title: 't',
+      by: 'cy',
+      who: { name: 5 }
+    })
+    const seen = readInto(b, emptyState('x'), 'ben')
+    const owners = seen.cards.map((c) => seen.items[String(c.id)]!.owner ?? null)
+    expect(owners).toContainEqual({ name: 'Ana', color: '#888888' })
+    expect(owners).toContain(null)
+  })
+  test('one hidden from this board stays off it, and only it', () => {
+    const [a, b] = pair()
+    writeDiff(
+      a,
+      null,
+      withCards([card(7, 'https://a.example/'), card(8, 'https://b.example/', 300)]),
+      undefined,
+      { by: 'ana', title: titles }
+    )
+    const hid = mirrorId('ana:7')
+    const seen = readInto(b, { ...emptyState('x'), hiddenMirrors: [hid] }, 'ben')
+    expect(seen.cards.map((c) => c.id)).toEqual([mirrorId('ana:8')])
+    expect(seen.hiddenMirrors).toEqual([hid])
+  })
+})
