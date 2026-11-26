@@ -1,7 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import type { SpaceChat as Chat } from '@shared/types'
+import type { SpaceChat as Chat, SharePerson } from '@shared/types'
 import { unreadAfter, type ChatMessage } from '@shared/share/chat'
+import { formatBytes } from '@shared/downloads'
+import { useShareState } from '@renderer/components/useShare'
+import { cancelFetch, fetchFile, holds, postFile, useFetching } from '@renderer/fileSend'
 
 /**
  * A shared space's chat on the board (tasks/shared-spaces.md, phase 8): a side panel like Ask's, tucked away into a
@@ -9,6 +12,7 @@ import { unreadAfter, type ChatMessage } from '@shared/share/chat'
  * room's document (sealed end to end); people on the web board see and write the same ones.
  */
 
+const NOBODY: SharePerson[] = []
 const seenKey = (spaceId: number): string => `panes:chat-seen:${spaceId}`
 const readSeen = (spaceId: number): string | null => {
   try {
@@ -41,7 +45,91 @@ function useChat(spaceId: number, shared: boolean): Chat | null {
   return shared && got?.id === spaceId ? got.chat : null
 }
 
-function Messages({ messages, me }: { messages: ChatMessage[]; me: number }): React.JSX.Element {
+const extOf = (name: string): string =>
+  (/\.([a-z0-9]{1,5})$/i.exec(name)?.[1] ?? 'file').toUpperCase().slice(0, 4)
+
+/**
+ * A file offered in the chat: fetched straight from the Panes of whoever offered it (renderer/fileSend.ts), while it
+ * is open. Their own: whether this Panes still holds it.
+ */
+function FileMsg({
+  m,
+  mine,
+  spaceId,
+  people
+}: {
+  m: ChatMessage
+  mine: boolean
+  spaceId: number
+  people: SharePerson[]
+}): React.JSX.Element {
+  const f = m.file!
+  const got = useFetching()[f.id]
+  const from = people.find((p) => p.id === m.by && p.files && p.rtc)
+  const pct = got && f.size ? Math.min(100, Math.round((got.got / f.size) * 100)) : 0
+  let status: string
+  let action: React.JSX.Element | null = null
+  if (mine)
+    status = holds(f.id) ? 'Others can download it while Panes is open' : 'No longer available'
+  else if (got?.state === 'getting') {
+    status = `${formatBytes(got.got)} of ${formatBytes(f.size)}`
+    action = (
+      <button type="button" className="cv-file-act quiet" onClick={() => cancelFetch(f.id)}>
+        Cancel
+      </button>
+    )
+  } else if (got?.state === 'saved') status = 'Saved to your downloads'
+  else if (!from) status = `${m.name.split(' ')[0]} has left: ask them to send it again`
+  else {
+    status =
+      got?.state === 'gone'
+        ? 'No longer available: ask them to send it again'
+        : got?.state === 'failed'
+          ? 'Could not connect directly. Try again'
+          : got?.state === 'cancelled'
+            ? 'Cancelled'
+            : formatBytes(f.size)
+    if (got?.state !== 'gone')
+      action = (
+        <button
+          type="button"
+          className="cv-file-act"
+          onClick={() => void fetchFile(spaceId, from.rtc, f)}
+        >
+          {got ? 'Try again' : 'Download'}
+        </button>
+      )
+  }
+  return (
+    <div className={'cv-file' + (got?.state === 'saved' ? ' saved' : '')}>
+      <span className="cv-file-ext" aria-hidden="true">
+        {extOf(f.name)}
+      </span>
+      <span className="cv-file-text">
+        <b title={f.name}>{f.name}</b>
+        <small>{status}</small>
+        {got?.state === 'getting' && (
+          <span className="cv-file-bar" aria-hidden="true">
+            <i style={{ width: `${pct}%` }} />
+          </span>
+        )}
+      </span>
+      {action}
+    </div>
+  )
+}
+
+function Messages({
+  messages,
+  me,
+  spaceId,
+  people
+}: {
+  messages: ChatMessage[]
+  me: number
+  spaceId: number
+  people: SharePerson[]
+}): React.JSX.Element {
   const list = useRef<HTMLDivElement>(null)
   const atEnd = useRef(true)
   // stays at the newest unless the person scrolled up to read
@@ -76,7 +164,11 @@ function Messages({ messages, me }: { messages: ChatMessage[]; me: number }): Re
                 <time>{time(m.at)}</time>
               </div>
             )}
-            <p>{m.text}</p>
+            {m.file ? (
+              <FileMsg m={m} mine={mine} spaceId={spaceId} people={people} />
+            ) : (
+              <p>{m.text}</p>
+            )}
           </div>
         )
       })}
@@ -120,6 +212,9 @@ export function SpaceChat({
   onResize: (w: number) => void
 }): React.JSX.Element | null {
   const chat = useChat(spaceId, shared)
+  const people = useShareState(spaceId, shared)?.people ?? NOBODY
+  const [dropping, setDropping] = useState(false)
+  const pick = useRef<HTMLInputElement>(null)
   const [seen, setSeen] = useState(() => readSeen(spaceId))
   const [draft, setDraft] = useState('')
   const box = useRef<HTMLTextAreaElement>(null)
@@ -155,6 +250,10 @@ export function SpaceChat({
   const close = (): void => {
     setSeen(lastId) // what was shown counts as read
     onClose()
+  }
+  /** Files into the chat: offered to everyone here, fetched from this Panes by whoever wants them. */
+  const offer = (files: Iterable<File> | null): void => {
+    for (const f of files ?? []) postFile(spaceId, f)
   }
   const send = (): void => {
     const t = draft.trim()
@@ -209,7 +308,31 @@ export function SpaceChat({
             animate={{ opacity: 1, x: 0 }}
             exit={reduced ? { opacity: 0 } : { opacity: 0, x: 40, transition: { duration: 0.18 } }}
             transition={reduced ? { duration: 0.12 } : SPRING}
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes('Files')) return
+              e.preventDefault()
+              e.stopPropagation()
+              e.dataTransfer.dropEffect = 'copy'
+              setDropping(true)
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false)
+            }}
+            onDrop={(e) => {
+              if (!e.dataTransfer.files.length) return
+              // the chat's, not the board's (which would make a card of it)
+              e.preventDefault()
+              e.stopPropagation()
+              setDropping(false)
+              offer(e.dataTransfer.files)
+            }}
           >
+            {dropping && (
+              <div className="cv-chat-drop" aria-hidden="true">
+                <b>Drop to share with everyone here</b>
+                <span>Sent straight from your computer, never stored online</span>
+              </div>
+            )}
             <div
               className="cv-dock-rz"
               role="separator"
@@ -252,7 +375,7 @@ export function SpaceChat({
               </button>
             </header>
             <p className="cv-chat-sub">Everyone in this space sees it, on Panes and on the web.</p>
-            <Messages messages={chat.messages} me={chat.me} />
+            <Messages messages={chat.messages} me={chat.me} spaceId={spaceId} people={people} />
             <form
               className="cv-chat-say"
               onSubmit={(e) => {
@@ -260,8 +383,44 @@ export function SpaceChat({
                 send()
               }}
             >
+              <input
+                ref={pick}
+                type="file"
+                multiple
+                hidden
+                onChange={(e) => {
+                  offer(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+              <button
+                type="button"
+                className="cv-chat-attach"
+                title="Share a file with everyone here"
+                aria-label="Share a file"
+                onClick={() => pick.current?.click()}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.9"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
+                </svg>
+              </button>
               <textarea
                 ref={box}
+                onPaste={(e) => {
+                  if (!e.clipboardData.files.length) return
+                  e.preventDefault()
+                  offer(e.clipboardData.files)
+                }}
                 rows={1}
                 value={draft}
                 maxLength={2000}

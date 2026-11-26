@@ -10,6 +10,16 @@ describe('parseFileSignal', () => {
       { k: 'f', id, o: 'ask', name: 'report.pdf', size: 12 }
     )
   })
+  test('a fetch names the file it wants', () => {
+    expect(parseFileSignal({ k: 'f', id, o: 'get', file: id })).toEqual({
+      k: 'f',
+      id,
+      o: 'get',
+      file: id
+    })
+    expect(parseFileSignal({ k: 'f', id, o: 'get', file: '../x' })).toBeNull()
+    expect(parseFileSignal({ k: 'f', id, o: 'get' })).toBeNull()
+  })
   test('answers and cancels', () => {
     for (const o of ['yes', 'no', 'cancel'] as const)
       expect(parseFileSignal({ k: 'f', id, o })).toEqual({ k: 'f', id, o })

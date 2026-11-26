@@ -75,3 +75,24 @@ describe('chat in a shared space', () => {
     expect(heard).toEqual([0, 1])
   })
 })
+
+describe('files offered in the chat', () => {
+  const who = { name: 'Ali', color: '#112233' }
+  const id = '0f8e2c1a-1b2c-4d5e-8f90-123456789abc'
+  test('a file message keeps its file, its name made safe', () => {
+    const doc = new Y.Doc()
+    sayIn(doc, who, 'Shared a file', undefined, 1, { id, name: '../x/report.pdf', size: 10 })
+    expect(chatOf(doc)[0]!.file).toEqual({ id, name: 'report.pdf', size: 10 })
+  })
+  test('a bad file is not said at all', () => {
+    const doc = new Y.Doc()
+    expect(sayIn(doc, who, 'x', undefined, 1, { id: 'bad id', name: 'a', size: 1 })).toBeNull()
+    expect(chatOf(doc)).toHaveLength(0)
+  })
+  test('a message from the room with a bad file is kept as words only', () => {
+    const base = { id: 'abcdefgh', text: 'hi', at: 1, by: 2 }
+    expect(cleanMessage({ ...base, file: { id, name: 'a', size: -5 } })?.file).toBeUndefined()
+    expect(cleanMessage({ ...base, file: 'x' })?.text).toBe('hi')
+    expect(cleanMessage(base)?.file).toBeUndefined()
+  })
+})

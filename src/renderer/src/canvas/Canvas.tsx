@@ -148,6 +148,7 @@ import { RemoteCursors } from './Presence'
 import { PresentingElsewhere, ShareButton } from './ShareButton'
 import { BoardSpaces } from './BoardSpaces'
 import { SpaceChat } from './SpaceChat'
+import { FileDrop } from './FileDrop'
 import { useSelfWidth } from './useSelfWidth'
 import { LiveShare } from './LiveShare'
 import { usePresence } from '@renderer/components/useShare'
@@ -6459,6 +6460,7 @@ export function Canvas({
           onClose={closeContext}
         />
       )}
+      <FileDrop spaceId={spaceId} shared={!!thisSpace?.shared} onChat={openChat} />
       <SpaceChat
         spaceId={spaceId}
         shared={!!thisSpace?.shared}

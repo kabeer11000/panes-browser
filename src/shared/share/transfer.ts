@@ -8,6 +8,8 @@
 export type FileSignal =
   /** The sender offers a file: its name and size in bytes. */
   | { k: 'f'; id: string; o: 'ask'; name: string; size: number }
+  /** Fetch a file offered in the chat (`file`, the offer's id) as this transfer (`id`). */
+  | { k: 'f'; id: string; o: 'get'; file: string }
   /** The person asked said yes or no; either side gave up (`cancel`). */
   | { k: 'f'; id: string; o: 'yes' | 'no' | 'cancel' }
   | { k: 'f'; id: string; o: 'sdp'; sdp: { type: 'offer' | 'answer'; sdp: string } }
@@ -39,6 +41,10 @@ export function parseFileSignal(v: unknown): FileSignal | null {
     if (size < 0 || size > MAX_SEND) return null
     return { k: 'f', id, o: 'ask', name: safeFileName(o.name), size }
   }
+  if (o.o === 'get')
+    return typeof o.file === 'string' && ID.test(o.file)
+      ? { k: 'f', id, o: 'get', file: o.file }
+      : null
   if (o.o === 'yes' || o.o === 'no' || o.o === 'cancel') return { k: 'f', id, o: o.o }
   if (o.o === 'sdp') {
     const sdp = o.sdp as Record<string, unknown> | null

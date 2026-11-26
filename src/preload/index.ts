@@ -146,12 +146,14 @@ const api: PanesApi = {
     askDriveCancel: (id) => ipcRenderer.send('share:ask-drive-cancel', id),
     chat: (id) => ipcRenderer.invoke('share:chat', id),
     onChat: (cb) => subscribe<[number, SpaceChat]>('share:chat', cb),
-    say: (id, text) => ipcRenderer.send('share:say', id, text),
+    say: (id, text, file) => ipcRenderer.send('share:say', id, text, file),
     signal: (id, to, data) => ipcRenderer.send('share:signal', id, to, data),
     onSignal: (cb) => subscribe<[number, number, string]>('share:signal', cb),
     recvAsk: (key, id, from, name, size) =>
       ipcRenderer.invoke('share:recv-ask', key, id, from, name, size),
     recvUnask: (key) => ipcRenderer.send('share:recv-unask', key),
+    recvTake: (key, id, from, name, size) =>
+      ipcRenderer.invoke('share:recv-take', key, id, from, name, size),
     recvChunk: (t, data) => ipcRenderer.send('share:recv-chunk', t, data),
     recvEnd: (t) => ipcRenderer.invoke('share:recv-end', t),
     recvAbort: (t) => ipcRenderer.send('share:recv-abort', t),

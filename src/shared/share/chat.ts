@@ -1,4 +1,5 @@
 import * as Y from 'yjs'
+import { MAX_SEND, safeFileName } from './transfer'
 
 /**
  * A shared space's chat (tasks/shared-spaces.md, phase 8): messages in the room's document, so sealed end to end like
@@ -13,6 +14,29 @@ export interface ChatMessage {
   at: number
   /** The writer's document id (their session): a run of messages from one person is drawn as one. */
   by: number
+  /**
+   * A file they offer (renderer/fileSend.ts): fetched straight from their Panes while it is open (`by` finds them in
+   * the room), never kept in the room. `text` says the same in words, for where files are not taken (the web board).
+   */
+  file?: ChatFile
+}
+
+export interface ChatFile {
+  /** The offer's id, as its sender knows it. */
+  id: string
+  name: string
+  size: number
+}
+
+/** A file offered in a message, checked; null for anything else. */
+function cleanFile(v: unknown): ChatFile | null {
+  const f = v as Record<string, unknown> | null
+  if (!f || typeof f !== 'object') return null
+  if (typeof f.id !== 'string' || !/^[0-9a-f-]{8,40}$/.test(f.id)) return null
+  if (typeof f.name !== 'string' || !Number.isSafeInteger(f.size)) return null
+  const size = f.size as number
+  if (size < 0 || size > MAX_SEND) return null
+  return { id: f.id, name: safeFileName(f.name), size }
 }
 
 /** How many a room keeps (older ones go as new ones come), and how long one may be. */
@@ -30,7 +54,9 @@ export function cleanMessage(v: unknown): ChatMessage | null {
   if (typeof o.id !== 'string' || !/^[A-Za-z0-9_-]{6,40}$/.test(o.id)) return null
   if (typeof o.text !== 'string' || !o.text.trim()) return null
   if (typeof o.at !== 'number' || !Number.isFinite(o.at)) return null
+  const file = o.file === undefined ? null : cleanFile(o.file)
   return {
+    ...(file ? { file } : {}),
     id: o.id,
     name: typeof o.name === 'string' && o.name.trim() ? o.name.slice(0, 40) : 'Someone',
     color: typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : '#888888',
@@ -64,11 +90,15 @@ export function sayIn(
   who: { name: string; color: string },
   text: string,
   origin?: unknown,
-  now = Date.now()
+  now = Date.now(),
+  file?: ChatFile
 ): ChatMessage | null {
   const t = text.trim().slice(0, CHAT_TEXT_MAX)
   if (!t) return null
+  const f = file ? cleanFile(file) : null
+  if (file && !f) return null
   const msg: ChatMessage = {
+    ...(f ? { file: f } : {}),
     id: newId(),
     name: who.name.slice(0, 40) || 'Someone',
     color: who.color,

@@ -424,7 +424,8 @@ export interface PanesApi {
     /** A shared space's chat (shared/share/chat.ts): the latest messages, and this person's id among the writers. */
     chat(spaceId: number): Promise<SpaceChat | null>
     onChat(cb: (spaceId: number, chat: SpaceChat) => void): () => void
-    say(spaceId: number, text: string): void
+    /** With `file`: offer that file in the chat (renderer/fileSend.ts keeps it while Panes is open). */
+    say(spaceId: number, text: string, file?: import('./share/chat').ChatFile): void
     /** A WebRTC signal to someone in the room (by their relay address), and the ones that come. */
     signal(spaceId: number, to: number, data: string): void
     onSignal(cb: (spaceId: number, from: number, data: string) => void): () => void
@@ -440,6 +441,14 @@ export interface PanesApi {
       size: number
     ): Promise<number | null>
     recvUnask(key: string): void
+    /** As recvAsk, for a file this person chose to download (from the chat): no card. */
+    recvTake(
+      key: string,
+      spaceId: number,
+      from: number,
+      name: string,
+      size: number
+    ): Promise<number | null>
     /** A piece of it, in order; then the end (true: all there and kept) or giving up. */
     recvChunk(t: number, data: Uint8Array): void
     recvEnd(t: number): Promise<boolean>

@@ -288,12 +288,12 @@ const SENDING: Record<Sending['state'], string> = {
   sending: '',
   sent: 'Sent',
   declined: 'Declined',
-  failed: 'Did not go through',
+  failed: 'Could not connect directly',
   cancelled: 'Cancelled'
 }
 
 /** Files on their way from here, and how they ended (until put away). */
-function SendingList({ spaceId }: { spaceId: number }): React.JSX.Element | null {
+export function SendingList({ spaceId }: { spaceId: number }): React.JSX.Element | null {
   const list = useSending(spaceId)
   if (!list.length) return null
   return (

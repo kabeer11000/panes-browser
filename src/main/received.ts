@@ -47,48 +47,67 @@ export function registerReceived(d: ReceivedDeps): void {
     if (tellWindow && !d.win.isDestroyed()) d.win.webContents.send('share:recv-cancel', t)
   }
 
+  /** An offer checked: who it is from (the room's name, not what it says), and the file's safe name. */
+  const check = (
+    key: unknown,
+    spaceId: unknown,
+    from: unknown,
+    name: unknown,
+    size: unknown
+  ): { who: SharePerson; file: string; size: number; spaceId: number; from: number } | null => {
+    if (typeof key !== 'string' || key.length > 64 || asking.has(key)) return null
+    if (typeof spaceId !== 'number' || typeof from !== 'number' || typeof name !== 'string')
+      return null
+    if (!Number.isSafeInteger(size) || (size as number) < 0 || (size as number) > MAX_SEND)
+      return null
+    const who = d.personOf(spaceId, from)
+    return who ? { who, file: safeFileName(name), size: size as number, spaceId, from } : null
+  }
+  /** Where a taken file goes: a new file in downloads, listed there. The transfer's number. */
+  const take = (file: string, size: number): number => {
+    const path = d.downloads.pathFor(file)
+    const t = next++
+    const out = createWriteStream(path, { flags: 'wx' })
+    out.on('error', () => drop(t, true))
+    files.set(t, {
+      out,
+      path,
+      size,
+      got: 0,
+      row: d.downloads.incoming(path, size, () => drop(t, true))
+    })
+    return t
+  }
+
   /** Someone offers a file: ask, and when it is taken, where it goes. The transfer's number, or null for no. */
   ipcMain.handle(
     'share:recv-ask',
     async (e, key: unknown, spaceId: unknown, from: unknown, name: unknown, size: unknown) => {
-      if (!mine(e) || typeof key !== 'string' || key.length > 64 || asking.has(key)) return null
-      if (typeof spaceId !== 'number' || typeof from !== 'number' || typeof name !== 'string')
-        return null
-      if (!Number.isSafeInteger(size) || (size as number) < 0 || (size as number) > MAX_SEND)
-        return null
-      if (asking.size >= MAX_ASKING) return null
-      // the name is the room's, not what the offer says
-      const who = d.personOf(spaceId, from)
-      if (!who) return null
-      const file = safeFileName(name)
+      const c = mine(e) && asking.size < MAX_ASKING ? check(key, spaceId, from, name, size) : null
+      if (!c) return null
+      const risky = runsCode(c.file)
       const q = d.confirm({
-        title: `${who.name} wants to send you a file`,
+        title: `${c.who.name} wants to send you a file`,
         detail:
-          `${file}, ${formatBytes(size as number)}. It goes to your downloads.` +
-          (runsCode(file)
+          `${c.file}, ${formatBytes(c.size)}. It goes to your downloads.` +
+          (risky
             ? ' This kind of file can run programs on your computer: save it only if you expected it.'
             : ''),
-        choices: [
-          { label: 'Save', tone: runsCode(file) ? 'danger' : 'primary' },
-          { label: 'Decline' }
-        ]
+        choices: [{ label: 'Save', tone: risky ? 'danger' : 'primary' }, { label: 'Decline' }]
       })
-      asking.set(key, q.cancel)
-      const pick = await q.answer.finally(() => asking.delete(key))
+      asking.set(key as string, q.cancel)
+      const pick = await q.answer.finally(() => asking.delete(key as string))
       // still here: they could have left while the card was up
-      if (pick !== 0 || !d.personOf(spaceId, from)) return null
-      const path = d.downloads.pathFor(file)
-      const t = next++
-      const out = createWriteStream(path, { flags: 'wx' })
-      out.on('error', () => drop(t, true))
-      files.set(t, {
-        out,
-        path,
-        size: size as number,
-        got: 0,
-        row: d.downloads.incoming(path, size as number, () => drop(t, true))
-      })
-      return t
+      if (pick !== 0 || !d.personOf(c.spaceId, c.from)) return null
+      return take(c.file, c.size)
+    }
+  )
+  /** A file this person chose to download (offered in the chat): the click was the yes. */
+  ipcMain.handle(
+    'share:recv-take',
+    (e, key: unknown, spaceId: unknown, from: unknown, name: unknown, size: unknown) => {
+      const c = mine(e) ? check(key, spaceId, from, name, size) : null
+      return c ? take(c.file, c.size) : null
     }
   )
   /** The offer went away before it was answered. */
