@@ -395,7 +395,9 @@ function Pane({
         {liveUnder && tab.url && <TabStream tab={tab.id} className="pane-stream" />}
         {/* A tab that has never been on screen has no snapshot: show who it is while its page loads. */}
         {!thumb && tab.url && (
-          <div className="pane-wait" aria-hidden="true">
+          // shimmering only while it loads: under a page that has painted it was a full-pane animation nobody saw,
+          // running for as long as the tab had no picture (a fifth of a core of GPU at idle)
+          <div className={'pane-wait' + (tab.loading ? ' loading' : '')} aria-hidden="true">
             <TabFavicon tab={tab} noSpinner />
             <span>{displayHost(tab.url)}</span>
           </div>

@@ -749,10 +749,12 @@ button {
   gap: 12px;
   background: linear-gradient(100deg, transparent 30%, var(--surface-hover) 50%, transparent 70%) 0
     0 / 250% 100% no-repeat var(--stage-bg);
-  animation: pane-shimmer 1.4s ease-in-out infinite;
   color: var(--fg-dim);
   font-size: var(--fs-m);
   pointer-events: none;
+}
+.pane-wait.loading {
+  animation: pane-shimmer 1.4s ease-in-out infinite;
 }
 .pane-wait .favicon {
   width: 36px;
