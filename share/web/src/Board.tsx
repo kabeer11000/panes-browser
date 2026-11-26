@@ -12,6 +12,10 @@ import { isShape, shapePath, type ShapeKind } from '@shared/ai/canvasMarks'
 import { parseInline } from '@shared/noteMarks'
 import type { Person } from './room'
 
+/** Only web addresses are followed or shown: a card from the room may name a file of someone's computer. */
+const webOnly = (url: string | undefined, picture = false): string | undefined =>
+  url && (/^https?:/i.test(url) || (picture && /^data:image\//i.test(url))) ? url : undefined
+
 /**
  * The board, from the web: the room's sections, cards, notes and marks, live, with everyone's pointers. Pan by
  * dragging the empty board (or scrolling), zoom with Ctrl+scroll or a pinch. Notes are the one thing made here:
@@ -283,7 +287,7 @@ export function Board({
             <a
               key={c.id}
               className="wb-card"
-              href={c.url || item?.url || undefined}
+              href={webOnly(c.url || item?.url)}
               target="_blank"
               rel="noopener noreferrer"
               draggable={false}
@@ -291,8 +295,8 @@ export function Board({
               onPointerDown={(e) => e.stopPropagation()}
               onDoubleClick={(e) => e.stopPropagation()}
             >
-              {item?.image ? (
-                <img src={item.image} alt="" draggable={false} />
+              {webOnly(item?.image, true) ? (
+                <img src={item!.image} alt="" draggable={false} />
               ) : (
                 <div className="wb-card-text">{item?.text?.slice(0, 400)}</div>
               )}

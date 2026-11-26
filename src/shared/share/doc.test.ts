@@ -349,3 +349,45 @@ describe('files of this computer on a shared board', () => {
       expect(sharedOpenUrl(f)).toMatch(/^panes-shared:\/\/f\/abc\./)
   })
 })
+
+describe('paths on a computer never stay in the room', () => {
+  test('scrubLocal takes out an older Panes picture path and file address', async () => {
+    const { scrubLocal } = await import('./doc')
+    const Y = await import('yjs')
+    const doc = new Y.Doc()
+    const cards = doc.getMap('cards')
+    const leak = 'file:///C:/Users/User/AppData/Roaming/panes/canvas-files/b41f.png'
+    cards.set('1', {
+      o: 0,
+      v: {
+        card: { id: 1, x: 0, y: 0, url: leak },
+        item: {
+          kind: 'image',
+          url: leak,
+          title: 'b41f.png',
+          site: '',
+          image: leak,
+          file: 'C:/x.png'
+        }
+      }
+    })
+    cards.set('2', {
+      o: 1,
+      v: {
+        card: { id: 2, x: 0, y: 0 },
+        item: {
+          kind: 'page',
+          url: 'https://a.b/',
+          title: 't',
+          site: '',
+          image: 'https://a.b/i.png'
+        }
+      }
+    })
+    expect(scrubLocal(doc)).toBe(1)
+    const text = JSON.stringify(cards.toJSON())
+    expect(text).not.toContain('file:')
+    expect(text).not.toContain('Users')
+    expect(text).toContain('https://a.b/i.png')
+  })
+})

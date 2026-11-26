@@ -24,13 +24,14 @@ import * as Y from 'yjs'
 import { emptyState, type CanvasState } from '@shared/ai/canvas'
 import { ShareClient, type ShareStatus } from '@shared/share/client'
 import { inviteLink, newRoom, parseInvite } from '@shared/share/crypto'
-import { chatOf, sayIn, watchChat, type ChatMessage } from '@shared/share/chat'
+import { chatOf, sayIn, watchChat, type ChatFile, type ChatMessage } from '@shared/share/chat'
 import {
   isEmptyDoc,
   maskFileUrl,
   SHARED_FILE_TITLE,
   parseSealed,
   readInto,
+  scrubLocal,
   SHAREABLE_FILE,
   sharedSeq,
   withTabs,
@@ -83,6 +84,8 @@ interface Saved {
 }
 
 interface Room {
+  /** Older Panes' local paths were taken out of the room (once it had caught up). */
+  scrubbed?: boolean
   /** The tab this person shows live here, if any. */
   liveTab?: number
   spaceId: number
@@ -449,6 +452,11 @@ export class ShareService {
         // where the others reach this person for a live tab's signals (the relay's id, new each connection)
         if (s === 'syncing' || s === 'live')
           room.client.awareness.setLocalStateField('rtc', room.client.me)
+        // caught up: paths on someone's computer that older Panes put in the room come out (doc.ts)
+        if (s === 'live' && !room.scrubbed) {
+          room.scrubbed = true
+          scrubLocal(room.doc, LOCAL)
+        }
         this.tell(room)
       },
       onSignal: (from, data) => {
@@ -820,9 +828,10 @@ export class ShareService {
   }
 
   /** Say something in a shared space's chat, as this person. */
-  say(spaceId: number, text: string): void {
+  /** Say something in the space's chat; with `file`, offer that file there (checked again in sayIn). */
+  say(spaceId: number, text: string, file?: unknown): void {
     const room = this.rooms.get(spaceId)
-    if (room) sayIn(room.doc, this.me, text, LOCAL)
+    if (room) sayIn(room.doc, this.me, text, LOCAL, Date.now(), file as ChatFile | undefined)
   }
 
   /** The live tab's page cursor, for the driver (null when nothing is shown live). */
@@ -929,8 +938,8 @@ export function registerShare(d: ShareDeps): ShareService {
   )
   ipcMain.handle('share:live-video', (e, id: unknown) => (mine(e) ? svc.liveVideo(num(id)) : null))
   ipcMain.handle('share:chat', (e, id: unknown) => (mine(e) ? svc.chat(num(id)) : null))
-  ipcMain.on('share:say', (e, id: unknown, text: unknown) => {
-    if (mine(e) && typeof text === 'string') svc.say(num(id), text)
+  ipcMain.on('share:say', (e, id: unknown, text: unknown, file: unknown) => {
+    if (mine(e) && typeof text === 'string') svc.say(num(id), text, file ?? undefined)
   })
   ipcMain.on('share:signal', (e, id: unknown, to: unknown, data: unknown) => {
     if (mine(e) && typeof data === 'string') svc.signal(num(id), num(to), data)

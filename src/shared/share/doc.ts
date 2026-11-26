@@ -163,10 +163,41 @@ export function parseSealed(sealed: string): { ids: string[]; ext: string } | nu
  * file: address, or `file`), only a copy of a sealed file this computer fetched itself.
  */
 function fromRoom(item: CanvasItem): CanvasItem {
-  if (item.file === undefined && !/^file:/i.test(item.url ?? '')) return item
+  if (item.file === undefined && !/^file:/i.test(item.url ?? '') && !localPicture(item)) return item
   const out: CanvasItem = { ...item, url: /^file:/i.test(item.url ?? '') ? '' : item.url }
   delete out.file
+  if (localPicture(item)) delete out.image
   return out
+}
+
+/** A card's picture that is not on the web (a file of someone's computer): never sent, never taken. */
+export const localPicture = (item: { image?: unknown }): boolean =>
+  typeof item.image === 'string' && !/^(https?:|data:image\/)/i.test(item.image)
+
+/**
+ * Take out of the room what older Panes put there and must not be: paths on someone's computer (a picture card's
+ * picture, a file's address). Run once the room has caught up; changes go out like any other.
+ */
+export function scrubLocal(doc: Y.Doc, origin?: unknown): number {
+  const map = doc.getMap<Slot<SharedCard>>('cards')
+  let n = 0
+  doc.transact(() => {
+    for (const [id, slot] of map) {
+      const item = slot?.v?.item
+      if (
+        !item ||
+        (!localPicture(item) && !/^file:/i.test(item.url ?? '') && item.file === undefined)
+      )
+        continue
+      const clean = fromRoom(item)
+      const card = /^file:/i.test(slot.v.card?.url ?? '')
+        ? { ...slot.v.card, url: '' }
+        : slot.v.card
+      map.set(id, { ...slot, v: { ...slot.v, card, item: clean } })
+      n++
+    }
+  }, origin)
+  return n
 }
 /** A card's item as it goes to the room once its file is sealed: no path and no address of this computer. */
 const sealedItem = (item: CanvasItem, sealed: string): CanvasItem => {
@@ -203,7 +234,8 @@ export function sharedOf(
     if (sealed) {
       const out = sealedItem(item, sealed)
       cards.set(String(c.id), { card: { ...c, url: out.url }, item: out })
-    } else if (!isOwnFile(item)) cards.set(String(c.id), { card: c, item })
+    } else if (!isOwnFile(item))
+      cards.set(String(c.id), { card: c, item: localPicture(item) ? fromRoom(item) : item })
   }
   const ids = new Set([...cards.values()].map((x) => x.card.id))
   return {
