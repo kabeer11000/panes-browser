@@ -373,10 +373,11 @@ Found by checking which of Electron's app-side hooks Panes handles (unhandled = 
 - [x] Client certificates (`select-client-certificate`): Electron silently uses the first certificate; Chrome asks
 - [x] Context menu: Save link as, Copy image address, View page source, Copy link to highlight
 - [x] Ctrl+G / Ctrl+Shift+G find next / previous
-- [ ] Global Privacy Control setting (Sec-GPC header + navigator.globalPrivacyControl)
-- [ ] HTTPS-first: http navigations try https first, fall back with a notice
+- [x] Global Privacy Control setting (Sec-GPC header + navigator.globalPrivacyControl)
+- [x] HTTPS-first: http navigations try https first, fall back with a notice
 - [x] Middle-click autoscroll (Chrome on Windows)
 - [x] window.prompt() (Electron does not implement it)
-Not now (large, say if wanted): install web apps (PWA), page translation, QR code for a page.
+- [x] QR code for a page (page menu, preview menu, command bar)
+Not now (large, say if wanted): install web apps (PWA), page translation.
 - [x] Address and card autofill (saved encrypted, offered in forms and asked to save on submit; managed on panes://passwords)
 Already there: leave-site dialog, spellcheck + suggestions, HTML fullscreen, keyboard/pointer lock, device pickers, Ctrl+1-9, F3/F6/F11, print, find, PiP, picture/video context items.

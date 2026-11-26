@@ -5,6 +5,7 @@ import { CertCard } from './CertCard'
 import { ConfirmCard } from './ConfirmCard'
 import { LoginCard } from './LoginCard'
 import { ShareDialog } from './ShareDialog'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 declare global {
   interface Window {
@@ -87,6 +88,7 @@ export function Permission(): React.JSX.Element | null {
           role="alertdialog"
           aria-label={`${first} asks to control your tab`}
         >
+          <Backdrop />
           <div className="perm-title perm-drive-title">
             <span
               className="perm-face"
@@ -135,6 +137,7 @@ export function Permission(): React.JSX.Element | null {
           role="alertdialog"
           aria-label={`Windows is blocking the ${what}`}
         >
+          <Backdrop />
           <div className="perm-title">
             <b>{host(origin)}</b>
             {` wants to use your ${what}, but Windows is not letting apps use it.`}
@@ -163,6 +166,7 @@ export function Permission(): React.JSX.Element | null {
   return (
     <div className="perm-root" ref={box} key={id}>
       <div className="perm-card" role="dialog" aria-label="Site permission">
+        <Backdrop />
         <div className="perm-title">
           <b>{host(origin)}</b>
           {app ? ` wants to open ${app}` : ` wants to use your ${describeKinds(kinds)}`}

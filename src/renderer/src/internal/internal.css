@@ -87,9 +87,7 @@ button {
   border-radius: 26px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    inset 0 0 0 1px var(--border),
-    0 10px 36px rgb(0 0 0 / 0.3);
+  box-shadow: var(--float-shadow);
   pointer-events: auto;
 }
 .int-tabs a {
@@ -975,9 +973,7 @@ button.u-row:disabled {
   border-radius: var(--r-menu);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    inset 0 0 0 1px var(--border),
-    0 10px 30px -12px rgb(0 0 0 / 0.35);
+  box-shadow: var(--float-shadow);
   font-size: var(--fs-m);
   font-weight: 600;
   animation: empty-in 0.25s var(--ease) both;
@@ -1325,7 +1321,7 @@ a.int-btn {
   border-radius: var(--r-pill);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-3), var(--rim);
+  box-shadow: var(--float-shadow);
   animation: int-tabs-in var(--spring-bouncy-dur, 0.5s) var(--spring-bouncy, ease-out) both 0.08s;
 }
 [data-fx='low'] .int-tabs-pill {

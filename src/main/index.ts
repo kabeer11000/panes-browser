@@ -83,7 +83,8 @@ import { media } from './ai/automation'
 import { addFileToBoard } from './ai/canvasAssistant'
 import { flushAllStores } from './store'
 import { showEditMenu } from './contextMenu'
-import { popupMenu } from './menuFloat'
+import { popupMenu, prepareMenus } from './menuFloat'
+import { registerBackdrop } from './backdrop'
 import { TabManager } from './tabs'
 import { registerTouchpad } from './touchpad'
 import { NavGestures } from './gestures'
@@ -280,7 +281,8 @@ function createWindow(): void {
   const uiFx = registerUiFx(() => ({
     fx: runningMode() === 'efficient' ? 'low' : 'full',
     glass: settings.get().frostedGlass,
-    tips: settings.get().tooltips
+    tips: settings.get().tooltips,
+    keys: settings.get().menuShortcuts
   }))
   settings.onChange((s) => {
     uiFx.refresh()
@@ -413,6 +415,8 @@ function createWindow(): void {
     }
   })
   canvas.onSaved = () => alarms.check()
+  prepareMenus(win)
+  registerBackdrop(win)
   win.once('ready-to-show', () => setTimeout(() => alarms.check(), 2000).unref())
   // the AI SDK loads on first use (ai/sdk.ts); with AI on, it is loaded here, once the window is up and settled
   win.once('ready-to-show', () =>

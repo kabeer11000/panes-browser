@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { PermissionApi, PermissionPromptState } from '@shared/types'
+import type { BackdropApi, PermissionApi, PermissionPromptState } from '@shared/types'
 
 const api: PermissionApi = {
   state: () => ipcRenderer.invoke('perm:state') as Promise<PermissionPromptState | null>,
@@ -13,3 +13,5 @@ const api: PermissionApi = {
 }
 
 contextBridge.exposeInMainWorld('permission', api)
+const backdrop: BackdropApi = { layers: (area) => ipcRenderer.invoke('float:backdrop', area) }
+contextBridge.exposeInMainWorld('backdrop', backdrop)

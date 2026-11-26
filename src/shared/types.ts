@@ -223,6 +223,18 @@ export interface Rect {
   height: number
 }
 
+/** What is under a floating view's cards, for its frosted glass (main/backdrop.ts, renderer components/Backdrop.tsx).
+ * Each floating view's preload exposes it as window.backdrop (its own copy: sandboxed preloads cannot share a module). */
+export interface BackdropApi {
+  layers(area: Rect): Promise<BackdropLayer[] | null>
+}
+
+/** A live source under a floating view's card (main/backdrop.ts), placed in that view's own coordinates. */
+export interface BackdropLayer extends Rect {
+  /** For getUserMedia's chromeMediaSource 'tab'. */
+  source: string
+}
+
 /** Commands main sends to the renderer UI (usually from keyboard shortcuts). */
 /** What the canvas preview's page menu hands back for the board to do itself. */
 export type PageMenuPick = 'ask' | 'find' | 'site' | 'reader' | 'live' | 'close'
@@ -661,6 +673,9 @@ export interface Settings {
   frostedGlass: boolean
   /** Panes' own tooltips on its buttons (and no system ones in their place when off). */
   tooltips: boolean
+  /** Keyboard shortcuts listed beside the items in menus (right-click menus, the board's space list). Off by
+   * default: the lists read cleaner, and the keys still work. */
+  menuShortcuts: boolean
   /** Send usage statistics (counts and times, never contents) to Panes' relay; asked on the welcome tour. */
   usageStats: boolean
   /** Offer saved addresses and cards in forms, and offer to save new ones (main/formData.ts). */
@@ -1485,7 +1500,8 @@ export interface MenuShow {
 
 /** The menu view's bridge (preload/menu.ts). */
 export interface MenuApi {
-  onShow(cb: (m: MenuShow) => void): () => void
+  /** null: the menu is gone (the window resized), drawn no longer. */
+  onShow(cb: (m: MenuShow | null) => void): () => void
   pick(seq: number, id: string): void
   close(seq: number): void
 }

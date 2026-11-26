@@ -24,9 +24,7 @@ body {
   backdrop-filter: var(--glass-blur);
   color: var(--fg);
   font-size: var(--fs-m);
-  box-shadow:
-    inset 0 0 0 1px var(--border),
-    0 8px 24px rgb(0 0 0 / 0.28);
+  box-shadow: var(--float-shadow);
 }
 .perm-title {
   line-height: 1.4;
@@ -174,7 +172,7 @@ body {
 }
 .perm-card {
   border-radius: var(--r-pop);
-  box-shadow: var(--shadow-2), var(--rim);
+  box-shadow: var(--float-shadow);
 }
 .perm-actions button {
   border-radius: var(--r-pill);

@@ -6,7 +6,7 @@ import { PROMPT_CARD_WIDTH, PROMPT_PAD } from '@shared/anchor'
 import { releaseHelper } from '@shared/memory'
 import { paintView } from './chromeTheme'
 
-const GAP = 4 // between the address bar and the card
+const GAP = 8 // between the address bar and the card (styles.css --pop-gap)
 const DEFAULT_THEME: PromptAnchor['theme'] = { scheme: 'dark', color: '#6e7bff', color2: '#6e7bff' }
 
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)

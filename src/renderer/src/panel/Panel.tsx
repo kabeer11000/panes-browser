@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SiteInfo, SitePanelApi, SitePatch } from '@shared/types'
-import { CloseIcon } from '@renderer/components/icons'
 import { Boost } from './Boost'
 import { SiteHome } from './SiteHome'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 declare global {
   interface Window {
@@ -84,20 +84,13 @@ export function Panel(): React.JSX.Element {
     >
       {info !== undefined && (
         <div className="pn" role="dialog" aria-label="Site settings" tabIndex={-1} ref={dialog}>
+          <Backdrop />
           {info === null ? (
             <div className="pn-view pn-none">
               <p>Site settings are for web pages. This page belongs to Panes or your computer.</p>
-              <button type="button" className="pn-icon-btn" aria-label="Close" onClick={api.close}>
-                <CloseIcon />
-              </button>
             </div>
           ) : view === 'home' ? (
-            <SiteHome
-              info={info}
-              send={send}
-              onBoost={() => setView('boost')}
-              onClose={api.close}
-            />
+            <SiteHome info={info} send={send} onBoost={() => setView('boost')} />
           ) : (
             <Boost api={api} info={info} send={send} onBack={() => setView('home')} />
           )}

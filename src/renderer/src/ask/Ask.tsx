@@ -3,6 +3,7 @@ import { ASK_ACTIONS, type AskAction } from '@shared/ask'
 import type { AskApi, AskShow } from '@shared/types'
 import { CloseIcon } from '@renderer/components/icons'
 import { Markdown } from '@renderer/components/chat/Markdown'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 declare global {
   interface Window {
@@ -42,6 +43,7 @@ function Chip(): React.JSX.Element {
         ref={row}
         onKeyDown={onKey}
       >
+        <Backdrop />
         {ASK_ACTIONS.map((a) => (
           <button key={a.id} type="button" onClick={() => api.run(a.id)}>
             {a.label}
@@ -115,6 +117,7 @@ function Card(): React.JSX.Element {
       }}
     >
       <div className="ask-card" role="dialog" aria-label={TITLES[show.action]} key={show.action}>
+        <Backdrop />
         <div className="ask-head">
           <span className="ask-title">{TITLES[show.action]}</span>
           <button type="button" className="ask-x" aria-label="Close" onClick={api.close}>

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { SiteInfo, SitePanelApi } from '@shared/types'
+import type { BackdropApi, SiteInfo, SitePanelApi } from '@shared/types'
 
 const api: SitePanelApi = {
   info: () => ipcRenderer.invoke('panel:info'),
@@ -24,3 +24,5 @@ const api: SitePanelApi = {
 }
 
 contextBridge.exposeInMainWorld('sitePanel', api)
+const backdrop: BackdropApi = { layers: (area) => ipcRenderer.invoke('float:backdrop', area) }
+contextBridge.exposeInMainWorld('backdrop', backdrop)

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { PopoverApi, PopoverState } from '@shared/types'
+import type { BackdropApi, PopoverApi, PopoverState } from '@shared/types'
 
 const api: PopoverApi = {
   state: () => ipcRenderer.invoke('popover:state') as Promise<PopoverState>,
@@ -14,3 +14,5 @@ const api: PopoverApi = {
 }
 
 contextBridge.exposeInMainWorld('popover', api)
+const backdrop: BackdropApi = { layers: (area) => ipcRenderer.invoke('float:backdrop', area) }
+contextBridge.exposeInMainWorld('backdrop', backdrop)

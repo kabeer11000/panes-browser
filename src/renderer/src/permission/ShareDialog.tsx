@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { shareTab } from '@shared/capture'
 import type { PermissionAnswer, ScreenSource } from '@shared/types'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 const host = (origin: string): string => origin.replace(/^https?:\/\//, '')
 
@@ -36,6 +37,7 @@ export function ShareDialog({
       onPointerDown={(e) => e.target === e.currentTarget && onAnswer({ action: 'cancel' })}
     >
       <div className="share-dialog" role="dialog" aria-label="Choose what to share">
+        <Backdrop />
         <h2>
           Choose what to share with <b>{host(origin)}</b>
         </h2>

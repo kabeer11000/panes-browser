@@ -25,7 +25,7 @@ body,
   border-radius: var(--r-pill, 999px);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-2), var(--rim);
+  box-shadow: var(--float-shadow);
   color: var(--fg);
   font-size: var(--fs-m, 13px);
   animation: find-in var(--dur) var(--ease-snappy, ease-out) both;

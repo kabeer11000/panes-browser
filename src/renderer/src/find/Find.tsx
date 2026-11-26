@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { FindApi, FindResult } from '@shared/types'
 import { ChevronDownIcon, ChevronUpIcon, CloseIcon } from '@renderer/components/icons'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 declare global {
   interface Window {
@@ -40,6 +41,7 @@ export function Find(): React.JSX.Element {
 
   return (
     <div className="find-card" role="search">
+      <Backdrop />
       <input
         ref={input}
         value={text}

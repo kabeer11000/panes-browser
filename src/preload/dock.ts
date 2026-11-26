@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { DockApi, DockOverlayState, DownloadInfo, DownloadStart } from '@shared/types'
+import type {
+  BackdropApi,
+  DockApi,
+  DockOverlayState,
+  DownloadInfo,
+  DownloadStart
+} from '@shared/types'
 
 function subscribe<A extends unknown[]>(channel: string, cb: (...args: A) => void): () => void {
   const listener = (_e: unknown, ...args: unknown[]): void => cb(...(args as A))
@@ -26,3 +32,5 @@ const api: DockApi = {
 }
 
 contextBridge.exposeInMainWorld('dock', api)
+const backdrop: BackdropApi = { layers: (area) => ipcRenderer.invoke('float:backdrop', area) }
+contextBridge.exposeInMainWorld('backdrop', backdrop)

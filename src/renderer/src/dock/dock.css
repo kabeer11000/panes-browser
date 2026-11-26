@@ -190,9 +190,7 @@ body {
   border-radius: var(--r-5);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    inset 0 0 0 1px var(--border),
-    0 10px 30px rgb(0 0 0 / 0.28);
+  box-shadow: var(--float-shadow);
   overflow: hidden;
   will-change: transform;
 }
@@ -313,14 +311,14 @@ body {
    cannot blur the page under it); buttons squish on the shared spring ---- */
 .dk-row {
   border-radius: var(--r-menu);
-  box-shadow: var(--rim), var(--shadow-2);
+  box-shadow: var(--float-shadow);
 }
 .dk-row.all {
   border-radius: var(--r-pill);
 }
 .dk-ghost {
   border-radius: var(--r-card);
-  box-shadow: var(--rim), var(--shadow-2);
+  box-shadow: var(--float-shadow);
 }
 .dk-face {
   border-radius: var(--r-card);

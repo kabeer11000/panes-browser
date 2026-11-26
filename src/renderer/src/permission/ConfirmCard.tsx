@@ -1,5 +1,6 @@
 import { forwardRef, useState } from 'react'
 import type { PermissionAnswer, PermissionPromptState } from '@shared/types'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 /**
  * Panes' own question, on the same card as a site's, in place of a system dialog: private tabs that would close on a
@@ -20,6 +21,7 @@ export const ConfirmCard = forwardRef<
   return (
     <div className="perm-root" ref={ref}>
       <div className="perm-card" role="alertdialog" aria-label={title}>
+        <Backdrop />
         <div className="perm-title">
           <b>{title}</b>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { LoginEdits, PasswordPrompt } from '@shared/types'
 import { CloseIcon, EyeIcon, EyeOffIcon, KeyIcon } from './icons'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 /**
  * Offer to remember a login. Inline under the address bar when the sidebar is open; with it closed the
@@ -44,6 +45,7 @@ export function SavePrompt({
     <div className="sp-wrap no-drag">
       <div className="sp-clip">
         <div className="sp-card" role="alertdialog" aria-label={title}>
+          <Backdrop />
           <div className="sp-head">
             <span className="sp-tile">
               <KeyIcon />

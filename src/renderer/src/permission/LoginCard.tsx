@@ -1,5 +1,6 @@
 import { forwardRef, useState } from 'react'
 import type { PermissionAnswer, PermissionPromptState } from '@shared/types'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 /**
  * A site's (or a proxy's) request for a user name and password, as Chrome asks it: who asks, in their own words, a
@@ -27,6 +28,7 @@ export const LoginCard = forwardRef<
           onAnswer({ action: 'login', username, password })
         }}
       >
+        <Backdrop />
         <div className="perm-title">
           <b>Sign in</b>
           <span className="perm-login-who">

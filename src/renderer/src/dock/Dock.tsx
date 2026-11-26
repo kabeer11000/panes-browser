@@ -10,6 +10,7 @@ import type {
 import { downloadStatus, isActive as active } from '@shared/downloads'
 import { DownloadBar } from '@renderer/components/DownloadBar'
 import { CloseIcon, ReloadIcon } from '@renderer/components/icons'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 declare global {
   interface Window {
@@ -461,6 +462,7 @@ function FanRow({
       }}
       exit={{ x: 0, y: 0, scale: 0.4, opacity: 0, transition: { duration: 0.14 } }}
     >
+      <Backdrop />
       {all || !d ? (
         <button
           type="button"

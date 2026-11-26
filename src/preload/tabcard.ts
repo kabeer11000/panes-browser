@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { TabCardApi, TabCardInfo } from '@shared/types'
+import type { BackdropApi, TabCardApi, TabCardInfo } from '@shared/types'
 
 const api: TabCardApi = {
   state: () => ipcRenderer.invoke('tabcard:state') as Promise<TabCardInfo | null>,
@@ -12,3 +12,5 @@ const api: TabCardApi = {
 }
 
 contextBridge.exposeInMainWorld('tabcard', api)
+const backdrop: BackdropApi = { layers: (area) => ipcRenderer.invoke('float:backdrop', area) }
+contextBridge.exposeInMainWorld('backdrop', backdrop)

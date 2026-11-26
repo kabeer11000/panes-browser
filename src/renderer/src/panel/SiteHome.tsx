@@ -5,7 +5,6 @@ import { DEFAULT_THEME } from '@shared/sitetheme'
 import type { SiteInfo, SitePatch, SitePerm } from '@shared/types'
 import {
   ChevronIcon,
-  CloseIcon,
   GlobeIcon,
   IncognitoIcon,
   PinIcon,
@@ -105,13 +104,11 @@ function Confirm({
 export function SiteHome({
   info,
   send,
-  onBoost,
-  onClose
+  onBoost
 }: {
   info: SiteInfo
   send: (patch: SitePatch, optimistic?: (i: SiteInfo) => SiteInfo) => void
   onBoost: () => void
-  onClose: () => void
 }): React.JSX.Element {
   const [certOpen, setCertOpen] = useState(false)
   const [allPerms, setAllPerms] = useState(false)
@@ -165,9 +162,6 @@ export function SiteHome({
           <b title={info.origin}>{info.host}</b>
           <span title={info.title}>{info.loading ? 'Loading...' : info.title || info.origin}</span>
         </div>
-        <button type="button" className="pn-icon-btn" aria-label="Close" onClick={onClose}>
-          <CloseIcon />
-        </button>
       </header>
 
       <div className="pn-conn-wrap">

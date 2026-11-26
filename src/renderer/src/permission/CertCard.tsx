@@ -1,5 +1,6 @@
 import { forwardRef } from 'react'
 import type { PermissionAnswer, PermissionPromptState } from '@shared/types'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 const date = (ms: number): string => new Date(ms).toLocaleDateString([], { dateStyle: 'medium' })
 
@@ -18,6 +19,7 @@ export const CertCard = forwardRef<
   return (
     <div className="perm-root" ref={ref}>
       <div className="perm-card" role="dialog" aria-label={`Choose a certificate for ${host}`}>
+        <Backdrop />
         <div className="perm-title">
           <b>{host || 'This site'}</b> asks for a certificate that says who you are
         </div>

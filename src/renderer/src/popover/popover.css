@@ -28,9 +28,7 @@ body {
 .pop-root .sp-card {
   background: linear-gradient(var(--popover-bg), var(--popover-bg)), var(--card-bg);
   backdrop-filter: none;
-  box-shadow:
-    inset 0 0 0 1px var(--border),
-    0 12px 28px rgb(0 0 0 / 0.32);
+  box-shadow: var(--float-shadow);
 }
 @media (prefers-reduced-motion: reduce) {
   .pop-root {

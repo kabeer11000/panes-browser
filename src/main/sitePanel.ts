@@ -14,7 +14,7 @@ import { paintView } from './chromeTheme'
 
 const WIDTH = 600
 const PAD = 36 // room around the card for its shadow, so the view never clips it
-const GAP = 4 // between the address bar's button and the card
+const GAP = 8 // between the address bar's button and the card (styles.css --pop-gap)
 const PUSH_DELAY_MS = 80
 
 interface Deps {

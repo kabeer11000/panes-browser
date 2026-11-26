@@ -1076,9 +1076,7 @@
   border-radius: 12px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 12px 32px rgb(0 0 0 / 0.3);
+  box-shadow: var(--float-shadow);
   animation: cv-fade 0.14s ease-out both;
 }
 .cv-menu button {
@@ -1173,9 +1171,7 @@
   font-size: 13px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 10px 28px rgb(0 0 0 / 0.3);
+  box-shadow: var(--float-shadow);
   animation: cv-toast-left 0.26s var(--ease) both;
 }
 .cv-toast button {
@@ -1642,9 +1638,7 @@
   font-size: 13px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 10px 28px rgb(0 0 0 / 0.3);
+  box-shadow: var(--float-shadow);
   animation: cv-toast 0.26s var(--ease) both;
 }
 .cv-confirm button,
@@ -1795,9 +1789,7 @@
   padding: 4px;
   border-radius: 11px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 8px 24px rgb(0 0 0 / 0.24);
+  box-shadow: var(--float-shadow);
   backdrop-filter: var(--glass-blur);
   transform-origin: 50% 100%;
   transform: translate(-50%, calc(-100% - 18px)) scale(calc(1 / var(--vk, 1)));
@@ -1947,9 +1939,7 @@
   padding: 5px;
   border-radius: 11px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 8px 24px rgb(0 0 0 / 0.24);
+  box-shadow: var(--float-shadow);
   backdrop-filter: var(--glass-blur);
   transform-origin: 50% 100%;
   transform: translate(-50%, calc(-100% - 14px)) scale(calc(1 / var(--vk, 1)));
@@ -2049,9 +2039,7 @@
   padding: 6px;
   border-radius: 14px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 16px 40px rgb(0 0 0 / 0.32);
+  box-shadow: var(--float-shadow);
   backdrop-filter: var(--glass-blur);
   animation: cv-new 0.18s var(--ease) both;
 }
@@ -2209,10 +2197,7 @@
   line-height: 1;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 2px 4px rgb(0 0 0 / 0.08),
-    0 10px 28px rgb(0 0 0 / 0.22);
+  box-shadow: var(--float-shadow);
   animation: cv-ctx-in 0.1s ease-out both;
   scrollbar-width: thin;
 }
@@ -2352,16 +2337,14 @@
 .cv-mention {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 10px);
+  bottom: calc(100% + var(--pop-gap));
   min-width: 240px;
   max-width: 360px;
   padding: 5px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 12px 32px rgb(0 0 0 / 0.3);
+  box-shadow: var(--float-shadow);
 }
 .cv-mention button {
   width: 100%;
@@ -2775,7 +2758,7 @@
   gap: 12px;
   min-height: 0;
   height: 34px;
-  padding: 0 6px 0 14px;
+  padding: 0 6px;
   border-bottom: 1px solid color-mix(in srgb, var(--fg) 7%, transparent);
 }
 .cv-panel-icon {
@@ -3283,7 +3266,7 @@
 .cv-mmenu {
   left: 50%;
   bottom: auto;
-  top: calc(100% + 10px);
+  top: calc(100% + var(--pop-gap));
   translate: -50% 0;
   min-width: 190px;
 }
@@ -3312,7 +3295,7 @@
 }
 .cv-mbar.below .cv-mmenu {
   top: auto;
-  bottom: calc(100% + 10px);
+  bottom: calc(100% + var(--pop-gap));
 }
 .cv-saved {
   margin: 0 0 var(--sp-3);
@@ -3340,9 +3323,7 @@
   padding: var(--sp-2);
   border-radius: var(--r-5);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
-  box-shadow:
-    0 0 0 1px var(--border),
-    var(--shadow-3);
+  box-shadow: var(--float-shadow);
   backdrop-filter: var(--glass-blur);
   animation: cv-fade var(--dur-fast) ease-out both;
 }
@@ -3474,40 +3455,68 @@
 .cv-space-title-wrap .cv-space-menu {
   position: absolute;
   left: 0;
-  top: calc(100% + 6px);
+  top: calc(100% + var(--pop-gap));
   z-index: 30;
-  width: 248px;
+  width: 256px;
   min-width: 0;
-  padding: 5px;
+  padding: 6px;
   border-radius: 14px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 14px 40px rgb(0 0 0 / 0.4);
   transform-origin: top left;
   animation: pop-open 0.16s var(--ease) both;
 }
 .cv-space-menu .cv-space-item {
+  position: relative;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
   height: 32px;
-  padding: 0 8px 0 6px;
+  padding: 0 8px 0 2px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 8px;
   background: none;
   color: var(--fg);
   font: inherit;
   font-size: 13px;
   text-align: left;
+  cursor: default;
 }
-.cv-space-menu .cv-space-item:hover,
-.cv-space-menu .cv-space-item:focus-visible,
-.cv-space-menu .cv-space-item.on {
-  background: var(--surface-hover);
+.cv-space-menu .cv-space-item:focus-visible {
+  outline: 0; /* the pill shows it */
+}
+/* the highlight: one pill gliding between rows (BoardSpaces, useGlider), as in the right-click menus */
+.cv-space-pill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.08s ease-out;
+}
+/* the drag handle: shows on the row under the pointer, and says the row can be picked up */
+.cv-space-grip {
+  flex: none;
+  width: 12px;
+  margin-right: -4px;
+  display: grid;
+  place-items: center;
+  color: var(--fg-dim);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity var(--dur-fast);
+}
+.cv-space-item:hover .cv-space-grip,
+.cv-space-item.dragging .cv-space-grip {
+  opacity: 0.7;
+}
+.cv-space-menu.reordering .cv-space-item:not(.dragging) .cv-space-grip {
+  opacity: 0;
 }
 .cv-space-item-name {
   flex: 1;
@@ -3543,6 +3552,7 @@
   color: var(--accent);
 }
 .cv-space-menu .cv-space-item.plain {
+  padding-left: 18px; /* in line with the spaces' avatars, past their grip */
   color: var(--fg-dim);
   font-weight: 500;
 }
@@ -3580,7 +3590,7 @@
   outline-offset: 2px;
 }
 .cv-space-menu {
-  top: calc(100% + 6px);
+  top: calc(100% + var(--pop-gap));
   bottom: auto;
   min-width: 220px;
   max-height: min(480px, 70vh);
@@ -3605,7 +3615,7 @@
   left: 0;
   right: 0;
   max-width: none;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + var(--pop-gap));
 }
 
 /* ---- exporting: only the board is in the picture ---- */
@@ -3867,9 +3877,7 @@
   border-radius: var(--r-5);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 10px 30px rgb(0 0 0 / 0.25);
+  box-shadow: var(--float-shadow);
   color: var(--fg-dim);
   animation: cv-fade var(--dur-fast) ease-out both;
 }
@@ -4565,11 +4573,16 @@
   opacity: 0.55;
 }
 .cv-bar .cv-menu {
-  bottom: calc(100% + 12px);
+  /* from the bar's edge: what it hangs from sits --bar-inset inside the bar */
+  bottom: calc(100% + var(--bar-inset, 5px) + var(--pop-gap));
   border-radius: 14px;
   padding: 6px;
   transform-origin: 24px 100%;
   animation: cv-menu-pop var(--spring-snappy-dur) var(--spring-snappy) both;
+}
+/* a split button (28px) is centred in the bar's 34: 3px more in than its padding */
+.cv-bar .cv-split {
+  --bar-inset: 8px;
 }
 .cv-bar .cv-phys-slot .cv-menu {
   bottom: calc(100% + 18px);
@@ -4663,7 +4676,9 @@
   align-items: center;
   gap: 6px;
   max-width: calc(100% - 520px);
-  animation: cv-fade 0.2s ease-out both;
+  /* backwards, not both: a fade still held once it is over keeps the row an opacity layer, the backdrop root of the
+     frosted plates and lists in it, which then blurred only the empty row (see-through, never frosted) */
+  animation: cv-fade 0.2s ease-out backwards;
   transition: left 0.34s var(--ease);
 }
 .cv-strip.board {
@@ -4883,7 +4898,7 @@
 .cv-island-list {
   --leave-y: -4px; /* it drops from the strip: it leaves upward (<Presence>) */
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + var(--pop-gap));
   left: -4px;
   z-index: 30;
   width: 360px;
@@ -4893,13 +4908,17 @@
   border-radius: 16px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow: var(--float-shadow, 0 0 0 1px var(--border), 0 18px 50px rgb(0 0 0 / 0.45));
+  box-shadow: var(--float-shadow);
   transform-origin: top left;
   animation: cv-nc-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
+/* on the board's strip the island sits inside the plate's 3px padding: the gap is from the plate's edge */
+.cv-strip.board .cv-island-list {
+  top: calc(100% + 3px + var(--pop-gap));
+}
 .cv-panel.bar-bottom .cv-island-list {
   top: auto;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + var(--pop-gap));
   transform-origin: bottom left;
 }
 .cv-island-row {
@@ -4908,7 +4927,7 @@
   gap: 2px;
   height: 38px;
   padding-right: 2px;
-  border-radius: 10px;
+  border-radius: 8px; /* concentric: the list's radius less its padding */
   color: var(--fg);
 }
 .cv-island-row:hover {
@@ -4925,7 +4944,7 @@
   min-width: 0;
   height: 38px;
   padding: 0 6px 0 10px;
-  border-radius: 10px;
+  border-radius: 8px;
   color: inherit;
   font-size: 12.5px;
   font-weight: 550;
@@ -4992,9 +5011,7 @@
   color: var(--fg);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    inset 0 0 0 0.5px color-mix(in srgb, var(--fg) 12%, transparent),
-    0 8px 24px rgb(0 0 0 / 0.28);
+  box-shadow: var(--float-shadow);
   pointer-events: none;
   animation: cv-strip-peek 0.36s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
@@ -5007,7 +5024,7 @@
 /* on the board there is room under the strip: the words drop below their tab, covering none of its neighbours */
 .cv-strip.board .cv-recent button > .cv-strip-peek {
   left: 50%;
-  top: calc(100% + 10px);
+  top: calc(100% + var(--pop-gap));
   translate: -50% 0;
   animation-name: cv-strip-drop;
 }
@@ -5276,15 +5293,13 @@
 .cv-share-pop {
   position: absolute;
   left: 0;
-  top: calc(100% + 8px);
+  top: calc(100% + var(--pop-gap));
   width: 300px;
   padding: 2px 14px 14px;
   border-radius: var(--r-6);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 24px 60px rgb(0 0 0 / 0.45);
+  box-shadow: var(--float-shadow);
   transform-origin: top left;
   animation: pop-open 0.2s var(--ease) both;
 }
@@ -5340,9 +5355,7 @@
   border-radius: 14px 14px 4px 14px;
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 12px 32px rgb(0 0 0 / 0.3);
+  box-shadow: var(--float-shadow);
   color: var(--fg);
   font-size: 12.5px;
   text-align: left;

@@ -623,14 +623,14 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + var(--pop-gap));
   margin: 0;
   padding: 4px;
   list-style: none;
   border-radius: var(--r-menu);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-3), var(--rim);
+  box-shadow: var(--float-shadow);
 }
 .chat-mentions li {
   display: flex;
@@ -704,7 +704,7 @@
 .chat-menu {
   position: absolute;
   z-index: 6;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--pop-gap));
   left: 0;
   width: max-content;
   min-width: 240px;
@@ -713,9 +713,7 @@
   border-radius: var(--r-5);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 12px 32px rgb(0 0 0 / 0.3);
+  box-shadow: var(--float-shadow);
 }
 .chat-menu-group {
   padding: 8px 10px 3px;

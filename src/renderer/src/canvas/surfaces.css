@@ -18,9 +18,6 @@
   --lift-2:
     inset 0 0.5px 0 rgb(255 255 255 / 0.09), 0 0 0 0.5px var(--rim-strong),
     0 2px 4px rgb(0 0 0 / 0.35), 0 10px 24px -6px rgb(0 0 0 / 0.38);
-  --float-shadow:
-    inset 0 0.5px 0 rgb(255 255 255 / 0.08), 0 0 0 0.5px var(--rim-strong),
-    0 2px 6px rgb(0 0 0 / 0.3), 0 14px 32px -8px rgb(0 0 0 / 0.42);
   --hover-tint: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 [data-scheme='light'] .cv {
@@ -30,9 +27,6 @@
   --lift-2:
     0 0 0 0.5px var(--rim-strong), 0 2px 4px rgb(16 22 34 / 0.08),
     0 10px 24px -6px rgb(16 22 34 / 0.16);
-  --float-shadow:
-    0 0 0 0.5px rgb(16 22 34 / 0.1), 0 2px 6px rgb(16 22 34 / 0.06),
-    0 18px 40px -12px rgb(16 22 34 / 0.22);
 }
 
 /* ---- sections: a quiet tinted floor with a hairline edge, named by a solid chip ---- */
@@ -698,15 +692,36 @@
    and those all use --float-shadow. ---- */
 .cv {
   --chrome: color-mix(in srgb, var(--popover-bg) 94%, var(--fg));
-  --chrome-edge: inset 0 0 0 0.5px var(--rim-strong);
+  /* the space selector's outline, on every plate: the toolbar, the strip, the bell, the space selector */
+  --chrome-edge: inset 0 0 0 1px color-mix(in srgb, var(--fg) 9%, transparent);
 }
 [data-scheme='light'] .cv {
   --chrome: color-mix(in srgb, var(--popover-bg) 97%, var(--fg));
 }
+/* The glass is on a layer behind each plate, not the plate: a backdrop-filter makes its element the backdrop root of
+   everything inside it, so the menus and lists that drop from these plates (the toolbar's menus, now playing's list,
+   the notifications) blurred only the plate, never the board. */
 .cv .cv-bar,
 .cv .cv-strip.board,
 .cv .cv-strip-bellbox {
+  isolation: isolate;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.cv .cv-strip-bellbox {
+  position: relative;
+}
+.cv :is(.cv-bar, .cv-strip.board, .cv-strip-bellbox)::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
   background: color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+  /* the edge goes on this layer, not the plate: a z-index -1 layer still paints over its plate's own shadow, which
+     hid the outline the space selector shows */
   box-shadow: var(--chrome-edge);
   backdrop-filter: var(--glass-blur);
 }
@@ -722,6 +737,7 @@
       color-mix(in srgb, var(--fg) 3%, transparent)
     ),
     color-mix(in srgb, var(--chrome) var(--glass-alpha), transparent);
+  box-shadow: var(--chrome-edge);
   backdrop-filter: var(--glass-blur);
 }
 .cv .cv-space-title:hover,
@@ -864,7 +880,7 @@
 /* the list, as Apple's Notification Center: one rounded card per site, its icon and name, then what it said */
 .cv-nc {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + var(--pop-gap));
   right: -4px;
   z-index: 30;
   width: 340px;
@@ -878,9 +894,13 @@
   overflow: hidden;
   animation: cv-nc-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
+/* the bell's button sits 3px inside its round plate: the gap is from the plate's edge */
+.cv-strip-bellbox .cv-nc {
+  top: calc(100% + 3px + var(--pop-gap));
+}
 .cv-panel.bar-bottom .cv-nc {
   top: auto;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + var(--pop-gap));
 }
 @keyframes cv-nc-in {
   from {
@@ -1052,4 +1072,9 @@
 .cv.cv :is(.cv-nc, .cv-share-pop, .cv-cmd, .cv-new) {
   border-radius: var(--r-pop);
   box-shadow: var(--float-shadow);
+}
+/* what drops from the chrome, on the board and in the preview (the toolbar's menus, now playing's list, the
+   notifications) matches the space selector's menu: the menu radius */
+.cv.cv :is(.cv-bar .cv-menu, .cv-island-list, .cv-nc) {
+  border-radius: var(--r-menu);
 }

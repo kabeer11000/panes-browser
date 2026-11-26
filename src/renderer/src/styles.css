@@ -18,6 +18,8 @@
   --r-page: 12px; /* = VIEW_RADIUS in main/tabs.ts: the page view's own corners */
   --r-menu: 14px;
   --r-pop: 20px;
+  /* between what opens a popover or menu and the popover, from its visible edge */
+  --pop-gap: 8px;
   /* type: one clean sans, tight steps, tabular numbers wherever digits line up */
   --fs-xs: 11px;
   --fs-s: 12px;
@@ -44,6 +46,12 @@
   --shadow-2: 0 2px 8px rgb(0 0 0 / 0.24), 0 14px 36px -8px rgb(0 0 0 / 0.5);
   --shadow-3: 0 4px 14px rgb(0 0 0 / 0.26), 0 30px 80px -16px rgb(0 0 0 / 0.66);
   --shadow-page: 0 0 0 1px rgb(255 255 255 / 0.05), 0 8px 28px -10px rgb(0 0 0 / 0.55);
+  /* Everything that floats (every menu, popover, list, toast, dialog and card over a page, in every window): one
+     hairline edge and one small soft shadow, flat as macOS's. It reaches 11px
+     below, 8px aside and 5px above: every floating view's padding (find, tab card, Ask, popover...) must cover that. Not var(--border): a custom property resolves where it
+     is declared, so a scope that changes --border would not reach this. */
+  --float-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1), 0 1px 2px rgb(0 0 0 / 0.2), 0 3px 10px -2px rgb(0 0 0 / 0.32);
   /* frosted islands: see-through with a blur, opaque enough to read without one (efficient mode drops the blur) */
   --blur: blur(28px) saturate(1.7);
   /* Frosted glass (Settings > Appearance), for every bar, menu and popover in every window: a surface is
@@ -82,6 +90,9 @@
   --shadow-page:
     0 0 0 1px rgb(16 22 34 / 0.06), 0 1px 3px rgb(16 22 34 / 0.05),
     0 10px 30px -12px rgb(16 22 34 / 0.16);
+  --float-shadow:
+    0 0 0 1px rgb(16 22 34 / 0.1), 0 1px 2px rgb(16 22 34 / 0.05),
+    0 3px 10px -2px rgb(16 22 34 / 0.12);
 }
 @media (prefers-reduced-motion: reduce) {
   :root {
@@ -1835,13 +1846,11 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + var(--pop-gap));
   border-radius: var(--r-6);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 24px 60px rgb(0 0 0 / 0.5);
+  box-shadow: var(--float-shadow);
   transform-origin: bottom left;
   animation: pop-open 0.22s var(--ease) both;
   z-index: 30;
@@ -1860,7 +1869,7 @@ button {
   scrollbar-width: thin;
 }
 .space-popover.down {
-  top: calc(100% + 8px);
+  top: calc(100% + var(--pop-gap));
   bottom: auto;
   right: auto;
   width: 296px;
@@ -2788,9 +2797,7 @@ kbd {
   border-radius: var(--r-5);
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 18px 48px rgb(0 0 0 / 0.38);
+  box-shadow: var(--float-shadow);
   overflow: hidden;
 }
 .pal.popover {
@@ -3002,9 +3009,7 @@ kbd {
 /* the popover is the address bar grown larger: same corners and inner spacing */
 .pal.popover {
   border-radius: var(--pal-r, 8px) var(--pal-r, 8px) 12px 12px;
-  box-shadow:
-    0 0 0 1px var(--border),
-    0 18px 48px rgb(0 0 0 / 0.38);
+  box-shadow: var(--float-shadow);
 }
 .pal.popover.up {
   flex-direction: column-reverse;
@@ -3266,7 +3271,8 @@ kbd {
   }
 }
 /* every scrolling list and menu without a shadow of its own (one with a shadow scrolls in an inner list instead,
-   as the board's notifications do) */
+   as the board's notifications do: a mask clips everything outside the box, the shadow and edge too, which is why the
+   space menu is not here) */
 /* One rule for every one of them (a second copy of the keyframes once overrode these with other names, so most
    lists lost their bottom fade). Readers and documents scroll here too: their text fades under the edge as well. */
 .tab-list,
@@ -3276,7 +3282,6 @@ kbd {
 .perm-certs,
 .space-pop-scroll,
 .cv-cmd-list,
-.cv-space-menu,
 .cv-dock-scroll,
 .cv-bell-scroll,
 .cv-chat-list,
@@ -4939,7 +4944,7 @@ kbd {
   background: color-mix(in srgb, var(--popover-bg, var(--card-bg)) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
   color: var(--fg);
-  box-shadow: var(--shadow-3), var(--rim);
+  box-shadow: var(--float-shadow);
   animation: tour-in var(--dur) var(--ease-snappy) both;
 }
 @keyframes tour-in {
@@ -5423,7 +5428,7 @@ time,
 .pop-root .sp-card {
   background: color-mix(in srgb, var(--popover-bg) var(--glass-alpha), transparent);
   backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-3), var(--rim);
+  box-shadow: var(--float-shadow);
 }
 [data-fx='low'] .pal,
 [data-fx='low'] .space-popover,
@@ -5435,7 +5440,7 @@ time,
 }
 .pal.popover {
   border-radius: var(--pal-r, 10px) var(--pal-r, 10px) var(--r-menu) var(--r-menu);
-  box-shadow: var(--shadow-3), var(--rim);
+  box-shadow: var(--float-shadow);
   transform-origin: 50% 0;
 }
 /* the full command bar no longer darkens the page: it blurs it a touch, so you keep your place */
@@ -6023,7 +6028,55 @@ kbd {
   cursor: grabbing;
   transition: scale var(--dur-fast) var(--ease);
 }
-.cv-space-item.dragging {
+.cv-space-menu.reordering .cv-space-item.dragging {
   scale: 1.02;
-  background: var(--surface-hover);
+  background: var(--popover-bg);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 6px 18px rgb(0 0 0 / 0.28);
+}
+/* shortcuts beside menu items only when asked for (Settings, Shortcuts in menus; data-keys from main/uiFx.ts): the
+   keys still work, and the menus read cleaner without a column of them */
+:root:not([data-keys='on']) :is(.cv-ctx, .cv-space-menu) kbd {
+  display: none;
+}
+/* while a space is dragged it is the one held: grabbing wherever the pointer goes */
+.cv-space-menu.reordering,
+.cv-space-menu.reordering * {
+  cursor: grabbing;
+}
+
+/* Frosted glass in the floating views (components/Backdrop.tsx): what is under the card, live, blurred as
+   --glass-blur does in the window, with the same 60% of the card's colour over it. The card's own colour stays under
+   it, so until the first frame is in (or with glass off) the card is solid. */
+.bd-host {
+  isolation: isolate;
+}
+.bd {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.14s ease-out;
+}
+.bd.on {
+  opacity: 1;
+}
+.bd::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bd-tint, var(--popover-bg)) 60%, transparent);
+}
+.bd-blur {
+  position: absolute;
+  inset: 0;
+  filter: blur(26px) saturate(1.8);
+}
+.bd-blur > video {
+  position: absolute;
+  object-fit: fill;
 }

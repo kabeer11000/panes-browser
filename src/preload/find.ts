@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { FindApi, FindResult } from '@shared/types'
+import type { BackdropApi, FindApi, FindResult } from '@shared/types'
 
 const on =
   <A extends unknown[]>(channel: string) =>
@@ -17,3 +17,5 @@ const api: FindApi = {
 }
 
 contextBridge.exposeInMainWorld('findBar', api)
+const backdrop: BackdropApi = { layers: (area) => ipcRenderer.invoke('float:backdrop', area) }
+contextBridge.exposeInMainWorld('backdrop', backdrop)

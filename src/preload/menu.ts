@@ -1,9 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { MenuApi, MenuShow } from '@shared/types'
+import type { BackdropApi, MenuApi, MenuShow } from '@shared/types'
 
 const api: MenuApi = {
   onShow: (cb) => {
-    const listener = (_e: unknown, m: MenuShow): void => cb(m)
+    const listener = (_e: unknown, m: MenuShow | null): void => cb(m)
     ipcRenderer.on('menu:show', listener)
     return () => ipcRenderer.removeListener('menu:show', listener)
   },
@@ -12,3 +12,5 @@ const api: MenuApi = {
 }
 
 contextBridge.exposeInMainWorld('menuHost', api)
+const backdrop: BackdropApi = { layers: (area) => ipcRenderer.invoke('float:backdrop', area) }
+contextBridge.exposeInMainWorld('backdrop', backdrop)

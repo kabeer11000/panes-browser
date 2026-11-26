@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TabCardApi, TabCardInfo } from '@shared/types'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 declare global {
   interface Window {
@@ -44,6 +45,7 @@ export function TabCard(): React.JSX.Element | null {
   return (
     <div className="tc-root" ref={box}>
       <div className="tc-card">
+        <Backdrop />
         <div className="tc-title">{info.title || info.host || 'New tab'}</div>
         {info.host && info.host !== info.title && <div className="tc-host">{info.host}</div>}
         <div className="tc-row">

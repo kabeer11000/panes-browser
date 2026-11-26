@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AskApi, AskShow, ChatStreamEvent } from '@shared/types'
+import type { BackdropApi, AskApi, AskShow, ChatStreamEvent } from '@shared/types'
 
 const on = <A extends unknown[]>(channel: string, cb: (...a: A) => void): (() => void) => {
   const listener = (_e: unknown, ...a: unknown[]): void => cb(...(a as A))
@@ -19,3 +19,5 @@ const api: AskApi = {
 }
 
 contextBridge.exposeInMainWorld('ask', api)
+const backdrop: BackdropApi = { layers: (area) => ipcRenderer.invoke('float:backdrop', area) }
+contextBridge.exposeInMainWorld('backdrop', backdrop)
