@@ -43,6 +43,12 @@ body {
   right: -24px;
   bottom: -16px;
 }
+/* The bin keeps focus after a click, and Chromium turns on :focus-visible for it once a key reaches its view or the
+   window is refocused: the accent ring then showed round the bin. Tab never reaches this view (Ctrl+J is the keyboard
+   way in), so the ring is never useful here. */
+.dk-bin:focus-visible {
+  outline: 0;
+}
 .dk-bin:hover,
 .dk-bin.open {
   transform: rotate(-3deg) scale(1.05);
