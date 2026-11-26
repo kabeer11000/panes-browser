@@ -8,6 +8,8 @@ import {
   type RemoteInput
 } from '@shared/share/live'
 import type { Person, Room } from './room'
+import { ChatButton } from './Chat'
+import type { ChatState } from './chatState'
 
 /**
  * Watching someone's live tab from the web (tasks/shared-spaces.md, 7g): the same calls as in Panes (LiveShare.tsx),
@@ -39,7 +41,9 @@ export function Watch({
   people,
   myName,
   onClose,
-  onRetry
+  onRetry,
+  chat,
+  chatPanel
 }: {
   room: Room
   host: Person
@@ -48,6 +52,9 @@ export function Watch({
   onClose: () => void
   /** Call again from scratch. */
   onRetry: () => void
+  /** The space's chat: its button in this bar, its panel beside the picture (there in full screen too). */
+  chat: ChatState
+  chatPanel: React.ReactNode
 }): React.JSX.Element {
   const video = useRef<HTMLVideoElement>(null)
   const stage = useRef<HTMLDivElement>(null)
@@ -356,6 +363,7 @@ export function Watch({
             {control === 'asked' ? 'Asked…' : control === 'no' ? 'Ask again' : 'Ask to control'}
           </button>
         )}
+        <ChatButton chat={chat} className="wb-hbtn wb-hchat" />
         <button
           type="button"
           className="wb-hbtn"
@@ -402,89 +410,92 @@ export function Watch({
           </svg>
         </button>
       </header>
-      <div
-        ref={stage}
-        className={'wb-stage' + (driving ? ' driving' : '')}
-        style={driving ? { cursor } : undefined}
-        onDoubleClick={() => !driving && toggleFull()}
-        tabIndex={driving ? 0 : -1}
-        onPointerMove={(e) => {
-          const p = driving && at(e)
-          if (p) input({ t: 'move', ...p }, true)
-        }}
-        onPointerDown={(e) => {
-          const p = driving && at(e)
-          if (!p) return
-          e.currentTarget.focus()
-          input({ t: 'down', ...p, b: button(e.button), n: e.detail || 1 })
-        }}
-        onPointerUp={(e) => {
-          const p = driving && at(e)
-          if (p) input({ t: 'up', ...p, b: button(e.button), n: e.detail || 1 })
-        }}
-        onWheel={(e) => {
-          const p = driving && at(e)
-          if (p) input({ t: 'wheel', ...p, dx: e.deltaX, dy: e.deltaY }, true)
-        }}
-        onContextMenu={(e) => driving && e.preventDefault()}
-        onKeyDown={(e) => {
-          if (!driving) return
-          e.preventDefault()
-          input({ t: 'key', key: e.key, up: false, mods: mods(e) })
-          if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) input({ t: 'char', text: e.key })
-        }}
-        onKeyUp={(e) => {
-          if (!driving) return
-          e.preventDefault()
-          input({ t: 'key', key: e.key, up: true, mods: mods(e) })
-        }}
-      >
-        <video ref={video} playsInline muted={!sound} />
-        {geo &&
-          Object.entries(ptrs).map(([who, p]) => {
-            const person = who === '0' ? host : people.find((q) => q.rtc === Number(who))
-            return (
-              <div
-                key={who}
-                className="wb-ptr"
-                style={
-                  {
-                    transform: `translate(${geo.x + p.x * geo.width}px, ${geo.y + p.y * geo.height}px)`,
-                    '--pc': person?.color ?? '#888'
-                  } as React.CSSProperties
-                }
-                aria-hidden="true"
-              >
-                <svg width="16" height="20" viewBox="0 0 16 20">
-                  <path d="M1 1 L1 16 L5 12 L8 19 L11 17.6 L8 11 L14 11 Z" />
-                </svg>
-                <span>{person?.name ?? 'Someone'}</span>
-              </div>
-            )
-          })}
-        {state !== 'live' && (
-          <div className="wb-wait">
-            {state === 'gone' ? (
-              <p>{host.name} stopped showing it.</p>
-            ) : slow ? (
-              <>
+      <div className="wb-watch-body">
+        <div
+          ref={stage}
+          className={'wb-stage' + (driving ? ' driving' : '')}
+          style={driving ? { cursor } : undefined}
+          onDoubleClick={() => !driving && toggleFull()}
+          tabIndex={driving ? 0 : -1}
+          onPointerMove={(e) => {
+            const p = driving && at(e)
+            if (p) input({ t: 'move', ...p }, true)
+          }}
+          onPointerDown={(e) => {
+            const p = driving && at(e)
+            if (!p) return
+            e.currentTarget.focus()
+            input({ t: 'down', ...p, b: button(e.button), n: e.detail || 1 })
+          }}
+          onPointerUp={(e) => {
+            const p = driving && at(e)
+            if (p) input({ t: 'up', ...p, b: button(e.button), n: e.detail || 1 })
+          }}
+          onWheel={(e) => {
+            const p = driving && at(e)
+            if (p) input({ t: 'wheel', ...p, dx: e.deltaX, dy: e.deltaY }, true)
+          }}
+          onContextMenu={(e) => driving && e.preventDefault()}
+          onKeyDown={(e) => {
+            if (!driving) return
+            e.preventDefault()
+            input({ t: 'key', key: e.key, up: false, mods: mods(e) })
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) input({ t: 'char', text: e.key })
+          }}
+          onKeyUp={(e) => {
+            if (!driving) return
+            e.preventDefault()
+            input({ t: 'key', key: e.key, up: true, mods: mods(e) })
+          }}
+        >
+          <video ref={video} playsInline muted={!sound} />
+          {geo &&
+            Object.entries(ptrs).map(([who, p]) => {
+              const person = who === '0' ? host : people.find((q) => q.rtc === Number(who))
+              return (
+                <div
+                  key={who}
+                  className="wb-ptr"
+                  style={
+                    {
+                      transform: `translate(${geo.x + p.x * geo.width}px, ${geo.y + p.y * geo.height}px)`,
+                      '--pc': person?.color ?? '#888'
+                    } as React.CSSProperties
+                  }
+                  aria-hidden="true"
+                >
+                  <svg width="16" height="20" viewBox="0 0 16 20">
+                    <path d="M1 1 L1 16 L5 12 L8 19 L11 17.6 L8 11 L14 11 Z" />
+                  </svg>
+                  <span>{person?.name ?? 'Someone'}</span>
+                </div>
+              )
+            })}
+          {state !== 'live' && (
+            <div className="wb-wait">
+              {state === 'gone' ? (
+                <p>{host.name} stopped showing it.</p>
+              ) : slow ? (
+                <>
+                  <p>
+                    <b>Still connecting to {host.name}&rsquo;s tab</b>
+                    Their computer may not be reachable from this network (some work and school
+                    networks block it).
+                  </p>
+                  <button type="button" className="wb-btn primary" onClick={onRetry}>
+                    Try again
+                  </button>
+                </>
+              ) : (
                 <p>
-                  <b>Still connecting to {host.name}&rsquo;s tab</b>
-                  Their computer may not be reachable from this network (some work and school
-                  networks block it).
+                  <span className="wb-spin" aria-hidden="true" />
+                  Connecting to their tab&hellip;
                 </p>
-                <button type="button" className="wb-btn primary" onClick={onRetry}>
-                  Try again
-                </button>
-              </>
-            ) : (
-              <p>
-                <span className="wb-spin" aria-hidden="true" />
-                Connecting to their tab&hellip;
-              </p>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </div>
+        {chatPanel}
       </div>
     </div>
   )

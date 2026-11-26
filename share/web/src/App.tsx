@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Board } from './Board'
-import { Chat } from './Chat'
+import { ChatLip, ChatPanel } from './Chat'
+import { useChat } from './chatState'
 import { loadMe, useRoom } from './room'
 import { Watch } from './Watch'
 import { GET_PANES, room, secret } from './link'
@@ -97,6 +98,7 @@ export function App(): React.JSX.Element {
   /** Calls to the watched tab made afresh (Try again): a new key, a new call. */
   const [tries, setTries] = useState(0)
   const [peopleOpen, setPeopleOpen] = useState(false)
+  const chat = useChat(r.chat, r.meId)
   // Open in Panes names this server, so a space on a community or self-hosted one opens there
   const join = joinLink(location.origin, room, secret)
 
@@ -137,6 +139,7 @@ export function App(): React.JSX.Element {
         onEdit={r.edit}
         onPoint={r.point}
         fileOf={r.fileOf}
+        onWatch={setWatching}
       />
       <header className="wb-top">
         <span className="wb-logo" aria-hidden="true">
@@ -192,7 +195,6 @@ export function App(): React.JSX.Element {
             </div>
           )}
         </div>
-        <Chat messages={r.chat} me={r.meId} onSay={r.say} join={join} />
         <a className="wb-open" href={join}>
           Open in Panes
         </a>
@@ -210,8 +212,27 @@ export function App(): React.JSX.Element {
           ))}
         </div>
       )}
+      {!watched && <ChatLip chat={chat} messages={r.chat} me={r.meId} />}
+      {chat.open && !watched && (
+        <ChatPanel messages={r.chat} me={r.meId} onSay={r.say} join={join} chat={chat} />
+      )}
       {watched && (
         <Watch
+          chat={chat}
+          chatPanel={
+            !chat.open ? (
+              <ChatLip chat={chat} messages={r.chat} me={r.meId} />
+            ) : (
+              <ChatPanel
+                messages={r.chat}
+                me={r.meId}
+                onSay={r.say}
+                join={join}
+                chat={chat}
+                docked
+              />
+            )
+          }
           key={`${watched.id}:${tries}`}
           onRetry={() => setTries((n) => n + 1)}
           room={r}

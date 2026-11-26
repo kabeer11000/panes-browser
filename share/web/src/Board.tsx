@@ -11,7 +11,7 @@ import {
 import { isShape, shapePath, type ShapeKind } from '@shared/ai/canvasMarks'
 import { parseInline } from '@shared/noteMarks'
 import type { CanvasItem } from '@shared/ai/canvasItems'
-import { parseSealed } from '@shared/share/doc'
+import { parseSealed, samePage } from '@shared/share/doc'
 import type { Person } from './room'
 
 /** Only web addresses are followed or shown: a card from the room may name a file of someone's computer. */
@@ -286,7 +286,8 @@ export function Board({
   people,
   onEdit,
   onPoint,
-  fileOf
+  fileOf,
+  onWatch
 }: {
   state: CanvasState
   people: Person[]
@@ -294,7 +295,12 @@ export function Board({
   onPoint: (at: { x: number; y: number } | null) => void
   /** A shared picture opened here (room.ts), once it has come. */
   fileOf: (sealed: string) => string | undefined
+  /** Watch someone's tab live: a card of the page they are presenting opens it, as in Panes. */
+  onWatch: (personId: number) => void
 }): React.JSX.Element {
+  // whose live tab each page is (Canvas.tsx's liveHosts): the card of that page opens the live view
+  const presenting = new Map<string, Person>()
+  for (const p of people) if (p.live && p.rtc) presenting.set(samePage(p.live.url), p)
   const host = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<Viewport>({ x: 0, y: 0, k: 1 })
   const viewRef = useRef(view)
@@ -321,7 +327,6 @@ export function Board({
   useLayoutEffect(() => {
     if (fitted.current) return
     if (fit(state)) fitted.current = true
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the board first has something
   }, [state])
   /** Zoom to `k` about the middle of the window. */
   const zoomTo = (k: number): void => {
@@ -532,6 +537,7 @@ export function Board({
         {state.cards.map((c) => {
           const item = state.items[String(c.id)]
           const href = webOnly(c.url || item?.url)
+          const live = presenting.get(samePage(c.url || item?.url || ''))
           return (
             <a
               key={c.id}
@@ -543,8 +549,21 @@ export function Board({
               style={{ left: c.x, top: c.y, width: c.w ?? CARD_W, height: c.h ?? CARD_H }}
               onPointerDown={(e) => e.stopPropagation()}
               onDoubleClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                if (!live) return
+                // presented live: the click watches it (the page itself still opens with a middle click)
+                e.preventDefault()
+                onWatch(live.id)
+              }}
+              title={live ? `${live.name} is presenting this tab: click to watch` : undefined}
             >
               <Card url={href} item={item} fileOf={fileOf} />
+              {live && (
+                <span className="wb-livetag" style={{ '--pc': live.color } as React.CSSProperties}>
+                  <i aria-hidden="true" />
+                  Live &middot; {live.name.split(' ')[0]}
+                </span>
+              )}
             </a>
           )
         })}
