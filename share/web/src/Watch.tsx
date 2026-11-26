@@ -38,19 +38,29 @@ export function Watch({
   host,
   people,
   myName,
-  onClose
+  onClose,
+  onRetry
 }: {
   room: Room
   host: Person
   people: Person[]
   myName: string
   onClose: () => void
+  /** Call again from scratch. */
+  onRetry: () => void
 }): React.JSX.Element {
   const video = useRef<HTMLVideoElement>(null)
   const stage = useRef<HTMLDivElement>(null)
   const ctl = useRef<RTCDataChannel | null>(null)
   const mv = useRef<RTCDataChannel | null>(null)
   const [state, setState] = useState<'connecting' | 'live' | 'gone'>('connecting')
+  /** Still not through after a while: say why it may be, and offer to call again. */
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (state !== 'connecting') return
+    const t = window.setTimeout(() => setSlow(true), 12_000)
+    return () => window.clearTimeout(t)
+  }, [state])
   const [control, setControl] = useState<'none' | 'asked' | 'yes' | 'no'>('none')
   const [sound, setSound] = useState(true)
   const [ptrs, setPtrs] = useState<Record<number, { x: number; y: number; t: number }>>({})
@@ -371,9 +381,27 @@ export function Watch({
             )
           })}
         {state !== 'live' && (
-          <p className="wb-wait">
-            {state === 'gone' ? `${host.name} stopped showing it.` : 'Connecting to their tab…'}
-          </p>
+          <div className="wb-wait">
+            {state === 'gone' ? (
+              <p>{host.name} stopped showing it.</p>
+            ) : slow ? (
+              <>
+                <p>
+                  <b>Still connecting to {host.name}&rsquo;s tab</b>
+                  Their computer may not be reachable from this network (some work and school
+                  networks block it).
+                </p>
+                <button type="button" className="wb-btn primary" onClick={onRetry}>
+                  Try again
+                </button>
+              </>
+            ) : (
+              <p>
+                <span className="wb-spin" aria-hidden="true" />
+                Connecting to their tab&hellip;
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

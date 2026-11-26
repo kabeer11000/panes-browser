@@ -35,6 +35,14 @@ function Mark(): React.JSX.Element {
   )
 }
 
+const STATUS: Record<string, string> = {
+  connecting: 'Connecting…',
+  syncing: 'Catching up…',
+  live: 'Connected',
+  offline: 'Reconnecting…',
+  refused: 'Link refused'
+}
+
 export function BadLink({ refused }: { refused?: boolean }): React.JSX.Element {
   return (
     <main className="wb-card-page">
@@ -58,6 +66,8 @@ export function App(): React.JSX.Element {
   const [me, setMeState] = useState(loadMe)
   const r = useRoom(room, secret, me)
   const [watching, setWatching] = useState<number | null>(null)
+  /** Calls to the watched tab made afresh (Try again): a new key, a new call. */
+  const [tries, setTries] = useState(0)
   const [hint, setHint] = useState(true)
   // Open in Panes names this server, so a space on a community or self-hosted one opens there
   const join = joinLink(location.origin, room, secret)
@@ -91,18 +101,23 @@ export function App(): React.JSX.Element {
 
   return (
     <>
-      <Board state={r.state} people={r.people} onEdit={r.edit} onPoint={r.point} />
+      <Board
+        state={r.state}
+        people={r.people}
+        onEdit={r.edit}
+        onPoint={r.point}
+        fileOf={r.fileOf}
+      />
       <header className="wb-top">
         <div className="wb-space">
           <span className="wb-logo">
             <Mark />
           </span>
           <b>{r.meta.name}</b>
-          {r.status !== 'live' && (
-            <span className="wb-status">
-              {r.status === 'offline' ? 'Reconnecting…' : 'Connecting…'}
-            </span>
-          )}
+          <span className={'wb-status ' + r.status} title={STATUS[r.status]}>
+            <i aria-hidden="true" />
+            {r.status !== 'live' && STATUS[r.status]}
+          </span>
         </div>
         <div className="wb-people" aria-label="People here">
           {r.people.slice(0, 6).map((p) => (
@@ -123,7 +138,7 @@ export function App(): React.JSX.Element {
             />
           </label>
         </div>
-        <Chat messages={r.chat} me={r.meId} onSay={r.say} />
+        <Chat messages={r.chat} me={r.meId} onSay={r.say} join={join} />
         <div className="wb-actions">
           <a className="wb-btn quiet" href={GET_PANES} rel="noopener">
             Get Panes
@@ -148,7 +163,8 @@ export function App(): React.JSX.Element {
       )}
       {watched && (
         <Watch
-          key={watched.id}
+          key={`${watched.id}:${tries}`}
+          onRetry={() => setTries((n) => n + 1)}
           room={r}
           host={watched}
           people={r.people}

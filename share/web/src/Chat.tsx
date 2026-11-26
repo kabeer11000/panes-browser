@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { unreadAfter, type ChatMessage } from '@shared/share/chat'
+import { formatBytes } from '@shared/downloads'
 
 /** The space's chat on the web board: the same messages as in Panes (the room's document, sealed end to end). */
 
@@ -9,11 +10,14 @@ const time = (at: number): string =>
 export function Chat({
   messages,
   me,
-  onSay
+  onSay,
+  join
 }: {
   messages: ChatMessage[]
   me: number
   onSay: (text: string) => void
+  /** Open this space in Panes (a file offered in the chat is downloaded there). */
+  join: string
 }): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [seen, setSeen] = useState<string | null>(null)
@@ -95,7 +99,24 @@ export function Chat({
                       <time>{time(m.at)}</time>
                     </div>
                   )}
-                  <p>{m.text}</p>
+                  {m.file ? (
+                    <div className="wb-file">
+                      <span className="wb-file-ext" aria-hidden="true">
+                        {(/\.([a-z0-9]{1,5})$/i.exec(m.file.name)?.[1] ?? 'file')
+                          .toUpperCase()
+                          .slice(0, 4)}
+                      </span>
+                      <span className="wb-file-words">
+                        <b title={m.file.name}>{m.file.name}</b>
+                        <small>
+                          {formatBytes(m.file.size)} &middot;{' '}
+                          <a href={join}>Open in Panes to download</a>
+                        </small>
+                      </span>
+                    </div>
+                  ) : (
+                    <p>{m.text}</p>
+                  )}
                 </div>
               )
             })}

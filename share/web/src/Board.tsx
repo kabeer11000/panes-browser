@@ -10,6 +10,8 @@ import {
 } from '@shared/ai/canvas'
 import { isShape, shapePath, type ShapeKind } from '@shared/ai/canvasMarks'
 import { parseInline } from '@shared/noteMarks'
+import type { CanvasItem } from '@shared/ai/canvasItems'
+import { parseSealed } from '@shared/share/doc'
 import type { Person } from './room'
 
 /** Only web addresses are followed or shown: a card from the room may name a file of someone's computer. */
@@ -106,16 +108,147 @@ function Note({
   )
 }
 
+/** A site's own name for its letter: "wikipedia" for en.wikipedia.org, "bbc" for www.bbc.co.uk. */
+function siteName(site: string): string {
+  const parts = site.split('.').filter(Boolean)
+  if (parts.length < 2) return site
+  const tail = parts.at(-2)!
+  // a two-part ending (co.uk, com.pk): the name is the part before it
+  return tail.length <= 3 && parts.length > 2 ? parts.at(-3)! : tail
+}
+
+/** A site's colour for its tile: the same site, the same colour on every board. */
+function siteHue(site: string): number {
+  let h = 0
+  for (const ch of site) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return h % 360
+}
+
+/** What a card shows: a page's picture, a shared picture opened here, its text, or a tile for the site or file. */
+function Card({
+  url,
+  item,
+  fileOf
+}: {
+  url: string | undefined
+  item: CanvasItem | undefined
+  fileOf: (sealed: string) => string | undefined
+}): React.JSX.Element {
+  const [broken, setBroken] = useState(false)
+  const sealed = item?.sealed ? parseSealed(item.sealed) : null
+  const picture =
+    (item?.sealed ? fileOf(item.sealed) : undefined) ??
+    webOnly(item?.image, true) ??
+    (item?.kind === 'image' ? webOnly(item.url) : undefined)
+  const site = item?.site || (url ? new URL(url).host.replace(/^www\./, '') : '')
+  const title = item?.title || site || 'Untitled'
+  const letter = (siteName(site) || title).slice(0, 1).toUpperCase()
+  const tab = item?.source === 'tab'
+  const tile = (
+    <div
+      className={'wb-card-tile' + (item?.text ? ' text' : '')}
+      style={{ '--hue': siteHue(site || title) } as React.CSSProperties}
+    >
+      {item?.text ? (
+        <p>{item.text.slice(0, 420)}</p>
+      ) : sealed ? (
+        <span className="wb-card-ext">{sealed.ext.slice(1).toUpperCase()}</span>
+      ) : (
+        <span className="wb-card-letter">{letter}</span>
+      )}
+    </div>
+  )
+  return (
+    <>
+      <div className="wb-card-pic">
+        {picture && !broken ? (
+          <img
+            src={picture}
+            alt=""
+            draggable={false}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setBroken(true)}
+          />
+        ) : (
+          tile
+        )}
+        {tab && <span className="wb-card-badge">Tab</span>}
+      </div>
+      <footer>
+        <span
+          className="wb-card-fav"
+          style={{ '--hue': siteHue(site || title) } as React.CSSProperties}
+          aria-hidden="true"
+        >
+          {letter}
+        </span>
+        <span className="wb-card-words">
+          <b>{title}</b>
+          <span>{sealed ? 'Shared file' : site}</span>
+        </span>
+      </footer>
+    </>
+  )
+}
+
+/** The zoom buttons in the corner: out, the zoom (click: back to 100%), in, and fit everything. */
+function ZoomBar({
+  k,
+  onZoom,
+  onFit
+}: {
+  k: number
+  onZoom: (k: number) => void
+  onFit: () => void
+}): React.JSX.Element {
+  return (
+    <div
+      className="wb-zoom"
+      onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    >
+      <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => onZoom(k / 1.25)}>
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <path d="M3 7h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
+      <button type="button" className="wb-zoom-k" title="Back to 100%" onClick={() => onZoom(1)}>
+        {Math.round(k * 100)}%
+      </button>
+      <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => onZoom(k * 1.25)}>
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <path d="M3 7h8M7 3v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
+      <button type="button" aria-label="Show everything" title="Show everything" onClick={onFit}>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path
+            d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
 export function Board({
   state,
   people,
   onEdit,
-  onPoint
+  onPoint,
+  fileOf
 }: {
   state: CanvasState
   people: Person[]
   onEdit: (fn: (s: CanvasState) => CanvasState) => void
   onPoint: (at: { x: number; y: number } | null) => void
+  /** A shared picture opened here (room.ts), once it has come. */
+  fileOf: (sealed: string) => string | undefined
 }): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<Viewport>({ x: 0, y: 0, k: 1 })
@@ -126,20 +259,46 @@ export function Board({
   const fitted = useRef(false)
   const [editing, setEditing] = useState<string | null>(null)
 
-  // the first time there is something to show: all of it in view
-  useLayoutEffect(() => {
-    if (fitted.current || !host.current) return
-    const b = boundsOf(state)
-    if (!b) return
-    fitted.current = true
+  /** Everything on the board in view, under the top bar (no bigger than 100%). */
+  const fit = (s: CanvasState): boolean => {
+    const b = boundsOf(s)
+    if (!b || !host.current) return false
     const r = host.current.getBoundingClientRect()
-    const k = Math.min(1, (r.width - 80) / b.w, (r.height - 160) / b.h)
+    const k = Math.max(0.1, Math.min(1, (r.width - 80) / b.w, (r.height - 160) / b.h))
     setView({
       k,
       x: r.width / 2 - (b.x + b.w / 2) * k,
       y: r.height / 2 + 30 - (b.y + b.h / 2) * k
     })
+    return true
+  }
+  // the first time there is something to show: all of it in view
+  useLayoutEffect(() => {
+    if (fitted.current) return
+    if (fit(state)) fitted.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the board first has something
   }, [state])
+  /** Zoom to `k` about the middle of the window. */
+  const zoomTo = (k: number): void => {
+    const el = host.current
+    if (!el) return
+    const v = viewRef.current
+    const nk = Math.min(3, Math.max(0.1, k))
+    const r = el.getBoundingClientRect()
+    const px = r.width / 2
+    const py = r.height / 2
+    setView({ k: nk, x: px - ((px - v.x) / v.k) * nk, y: py - ((py - v.y) / v.k) * nk })
+  }
+  /** Fingers on the board (touch): one pans, two pinch to zoom about their middle. */
+  const touches = useRef(new Map<number, { x: number; y: number }>())
+  const pinch = useRef<{
+    d: number
+    k: number
+    mx: number
+    my: number
+    vx: number
+    vy: number
+  } | null>(null)
 
   // scroll pans, Ctrl+scroll (and a touchpad pinch) zooms about the pointer
   useEffect(() => {
@@ -186,15 +345,56 @@ export function Board({
       className="wb-board"
       onPointerDown={(e) => {
         if (e.button !== 0) return
-        drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
         e.currentTarget.setPointerCapture(e.pointerId)
+        if (e.pointerType === 'touch') {
+          touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+          if (touches.current.size === 2) {
+            const [a, b] = [...touches.current.values()]
+            const v = viewRef.current
+            drag.current = null
+            pinch.current = {
+              d: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+              k: v.k,
+              mx: (a.x + b.x) / 2,
+              my: (a.y + b.y) / 2,
+              vx: v.x,
+              vy: v.y
+            }
+            return
+          }
+        }
+        drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
       }}
       onPointerMove={(e) => {
-        onPoint(toBoard(e))
+        if (e.pointerType !== 'touch') onPoint(toBoard(e))
+        if (touches.current.has(e.pointerId))
+          touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        const p = pinch.current
+        if (p && touches.current.size === 2) {
+          const [a, b] = [...touches.current.values()]
+          const r = host.current!.getBoundingClientRect()
+          const k = Math.min(3, Math.max(0.1, (p.k * Math.hypot(a.x - b.x, a.y - b.y)) / p.d))
+          const mx = (a.x + b.x) / 2
+          const my = (a.y + b.y) / 2
+          // the board point under the fingers' first middle stays under their middle now
+          const wx = (p.mx - r.left - p.vx) / p.k
+          const wy = (p.my - r.top - p.vy) / p.k
+          setView({ k, x: mx - r.left - wx * k, y: my - r.top - wy * k })
+          return
+        }
         const d = drag.current
         if (d) setView({ ...viewRef.current, x: d.vx + e.clientX - d.x, y: d.vy + e.clientY - d.y })
       }}
-      onPointerUp={() => (drag.current = null)}
+      onPointerUp={(e) => {
+        touches.current.delete(e.pointerId)
+        if (touches.current.size < 2) pinch.current = null
+        drag.current = null
+      }}
+      onPointerCancel={(e) => {
+        touches.current.delete(e.pointerId)
+        pinch.current = null
+        drag.current = null
+      }}
       onPointerLeave={() => onPoint(null)}
       onDoubleClick={(e) => {
         const at = toBoard(e)
@@ -236,7 +436,7 @@ export function Board({
               ''
             )
             return (
-              <svg key={m.id} className="wb-mark" style={style} overflow="visible">
+              <svg key={m.id} className="wb-draw" style={style} overflow="visible">
                 <path
                   d={d}
                   fill="none"
@@ -251,7 +451,7 @@ export function Board({
           }
           if (isShape(m.kind))
             return (
-              <svg key={m.id} className="wb-mark" style={style} overflow="visible">
+              <svg key={m.id} className="wb-draw" style={style} overflow="visible">
                 <path
                   d={shapePath(m.kind as ShapeKind, m.w, m.h)}
                   fill={m.fill !== undefined && m.fill >= 0 ? markColor(m.fill) : 'none'}
@@ -282,12 +482,12 @@ export function Board({
         })}
         {state.cards.map((c) => {
           const item = state.items[String(c.id)]
-          const title = item?.title || c.url
+          const href = webOnly(c.url || item?.url)
           return (
             <a
               key={c.id}
               className="wb-card"
-              href={webOnly(c.url || item?.url)}
+              href={href}
               target="_blank"
               rel="noopener noreferrer"
               draggable={false}
@@ -295,15 +495,7 @@ export function Board({
               onPointerDown={(e) => e.stopPropagation()}
               onDoubleClick={(e) => e.stopPropagation()}
             >
-              {webOnly(item?.image, true) ? (
-                <img src={item!.image} alt="" draggable={false} />
-              ) : (
-                <div className="wb-card-text">{item?.text?.slice(0, 400)}</div>
-              )}
-              <footer>
-                <b>{title}</b>
-                <span>{item?.site}</span>
-              </footer>
+              <Card url={href} item={item} fileOf={fileOf} />
             </a>
           )
         })}
@@ -346,6 +538,7 @@ export function Board({
             )
         )}
       </div>
+      <ZoomBar k={view.k} onZoom={zoomTo} onFit={() => fit(state)} />
     </div>
   )
 }

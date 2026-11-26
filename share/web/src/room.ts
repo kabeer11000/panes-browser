@@ -3,7 +3,7 @@ import * as Y from 'yjs'
 import { emptyState, type CanvasState } from '@shared/ai/canvas'
 import { sayIn, watchChat, type ChatMessage } from '@shared/share/chat'
 import { ShareClient, type ShareStatus } from '@shared/share/client'
-import { readInto, sharedSeq, writeDiff } from '@shared/share/doc'
+import { parseSealed, readInto, sharedSeq, writeDiff } from '@shared/share/doc'
 
 /** Someone else in the room, as the web board shows them. */
 export interface Person {
@@ -55,6 +55,22 @@ export interface Room {
   signal: (to: number, data: string) => void
   onSignal: (cb: SignalListener) => () => void
   iceServers: () => Promise<RTCIceServer[] | null>
+  /**
+   * A picture shared from someone's computer (sealed into the room's store), opened here: an object address once its
+   * parts have come and been opened; undefined until then, and for anything that is not a picture.
+   */
+  fileOf: (sealed: string) => string | undefined
+}
+
+/** The kinds of shared file the web board shows itself (pictures); the rest is a tile that opens in Panes. */
+const PICTURE_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.bmp': 'image/bmp'
 }
 
 const people = (client: ShareClient, me: number): Person[] => {
@@ -98,6 +114,9 @@ export function useRoom(room: string, secret: string, me: { name: string; color:
   /** What this guest's own board holds besides the room's (its id counter): kept across edits. */
   const base = useRef<CanvasState>(emptyState())
   const pics = useRef(new Map<string, string | null>())
+  /** Shared pictures opened here, by their sealed name (null while their parts are on the way, or they failed). */
+  const files = useRef(new Map<string, string | null>())
+  const [filesTick, setFilesTick] = useState(0)
   const listeners = useRef(new Set<SignalListener>())
   const meRef = useRef(me)
 
@@ -163,6 +182,8 @@ export function useRoom(room: string, secret: string, me: { name: string; color:
       conn.current = null
       for (const url of pics.current.values()) if (url) URL.revokeObjectURL(url)
       pics.current.clear()
+      for (const url of files.current.values()) if (url) URL.revokeObjectURL(url)
+      files.current.clear()
     }
   }, [room, secret])
 
@@ -213,8 +234,27 @@ export function useRoom(room: string, secret: string, me: { name: string; color:
         listeners.current.add(cb)
         return () => listeners.current.delete(cb)
       },
-      iceServers: async () => (await conn.current?.client.iceServers()) ?? null
+      iceServers: async () => (await conn.current?.client.iceServers()) ?? null,
+      fileOf: (sealed) => {
+        const have = files.current.get(sealed)
+        if (have !== undefined) return have ?? undefined
+        const p = parseSealed(sealed)
+        const type = p && PICTURE_TYPES[p.ext]
+        const client = conn.current?.client
+        if (!p || !type || !client) return undefined
+        files.current.set(sealed, null)
+        void Promise.all(p.ids.map((id) => client.getBlob(id))).then((parts) => {
+          if (parts.some((b) => !b) || conn.current?.client !== client) return
+          const blob = new Blob(
+            parts.map((b) => new Uint8Array(b!)),
+            { type }
+          )
+          files.current.set(sealed, URL.createObjectURL(blob))
+          setFilesTick((n) => n + 1)
+        })
+        return undefined
+      }
     }),
-    [status, state, who, meta, chat, meId]
+    [status, state, who, meta, chat, meId, filesTick]
   )
 }
