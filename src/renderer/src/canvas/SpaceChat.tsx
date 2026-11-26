@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { SpaceChat as Chat, SharePerson } from '@shared/types'
-import { unreadAfter, type ChatMessage } from '@shared/share/chat'
+import { chatRows, recentWriters, unreadAfter, type ChatMessage } from '@shared/share/chat'
 import { formatBytes } from '@shared/downloads'
 import { useShareState } from '@renderer/components/useShare'
+import { Face } from '@renderer/components/ShareSection'
 import { cancelFetch, fetchFile, holds, postFile, useFetching } from '@renderer/fileSend'
 
 /**
@@ -137,6 +138,7 @@ function Messages({
     const el = list.current
     if (el && atEnd.current) el.scrollTop = el.scrollHeight
   }, [messages])
+  const rows = chatRows(messages, me)
   return (
     <div
       ref={list}
@@ -147,40 +149,57 @@ function Messages({
       }}
     >
       {messages.length === 0 && (
-        <p className="cv-chat-empty">Say something to everyone in this space.</p>
+        <div className="cv-chat-empty">
+          <ChatGlyph size={22} />
+          <b>No messages yet</b>
+          <span>Say hello to everyone in this space, or drop a file to share it.</span>
+        </div>
       )}
-      {messages.map((m, i) => {
-        const prev = messages[i - 1]
-        const first = !prev || prev.by !== m.by || m.at - prev.at > 5 * 60_000
-        const mine = m.by === me
-        return (
+      {rows.map((r) =>
+        r.kind === 'day' ? (
+          <div key={r.key} className="cv-chat-day">
+            <span>{r.label}</span>
+          </div>
+        ) : (
           <div
-            key={m.id}
-            className={'cv-chat-msg' + (mine ? ' mine' : '') + (first ? ' first' : '')}
+            key={r.m.id}
+            className={
+              'cv-chat-msg' +
+              (r.mine ? ' mine' : '') +
+              (r.first ? ' first' : '') +
+              (r.last ? ' last' : '')
+            }
           >
-            {first && (
-              <div className="cv-chat-who">
-                {!mine && <b style={{ color: m.color }}>{m.name}</b>}
-                <time>{time(m.at)}</time>
-              </div>
+            {!r.mine && (
+              <span className="cv-chat-avatar" aria-hidden="true">
+                {r.first && <Face name={r.m.name} color={r.m.color} size={26} />}
+              </span>
             )}
-            {m.file ? (
-              <FileMsg m={m} mine={mine} spaceId={spaceId} people={people} />
-            ) : (
-              <p>{m.text}</p>
-            )}
+            <div className="cv-chat-body">
+              {r.first && (
+                <div className="cv-chat-who">
+                  {!r.mine && <b style={{ color: r.m.color }}>{r.m.name}</b>}
+                  <time>{time(r.m.at)}</time>
+                </div>
+              )}
+              {r.m.file ? (
+                <FileMsg m={r.m} mine={r.mine} spaceId={spaceId} people={people} />
+              ) : (
+                <p title={r.first ? undefined : time(r.m.at)}>{r.m.text}</p>
+              )}
+            </div>
           </div>
         )
-      })}
+      )}
     </div>
   )
 }
 
-function ChatGlyph(): React.JSX.Element {
+function ChatGlyph({ size = 15 }: { size?: number }): React.JSX.Element {
   return (
     <svg
-      width="15"
-      height="15"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -212,7 +231,8 @@ export function SpaceChat({
   onResize: (w: number) => void
 }): React.JSX.Element | null {
   const chat = useChat(spaceId, shared)
-  const people = useShareState(spaceId, shared)?.people ?? NOBODY
+  const share = useShareState(spaceId, shared)
+  const people = share?.people ?? NOBODY
   const [dropping, setDropping] = useState(false)
   const pick = useRef<HTMLInputElement>(null)
   const [seen, setSeen] = useState(() => readSeen(spaceId))
@@ -233,23 +253,29 @@ export function SpaceChat({
   useEffect(() => {
     if (open) box.current?.focus()
   }, [open])
-  // a new message from someone else, while tucked away: it peeks out of the lip for a moment
-  const [peek, setPeek] = useState<ChatMessage | null>(null)
+  // new messages from someone else, while tucked away: the newest peeks out of the lip for a moment, with how many
+  // came with it
+  const [peek, setPeek] = useState<{ m: ChatMessage; more: number } | null>(null)
   const peeked = useRef(lastId)
   useEffect(() => {
     if (!last || last.id === peeked.current) return
     peeked.current = last.id
     if (open || last.by === chat?.me) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a message arrived from elsewhere: show it now
-    setPeek(last)
+    setPeek((p) => ({ m: last, more: p ? p.more + 1 : 0 }))
     const t = window.setTimeout(() => setPeek(null), PEEK_MS)
     return () => window.clearTimeout(t)
   }, [last, open, chat?.me])
   if (!shared || !chat) return null
   const unread = open ? 0 : unreadAfter(chat.messages, seen, chat.me)
+  const writers = recentWriters(chat.messages, chat.me)
   const close = (): void => {
     setSeen(lastId) // what was shown counts as read
     onClose()
+  }
+  const reply = (): void => {
+    setPeek(null)
+    onOpen()
   }
   /** Files into the chat: offered to everyone here, fetched from this Panes by whoever wants them. */
   const offer = (files: Iterable<File> | null): void => {
@@ -261,6 +287,7 @@ export function SpaceChat({
     window.api.share?.say(spaceId, t)
     setDraft('')
   }
+  const here = people.length + 1
   return (
     <>
       <AnimatePresence>
@@ -277,25 +304,56 @@ export function SpaceChat({
             onClick={onOpen}
           >
             <ChatGlyph />
+            {writers.length > 0 && (
+              <span className="cv-chat-lip-faces" aria-hidden="true">
+                {writers.map((p) => (
+                  <Face key={p.name + p.color} name={p.name} color={p.color} size={18} />
+                ))}
+              </span>
+            )}
             {unread > 0 && <span className="cv-chat-count">{unread > 99 ? '99+' : unread}</span>}
           </motion.button>
         )}
       </AnimatePresence>
       <AnimatePresence>
         {!open && peek && (
-          <motion.button
-            key={peek.id}
-            type="button"
+          <motion.div
+            key="peek"
             className="cv-chat-peek"
-            initial={reduced ? { opacity: 0 } : { opacity: 0, x: 16, scale: 0.96 }}
+            role="status"
+            initial={reduced ? { opacity: 0 } : { opacity: 0, x: 18, scale: 0.97 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, x: 16, scale: 0.96 }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, x: 18, scale: 0.97 }}
             transition={reduced ? { duration: 0.12 } : SPRING}
-            onClick={onOpen}
           >
-            <b style={{ color: peek.color }}>{peek.name.split(' ')[0]}</b>
-            <span>{peek.text}</span>
-          </motion.button>
+            <Face name={peek.m.name} color={peek.m.color} size={30} />
+            <div className="cv-chat-peek-body">
+              <div className="cv-chat-peek-who">
+                <b>{peek.m.name.split(' ')[0]}</b>
+                {peek.more > 0 && <span>+{peek.more} more</span>}
+                <time>{time(peek.m.at)}</time>
+              </div>
+              <p>{peek.m.file ? `Shared ${peek.m.file.name}` : peek.m.text}</p>
+              <button type="button" className="cv-chat-peek-reply" onClick={reply}>
+                Reply
+              </button>
+            </div>
+            <button
+              type="button"
+              className="cv-chat-peek-x"
+              aria-label="Dismiss"
+              onClick={() => setPeek(null)}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                <path
+                  d="M2 2l6 6M8 2l-6 6"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
       <AnimatePresence>
@@ -358,9 +416,18 @@ export function SpaceChat({
                 el.addEventListener('pointercancel', up)
               }}
             />
-            <header className="cv-dock-head">
-              <strong>Chat</strong>
-              <span className="cv-dock-sp" />
+            <header className="cv-dock-head cv-chat-head">
+              <div className="cv-chat-title">
+                <strong>Chat</strong>
+                <span>{here === 1 ? 'Just you here' : `${here} here`} · end-to-end encrypted</span>
+              </div>
+              {people.length > 0 && (
+                <span className="cv-chat-faces" aria-hidden="true">
+                  {people.slice(0, 4).map((p) => (
+                    <Face key={p.id} name={p.name} color={p.color} size={22} />
+                  ))}
+                </span>
+              )}
               <button type="button" title="Hide (Esc)" aria-label="Hide the chat" onClick={close}>
                 <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                   <path
@@ -374,7 +441,6 @@ export function SpaceChat({
                 </svg>
               </button>
             </header>
-            <p className="cv-chat-sub">Everyone in this space sees it, on Panes and on the web.</p>
             <Messages messages={chat.messages} me={chat.me} spaceId={spaceId} people={people} />
             <form
               className="cv-chat-say"
@@ -383,73 +449,80 @@ export function SpaceChat({
                 send()
               }}
             >
-              <input
-                ref={pick}
-                type="file"
-                multiple
-                hidden
-                onChange={(e) => {
-                  offer(e.target.files)
-                  e.target.value = ''
-                }}
-              />
-              <button
-                type="button"
-                className="cv-chat-attach"
-                title="Share a file with everyone here"
-                aria-label="Share a file"
-                onClick={() => pick.current?.click()}
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
+              <div className="cv-chat-field">
+                <input
+                  ref={pick}
+                  type="file"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    offer(e.target.files)
+                    e.target.value = ''
+                  }}
+                />
+                <button
+                  type="button"
+                  className="cv-chat-attach"
+                  title="Share a file with everyone here"
+                  aria-label="Share a file"
+                  onClick={() => pick.current?.click()}
                 >
-                  <path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
-                </svg>
-              </button>
-              <textarea
-                ref={box}
-                onPaste={(e) => {
-                  if (!e.clipboardData.files.length) return
-                  e.preventDefault()
-                  offer(e.clipboardData.files)
-                }}
-                rows={1}
-                value={draft}
-                maxLength={2000}
-                placeholder="Message"
-                aria-label="Message"
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  e.stopPropagation()
-                  if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
+                  </svg>
+                </button>
+                <textarea
+                  ref={box}
+                  rows={1}
+                  value={draft}
+                  maxLength={2000}
+                  placeholder="Message everyone"
+                  aria-label="Message"
+                  onPaste={(e) => {
+                    if (!e.clipboardData.files.length) return
                     e.preventDefault()
-                    send()
-                  } else if (e.key === 'Escape') close()
-                }}
-              />
-              <button type="submit" disabled={!draft.trim()} aria-label="Send">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
+                    offer(e.clipboardData.files)
+                  }}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    e.stopPropagation()
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault()
+                      send()
+                    } else if (e.key === 'Escape') close()
+                  }}
+                />
+                <button
+                  type="submit"
+                  className="cv-chat-send"
+                  disabled={!draft.trim()}
+                  aria-label="Send"
                 >
-                  <path d="M12 19V5M5 12l7-7 7 7" />
-                </svg>
-              </button>
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 19V5M5 12l7-7 7 7" />
+                  </svg>
+                </button>
+              </div>
             </form>
           </motion.aside>
         )}

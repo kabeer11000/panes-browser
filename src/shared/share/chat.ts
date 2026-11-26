@@ -128,3 +128,82 @@ export function watchChat(doc: Y.Doc, cb: (messages: ChatMessage[]) => void): ()
   on()
   return () => arr.unobserve(on)
 }
+
+/** A row of the chat as drawn: a day's heading, or a message with its place in a run from one person. */
+export type ChatRow =
+  | { kind: 'day'; key: string; label: string }
+  | {
+      kind: 'msg'
+      m: ChatMessage
+      mine: boolean
+      /** The first of a run from one person (their face and name go here). */
+      first: boolean
+      /** The last of a run (the bubble's tail, and room under it). */
+      last: boolean
+    }
+
+/** How close together two messages from one person are drawn as one run. */
+const RUN_MS = 5 * 60_000
+
+/** "Today", "Yesterday", "Monday" in the week, else the date. */
+export function dayLabel(at: number, now = Date.now()): string {
+  const d = new Date(at)
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  const day = new Date(d)
+  day.setHours(0, 0, 0, 0)
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days > 1 && days < 7) return d.toLocaleDateString([], { weekday: 'long' })
+  return d.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {})
+  })
+}
+
+/** The chat's rows: a heading where the day changes, and each message's place in its run. */
+export function chatRows(messages: ChatMessage[], me: number, now = Date.now()): ChatRow[] {
+  const rows: ChatRow[] = []
+  let day = ''
+  messages.forEach((m, i) => {
+    const label = dayLabel(m.at, now)
+    const newDay = label !== day
+    if (newDay) {
+      day = label
+      rows.push({ kind: 'day', key: `day:${m.id}`, label })
+    }
+    const prev = messages[i - 1]
+    const next = messages[i + 1]
+    const together = (a: ChatMessage | undefined, b: ChatMessage | undefined): boolean =>
+      !!a && !!b && a.by === b.by && Math.abs(b.at - a.at) <= RUN_MS
+    rows.push({
+      kind: 'msg',
+      m,
+      mine: m.by === me,
+      first: newDay || !together(prev, m),
+      last: !together(m, next) || (!!next && dayLabel(next.at, now) !== label)
+    })
+  })
+  return rows
+}
+
+/** The people who wrote last (not this person), newest first, each once: the faces on the tucked-away chat. */
+export function recentWriters(
+  messages: ChatMessage[],
+  me: number,
+  n = 3
+): Array<{ name: string; color: string }> {
+  const out: Array<{ name: string; color: string }> = []
+  // by name and colour: someone back after a restart writes with a new session id, and is still one face
+  const seen = new Set<string>()
+  for (let i = messages.length - 1; i >= 0 && out.length < n; i--) {
+    const m = messages[i]!
+    const key = `${m.name}${m.color}`
+    if (m.by === me || seen.has(key)) continue
+    seen.add(key)
+    out.push({ name: m.name, color: m.color })
+  }
+  return out
+}

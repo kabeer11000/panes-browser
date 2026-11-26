@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ChatMessage } from '@shared/share/chat'
+import { chatRows, recentWriters, type ChatMessage } from '@shared/share/chat'
 import type { ChatState } from './chatState'
+import { Face } from './Face'
 import { formatBytes } from '@shared/downloads'
 
 /**
@@ -83,9 +84,11 @@ export function ChatPanel({
   }
   return (
     <div className={'wb-chat' + (docked ? ' docked' : '')} role="dialog" aria-label="Chat">
-      <header className="wb-dock-head">
-        <strong>Chat</strong>
-        <span className="wb-dock-sp" />
+      <header className="wb-dock-head wb-chat-head">
+        <div className="wb-chat-title">
+          <strong>Chat</strong>
+          <span>Everyone here sees it · end-to-end encrypted</span>
+        </div>
         <button
           type="button"
           title="Hide (Esc)"
@@ -104,7 +107,6 @@ export function ChatPanel({
           </svg>
         </button>
       </header>
-      <p className="wb-chat-sub">Everyone in this space sees it, in Panes and on the web.</p>
       <div
         ref={list}
         className="wb-chat-list"
@@ -113,43 +115,61 @@ export function ChatPanel({
           atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
         }}
       >
-        {messages.length === 0 && <p className="wb-chat-empty">Say hello to everyone here.</p>}
-        {messages.map((m, i) => {
-          const prev = messages[i - 1]
-          const first = !prev || prev.by !== m.by || m.at - prev.at > 5 * 60_000
-          const mine = m.by === me
-          return (
+        {messages.length === 0 && (
+          <div className="wb-chat-empty">
+            <b>No messages yet</b>
+            <span>Say hello to everyone in this space.</span>
+          </div>
+        )}
+        {chatRows(messages, me).map((r) =>
+          r.kind === 'day' ? (
+            <div key={r.key} className="wb-chat-day">
+              <span>{r.label}</span>
+            </div>
+          ) : (
             <div
-              key={m.id}
-              className={'wb-chat-msg' + (mine ? ' mine' : '') + (first ? ' first' : '')}
+              key={r.m.id}
+              className={
+                'wb-chat-msg' +
+                (r.mine ? ' mine' : '') +
+                (r.first ? ' first' : '') +
+                (r.last ? ' last' : '')
+              }
             >
-              {first && (
-                <div className="wb-chat-who">
-                  {!mine && <b style={{ color: m.color }}>{m.name}</b>}
-                  <time>{time(m.at)}</time>
-                </div>
+              {!r.mine && (
+                <span className="wb-chat-avatar" aria-hidden="true">
+                  {r.first && <Face name={r.m.name} color={r.m.color} size={26} />}
+                </span>
               )}
-              {m.file ? (
-                <div className="wb-file">
-                  <span className="wb-file-ext" aria-hidden="true">
-                    {(/\.([a-z0-9]{1,5})$/i.exec(m.file.name)?.[1] ?? 'file')
-                      .toUpperCase()
-                      .slice(0, 4)}
-                  </span>
-                  <span className="wb-file-words">
-                    <b title={m.file.name}>{m.file.name}</b>
-                    <small>
-                      {formatBytes(m.file.size)} &middot;{' '}
-                      <a href={join}>Open in Panes to download</a>
-                    </small>
-                  </span>
-                </div>
-              ) : (
-                <p>{m.text}</p>
-              )}
+              <div className="wb-chat-body">
+                {r.first && (
+                  <div className="wb-chat-who">
+                    {!r.mine && <b style={{ color: r.m.color }}>{r.m.name}</b>}
+                    <time>{time(r.m.at)}</time>
+                  </div>
+                )}
+                {r.m.file ? (
+                  <div className="wb-file">
+                    <span className="wb-file-ext" aria-hidden="true">
+                      {(/\.([a-z0-9]{1,5})$/i.exec(r.m.file.name)?.[1] ?? 'file')
+                        .toUpperCase()
+                        .slice(0, 4)}
+                    </span>
+                    <span className="wb-file-words">
+                      <b title={r.m.file.name}>{r.m.file.name}</b>
+                      <small>
+                        {formatBytes(r.m.file.size)} &middot;{' '}
+                        <a href={join}>Open in Panes to download</a>
+                      </small>
+                    </span>
+                  </div>
+                ) : (
+                  <p title={r.first ? undefined : time(r.m.at)}>{r.m.text}</p>
+                )}
+              </div>
             </div>
           )
-        })}
+        )}
       </div>
       <form
         className="wb-chat-say"
@@ -158,38 +178,40 @@ export function ChatPanel({
           send()
         }}
       >
-        <textarea
-          ref={box}
-          rows={1}
-          value={draft}
-          maxLength={2000}
-          placeholder="Message"
-          aria-label="Message"
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            // the live view's keys go to the page being driven: typing here is the chat's
-            e.stopPropagation()
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault()
-              send()
-            } else if (e.key === 'Escape') chat.toggle(false)
-          }}
-        />
-        <button type="submit" disabled={!draft.trim()} aria-label="Send">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M12 19V5M5 12l7-7 7 7" />
-          </svg>
-        </button>
+        <div className="wb-chat-field">
+          <textarea
+            ref={box}
+            rows={1}
+            value={draft}
+            maxLength={2000}
+            placeholder="Message everyone"
+            aria-label="Message"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              // the live view's keys go to the page being driven: typing here is the chat's
+              e.stopPropagation()
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                send()
+              } else if (e.key === 'Escape') chat.toggle(false)
+            }}
+          />
+          <button type="submit" className="wb-chat-send" disabled={!draft.trim()} aria-label="Send">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
+          </button>
+        </div>
       </form>
     </div>
   )
@@ -199,8 +221,8 @@ export function ChatPanel({
 const PEEK_MS = 4500
 
 /**
- * The chat tucked away: a lip on the right edge, as on Panes' board, with what is unread; a new message from someone
- * else peeks out of it for a moment. Clicking either brings the chat out.
+ * The chat tucked away: a lip on the right edge, as on Panes' board, with who wrote last and what is unread; new
+ * messages from someone else peek out of it as a card for a moment, with Reply.
  */
 export function ChatLip({
   chat,
@@ -212,18 +234,20 @@ export function ChatLip({
   me: number
 }): React.JSX.Element | null {
   const last = messages.at(-1) ?? null
-  const [peek, setPeek] = useState<ChatMessage | null>(null)
+  const [peek, setPeek] = useState<{ m: ChatMessage; more: number } | null>(null)
   const peeked = useRef(last?.id ?? null)
   useEffect(() => {
     if (!last || last.id === peeked.current) return
     peeked.current = last.id
     if (chat.open || last.by === me) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a message arrived from elsewhere: show it now
-    setPeek(last)
+    setPeek((p) => ({ m: last, more: p ? p.more + 1 : 0 }))
     const t = window.setTimeout(() => setPeek(null), PEEK_MS)
     return () => window.clearTimeout(t)
   }, [last, chat.open, me])
   if (chat.open) return null
+  const writers = recentWriters(messages, me)
+  const stop = { onPointerDown: (e: React.PointerEvent) => e.stopPropagation() }
   return (
     <>
       <button
@@ -231,7 +255,7 @@ export function ChatLip({
         className={'wb-lip' + (chat.unread ? ' unread' : '')}
         aria-label={chat.unread ? `Chat, ${chat.unread} unread` : 'Chat'}
         title="Chat with everyone in this space"
-        onPointerDown={(e) => e.stopPropagation()}
+        {...stop}
         onClick={() => chat.toggle(true)}
       >
         <svg
@@ -247,21 +271,54 @@ export function ChatLip({
         >
           <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />
         </svg>
+        {writers.length > 0 && (
+          <span className="wb-lip-faces" aria-hidden="true">
+            {writers.map((p) => (
+              <Face key={p.name + p.color} name={p.name} color={p.color} size={18} />
+            ))}
+          </span>
+        )}
         {chat.unread > 0 && (
           <span className="wb-lip-count">{chat.unread > 99 ? '99+' : chat.unread}</span>
         )}
       </button>
       {peek && (
-        <button
-          key={peek.id}
-          type="button"
-          className="wb-peek"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => chat.toggle(true)}
-        >
-          <b style={{ color: peek.color }}>{peek.name.split(' ')[0]}</b>
-          <span>{peek.file ? `Shared ${peek.file.name}` : peek.text}</span>
-        </button>
+        <div key={peek.m.id} className="wb-peek" role="status" {...stop}>
+          <Face name={peek.m.name} color={peek.m.color} size={30} />
+          <div className="wb-peek-body">
+            <div className="wb-peek-who">
+              <b>{peek.m.name.split(' ')[0]}</b>
+              {peek.more > 0 && <span>+{peek.more} more</span>}
+              <time>{time(peek.m.at)}</time>
+            </div>
+            <p>{peek.m.file ? `Shared ${peek.m.file.name}` : peek.m.text}</p>
+            <button
+              type="button"
+              className="wb-peek-reply"
+              onClick={() => {
+                setPeek(null)
+                chat.toggle(true)
+              }}
+            >
+              Reply
+            </button>
+          </div>
+          <button
+            type="button"
+            className="wb-peek-x"
+            aria-label="Dismiss"
+            onClick={() => setPeek(null)}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+              <path
+                d="M2 2l6 6M8 2l-6 6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       )}
     </>
   )

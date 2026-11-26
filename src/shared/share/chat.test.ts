@@ -96,3 +96,67 @@ describe('files offered in the chat', () => {
     expect(cleanMessage(base)?.file).toBeUndefined()
   })
 })
+
+describe('the chat as drawn', () => {
+  const at = (h: number, min = 0, day = 26): number => new Date(2026, 10, day, h, min).getTime()
+  const msg = (id: string, by: number, t: number): import('./chat').ChatMessage => ({
+    id,
+    name: `P${by}`,
+    color: '#123456',
+    text: id,
+    at: t,
+    by
+  })
+  const now = at(20)
+  test('days are headed, runs from one person grouped', async () => {
+    const { chatRows } = await import('./chat')
+    const rows = chatRows(
+      [
+        msg('a1', 1, at(9, 0, 25)),
+        msg('a2', 1, at(10, 0)),
+        msg('a3', 1, at(10, 2)),
+        msg('b1', 2, at(10, 3)),
+        msg('a4', 1, at(10, 30))
+      ],
+      2,
+      now
+    )
+    expect(rows.map((r) => (r.kind === 'day' ? r.label : r.m.id))).toEqual([
+      'Yesterday',
+      'a1',
+      'Today',
+      'a2',
+      'a3',
+      'b1',
+      'a4'
+    ])
+    const m = Object.fromEntries(
+      rows.flatMap((r) => (r.kind === 'msg' ? [[r.m.id, [r.first, r.last, r.mine]]] : []))
+    )
+    expect(m).toEqual({
+      a1: [true, true, false],
+      a2: [true, false, false],
+      a3: [false, true, false],
+      b1: [true, true, true],
+      a4: [true, true, false]
+    })
+  })
+  test('the faces on the tucked-away chat: the last writers, each once, never this person', async () => {
+    const { recentWriters } = await import('./chat')
+    const ms = [msg('1', 1, 1), msg('2', 3, 2), msg('3', 2, 3), msg('4', 1, 4), msg('5', 4, 5)]
+    expect(recentWriters(ms, 2).map((p) => p.name)).toEqual(['P4', 'P1', 'P3'])
+  })
+})
+
+test('someone back with a new session is still one face', async () => {
+  const { recentWriters } = await import('./chat')
+  const m = (id: string, by: number): import('./chat').ChatMessage => ({
+    id,
+    name: 'Ali',
+    color: '#123456',
+    text: id,
+    at: 1,
+    by
+  })
+  expect(recentWriters([m('1', 10), m('2', 11)], 99)).toHaveLength(1)
+})
