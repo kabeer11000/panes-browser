@@ -248,6 +248,19 @@ export class CanvasContent {
     return null
   }
 
+  /**
+   * A file:// address a card may open as a tab (a PDF dropped on the board opens in the browser's own viewer, as a
+   * web PDF does): only the files a card may read at all (see allowedFile), never any path on the disk.
+   */
+  mayOpen(url: string): boolean {
+    if (!/^file:/i.test(url)) return false
+    try {
+      return this.allowedFile(fileURLToPath(url)) !== null
+    } catch {
+      return false
+    }
+  }
+
   /** The bytes of a PDF or picture (a web address, or a finished download), for pdf.js and for local pictures. */
   async bytes(req: {
     url?: string

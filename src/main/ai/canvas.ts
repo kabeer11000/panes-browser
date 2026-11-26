@@ -507,7 +507,12 @@ export function registerCanvas(d: {
     const rect = rectOf(r.rect)
     if (!mine(e) || !rect) return null
     let id = typeof r.tab === 'number' ? r.tab : null
-    if (id === null && typeof r.url === 'string' && /^https?:\/\//i.test(r.url)) {
+    // a web address, or a file the board keeps or knows (a PDF dropped on it opens in the browser's own viewer)
+    if (
+      id === null &&
+      typeof r.url === 'string' &&
+      (/^https?:\/\//i.test(r.url) || content.mayOpen(r.url))
+    ) {
       id = d.tabs.create(r.url, false)
     }
     if (id === null) return null
