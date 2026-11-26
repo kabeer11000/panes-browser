@@ -71,10 +71,28 @@ export function Chat({
       </button>
       {open && (
         <div className="wb-chat" role="dialog" aria-label="Chat">
-          <header>
-            <b>Chat</b>
-            <span>Everyone in this space sees it.</span>
+          <header className="wb-dock-head">
+            <strong>Chat</strong>
+            <span className="wb-dock-sp" />
+            <button
+              type="button"
+              title="Hide (Esc)"
+              aria-label="Hide the chat"
+              onClick={() => toggle(false)}
+            >
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                <path
+                  d="M6 3l5 5-5 5"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
           </header>
+          <p className="wb-chat-sub">Everyone in this space sees it, in Panes and on the web.</p>
           <div
             ref={list}
             className="wb-chat-list"

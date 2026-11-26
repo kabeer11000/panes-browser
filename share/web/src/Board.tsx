@@ -24,17 +24,8 @@ const webOnly = (url: string | undefined, picture = false): string | undefined =
  * double-click the board for a new one, a note to write in it. The rest is shown as Panes made it.
  */
 
-const MARK_COLORS = [
-  '#1f2328',
-  '#ef4444',
-  '#f97316',
-  '#eab308',
-  '#22c55e',
-  '#3b82f6',
-  '#a855f7',
-  '#ec4899'
-]
-const markColor = (i: number): string => MARK_COLORS[((i % 8) + 8) % 8]
+/** Panes' drawing colours: canvas.css --m0..--m7, set in web.css for both schemes. */
+const markColor = (i: number): string => `var(--m${((i % 8) + 8) % 8})`
 
 function boundsOf(s: CanvasState): { x: number; y: number; w: number; h: number } | null {
   const boxes = [
@@ -124,7 +115,7 @@ function siteHue(site: string): number {
   return h % 360
 }
 
-/** What a card shows: a page's picture, a shared picture opened here, its text, or a tile for the site or file. */
+/** What a card shows, as Panes draws it: a page's picture in its frame, its words, or a tile with who it is. */
 function Card({
   url,
   item,
@@ -140,93 +131,147 @@ function Card({
     (item?.sealed ? fileOf(item.sealed) : undefined) ??
     webOnly(item?.image, true) ??
     (item?.kind === 'image' ? webOnly(item.url) : undefined)
-  const site = item?.site || (url ? new URL(url).host.replace(/^www\./, '') : '')
+  const site = sealed
+    ? 'Shared file'
+    : item?.site || (url ? new URL(url).host.replace(/^www\./, '') : '')
   const title = item?.title || site || 'Untitled'
-  const letter = (siteName(site) || title).slice(0, 1).toUpperCase()
-  const tab = item?.source === 'tab'
-  const tile = (
-    <div
-      className={'wb-card-tile' + (item?.text ? ' text' : '')}
-      style={{ '--hue': siteHue(site || title) } as React.CSSProperties}
-    >
-      {item?.text ? (
-        <p>{item.text.slice(0, 420)}</p>
-      ) : sealed ? (
-        <span className="wb-card-ext">{sealed.ext.slice(1).toUpperCase()}</span>
-      ) : (
-        <span className="wb-card-letter">{letter}</span>
-      )}
-    </div>
+  const letter = sealed
+    ? sealed.ext.slice(1, 5).toUpperCase()
+    : (siteName(site) || title).slice(0, 1).toUpperCase()
+  const hue = siteHue(site || title)
+  const icon = (
+    <span className="wb-icon" style={{ '--hue': hue } as React.CSSProperties} aria-hidden="true">
+      {letter}
+    </span>
   )
-  return (
-    <>
-      <div className="wb-card-pic">
-        {picture && !broken ? (
-          <img
-            src={picture}
-            alt=""
-            draggable={false}
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={() => setBroken(true)}
-          />
-        ) : (
-          tile
-        )}
-        {tab && <span className="wb-card-badge">Tab</span>}
-      </div>
-      <footer>
-        <span
-          className="wb-card-fav"
-          style={{ '--hue': siteHue(site || title) } as React.CSSProperties}
-          aria-hidden="true"
-        >
-          {letter}
-        </span>
-        <span className="wb-card-words">
+  const tab = item?.source === 'tab' && <span className="wb-tabtag">Tab</span>
+  if (picture && !broken)
+    return (
+      <div className={'wb-snap' + (item?.kind === 'image' || sealed ? ' whole' : '')}>
+        <img
+          src={picture}
+          alt=""
+          draggable={false}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setBroken(true)}
+        />
+        <div className="wb-snap-foot">
+          {icon}
           <b>{title}</b>
-          <span>{sealed ? 'Shared file' : site}</span>
+        </div>
+        {tab}
+      </div>
+    )
+  if (item?.text)
+    return (
+      <div className="wb-doc">
+        <span className="wb-site">
+          {icon}
+          {site}
         </span>
-      </footer>
-    </>
+        <h3>{title}</h3>
+        <p>{item.text.slice(0, 600)}</p>
+        {tab}
+      </div>
+    )
+  return (
+    <div className="wb-ph">
+      <span
+        className={'wb-ph-icon' + (sealed ? ' ext' : '')}
+        style={{ '--hue': hue } as React.CSSProperties}
+      >
+        {letter}
+      </span>
+      <h3>{title}</h3>
+      <small>{site}</small>
+      {tab}
+    </div>
   )
 }
 
-/** The zoom buttons in the corner: out, the zoom (click: back to 100%), in, and fit everything. */
-function ZoomBar({
+/** The board's bar at the bottom, as in Panes: a new note, and the zoom (out, the zoom itself, in, everything). */
+function BoardBar({
   k,
   onZoom,
-  onFit
+  onFit,
+  onNote
 }: {
   k: number
   onZoom: (k: number) => void
   onFit: () => void
+  onNote: () => void
 }): React.JSX.Element {
+  const stop = {
+    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+    onDoubleClick: (e: React.MouseEvent) => e.stopPropagation()
+  }
   return (
-    <div
-      className="wb-zoom"
-      onPointerDown={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
-    >
-      <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => onZoom(k / 1.25)}>
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          <path d="M3 7h8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <div className="wb-bar" {...stop}>
+      <button
+        type="button"
+        className="wb-tool"
+        title="New note (or double-click the board)"
+        aria-label="New note"
+        onClick={onNote}
+      >
+        <svg
+          width="19"
+          height="19"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M5 4h14v10l-6 6H5z" />
+          <path d="M13 20v-6h6" />
         </svg>
       </button>
-      <button type="button" className="wb-zoom-k" title="Back to 100%" onClick={() => onZoom(1)}>
+      <span className="wb-sep" aria-hidden="true" />
+      <button
+        type="button"
+        className="wb-tool"
+        title="Zoom out"
+        aria-label="Zoom out"
+        onClick={() => onZoom(k / 1.25)}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </button>
+      <button type="button" className="wb-zoomk" title="Back to 100%" onClick={() => onZoom(1)}>
         {Math.round(k * 100)}%
       </button>
-      <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => onZoom(k * 1.25)}>
-        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-          <path d="M3 7h8M7 3v8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      </button>
-      <button type="button" aria-label="Show everything" title="Show everything" onClick={onFit}>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <button
+        type="button"
+        className="wb-tool"
+        title="Zoom in"
+        aria-label="Zoom in"
+        onClick={() => onZoom(k * 1.25)}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
           <path
-            d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9"
+            d="M3.5 8h9M8 3.5v9"
             stroke="currentColor"
             strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+      <button
+        type="button"
+        className="wb-tool"
+        title="Show everything"
+        aria-label="Show everything"
+        onClick={onFit}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"
+            stroke="currentColor"
+            strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -414,10 +459,12 @@ export function Board({
         {state.frames.map((f) => (
           <section
             key={f.id}
-            className={`wb-frame f${f.color ?? 0}`}
+            className={'wb-frame' + (f.color !== undefined ? ` fc${f.color % 7}` : '')}
             style={{ left: f.x, top: f.y, width: f.w, height: f.h }}
           >
-            <h2>{f.name}</h2>
+            <div className="wb-frame-head">
+              <span className="wb-frame-name">{f.name}</span>
+            </div>
           </section>
         ))}
         {(state.marks ?? []).map((m) => {
@@ -440,7 +487,7 @@ export function Board({
                 <path
                   d={d}
                   fill="none"
-                  stroke={markColor(m.color)}
+                  style={{ stroke: markColor(m.color) }}
                   strokeWidth={m.kind === 'marker' ? 14 : 3}
                   strokeOpacity={m.kind === 'marker' ? 0.4 : 1}
                   strokeLinecap="round"
@@ -454,9 +501,11 @@ export function Board({
               <svg key={m.id} className="wb-draw" style={style} overflow="visible">
                 <path
                   d={shapePath(m.kind as ShapeKind, m.w, m.h)}
-                  fill={m.fill !== undefined && m.fill >= 0 ? markColor(m.fill) : 'none'}
+                  style={{
+                    fill: m.fill !== undefined && m.fill >= 0 ? markColor(m.fill) : 'none',
+                    stroke: m.stroke === false ? 'none' : markColor(m.color)
+                  }}
                   fillOpacity={0.25}
-                  stroke={m.stroke === false ? 'none' : markColor(m.color)}
                   strokeWidth={2}
                 />
                 {m.text && (
@@ -530,15 +579,31 @@ export function Board({
                 }
                 aria-hidden="true"
               >
-                <svg width="18" height="20" viewBox="0 0 16 18">
-                  <path d="M1 1l13 7.5-6 1.2L5.2 16z" />
+                <svg width="16" height="20" viewBox="0 0 16 20">
+                  <path d="M1 1 L1 16 L5 12 L8 19 L11 17.6 L8 11 L14 11 Z" />
                 </svg>
                 <span>{p.name}</span>
               </div>
             )
         )}
       </div>
-      <ZoomBar k={view.k} onZoom={zoomTo} onFit={() => fit(state)} />
+      <BoardBar
+        k={view.k}
+        onZoom={zoomTo}
+        onFit={() => fit(state)}
+        onNote={() => {
+          const r = host.current!.getBoundingClientRect()
+          const v = viewRef.current
+          const at = { x: (r.width / 2 - v.x) / v.k, y: (r.height / 2 - v.y) / v.k }
+          let made = ''
+          onEdit((st) => {
+            const n = addNote(st, { x: at.x - NOTE_W / 2, y: at.y - NOTE_H / 2 }, st.notes.length)
+            made = n.id
+            return n.state
+          })
+          if (made) setEditing(made)
+        }}
+      />
     </div>
   )
 }

@@ -62,13 +62,41 @@ export function BadLink({ refused }: { refused?: boolean }): React.JSX.Element {
   )
 }
 
+/** Someone's initials on their colour, as on their cursor (Panes' Face). */
+function Face({
+  name,
+  color,
+  size = 22
+}: {
+  name: string
+  color: string
+  size?: number
+}): React.JSX.Element {
+  const initials =
+    name
+      .split(/[\s._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]!.toUpperCase())
+      .join('') || '?'
+  return (
+    <span
+      className="wb-face"
+      style={{ background: color, width: size, height: size, fontSize: size * 0.42 }}
+      title={name}
+    >
+      {initials}
+    </span>
+  )
+}
+
 export function App(): React.JSX.Element {
   const [me, setMeState] = useState(loadMe)
   const r = useRoom(room, secret, me)
   const [watching, setWatching] = useState<number | null>(null)
   /** Calls to the watched tab made afresh (Try again): a new key, a new call. */
   const [tries, setTries] = useState(0)
-  const [hint, setHint] = useState(true)
+  const [peopleOpen, setPeopleOpen] = useState(false)
   // Open in Panes names this server, so a space on a community or self-hosted one opens there
   const join = joinLink(location.origin, room, secret)
 
@@ -86,10 +114,11 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     document.title = `${r.meta.name} · Panes`
   }, [r.meta.name])
+  // the space's own colour, as Panes tints its board with it
   useEffect(() => {
-    const t = setTimeout(() => setHint(false), 7000)
-    return () => clearTimeout(t)
-  }, [])
+    if (/^#[0-9a-f]{6}$/i.test(r.meta.color))
+      document.documentElement.style.setProperty('--space', r.meta.color)
+  }, [r.meta.color])
 
   if (r.status === 'refused') return <BadLink refused />
   const showing = r.people.filter((p) => p.live && p.rtc)
@@ -98,6 +127,7 @@ export function App(): React.JSX.Element {
     setMeState(m)
     r.setMe(m)
   }
+  const here = r.people.length + 1
 
   return (
     <>
@@ -109,52 +139,71 @@ export function App(): React.JSX.Element {
         fileOf={r.fileOf}
       />
       <header className="wb-top">
-        <div className="wb-space">
-          <span className="wb-logo">
-            <Mark />
-          </span>
-          <b>{r.meta.name}</b>
-          <span className={'wb-status ' + r.status} title={STATUS[r.status]}>
-            <i aria-hidden="true" />
-            {r.status !== 'live' && STATUS[r.status]}
-          </span>
-        </div>
-        <div className="wb-people" aria-label="People here">
-          {r.people.slice(0, 6).map((p) => (
-            <span key={p.id} className="wb-face" style={{ background: p.color }} title={p.name}>
-              {p.name.slice(0, 1).toUpperCase()}
+        <span className="wb-logo" aria-hidden="true">
+          <Mark />
+        </span>
+        <span className="wb-space-name">{r.meta.name}</span>
+      </header>
+      <div className="wb-right">
+        <div className="wb-share-at">
+          <button
+            type="button"
+            className={'wb-share ' + r.status}
+            aria-expanded={peopleOpen}
+            title={STATUS[r.status]}
+            onClick={() => setPeopleOpen(!peopleOpen)}
+          >
+            <span className="wb-share-dot" aria-hidden="true" />
+            <span className="wb-share-faces" aria-hidden="true">
+              {r.people.slice(0, 3).map((p) => (
+                <Face key={p.id} name={p.name} color={p.color} size={18} />
+              ))}
             </span>
-          ))}
-          <label className="wb-me" title="Your name, as the others see it">
-            <span className="wb-face" style={{ background: me.color }}>
-              {me.name.slice(0, 1).toUpperCase()}
-            </span>
-            <input
-              value={me.name}
-              maxLength={40}
-              aria-label="Your name"
-              onChange={(e) => setMe({ ...me, name: e.target.value })}
-              onBlur={(e) => !e.target.value.trim() && setMe({ ...me, name: 'Guest' })}
-            />
-          </label>
+            {r.status === 'live' ? (here === 1 ? 'Just you' : `${here} here`) : STATUS[r.status]}
+          </button>
+          {peopleOpen && (
+            <div className="wb-pop" role="dialog" aria-label="People here">
+              <div className="wb-pop-row">
+                <Face name={me.name} color={me.color} size={26} />
+                <input
+                  value={me.name}
+                  maxLength={40}
+                  aria-label="Your name"
+                  title="Your name, as the others see it"
+                  onChange={(e) => setMe({ ...me, name: e.target.value })}
+                  onBlur={(e) => !e.target.value.trim() && setMe({ ...me, name: 'Guest' })}
+                />
+                <span className="wb-pop-you">you</span>
+              </div>
+              {r.people.map((p) => (
+                <div key={p.id} className="wb-pop-row">
+                  <Face name={p.name} color={p.color} size={26} />
+                  <span className="wb-pop-name">{p.name}</span>
+                  {p.live && <span className="wb-pop-live">Live</span>}
+                </div>
+              ))}
+              <p className="wb-pop-note">
+                Everything here is end-to-end encrypted. Sections, drawing and live tabs are made in{' '}
+                <a href={GET_PANES} rel="noopener">
+                  Panes
+                </a>
+                .
+              </p>
+            </div>
+          )}
         </div>
         <Chat messages={r.chat} me={r.meId} onSay={r.say} join={join} />
-        <div className="wb-actions">
-          <a className="wb-btn quiet" href={GET_PANES} rel="noopener">
-            Get Panes
-          </a>
-          <a className="wb-btn primary" href={join}>
-            Open in Panes
-          </a>
-        </div>
-      </header>
+        <a className="wb-open" href={join}>
+          Open in Panes
+        </a>
+      </div>
       {showing.length > 0 && !watched && (
         <div className="wb-lives">
           {showing.map((p) => (
             <button key={p.id} type="button" className="wb-live" onClick={() => setWatching(p.id)}>
-              <span className="wb-dot" aria-hidden="true" />
-              <span>
-                <b>{p.name}</b> is showing {p.live?.title || 'a tab'}
+              <span className="wb-live-dot" aria-hidden="true" />
+              <span className="wb-live-what">
+                <b>{p.name.split(' ')[0]}</b> is presenting {p.live?.title || 'a tab'}
               </span>
               <em>Watch</em>
             </button>
@@ -172,10 +221,6 @@ export function App(): React.JSX.Element {
           onClose={() => setWatching(null)}
         />
       )}
-      <footer className={'wb-hint' + (hint ? '' : ' gone')} aria-hidden={!hint}>
-        Double-click the board for a note &middot; drag to move around &middot; Ctrl+scroll to zoom.
-        Sections, drawing and live pages are made in Panes.
-      </footer>
     </>
   )
 }

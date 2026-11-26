@@ -62,6 +62,20 @@ export function Watch({
     return () => window.clearTimeout(t)
   }, [state])
   const [control, setControl] = useState<'none' | 'asked' | 'yes' | 'no'>('none')
+  /** The page's own cursor under the driver's pointer (a hand on a link, a bar on text), as the host says. */
+  const [cursor, setCursor] = useState('default')
+  /** The panel fills the screen (the browser's fullscreen). */
+  const [full, setFull] = useState(false)
+  const panel = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const on = (): void => setFull(document.fullscreenElement === panel.current)
+    document.addEventListener('fullscreenchange', on)
+    return () => document.removeEventListener('fullscreenchange', on)
+  }, [])
+  const toggleFull = (): void => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+    else void panel.current?.requestFullscreen().catch(() => undefined)
+  }
   const [sound, setSound] = useState(true)
   const [ptrs, setPtrs] = useState<Record<number, { x: number; y: number; t: number }>>({})
   /** Where the picture is inside the stage (object-fit: contain), for placing pointers on it. */
@@ -136,6 +150,9 @@ export function Watch({
           else if (msg?.k === 'granted') setControl('yes')
           else if (msg?.k === 'denied') setControl('no')
           else if (msg?.k === 'revoked') setControl('none')
+          // only a plain CSS cursor name: it comes from the other side of the line
+          else if (msg?.k === 'cur' && typeof msg.c === 'string' && /^[a-z-]{1,24}$/.test(msg.c))
+            setCursor(msg.c)
         }
         if (ch.label === 'ctl') {
           ctl.current = ch
@@ -260,14 +277,19 @@ export function Watch({
   }
   const input = (e: RemoteInput, fast = false): void => say({ k: 'input', e }, fast)
   return (
-    <div className="wb-watch" role="dialog" aria-label={`${host.name}'s tab, live`}>
-      <header>
-        <span className="wb-face" style={{ background: host.color }}>
+    <div
+      ref={panel}
+      className={'wb-watch' + (full ? ' full' : '')}
+      role="dialog"
+      aria-label={`${host.name}'s tab, live`}
+    >
+      <header className="wb-watch-head">
+        <span className="wb-watch-face" style={{ background: host.color }} aria-hidden="true">
           {host.name.slice(0, 1).toUpperCase()}
         </span>
         <div className="wb-watch-what">
-          <b>{host.name}&rsquo;s tab</b>
-          <span>{host.live?.title || host.live?.url}</span>
+          <strong>{host.live?.title || 'Their tab'}</strong>
+          <span>{host.name}&rsquo;s tab</span>
         </div>
         <span className={'wb-badge ' + state}>
           <i aria-hidden="true" />
@@ -276,8 +298,10 @@ export function Watch({
         {state === 'live' && (
           <button
             type="button"
-            className={'wb-btn' + (sound ? '' : ' off')}
+            className={'wb-hbtn' + (sound ? '' : ' muted')}
             aria-pressed={sound}
+            title={sound ? 'Mute' : 'Turn the sound on'}
+            aria-label={sound ? 'Mute' : 'Turn the sound on'}
             onClick={() => {
               const next = !sound
               setSound(next)
@@ -287,44 +311,102 @@ export function Watch({
               }
             }}
           >
-            {sound ? 'Sound on' : 'Sound off'}
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 9v6h4l5 4V5L8 9z" />
+              {sound ? (
+                <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />
+              ) : (
+                <path d="M17 9l5 6M22 9l-5 6" />
+              )}
+            </svg>
           </button>
         )}
         {driving ? (
           <button
             type="button"
-            className="wb-btn on"
+            className="wb-pill on"
             onClick={() => {
               say({ k: 'release' })
               setControl('none')
             }}
           >
-            You are driving &middot; Let go
+            <i aria-hidden="true" />
+            Driving &middot; Let go
           </button>
         ) : (
           <button
             type="button"
-            className="wb-btn"
+            className="wb-pill"
             disabled={state !== 'live' || control === 'asked'}
             onClick={() => {
               say({ k: 'ask', name: myName })
               setControl('asked')
             }}
           >
-            {control === 'asked'
-              ? 'Asked…'
-              : control === 'no'
-                ? 'Ask again for control'
-                : 'Ask for control'}
+            {control === 'asked' ? 'Asked…' : control === 'no' ? 'Ask again' : 'Ask to control'}
           </button>
         )}
-        <button type="button" className="wb-close" aria-label="Stop watching" onClick={onClose}>
-          &times;
+        <button
+          type="button"
+          className="wb-hbtn"
+          title={full ? 'Leave full screen' : 'Full screen'}
+          aria-label={full ? 'Leave full screen' : 'Full screen'}
+          onClick={toggleFull}
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            {full ? (
+              <path d="M6 2.5V6H2.5M10 2.5V6h3.5M13.5 10H10v3.5M2.5 10H6v3.5" />
+            ) : (
+              <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" />
+            )}
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="wb-hbtn"
+          title="Stop watching"
+          aria-label="Stop watching"
+          onClick={onClose}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </svg>
         </button>
       </header>
       <div
         ref={stage}
         className={'wb-stage' + (driving ? ' driving' : '')}
+        style={driving ? { cursor } : undefined}
+        onDoubleClick={() => !driving && toggleFull()}
         tabIndex={driving ? 0 : -1}
         onPointerMove={(e) => {
           const p = driving && at(e)
@@ -373,8 +455,8 @@ export function Watch({
                 }
                 aria-hidden="true"
               >
-                <svg width="16" height="18" viewBox="0 0 16 18">
-                  <path d="M1 1l13 7.5-6 1.2L5.2 16z" />
+                <svg width="16" height="20" viewBox="0 0 16 20">
+                  <path d="M1 1 L1 16 L5 12 L8 19 L11 17.6 L8 11 L14 11 Z" />
                 </svg>
                 <span>{person?.name ?? 'Someone'}</span>
               </div>
