@@ -300,6 +300,16 @@ export function Settings(): React.JSX.Element {
                 onChange={(v) => void update({ tooltips: v })}
               />
             </Row>
+            <Row
+              label="Shortcuts in menus"
+              hint="List each item's keyboard shortcut beside it in right-click menus and the space list."
+            >
+              <Toggle
+                label="Shortcuts in menus"
+                on={s.menuShortcuts}
+                onChange={(v) => void update({ menuShortcuts: v })}
+              />
+            </Row>
             <Row label="Accent colour">
               <div className="swatches">
                 {ACCENTS.map((c) => (

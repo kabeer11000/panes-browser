@@ -12,6 +12,7 @@ import {
 } from '@shared/menu'
 import { SPRINGS, springCurve } from '@shared/spring'
 import { reducedMotion } from '@renderer/motion'
+import { Backdrop } from '@renderer/components/Backdrop'
 
 export type { MenuEntry }
 
@@ -47,6 +48,7 @@ export function ContextMenu({
   items,
   avoid = [],
   up = false,
+  closeOnResize = true,
   onPick,
   onClose
 }: {
@@ -60,6 +62,9 @@ export function ContextMenu({
   avoid?: Rect[]
   /** It ends at the point rather than starting there (opened from a button low in the window). */
   up?: boolean
+  /** Off in the menu view (main/menuFloat.ts closes it as the window resizes): a hidden view hears of a resize made
+   * meanwhile only as it is shown, which closed the menu it was showing. */
+  closeOnResize?: boolean
   onPick: (id: string) => void
   onClose: () => void
 }): React.JSX.Element {
@@ -194,7 +199,7 @@ export function ContextMenu({
     window.addEventListener('pointerdown', down, true)
     window.addEventListener('wheel', wheel, { capture: true, passive: true })
     window.addEventListener('blur', away)
-    window.addEventListener('resize', away)
+    if (closeOnResize) window.addEventListener('resize', away)
     document.addEventListener('visibilitychange', hidden)
     return () => {
       window.removeEventListener('keydown', key, true)
@@ -499,6 +504,7 @@ function Level({
       onFocus={onFocus}
       onBlur={onBlur}
     >
+      <Backdrop />
       <div className="cv-ctx-pill" ref={pill} aria-hidden="true" />
       {title && (
         <div className="cv-ctx-title" aria-hidden="true">

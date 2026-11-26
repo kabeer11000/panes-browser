@@ -61,6 +61,7 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (typeof patch.autoHideTopBar === 'boolean') out.autoHideTopBar = patch.autoHideTopBar
   if (typeof patch.frostedGlass === 'boolean') out.frostedGlass = patch.frostedGlass
   if (typeof patch.tooltips === 'boolean') out.tooltips = patch.tooltips
+  if (typeof patch.menuShortcuts === 'boolean') out.menuShortcuts = patch.menuShortcuts
   if (typeof patch.usageStats === 'boolean') out.usageStats = patch.usageStats
   if (typeof patch.formFill === 'boolean') out.formFill = patch.formFill
   if (typeof patch.sidebarHover === 'boolean') out.sidebarHover = patch.sidebarHover

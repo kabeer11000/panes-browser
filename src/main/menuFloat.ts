@@ -47,7 +47,11 @@ class MenuFloat {
   private hideTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(private win: BrowserWindow) {
-    win.on('resize', () => this.fit())
+    win.on('resize', () => {
+      this.fit()
+      // the menu goes as the window resizes (its view does not close it: see ContextMenu's closeOnResize)
+      if (this.open) this.hide()
+    })
     win.on('closed', () => floats.delete(win))
     const mine = (e: Electron.IpcMainEvent, seq: unknown): boolean =>
       e.sender === this.view?.webContents && seq === this.open?.seq
@@ -80,6 +84,7 @@ class MenuFloat {
       this.finish()
     })
     this.view = view
+    this.fit()
     return view
   }
 
@@ -107,8 +112,10 @@ class MenuFloat {
     const view = this.ensureView()
     this.open = { seq, clicks, callback: o.callback, focus: focused(view.webContents) }
     this.fit()
-    // re-added: on top of any view made since
-    this.win.contentView.addChildView(view)
+    // on top of any view made since; re-adding one already on top detaches and reattaches it, a rebuilt surface just
+    // as the menu starts to grow (a stutter)
+    const kids = this.win.contentView.children
+    if (kids[kids.length - 1] !== view) this.win.contentView.addChildView(view)
     paintView(view.webContents)
     view.setVisible(true)
     view.webContents.focus()
@@ -119,6 +126,17 @@ class MenuFloat {
     }
     if (view.webContents.isLoading()) view.webContents.once('did-finish-load', send)
     else send()
+  }
+
+  /** Gone at once, nothing played. */
+  private hide(): void {
+    this.finish()
+    clearTimeout(this.hideTimer)
+    const view = this.view
+    if (!view || view.webContents.isDestroyed()) return
+    view.setVisible(false)
+    // drawn no longer, or the next menu would show this one for a frame
+    view.webContents.send('menu:show', null)
   }
 
   /** Closed in the view: it plays its way out, then the view goes. */
@@ -147,13 +165,23 @@ function focused(own: WebContents): WebContents | null {
 
 const floats = new Map<BrowserWindow, MenuFloat>()
 
+function floatOf(win: BrowserWindow): MenuFloat {
+  let f = floats.get(win)
+  if (!f) floats.set(win, (f = new MenuFloat(win)))
+  return f
+}
+
+/** At the window's start: its menu view is then made ahead (after a few seconds), so the first right-click does not
+ * wait for a page to load. Made at that click, the first menu came late and stuttered in. */
+export function prepareMenus(win: BrowserWindow): void {
+  floatOf(win)
+}
+
 /** A Panes-drawn menu from an Electron template, where Menu.buildFromTemplate(items).popup({ window, ... }) was. */
 export function popupMenu(
   win: BrowserWindow,
   items: MenuItemConstructorOptions[],
   o: PopupOptions = {}
 ): void {
-  let f = floats.get(win)
-  if (!f) floats.set(win, (f = new MenuFloat(win)))
-  f.popup(items, o)
+  floatOf(win).popup(items, o)
 }

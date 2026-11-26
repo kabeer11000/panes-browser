@@ -11,17 +11,28 @@ declare global {
 /** The menu view (main/menuFloat.ts): the board's own menu, over the whole window. */
 export function MenuHost(): React.JSX.Element {
   const [menu, setMenu] = useState<MenuShow | null>(null)
-  useEffect(() => window.menuHost.onShow(setMenu), [])
-  if (!menu) return <div className="cv menu-host" />
+  // bumped when main drops the menu (the window resized): a new host, so the old menu leaves without its animation,
+  // which a hidden view never plays out (it played on the next menu's opening instead)
+  const [drops, setDrops] = useState(0)
+  useEffect(
+    () =>
+      window.menuHost.onShow((m) => {
+        if (!m) setDrops((n) => n + 1)
+        setMenu(m)
+      }),
+    []
+  )
+  if (!menu) return <div key={drops} className="cv menu-host" />
   const { seq } = menu
   return (
-    <div className="cv menu-host">
+    <div key={drops} className="cv menu-host">
       <ContextMenu
         key={seq}
         x={menu.x}
         y={menu.y}
         title={menu.title}
         up={menu.up}
+        closeOnResize={false}
         items={menu.items}
         onPick={(id) => window.menuHost.pick(seq, id)}
         onClose={() => {

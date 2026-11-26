@@ -45,6 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoHideTopBar: false,
   frostedGlass: false,
   tooltips: true,
+  menuShortcuts: false,
   usageStats: false,
   formFill: true,
   sidebarHover: false,
