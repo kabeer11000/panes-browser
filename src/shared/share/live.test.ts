@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  relayed,
   inOrder,
   downscaleFor,
   driverKeyAllowed,
@@ -200,4 +201,39 @@ describe('inOrder', () => {
     await new Promise((r) => setTimeout(r, 60))
     expect(seen).toEqual(['offer', 'ice', 'ice2'])
   })
+})
+
+describe('relayed', () => {
+  const cand = (id: string, t: string): Record<string, unknown> => ({
+    id,
+    type: 'local-candidate',
+    candidateType: t
+  })
+  test('a direct line is not relayed', () => {
+    expect(
+      relayed([
+        { id: 't', type: 'transport', selectedCandidatePairId: 'p' },
+        { id: 'p', type: 'candidate-pair', localCandidateId: 'l', remoteCandidateId: 'r' },
+        cand('l', 'srflx'),
+        cand('r', 'host')
+      ])
+    ).toBe(false)
+  })
+  test('a relay at either end is', () => {
+    expect(
+      relayed([
+        {
+          id: 'p',
+          type: 'candidate-pair',
+          nominated: true,
+          state: 'succeeded',
+          localCandidateId: 'l',
+          remoteCandidateId: 'r'
+        },
+        cand('l', 'host'),
+        cand('r', 'relay')
+      ])
+    ).toBe(true)
+  })
+  test('no pair yet: not relayed', () => expect(relayed([])).toBe(false))
 })

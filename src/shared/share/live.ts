@@ -222,3 +222,23 @@ export function inOrder<A extends unknown[]>(
     chain = chain.then(() => fn(...a)).catch(() => undefined)
   }
 }
+
+/** A live tab's picture over a relayed line (TURN): enough to follow the page, a fraction of a direct line's. */
+export const RELAYED_BITRATE = 1_500_000
+
+/**
+ * Whether a call's line goes through the relay (TURN) rather than straight between the two: its selected pair has a
+ * relay candidate at either end. `stats` as RTCPeerConnection.getStats gives them (any iterable of reports).
+ */
+export function relayed(stats: Iterable<Record<string, unknown>>): boolean {
+  const all = [...stats]
+  const byId = new Map(all.map((r) => [r.id, r]))
+  const transport = all.find((r) => r.type === 'transport' && r.selectedCandidatePairId)
+  const pair =
+    (transport && byId.get(transport.selectedCandidatePairId)) ??
+    all.find((r) => r.type === 'candidate-pair' && r.nominated === true && r.state === 'succeeded')
+  if (!pair) return false
+  return [pair.localCandidateId, pair.remoteCandidateId].some(
+    (id) => byId.get(id)?.candidateType === 'relay'
+  )
+}

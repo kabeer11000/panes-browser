@@ -4,6 +4,8 @@ import {
   downscaleFor,
   ICE_SERVERS,
   inOrder,
+  RELAYED_BITRATE,
+  relayed,
   type LiveControl,
   type LiveSignal
 } from '@shared/share/live'
@@ -274,6 +276,17 @@ export function useLiveHost(
         e.candidate && send(from, { k: 'ice', c: e.candidate.toJSON() as never })
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'failed' || pc.connectionState === 'closed') drop(from)
+        // through the relay (TURN, paid by the byte) only when no direct line could be made: then a small picture
+        else if (pc.connectionState === 'connected')
+          void pc.getStats().then((st) => {
+            const sender = peer.video
+            if (!sender || !relayed(st.values() as Iterable<Record<string, unknown>>)) return
+            const p = sender.getParameters()
+            if (!p.encodings?.[0]) return
+            p.encodings[0].maxBitrate = RELAYED_BITRATE
+            p.encodings[0].maxFramerate = 30
+            void sender.setParameters(p).catch(() => undefined)
+          })
       }
       await pc.setLocalDescription(await pc.createOffer())
       send(from, { k: 'sdp', sdp: pc.localDescription!.toJSON() as never })

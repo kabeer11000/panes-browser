@@ -85,7 +85,6 @@ export function Watch({
     if (!hostRtc) return
     const r = roomRef.current
     const send = (sig: LiveSignal): void => r.signal(hostRtc, JSON.stringify(sig))
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
     const onPtr = (m: Ptr): void =>
       setPtrs((cur) => {
         const next = { ...cur }
@@ -93,64 +92,96 @@ export function Watch({
         else next[m.who] = { x: m.x, y: m.y, t: Date.now() }
         return next
       })
-    pc.ontrack = (e) => {
-      const v = video.current
-      if (v && e.streams[0]) {
-        v.srcObject = e.streams[0]
-        void v.play().catch(() => {
-          // a browser that will not play sound unasked: start muted, the sound button turns it on
-          v.muted = true
-          setSound(false)
-          void v.play().catch(() => undefined)
-        })
-        setState('live')
+    let dead = false
+    let servers: RTCIceServer[] = ICE_SERVERS
+    let pc: RTCPeerConnection | null = null
+    let knock = 0
+    let redial = 0
+    /**
+     * One connection per call: the host makes a new one for every hello it answers, so an offer after the first (two
+     * hellos crossed, or the host's picture restarted) needs a new one here too. Reusing the old one hung on
+     * "Connecting".
+     */
+    const fresh = (): RTCPeerConnection => {
+      pc?.close()
+      const conn = new RTCPeerConnection({ iceServers: servers })
+      pc = conn
+      conn.ontrack = (e) => {
+        const v = video.current
+        if (v && e.streams[0]) {
+          v.srcObject = e.streams[0]
+          void v.play().catch(() => {
+            // a browser that will not play sound unasked: start muted, the sound button turns it on
+            v.muted = true
+            setSound(false)
+            void v.play().catch(() => undefined)
+          })
+        }
       }
-    }
-    pc.ondatachannel = (e) => {
-      const ch = e.channel
-      const onMsg = (m: MessageEvent): void => {
-        const msg = parse<LiveControl>(String(m.data))
-        if (msg?.k === 'ptr') onPtr(msg)
-        else if (msg?.k === 'granted') setControl('yes')
-        else if (msg?.k === 'denied') setControl('no')
-        else if (msg?.k === 'revoked') setControl('none')
+      conn.ondatachannel = (e) => {
+        const ch = e.channel
+        ch.onmessage = (m: MessageEvent): void => {
+          const msg = parse<LiveControl>(String(m.data))
+          if (msg?.k === 'ptr') onPtr(msg)
+          else if (msg?.k === 'granted') setControl('yes')
+          else if (msg?.k === 'denied') setControl('no')
+          else if (msg?.k === 'revoked') setControl('none')
+        }
+        if (ch.label === 'ctl') {
+          ctl.current = ch
+          ch.onopen = () => sendSizeRef.current()
+        } else if (ch.label === 'mv') mv.current = ch
       }
-      ch.onmessage = onMsg
-      if (ch.label === 'ctl') {
-        ctl.current = ch
-        ch.onopen = () => sendSizeRef.current()
-      } else if (ch.label === 'mv') mv.current = ch
+      conn.onicecandidate = (e) =>
+        e.candidate && send({ k: 'ice', c: e.candidate.toJSON() as never })
+      conn.onconnectionstatechange = () => {
+        if (pc !== conn) return
+        window.clearTimeout(redial)
+        // live once the line is through (a track announced over a line that never connects is a black picture)
+        if (conn.connectionState === 'connected') setState('live')
+        // the line dropped or never came through: call again, quietly
+        else if (conn.connectionState === 'failed') {
+          setState('connecting')
+          redial = window.setTimeout(hello, 1500)
+        } else if (conn.connectionState === 'disconnected') redial = window.setTimeout(hello, 4000)
+      }
+      return conn
     }
-    pc.onicecandidate = (e) => e.candidate && send({ k: 'ice', c: e.candidate.toJSON() as never })
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') setState('gone')
+    /**
+     * Ask the host to call. A hello the host was not listening for yet (it had only just started showing the tab) is
+     * lost, and the host answers only a hello: say it again until their offer is here.
+     */
+    const hello = (): void => {
+      if (dead) return
+      const conn = fresh()
+      send({ k: 'hello' })
+      window.clearInterval(knock)
+      knock = window.setInterval(() => {
+        if (dead || pc !== conn || conn.remoteDescription) window.clearInterval(knock)
+        else send({ k: 'hello' })
+      }, 3000)
     }
     const off = r.onSignal(
       inOrder(async (from, data) => {
-        if (from !== hostRtc) return
+        if (from !== hostRtc || dead) return
         const sig = parse<LiveSignal>(data)
         if (!sig) return
         if (sig.k === 'sdp' && sig.sdp.type === 'offer') {
-          await pc.setRemoteDescription(sig.sdp)
-          await pc.setLocalDescription(await pc.createAnswer())
-          send({ k: 'sdp', sdp: pc.localDescription!.toJSON() as never })
-        } else if (sig.k === 'ice') await pc.addIceCandidate(sig.c).catch(() => undefined)
+          const conn = pc && !pc.remoteDescription ? pc : fresh()
+          await conn.setRemoteDescription(sig.sdp)
+          await conn.setLocalDescription(await conn.createAnswer())
+          send({ k: 'sdp', sdp: conn.localDescription!.toJSON() as never })
+        } else if (sig.k === 'ice') await pc?.addIceCandidate(sig.c).catch(() => undefined)
         else if (sig.k === 'bye') setState('gone')
       })
     )
-    let dead = false
+    // the relay's ICE servers (TURN when it has a key) before anything is gathered; hello once they are in
     void r
       .iceServers()
       .catch(() => null)
-      .then((servers) => {
-        if (dead) return
-        if (servers)
-          try {
-            pc.setConfiguration({ iceServers: servers })
-          } catch {
-            // the built-in STUN stays
-          }
-        send({ k: 'hello' })
+      .then((got) => {
+        if (got) servers = got
+        hello()
       })
     const sweep = window.setInterval(
       () =>
@@ -165,8 +196,10 @@ export function Watch({
       dead = true
       off()
       window.clearInterval(sweep)
+      window.clearInterval(knock)
+      window.clearTimeout(redial)
       send({ k: 'bye' })
-      pc.close()
+      pc?.close()
       ctl.current = null
       mv.current = null
     }
