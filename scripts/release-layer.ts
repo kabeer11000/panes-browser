@@ -130,7 +130,14 @@ async function publishedBases(
     if (got.exitCode !== 0) continue // a release from before layers
     const m = parseManifest(JSON.parse(readFileSync(join(dir, MANIFEST), 'utf8')))
     if (!m || m.shell !== shell) continue // another Electron: a Panes on it takes the installer, not a delta
-    await gh('release', 'download', tag, '--pattern', m.full.file, '--dir', dir)
+    // a release whose upload stopped half way can list a layer it does not hold (beta.192's darwin-arm64): no base
+    const full = await $`gh release download ${tag} --pattern ${m.full.file} --dir ${dir}`
+      .quiet()
+      .nothrow()
+    if (full.exitCode !== 0) {
+      console.warn(`release-layer: ${tag} lists ${m.full.file} but does not hold it; not a base`)
+      continue
+    }
     const bytes = gunzipSync(readFileSync(join(dir, m.full.file)))
     if (sha256(bytes) !== m.full.sha256)
       fail(`the published layer of ${tag} does not match its manifest`)
