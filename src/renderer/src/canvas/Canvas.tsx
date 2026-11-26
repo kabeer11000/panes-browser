@@ -239,6 +239,14 @@ import { drop, glide, lift, moveHeld, owned, rebase, resetLift, settleMs } from 
 import { reducedMotion, springAnimate } from '@renderer/motion'
 import { SPRINGS, springCurve } from '@shared/spring'
 import { staggerDelay } from '@shared/boardPhysics'
+import {
+  atEdge,
+  EDGE_PAN_REST,
+  edgePanActive,
+  stepEdgePan,
+  type EdgePanState,
+  type EdgeRect
+} from '@shared/edgePan'
 import { fullPic, warmPics } from './pics'
 import { setBoardLod } from './boardLod'
 import { sharpWidth } from '@shared/sharpPicture'
@@ -3135,10 +3143,98 @@ export function Canvas({
     window.addEventListener('pointercancel', end)
   }
 
-  const onGestureMove = (e: PointerEvent): void => {
+  // ---- the board pans on its own while something is dragged to its edge (shared/edgePan), as Figma's does ----
+  const edgePan = useRef<{
+    s: EdgePanState
+    /** The last pointer move of the drag: replayed after each pan, so what is held stays under the pointer. */
+    last: PointerEvent | null
+    /** Where the drag began: it pans only once the pointer has moved, not for a press near the edge. */
+    x0: number
+    y0: number
+    armed: boolean
+    raf: number
+    t: number
+  }>({ s: EDGE_PAN_REST, last: null, x0: 0, y0: 0, armed: false, raf: 0, t: 0 })
+  const edgePanStop = (): void => {
+    const ep = edgePan.current
+    cancelAnimationFrame(ep.raf)
+    edgePan.current = { s: EDGE_PAN_REST, last: null, x0: 0, y0: 0, armed: false, raf: 0, t: 0 }
+  }
+  /** Each drag keeps where it began in screen px: moved with the board, so the drag goes on from where it is now. */
+  const shiftAnchors = (g: Gesture, dx: number, dy: number): void => {
+    if ('sx' in g) {
+      g.sx += dx
+      g.sy += dy
+    }
+    if (g.kind === 'marquee') {
+      g.x0 += dx
+      g.y0 += dy
+    }
+  }
+  const edgePanTick = (t: number): void => {
+    const ep = edgePan.current
+    ep.raf = 0
+    const g = gesture.current
+    const p = ep.last
+    if (!g || !p) return edgePanStop()
+    // a frame can be stamped a hair before the move that started the loop; a stall counts as a short frame
+    const dt = Math.min(50, Math.max(0, t - ep.t))
+    ep.t = t
+    ep.s = stepEdgePan(ep.s, p.clientX, p.clientY, boardEdges(), dt)
+    if (ep.s.vx !== 0 || ep.s.vy !== 0) {
+      const before = vp.get()
+      // the pointer at the right edge: the board moves left, to show what is to the right
+      vp.panBy((-ep.s.vx * dt) / 1000, (-ep.s.vy * dt) / 1000)
+      const after = vp.get()
+      const mx = after.x - before.x
+      const my = after.y - before.y
+      if (mx !== 0 || my !== 0) {
+        shiftAnchors(g, mx, my)
+        onGestureMove(
+          new PointerEvent('pointermove', {
+            clientX: p.clientX,
+            clientY: p.clientY,
+            pointerId: p.pointerId,
+            buttons: p.buttons,
+            shiftKey: p.shiftKey,
+            altKey: p.altKey,
+            ctrlKey: p.ctrlKey,
+            metaKey: p.metaKey
+          }),
+          true
+        )
+      }
+    }
+    if (edgePanActive(ep.s)) ep.raf = requestAnimationFrame(edgePanTick)
+  }
+  const boardEdges = (): EdgeRect => {
+    const r = rootRect.current
+    return { left: r.left, top: r.top, right: r.left + r.w, bottom: r.top + r.h }
+  }
+  /** Every move of a drag: kept for the frame loop, which starts once the pointer reaches an edge. */
+  const edgePanFollow = (g: Gesture, e: PointerEvent): void => {
+    // not the board's own pan, nor a turn (its angle is taken on screen), nor a drag still within its slop
+    if (g.kind === 'pan' || (g.kind === 'markop' && g.op === 'rotate')) return
+    if ('moved' in g && !g.moved) return
+    const ep = edgePan.current
+    if (!ep.last) {
+      ep.x0 = e.clientX
+      ep.y0 = e.clientY
+    }
+    ep.last = e
+    // a drag that has a slop is past it already; a box or a line drawn waits for the same distance
+    if (!ep.armed && ('moved' in g || Math.hypot(e.clientX - ep.x0, e.clientY - ep.y0) >= DRAG_PX))
+      ep.armed = true
+    if (!ep.armed || ep.raf || !atEdge(e.clientX, e.clientY, boardEdges())) return
+    ep.t = e.timeStamp // the same clock as the frame times
+    ep.raf = requestAnimationFrame(edgePanTick)
+  }
+
+  const onGestureMove = (e: PointerEvent, replay = false): void => {
     const g = gesture.current
     const s = stRef.current
     if (!g || !s) return
+    if (!replay) edgePanFollow(g, e)
     const v = vp.get()
     if (g.kind === 'stroke') {
       const w = world(e.clientX, e.clientY)
@@ -3447,6 +3543,7 @@ export function Canvas({
   }
 
   const onGestureEnd = (e: PointerEvent): void => {
+    edgePanStop() // let go: the board stops where it is (nothing carries on under a drop)
     const g = gesture.current
     gesture.current = null
     const el = root.current
