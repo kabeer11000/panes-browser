@@ -3332,6 +3332,8 @@ export class TabManager {
       if (wc) wc.setBackgroundThrottling(false)
       if (changed) this.hookPreviewEsc(t) // Esc the page leaves alone closes the preview
     }
+    // the page leaving the preview has the keyboard (read before it is hidden)
+    const hadKeys = id === null && !!prevTab && !!liveContents(prevTab)?.isFocused()
     this.applyVisibility()
     if (id !== null && t && !t.unloaded) {
       const wc = liveContents(t)
@@ -3339,6 +3341,9 @@ export class TabManager {
         wc.invalidate()
         if (changed) wc.focus()
       }
+    } else if (hadKeys && !this.win.isDestroyed()) {
+      // back to the board, or Delete, the arrows and the board's other keys would go to a page no longer shown
+      this.win.webContents.focus()
     }
   }
 
