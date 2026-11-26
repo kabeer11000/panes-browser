@@ -239,7 +239,8 @@ export interface BackdropLayer extends Rect {
 
 /** Commands main sends to the renderer UI (usually from keyboard shortcuts). */
 /** What the canvas preview's page menu hands back for the board to do itself. */
-export type PageMenuPick = 'ask' | 'find' | 'site' | 'reader' | 'live' | 'close'
+export type PageMenuPick =
+  'ask' | 'find' | 'site' | 'reader' | 'live' | 'close' | import('./ai/canvasMenu').ShareAct
 /** Shortcuts main routes to the open canvas preview ('zoom': its page zoom changed, read it again). */
 /** `back`: Ctrl+W closed the preview's page; the page it was opened from takes its place, else the preview closes. */
 export type PreviewKey = 'find' | 'address' | 'close' | 'zoom' | 'back'
@@ -296,9 +297,23 @@ export interface PanesApi {
   dropTab(id: number, targetId: number, edge: Edge | 'center'): void
   closePane(id: number): void
   /** Native right-click menus; their choices come back as state changes (and rename requests). */
-  tabMenu(id: number, picked?: number[]): void
+  /**
+   * A tab's menu. `share`: its place in a shared space, as the board knows it (the board's strip): the menu offers
+   * sharing as a card's does, and the pick comes back for the board to run.
+   */
+  tabMenu(
+    id: number,
+    picked?: number[],
+    share?: import('./ai/canvasMenu').ShareFacts
+  ): Promise<import('./ai/canvasMenu').ShareAct | null>
   /** The usual page menu for one tab (native, over everything); what the caller does itself comes back. */
-  pageMenu(id: number, x?: number, y?: number, live?: boolean): Promise<PageMenuPick | null>
+  pageMenu(
+    id: number,
+    x?: number,
+    y?: number,
+    live?: boolean,
+    share?: import('./ai/canvasMenu').ShareFacts
+  ): Promise<PageMenuPick | null>
   /** The pointer rests on a tab (with where it is) or has left it (null): show or hide its card. */
   tabHover(id: number | null, anchor?: TabHoverAnchor): void
   /** The pointer rests on a tab or its card: main gets it ready (wakes or loads it) before it is opened. */

@@ -7,6 +7,9 @@ import {
   noteMenu,
   sectionMenu,
   selectionMenu,
+  isShareAct,
+  parseShareFacts,
+  shareItems,
   type CardFacts
 } from './canvasMenu'
 import { noteOf } from './canvasPlace'
@@ -181,5 +184,38 @@ describe('menus with AI off', () => {
     const on = boardMenu({ empty: false, paste: false, canPaste: false, undo: null })
     expect(get(on, 'tidy')!.label).toBe('Arrange by topic')
     expect(get(on, 'ask')).toBeDefined()
+  })
+})
+
+describe('sharing items, the same in every menu', () => {
+  const labels = (f: Parameters<typeof shareItems>[0]): string[] =>
+    shareItems(f).map((i) => i.label)
+  test('worded and ordered one way', () => {
+    expect(labels({ share: 'start', live: 'start' })).toEqual([
+      'Share with everyone',
+      'Present live'
+    ])
+    expect(labels({ share: 'stop', live: 'stop' })).toEqual(['Stop sharing', 'Stop presenting'])
+    expect(labels({ share: 'paused' })).toEqual(['Share this page', 'Stop sharing'])
+    expect(labels({})).toEqual([])
+  })
+  test("a card's menu holds exactly them", () => {
+    const f = { share: 'paused', live: 'start' } as const
+    const ids = (cardMenu({ ...tab, ...f }).filter((e) => e !== 'sep') as MenuAction[]).map(
+      (e) => e.id
+    )
+    const want = shareItems(f).map((i) => i.id)
+    const at = ids.indexOf(want[0]!)
+    expect(ids.slice(at, at + want.length)).toEqual(want)
+  })
+  test('facts and picks from IPC are checked', () => {
+    expect(parseShareFacts({ live: 'start', share: 'paused', x: 1 })).toEqual({
+      live: 'start',
+      share: 'paused'
+    })
+    expect(parseShareFacts({ live: 'go' })).toBeNull()
+    expect(parseShareFacts(null)).toBeNull()
+    expect(isShareAct('share-live')).toBe(true)
+    expect(isShareAct('close')).toBe(false)
   })
 })

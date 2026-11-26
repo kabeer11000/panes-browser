@@ -28,6 +28,8 @@ import { getSlide, getSlideY } from '@renderer/slide'
 import { openPdf, pinPdf, reloadPdf, unpinPdf } from './pdf'
 import { anchorOver, askSearch } from './askSearch'
 import { NowPlaying, StripInbox, StripTab } from './TabStrip'
+import { useShareMenu } from './shareMenu'
+import { isShareAct } from '@shared/ai/canvasMenu'
 import { Panes } from '@renderer/components/Panes'
 import { DropIndicator } from '@renderer/components/DragLayer'
 import { useTabDrag } from '@renderer/hooks/useTabDrag'
@@ -1508,9 +1510,12 @@ export function Expanded({
     if (!splitKey) splitRects.current = null
   }, [splitKey])
 
+  // sharing it to the space, from its More as from its card's menu (Canvas.tsx)
+  const shareMenu = useShareMenu()
   /** What was picked in the page menu (the header's More button, or a right-click on the header). */
   const onPagePick = (what: PageMenuPick | null): void => {
-    if (what === 'ask') onAsk?.()
+    if (isShareAct(what)) shareMenu?.run(m.id, what)
+    else if (what === 'ask') onAsk?.()
     else if (what === 'find') openFind()
     else if (what === 'site') openSite()
     else if (what === 'reader') toReader()
@@ -1521,7 +1526,13 @@ export function Expanded({
     const id = tabRef.current
     if (id === null || !window.api.pageMenu) return
     void window.api
-      .pageMenu(id, x, y, canLive && !liveOnly ? live === 'on' : undefined)
+      .pageMenu(
+        id,
+        x,
+        y,
+        canLive && !liveOnly ? live === 'on' : undefined,
+        shareMenu?.factsOf(m.id) ?? undefined
+      )
       .then(onPagePick)
   }
   /** The site's settings (permissions, blocker, data): the address bar's own panel, a native view over the page. */

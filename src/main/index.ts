@@ -98,6 +98,7 @@ import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
 import { registerOffscreenInput } from './offscreenPage'
 import { countBoot, countIpc, countScreen, countSite, startUsage } from './usage'
+import { parseShareFacts } from '@shared/ai/canvasMenu'
 
 mark('modules') // every import above has run
 applyPerformance() // Chromium's switches only count before the app is ready
@@ -397,14 +398,10 @@ function createWindow(): void {
     const space = spaces.get(spaceId)
     if (!space) return null
     if (share.liveTabOf(spaceId) === tabId)
-      return { label: 'Stop showing this tab live', click: () => share.showLive(spaceId, null) }
-    if (space.shared)
-      return {
-        label: 'Show this tab live to the space',
-        click: () => share.showLive(spaceId, tabId)
-      }
+      return { label: 'Stop presenting', click: () => share.showLive(spaceId, null) }
+    if (space.shared) return { label: 'Present live', click: () => share.showLive(spaceId, tabId) }
     return {
-      label: 'Show this tab live (shares this space, copies the invite link)',
+      label: 'Present live (shares this space, copies the invite link)',
       click: () => {
         const link = share.start(spaceId)
         if (!link) return
@@ -980,19 +977,22 @@ function createWindow(): void {
   ipcMain.handle('site:info', () => sites.info())
   ipcMain.handle('site:update', (_e, patch: unknown) => sites.update(patch))
   ipcMain.on('tabs:add-to-group', (_e, id: number, groupId: number) => tabs.addToGroup(id, groupId))
-  ipcMain.on('tabs:tab-menu', (_e, id: number, picked?: unknown) =>
-    tabs.tabMenu(id, numbers(picked))
+  ipcMain.handle('tabs:tab-menu', (_e, id: number, picked?: unknown, share?: unknown) =>
+    tabs.tabMenu(id, numbers(picked), parseShareFacts(share))
   )
   ipcMain.on('tabs:group-menu', (_e, id: number) => tabs.groupMenu(id))
-  ipcMain.handle('tabs:page-menu', (_e, id: unknown, x: unknown, y: unknown, live: unknown) =>
-    typeof id === 'number'
-      ? tabs.pageMenu(
-          id,
-          typeof x === 'number' ? x : undefined,
-          typeof y === 'number' ? y : undefined,
-          typeof live === 'boolean' ? live : undefined
-        )
-      : null
+  ipcMain.handle(
+    'tabs:page-menu',
+    (_e, id: unknown, x: unknown, y: unknown, live: unknown, share: unknown) =>
+      typeof id === 'number'
+        ? tabs.pageMenu(
+            id,
+            typeof x === 'number' ? x : undefined,
+            typeof y === 'number' ? y : undefined,
+            typeof live === 'boolean' ? live : undefined,
+            parseShareFacts(share)
+          )
+        : null
   )
   // the downloads bin, at the window's bottom-right corner
   const dock = registerDock(

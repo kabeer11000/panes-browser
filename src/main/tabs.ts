@@ -115,6 +115,7 @@ import { TabPics } from './tabPics'
 import { qrBitmap } from '@shared/qr'
 import { internalUrl, type InternalPage } from '@shared/settings'
 import { pdfFileName } from '@shared/print'
+import { shareItems, type ShareAct, type ShareFacts } from '@shared/ai/canvasMenu'
 import {
   applyDrop,
   insertTab,
@@ -5206,20 +5207,40 @@ export class TabManager {
     for (const tid of members) this.close(tid)
   }
 
-  tabMenu(id: number, picked: number[] = []): void {
+  tabMenu(
+    id: number,
+    picked: number[] = [],
+    share: ShareFacts | null = null
+  ): Promise<ShareAct | null> {
+    return new Promise((resolve) => this.showTabMenu(id, picked, share, resolve))
+  }
+
+  private showTabMenu(
+    id: number,
+    picked: number[],
+    share: ShareFacts | null,
+    resolve: (pick: ShareAct | null) => void
+  ): void {
     const tab = this.tabs.get(id)
-    if (!tab) return
+    if (!tab) return resolve(null)
     if (picked.length > 1 && picked.includes(id)) {
       // several tabs picked with Shift or Ctrl: the actions that make sense for all of them
-      popupMenu(this.win, [
-        { label: `Add ${picked.length} tabs to split view`, click: () => this.splitMany(picked) },
-        {
-          label: `Duplicate ${picked.length} tabs`,
-          click: () => picked.forEach((t) => this.duplicate(t))
-        },
-        { type: 'separator' },
-        { label: `Close ${picked.length} tabs`, click: () => picked.forEach((t) => this.close(t)) }
-      ])
+      popupMenu(
+        this.win,
+        [
+          { label: `Add ${picked.length} tabs to split view`, click: () => this.splitMany(picked) },
+          {
+            label: `Duplicate ${picked.length} tabs`,
+            click: () => picked.forEach((t) => this.duplicate(t))
+          },
+          { type: 'separator' },
+          {
+            label: `Close ${picked.length} tabs`,
+            click: () => picked.forEach((t) => this.close(t))
+          }
+        ],
+        { callback: () => resolve(null) }
+      )
       return
     }
     const others = [...this.groups.values()].filter(
@@ -5232,8 +5253,15 @@ export class TabManager {
       },
       { label: 'Duplicate tab', click: () => this.duplicate(id) },
       ...(() => {
-        const live = !tab.private && !tab.tor ? this.liveMenu?.(id, tab.spaceId) : null
-        return live ? [{ type: 'separator' } as MenuItemConstructorOptions, live] : []
+        if (tab.private || tab.tor) return []
+        // on the board, its sharing as its card's menu has it (the board runs the pick); elsewhere, presenting
+        const items: MenuItemConstructorOptions[] = share
+          ? shareItems(share).map((i) => ({
+              label: i.label,
+              click: () => resolve(i.id as ShareAct)
+            }))
+          : [this.liveMenu?.(id, tab.spaceId)].filter((x): x is MenuItemConstructorOptions => !!x)
+        return items.length ? [{ type: 'separator' } as MenuItemConstructorOptions, ...items] : []
       })(),
       ...(TAB_GROUPS
         ? [
@@ -5291,7 +5319,7 @@ export class TabManager {
       },
       { label: 'Close tab', click: () => this.close(id, true) }
     )
-    popupMenu(this.win, items)
+    popupMenu(this.win, items, { callback: () => resolve(null) })
   }
 
   /** The browser's own pages and actions, for layouts with no sidebar footer to hold them. */
@@ -5363,7 +5391,13 @@ export class TabManager {
    * The usual things to do with a page, for one tab wherever it is shown (the canvas preview): a native menu, so it
    * draws over the live page. What the board does itself (pop out, ask) comes back as the picked item's id.
    */
-  pageMenu(id: number, x?: number, y?: number, live?: boolean): Promise<PageMenuPick | null> {
+  pageMenu(
+    id: number,
+    x?: number,
+    y?: number,
+    live?: boolean,
+    share: ShareFacts | null = null
+  ): Promise<PageMenuPick | null> {
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
     if (!tab || !wc) return Promise.resolve(null)
@@ -5394,6 +5428,16 @@ export class TabManager {
         },
         { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => this.navTab(id, 'reload') },
         sep,
+        // in a shared space: present it, share it, as its card's menu does (the board runs the pick)
+        ...(share && !priv
+          ? [
+              ...shareItems(share).map((i) => ({
+                label: i.label,
+                click: pick(i.id as ShareAct)
+              })),
+              sep
+            ]
+          : []),
         ...when(caps.bookmark, {
           label: this.deps.bookmarks.has(url) ? 'Remove bookmark' : 'Bookmark this page',
           accelerator: 'CmdOrCtrl+D',

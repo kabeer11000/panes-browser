@@ -68,6 +68,41 @@ export interface CardFacts {
   share?: 'start' | 'stop' | 'paused'
 }
 
+/**
+ * A tab's place in a shared space, for every menu that offers it (a card's, the preview's More, a tab's in the
+ * board's strip): presented live, and shared with everyone. Missing: not offered there.
+ */
+export interface ShareFacts {
+  live?: 'start' | 'stop'
+  share?: 'start' | 'stop' | 'paused'
+}
+export type ShareAct = 'share-tab' | 'share-here' | 'share-live'
+export const isShareAct = (v: unknown): v is ShareAct =>
+  v === 'share-tab' || v === 'share-here' || v === 'share-live'
+
+/** Sharing facts from the other side of IPC, checked; null for none. */
+export function parseShareFacts(v: unknown): ShareFacts | null {
+  const o = v as Record<string, unknown> | null
+  if (!o || typeof o !== 'object') return null
+  const live = o.live === 'start' || o.live === 'stop' ? o.live : undefined
+  const share =
+    o.share === 'start' || o.share === 'stop' || o.share === 'paused' ? o.share : undefined
+  return live || share ? { ...(live ? { live } : {}), ...(share ? { share } : {}) } : null
+}
+
+/** The sharing items, worded and ordered the same in every menu. */
+export function shareItems(f: ShareFacts): MenuAction[] {
+  return [
+    ...(f.share === 'paused' ? [{ id: 'share-here', label: 'Share this page' }] : []),
+    ...(f.share
+      ? [{ id: 'share-tab', label: f.share === 'start' ? 'Share with everyone' : 'Stop sharing' }]
+      : []),
+    ...(f.live
+      ? [{ id: 'share-live', label: f.live === 'stop' ? 'Stop presenting' : 'Present live' }]
+      : [])
+  ]
+}
+
 export function cardMenu(f: CardFacts): MenuEntry[] {
   const ai = !f.private
   const aiOn = f.ai !== false
@@ -77,18 +112,7 @@ export function cardMenu(f: CardFacts): MenuEntry[] {
     { id: 'pop', label: 'Pop out as a tab', disabled: !f.canPop },
     ...(f.split ? [{ id: 'unsplit', label: 'Unsplit' }] : []),
     ...(f.share || f.live ? ['sep' as const] : []),
-    ...(f.share
-      ? [
-          ...(f.share === 'paused' ? [{ id: 'share-here', label: 'Share this page' }] : []),
-          {
-            id: 'share-tab',
-            label: f.share === 'start' ? 'Share with everyone' : 'Stop sharing'
-          }
-        ]
-      : []),
-    ...(f.live
-      ? [{ id: 'share-live', label: f.live === 'stop' ? 'Stop presenting' : 'Present live' }]
-      : []),
+    ...shareItems(f),
     'sep',
     ...(f.media
       ? [

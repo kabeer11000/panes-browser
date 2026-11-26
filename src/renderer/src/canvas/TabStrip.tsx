@@ -18,6 +18,7 @@ import {
 } from '@renderer/components/icons'
 import { SpaceAvatar } from '@renderer/components/SpaceAvatar'
 import type { CardModel } from './model'
+import { useShareMenu } from './shareMenu'
 
 /**
  * The tab strip: one row, the same on the board (its top centre) and in the preview (its header), for where you have
@@ -44,6 +45,7 @@ export function StripTab({
   onDragStart?: (e: React.PointerEvent) => void
 }): React.JSX.Element {
   const name = `${m.title}${m.site ? ` - ${m.site}` : ''}`
+  const shareMenu = useShareMenu()
   return (
     <button
       type="button"
@@ -62,7 +64,10 @@ export function StripTab({
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        window.api.tabMenu(m.id)
+        // its sharing in the space, offered and run as on its card (Canvas.tsx)
+        void window.api
+          .tabMenu(m.id, undefined, shareMenu?.factsOf(m.id) ?? undefined)
+          .then((act) => act && shareMenu?.run(m.id, act))
       }}
       onAuxClick={(e) => {
         if (e.button !== 1) return

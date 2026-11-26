@@ -70,6 +70,7 @@ import {
   expandFrame,
   hostClusters,
   shownCards,
+  type CanvasCard,
   type CanvasState,
   type TabLite,
   type Viewport,
@@ -85,6 +86,9 @@ import {
   arrangeLabel,
   boardMenu,
   cardMenu,
+  isShareAct,
+  type ShareAct,
+  type ShareFacts,
   markMenu,
   noteMenu,
   sectionMenu,
@@ -139,6 +143,7 @@ import { alreadyOpen, quickFind, type FindItem } from '@shared/ai/quickFind'
 import { quickAction } from '@shared/ai/sites'
 import { anchorAt, askSearch } from './askSearch'
 import { NowPlaying, StripInbox, StripTab } from './TabStrip'
+import { ShareMenuContext, type ShareMenu } from './shareMenu'
 import { usePeeks } from './usePeeks'
 import { ExpandIcon, SearchGlyph, UnsplitIcon } from './icons'
 import { Connectors, type ConnectorsHandle, type Style } from './Connectors'
@@ -3883,6 +3888,86 @@ export function Canvas({
     }
   }
   const modelForRef = useRef<(card: { id: number }) => CardModel | null>(() => null)
+  /** A card's sharing in this space (its tab presented live, it shared with everyone), for every menu that offers it. */
+  const shareOf = (
+    id: number
+  ): { facts: ShareFacts; url: string; card: CanvasCard | undefined } | null => {
+    const s0 = stRef.current
+    if (!s0 || !thisSpace?.shared) return null
+    const card = s0.cards.find((c) => c.id === id)
+    const item = isVirtual(id) ? s0.items[String(id)] : undefined
+    const tab = isVirtual(id)
+      ? item?.tab !== undefined
+        ? byId.get(item.tab)
+        : undefined
+      : byId.get(id)
+    const url = item?.url ?? tab?.url ?? ''
+    const priv = !!(tab && (tab.private || tab.tor))
+    const isTab = !!modelForRef.current({ id })?.isTab
+    // a tab or a file of this computer's can go to a shared space too: live, or as its file (shared/share/doc.ts)
+    const sharable = isTab && !priv && /^(https?|file):/i.test(url)
+    return {
+      url,
+      card,
+      facts: {
+        ...(sharable ? { live: liveTab === id ? ('stop' as const) : ('start' as const) } : {}),
+        ...(sharable || canShareFile(item)
+          ? {
+              share: card?.shared
+                ? sharingPaused(card, url)
+                  ? ('paused' as const)
+                  : ('stop' as const)
+                : ('start' as const)
+            }
+          : {})
+      }
+    }
+  }
+  const shareFactsOf = (id: number): ShareFacts => shareOf(id)?.facts ?? {}
+  /** A sharing pick from any menu: the card's, the preview's More, a tab's in the strip. */
+  const runShareAct = (id: number, act: ShareAct): void => {
+    const got = shareOf(id)
+    if (!got) return
+    const { url, card } = got
+    if (act === 'share-live') showLive(liveTab === id ? null : id)
+    else if (act === 'share-tab')
+      edit(
+        (s) => ({
+          ...s,
+          cards: s.cards.map((c) =>
+            c.id !== id
+              ? c
+              : c.shared
+                ? { ...c, shared: false, sharedSite: undefined }
+                : { ...c, shared: true, sharedSite: siteOf(url) }
+          )
+        }),
+        { undo: card?.shared ? 'Stop sharing' : 'Share' }
+      )
+    else if (act === 'share-here')
+      edit(
+        (s) => ({
+          ...s,
+          cards: s.cards.map((c) => (c.id === id ? { ...c, sharedSite: siteOf(url) } : c))
+        }),
+        { undo: 'Share this page' }
+      )
+  }
+  // the latest of them for the other menus (the preview's, the strip's), through context: one value, never stale
+  const shareFns = useRef({ shareFactsOf, runShareAct })
+  useLayoutEffect(() => {
+    shareFns.current = { shareFactsOf, runShareAct }
+  })
+  const shareMenu = useMemo<ShareMenu>(
+    () => ({
+      factsOf: (id) => {
+        const f = shareFns.current.shareFactsOf(id)
+        return f.live || f.share ? f : null
+      },
+      run: (id, act) => shareFns.current.runShareAct(id, act)
+    }),
+    []
+  )
   /** Every card as words to find it by (title, site, address, the page's text when read). */
   const findItems = (model: (card: { id: number }) => CardModel | null): FindItem[] =>
     (st?.cards ?? []).flatMap((c) => {
@@ -5459,8 +5544,6 @@ export function Canvas({
       const url = item?.url ?? tab?.url ?? ''
       const priv = !!(tab && (tab.private || tab.tor))
       const web = /^https?:/i.test(url)
-      // a tab or a file of this computer's can go to a shared space too: live, or as its file (shared/share/doc.ts)
-      const sharable = m.isTab && !priv && (web || /^file:/i.test(url))
       const canLive =
         (m.kind === 'page' || m.kind === 'video' || m.kind === 'pdf') && (!!tab || web)
       const media = m.isTab && (m.audible || m.muted || m.kind === 'video')
@@ -5485,44 +5568,14 @@ export function Canvas({
           sections,
           split: splitRef.current.includes(id),
           ai: aiAvailable,
-          live: thisSpace?.shared && sharable ? (liveTab === id ? 'stop' : 'start') : undefined,
-          share:
-            thisSpace?.shared && (sharable || canShareFile(item))
-              ? card?.shared
-                ? sharingPaused(card, url)
-                  ? 'paused'
-                  : 'stop'
-                : 'start'
-              : undefined
+          ...shareFactsOf(id)
         }),
         (act) => {
           if (act === 'open') expandRef.current(id, false)
           else if (act === 'live') expandRef.current(id, true)
           else if (act === 'pop') leaveRef.current(id)
           else if (act === 'unsplit') window.api.unsplit()
-          else if (act === 'share-live') showLive(liveTab === id ? null : id)
-          else if (act === 'share-tab')
-            edit(
-              (s) => ({
-                ...s,
-                cards: s.cards.map((c) =>
-                  c.id !== id
-                    ? c
-                    : c.shared
-                      ? { ...c, shared: false, sharedSite: undefined }
-                      : { ...c, shared: true, sharedSite: siteOf(url) }
-                )
-              }),
-              { undo: card?.shared ? 'Stop sharing' : 'Share' }
-            )
-          else if (act === 'share-here')
-            edit(
-              (s) => ({
-                ...s,
-                cards: s.cards.map((c) => (c.id === id ? { ...c, sharedSite: siteOf(url) } : c))
-              }),
-              { undo: 'Share this page' }
-            )
+          else if (isShareAct(act)) runShareAct(id, act)
           else if (act === 'play')
             void window.api.mediaPlay?.(m.id, m.playing ? 'pause' : 'play').catch(() => undefined)
           else if (act === 'mute') window.api.toggleMute(m.id)
@@ -5912,659 +5965,665 @@ export function Canvas({
       : undefined
 
   return (
-    <div
-      ref={root}
-      className={
-        'cv ' +
-        phase +
-        (swap ? ' swap' : '') +
-        (reduced ? ' reduced' : '') +
-        (lod ? ' lod' : '') +
-        (tool === 'hand' ? ' hand' : '') +
-        (tool === 'text' ? ' tool-text' : tool !== 'select' && tool !== 'hand' ? ' draw' : '') +
-        (dim ? ' dim' : '') +
-        (expanded ? ' reading' : '') +
-        // the preview has grown over the board and rests there: the board behind it is put away (see preview.css)
-        (expanded && expandedCovers ? ' covered' : '') +
-        (dockOpen ? ' docked' : '')
-      }
-      style={{ '--dock-w': `${dockW}px` } as React.CSSProperties}
-      role="application"
-      aria-label="Tab canvas"
-      onDragOver={(e) => {
-        const types = e.dataTransfer.types
-        if (phase !== 'open' || !(types.includes('Files') || types.includes('text/uri-list')))
-          return
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'copy'
-      }}
-      onDrop={(e) => {
-        if (phase !== 'open') return
-        e.preventDefault()
-        const w0 = world(e.clientX, e.clientY)
-        const files = [...e.dataTransfer.files]
-        const uri = e.dataTransfer
-          .getData('text/uri-list')
-          .split('\n')
-          .find((l) => /^https?:/i.test(l.trim()))
-        const text = files.length ? '' : (uri ?? e.dataTransfer.getData('text/plain'))
-        void putAt({ x: w0.x, y: w0.y }, files.map(incoming), text)
-      }}
-      onPointerDown={onDown}
-      onPointerMove={onHover}
-      onPointerLeave={() => {
-        conn.current?.hover(null)
-        presence.point(null)
-      }}
-      onDoubleClick={(e) => {
-        const t = e.target as HTMLElement
-        if (e.timeStamp - edgeClickAt.current < 600) return // the edge's own double click (fitted already)
-        const crz = t.closest<HTMLElement>('[data-crz]')
-        if (crz?.dataset.crzc) {
-          const cid = Number(crz.dataset.crzc)
-          fitCardSize(cid)
-          return
+    <ShareMenuContext.Provider value={shareMenu}>
+      <div
+        ref={root}
+        className={
+          'cv ' +
+          phase +
+          (swap ? ' swap' : '') +
+          (reduced ? ' reduced' : '') +
+          (lod ? ' lod' : '') +
+          (tool === 'hand' ? ' hand' : '') +
+          (tool === 'text' ? ' tool-text' : tool !== 'select' && tool !== 'hand' ? ' draw' : '') +
+          (dim ? ' dim' : '') +
+          (expanded ? ' reading' : '') +
+          // the preview has grown over the board and rests there: the board behind it is put away (see preview.css)
+          (expanded && expandedCovers ? ' covered' : '') +
+          (dockOpen ? ' docked' : '')
         }
-        const rz = t.closest<HTMLElement>('[data-rz]')
-        if (rz?.dataset.rzf) {
-          const fid = rz.dataset.rzf
-          edit((s0) => unsizeFrame(s0, fid), { flip: true, undo: 'Fitted a section' })
-          return
-        }
-        // a drawing: type in it (a pen line has no text)
-        const s0 = stRef.current
-        if (
-          s0 &&
-          toolRef.current === 'select' &&
-          !t.closest('.cv-fbar,.cv-bar,button,input,textarea')
-        ) {
+        style={{ '--dock-w': `${dockW}px` } as React.CSSProperties}
+        role="application"
+        aria-label="Tab canvas"
+        onDragOver={(e) => {
+          const types = e.dataTransfer.types
+          if (phase !== 'open' || !(types.includes('Files') || types.includes('text/uri-list')))
+            return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+        }}
+        onDrop={(e) => {
+          if (phase !== 'open') return
+          e.preventDefault()
           const w0 = world(e.clientX, e.clientY)
-          const mk = markAt(s0, w0.x, w0.y, 6 / vp.get().k)
-          if (mk && !mk.pts && !mk.locked) {
-            setSel(new Set([`m:${mk.id}`]))
-            setMarkEdit(mk.id)
+          const files = [...e.dataTransfer.files]
+          const uri = e.dataTransfer
+            .getData('text/uri-list')
+            .split('\n')
+            .find((l) => /^https?:/i.test(l.trim()))
+          const text = files.length ? '' : (uri ?? e.dataTransfer.getData('text/plain'))
+          void putAt({ x: w0.x, y: w0.y }, files.map(incoming), text)
+        }}
+        onPointerDown={onDown}
+        onPointerMove={onHover}
+        onPointerLeave={() => {
+          conn.current?.hover(null)
+          presence.point(null)
+        }}
+        onDoubleClick={(e) => {
+          const t = e.target as HTMLElement
+          if (e.timeStamp - edgeClickAt.current < 600) return // the edge's own double click (fitted already)
+          const crz = t.closest<HTMLElement>('[data-crz]')
+          if (crz?.dataset.crzc) {
+            const cid = Number(crz.dataset.crzc)
+            fitCardSize(cid)
             return
           }
-        }
-        const link = (t as Element).closest?.('[data-kid]') as HTMLElement | null
-        if (link?.dataset.kid && !t.closest('[data-cid],[data-nid],input')) {
-          setSel(new Set([`k:${link.dataset.kid}`]))
-          setEditing(link.dataset.kid)
-          return
-        }
-        const el = t.closest<HTMLElement>('[data-cid]')
-        if (el && !t.closest('.cv-expand,button')) expand(Number(el.dataset.cid))
-        else if (
-          !el &&
-          toolRef.current === 'select' &&
-          !t.closest(`[data-nid],[data-fhead],${CHROME},button,input,textarea,a`)
-        ) {
-          const r = root.current!.getBoundingClientRect()
-          askNew(e.clientX - r.left, e.clientY - r.top)
-        }
-      }}
-      onContextMenu={(e) => {
-        // text fields (the Ask box, a note, a frame's name) keep the usual cut / copy / paste menu
-        if (isEditable(e.target)) return
-        // the conversation, the preview and the board's own bars are not the board: no board menu there
-        if ((e.target as HTMLElement).closest(CHROME)) return
-        e.preventDefault()
-        if (phaseRef.current === 'open') openContext(e.target as HTMLElement, e.clientX, e.clientY)
-      }}
-    >
-      <div ref={grid} className="cv-grid" aria-hidden="true" />
-      <div ref={layer} className="cv-board">
-        <RemoteCursors people={presence.people} />
-        {s?.frames.map((f) => (
-          <FrameView
-            key={f.id}
-            frame={f}
-            count={counts.get(f.id) ?? 0}
-            selected={sel.has(`f:${f.id}`)}
-            editing={editing === f.id}
-            onFan={fanOut}
-          />
-        ))}
-        {s?.notes.map((n) =>
-          n.widget ? (
-            <WidgetView
-              key={n.id}
-              note={n as typeof n & { widget: Widget }}
-              selected={sel.has(`n:${n.id}`)}
-              onText={onNoteText}
-              onWidget={onWidget}
-            />
-          ) : (
-            <NoteView
-              key={n.id}
-              note={n}
-              selected={sel.has(`n:${n.id}`)}
-              editing={editing === n.id}
-              onText={onNoteText}
-              onEdit={setEditing}
-              onColor={onNoteColor}
-              onSize={onNoteSize}
-              first={editing === n.id ? firstKey : null}
-            />
-          )
-        )}
-        {(() => {
-          const b = splitFrame
-          return b ? (
-            <div
-              className={'cv-splitbox' + (b.inFrame ? ' framed' : '')}
-              data-splitbox=""
-              style={{
-                transform: `translate(${b.x}px, ${b.y}px)`,
-                width: b.w,
-                height: b.h
-              }}
-            >
-              <div className="cv-splithead">
-                <span data-splithead="" title="Drag to move the split view">
-                  Split view
-                </span>
-                <button
-                  type="button"
-                  title="Open the split view: its pages side by side"
-                  aria-label="Open the split view"
-                  onClick={() => expandRef.current(splitIds[0], true)}
-                >
-                  <ExpandIcon />
-                </button>
-                <button
-                  type="button"
-                  className="cv-unsplit"
-                  title="Unsplit: the tabs stay open, each on its own"
-                  aria-label="Unsplit"
-                  onClick={() => window.api.unsplit()}
-                >
-                  <UnsplitIcon />
-                </button>
-              </div>
-            </div>
-          ) : null
-        })()}
-        {shownCards(s ?? emptyState()).map((c) => {
-          if (!vis.has(c.id)) return null
-          const m = modelFor(c)
-          if (!m) return null
-          const cw = c.w ?? CARD_W
-          const ch = c.h ?? CARD_H
-          return (
-            <CardView
-              key={c.id}
-              m={m}
-              x={c.x}
-              y={c.y}
-              w={cw}
-              h={ch}
-              selected={sel.has(`c:${c.id}`)}
-              fresh={fresh.has(c.id)}
-              hidden={expanded?.id === c.id && expandedCovers}
-              rank={ranks.get(c.id) ?? 0}
-              onClose={onClose}
-              onExpand={onExpand}
-              onPdf={onPdf}
-              onView={onCardView}
-              onLink={onCardLink}
-              onPlace={onPlace}
-              onVideoAspect={onVideoAspect}
-              onStill={onStill}
-              live={
-                streams.has(c.id) ? Math.max(40, Math.round((cw * zoomPct) / 100 / 40) * 40) : 0
-              }
-              call={calls.has(c.id)}
-            />
-          )
-        })}
-        {s?.frames.map((f) => (
-          <FrameHead
-            key={f.id}
-            frame={f}
-            count={counts.get(f.id) ?? 0}
-            editing={editing === f.id}
-            onRename={onRename}
-            onEdit={startRename}
-          />
-        ))}
-        {s && marksOf(s).length > 0 && (
-          <Marks
-            marks={marksOf(s)}
-            selected={sel}
-            editing={markEdit}
-            onText={onMarkText}
-            onToggle={onMarkToggle}
-            first={firstKey}
-            onFit={onMarkFit}
-          />
-        )}
-        <svg className="cv-marks" aria-hidden="true">
-          <path ref={draft} className="cv-draft" d="" />
-        </svg>
-        {s && (
-          <Connectors
-            ref={conn}
-            state={s}
-            selected={selLinks}
-            editing={editing}
-            fresh={freshLink}
-            handles={tool === 'select' || tool === 'connector'}
-            style={linkStyle}
-            reduced={reduced}
-            onLabel={onLinkLabel}
-            onPatch={onLinkPatch}
-            onEditLabel={setEditing}
-            onDelete={deleteLinks}
-          />
-        )}
-        <svg ref={guides} className="cv-guides" width="1" height="1" overflow="visible" />
-        {/* sections name themselves (their header grows as the board shrinks): the map names only loose groups */}
-        {labels
-          .filter((l) => !l.frame)
-          .map((l) => (
-            <button
-              key={l.key}
-              type="button"
-              className="cv-blabel"
-              title={`Go to ${l.title}`}
-              style={{ transform: `translate(${l.x + l.w / 2}px, ${l.y}px)` }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => {
-                const { w, h } = size()
-                vp.animateTo(fitView(l, w, h - BAR_ROOM, 110, 1), 460)
-              }}
-            >
-              <span className="cv-blabel-in">
-                <b>{l.title}</b>
-                <span>{l.count}</span>
-              </span>
-            </button>
-          ))}
-        {selMarkBar && phase === 'open' && (
-          <MarkBar
-            marks={selMarkBar.marks}
-            box={selMarkBar.box}
-            below={selMarkBar.box.y * vp.get().k + vp.get().y < 72}
-            units={selMarkBar.units}
-            onPatch={(p) =>
-              patchSel(p, p.locked !== undefined ? (p.locked ? 'Locked' : 'Unlocked') : 'Restyled')
+          const rz = t.closest<HTMLElement>('[data-rz]')
+          if (rz?.dataset.rzf) {
+            const fid = rz.dataset.rzf
+            edit((s0) => unsizeFrame(s0, fid), { flip: true, undo: 'Fitted a section' })
+            return
+          }
+          // a drawing: type in it (a pen line has no text)
+          const s0 = stRef.current
+          if (
+            s0 &&
+            toolRef.current === 'select' &&
+            !t.closest('.cv-fbar,.cv-bar,button,input,textarea')
+          ) {
+            const w0 = world(e.clientX, e.clientY)
+            const mk = markAt(s0, w0.x, w0.y, 6 / vp.get().k)
+            if (mk && !mk.pts && !mk.locked) {
+              setSel(new Set([`m:${mk.id}`]))
+              setMarkEdit(mk.id)
+              return
             }
-            onAlign={(how) => {
-              const ids = selMarkIds()
-              edit((s0) => alignMarks(s0, ids, how), { undo: 'Aligned' })
-            }}
-            onDistribute={(axis) => {
-              const ids = selMarkIds()
-              edit((s0) => distributeMarks(s0, ids, axis), { undo: 'Spaced evenly' })
-            }}
-            onGroup={groupSel}
-            onOrder={(to) => {
-              const ids = selMarkIds()
-              edit((s0) => reorderMarks(s0, ids, to), {
-                undo: to === 'front' ? 'Brought to front' : 'Sent to back'
-              })
-            }}
-            onDuplicate={duplicateSel}
-            onDelete={deleteSelected}
-          />
-        )}
-      </div>
-      {selFrame &&
-        editing !== selFrame.id &&
-        phase === 'open' &&
-        barShut !== sel &&
-        (() => {
-          const v = vp.get()
-          const top = selFrame.y * v.k + v.y
-          const below = top < 64
-          return (
-            <FrameBar
-              frame={selFrame}
-              at={{
-                x: (selFrame.x + selFrame.w / 2) * v.k + v.x,
-                y: below ? Math.max(top, 0) + FRAME_HEAD_PX : top,
-                below
-              }}
-              onColor={onFrameColor}
-              onRename={startRename}
-              onDelete={onFrameDelete}
+          }
+          const link = (t as Element).closest?.('[data-kid]') as HTMLElement | null
+          if (link?.dataset.kid && !t.closest('[data-cid],[data-nid],input')) {
+            setSel(new Set([`k:${link.dataset.kid}`]))
+            setEditing(link.dataset.kid)
+            return
+          }
+          const el = t.closest<HTMLElement>('[data-cid]')
+          if (el && !t.closest('.cv-expand,button')) expand(Number(el.dataset.cid))
+          else if (
+            !el &&
+            toolRef.current === 'select' &&
+            !t.closest(`[data-nid],[data-fhead],${CHROME},button,input,textarea,a`)
+          ) {
+            const r = root.current!.getBoundingClientRect()
+            askNew(e.clientX - r.left, e.clientY - r.top)
+          }
+        }}
+        onContextMenu={(e) => {
+          // text fields (the Ask box, a note, a frame's name) keep the usual cut / copy / paste menu
+          if (isEditable(e.target)) return
+          // the conversation, the preview and the board's own bars are not the board: no board menu there
+          if ((e.target as HTMLElement).closest(CHROME)) return
+          e.preventDefault()
+          if (phaseRef.current === 'open')
+            openContext(e.target as HTMLElement, e.clientX, e.clientY)
+        }}
+      >
+        <div ref={grid} className="cv-grid" aria-hidden="true" />
+        <div ref={layer} className="cv-board">
+          <RemoteCursors people={presence.people} />
+          {s?.frames.map((f) => (
+            <FrameView
+              key={f.id}
+              frame={f}
+              count={counts.get(f.id) ?? 0}
+              selected={sel.has(`f:${f.id}`)}
+              editing={editing === f.id}
+              onFan={fanOut}
             />
-          )
-        })()}
-      {phase !== 'loading' && (
-        <div
-          className={'cv-top' + (expanded ? ' under' : '')}
-          role="toolbar"
-          aria-label="Canvas"
-          inert={!!expanded}
-        >
-          {/* the board is the whole window (no top bar under it): the window's own buttons live here */}
-          {window.api.platform !== 'darwin' && <WindowControls />}
-          {/* the space's name is the board's title: a click lists the spaces, with this one's settings */}
-          <div className="cv-spaces">
-            <BoardSpaces spaces={spaces} activeSpaceId={spaceId} />
-          </div>
-          <ShareButton space={thisSpace} />
-          <PresentingElsewhere spaceId={spaceId} />
-          <LiveShare
-            spaceId={spaceId}
-            shared={!!thisSpace?.shared}
-            people={presence.people}
-            myName={presence.me?.name ?? 'Someone'}
-          />
-          <UndoHistory
-            open={history !== null}
-            onOpen={openHistory}
-            onClose={() => setHistory(null)}
-            steps={history ?? []}
-            onUndo={(i) => {
-              const said = undo(i + 1)
-              if (said) toastNow(i === 0 ? `Undid: ${said}` : `Went back ${i + 1} steps`)
-            }}
-          />
-        </div>
-      )}
-      <Presence>
-        {cmdOpen && (
-          <CommandMenu
-            commands={commands}
-            canAsk={aiAvailable}
-            onAsk={(q) => asker.ask(q)}
-            onFind={(q) => {
-              asker.close()
-              finder.run(q)
-            }}
-            onClose={() => setCmdOpen(false)}
-          />
-        )}
-      </Presence>
-      <div ref={marquee} className="cv-marquee" />
-      <div ref={drawBox} className="cv-draw" />
-      {phase !== 'loading' && (
-        <div ref={ghost} className="cv-ghost" aria-hidden="true">
-          {ghostSrc && <img src={ghostSrc} alt="" draggable={false} />}
-        </div>
-      )}
-      {s && boardIsEmpty(s) && phase === 'open' && (
-        <p className="cv-empty">Nothing here yet. Open a page, or find or ask something below.</p>
-      )}
-      {quick !== null && (
-        <div className="cv-quick" role="search">
-          <SearchGlyph />
-          <input
-            autoFocus
-            value={quick}
-            placeholder="Find a card: title, site or words on the page"
-            aria-label="Find a card on the board"
-            spellCheck={false}
-            onChange={(e) => {
-              setQuick(e.target.value)
-              setQuickAt(0)
-            }}
-            onKeyDown={(e) => {
-              e.stopPropagation() // the board's own keys (tools, delete) stay out of it
-              const n = quickHits.length
-              if (e.key === 'Escape') setQuick(null)
-              else if (e.key === 'Enter' && quickPick !== null) {
-                const id = quickPick
-                setQuick(null)
-                expandRef.current(id)
-              } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') && n) {
-                e.preventDefault()
-                const back = e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)
-                setQuickAt((i) => (Math.min(i, n - 1) + (back ? n - 1 : 1)) % n)
+          ))}
+          {s?.notes.map((n) =>
+            n.widget ? (
+              <WidgetView
+                key={n.id}
+                note={n as typeof n & { widget: Widget }}
+                selected={sel.has(`n:${n.id}`)}
+                onText={onNoteText}
+                onWidget={onWidget}
+              />
+            ) : (
+              <NoteView
+                key={n.id}
+                note={n}
+                selected={sel.has(`n:${n.id}`)}
+                editing={editing === n.id}
+                onText={onNoteText}
+                onEdit={setEditing}
+                onColor={onNoteColor}
+                onSize={onNoteSize}
+                first={editing === n.id ? firstKey : null}
+              />
+            )
+          )}
+          {(() => {
+            const b = splitFrame
+            return b ? (
+              <div
+                className={'cv-splitbox' + (b.inFrame ? ' framed' : '')}
+                data-splitbox=""
+                style={{
+                  transform: `translate(${b.x}px, ${b.y}px)`,
+                  width: b.w,
+                  height: b.h
+                }}
+              >
+                <div className="cv-splithead">
+                  <span data-splithead="" title="Drag to move the split view">
+                    Split view
+                  </span>
+                  <button
+                    type="button"
+                    title="Open the split view: its pages side by side"
+                    aria-label="Open the split view"
+                    onClick={() => expandRef.current(splitIds[0], true)}
+                  >
+                    <ExpandIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="cv-unsplit"
+                    title="Unsplit: the tabs stay open, each on its own"
+                    aria-label="Unsplit"
+                    onClick={() => window.api.unsplit()}
+                  >
+                    <UnsplitIcon />
+                  </button>
+                </div>
+              </div>
+            ) : null
+          })()}
+          {shownCards(s ?? emptyState()).map((c) => {
+            if (!vis.has(c.id)) return null
+            const m = modelFor(c)
+            if (!m) return null
+            const cw = c.w ?? CARD_W
+            const ch = c.h ?? CARD_H
+            return (
+              <CardView
+                key={c.id}
+                m={m}
+                x={c.x}
+                y={c.y}
+                w={cw}
+                h={ch}
+                selected={sel.has(`c:${c.id}`)}
+                fresh={fresh.has(c.id)}
+                hidden={expanded?.id === c.id && expandedCovers}
+                rank={ranks.get(c.id) ?? 0}
+                onClose={onClose}
+                onExpand={onExpand}
+                onPdf={onPdf}
+                onView={onCardView}
+                onLink={onCardLink}
+                onPlace={onPlace}
+                onVideoAspect={onVideoAspect}
+                onStill={onStill}
+                live={
+                  streams.has(c.id) ? Math.max(40, Math.round((cw * zoomPct) / 100 / 40) * 40) : 0
+                }
+                call={calls.has(c.id)}
+              />
+            )
+          })}
+          {s?.frames.map((f) => (
+            <FrameHead
+              key={f.id}
+              frame={f}
+              count={counts.get(f.id) ?? 0}
+              editing={editing === f.id}
+              onRename={onRename}
+              onEdit={startRename}
+            />
+          ))}
+          {s && marksOf(s).length > 0 && (
+            <Marks
+              marks={marksOf(s)}
+              selected={sel}
+              editing={markEdit}
+              onText={onMarkText}
+              onToggle={onMarkToggle}
+              first={firstKey}
+              onFit={onMarkFit}
+            />
+          )}
+          <svg className="cv-marks" aria-hidden="true">
+            <path ref={draft} className="cv-draft" d="" />
+          </svg>
+          {s && (
+            <Connectors
+              ref={conn}
+              state={s}
+              selected={selLinks}
+              editing={editing}
+              fresh={freshLink}
+              handles={tool === 'select' || tool === 'connector'}
+              style={linkStyle}
+              reduced={reduced}
+              onLabel={onLinkLabel}
+              onPatch={onLinkPatch}
+              onEditLabel={setEditing}
+              onDelete={deleteLinks}
+            />
+          )}
+          <svg ref={guides} className="cv-guides" width="1" height="1" overflow="visible" />
+          {/* sections name themselves (their header grows as the board shrinks): the map names only loose groups */}
+          {labels
+            .filter((l) => !l.frame)
+            .map((l) => (
+              <button
+                key={l.key}
+                type="button"
+                className="cv-blabel"
+                title={`Go to ${l.title}`}
+                style={{ transform: `translate(${l.x + l.w / 2}px, ${l.y}px)` }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  const { w, h } = size()
+                  vp.animateTo(fitView(l, w, h - BAR_ROOM, 110, 1), 460)
+                }}
+              >
+                <span className="cv-blabel-in">
+                  <b>{l.title}</b>
+                  <span>{l.count}</span>
+                </span>
+              </button>
+            ))}
+          {selMarkBar && phase === 'open' && (
+            <MarkBar
+              marks={selMarkBar.marks}
+              box={selMarkBar.box}
+              below={selMarkBar.box.y * vp.get().k + vp.get().y < 72}
+              units={selMarkBar.units}
+              onPatch={(p) =>
+                patchSel(
+                  p,
+                  p.locked !== undefined ? (p.locked ? 'Locked' : 'Unlocked') : 'Restyled'
+                )
               }
-            }}
-            onBlur={() => {
-              if (!quick) setQuick(null)
-            }}
-          />
-          <span className="cv-quick-n" aria-live="polite">
-            {quick
-              ? quickHits.length
-                ? `${Math.min(quickAt, quickHits.length - 1) + 1} of ${quickHits.length}`
-                : 'No card has that'
-              : 'One match opens by itself; Enter opens, arrows move'}
-          </span>
-        </div>
-      )}
-      {toast && (
-        <div className="cv-toast" role="status" key={toast.key}>
-          <span>{toast.text}</span>
-          {toast.undo && (
-            <button
-              type="button"
-              onClick={() => {
-                toast.undo?.()
-                setToast(null)
+              onAlign={(how) => {
+                const ids = selMarkIds()
+                edit((s0) => alignMarks(s0, ids, how), { undo: 'Aligned' })
               }}
-            >
-              {toast.label ?? 'Undo'}
-            </button>
+              onDistribute={(axis) => {
+                const ids = selMarkIds()
+                edit((s0) => distributeMarks(s0, ids, axis), { undo: 'Spaced evenly' })
+              }}
+              onGroup={groupSel}
+              onOrder={(to) => {
+                const ids = selMarkIds()
+                edit((s0) => reorderMarks(s0, ids, to), {
+                  undo: to === 'front' ? 'Brought to front' : 'Sent to back'
+                })
+              }}
+              onDuplicate={duplicateSel}
+              onDelete={deleteSelected}
+            />
           )}
         </div>
-      )}
-      {aiOff && !aiOffSeen && !finder.confirm && (
-        <div className="cv-aioff" role="status">
-          <span>AI is off. Tabs still group by site, and the prompt finds by words.</span>
-          <button type="button" onClick={() => seeAiOff(true)}>
-            Not now
-          </button>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => window.api.chatAction('enable-ai')}
+        {selFrame &&
+          editing !== selFrame.id &&
+          phase === 'open' &&
+          barShut !== sel &&
+          (() => {
+            const v = vp.get()
+            const top = selFrame.y * v.k + v.y
+            const below = top < 64
+            return (
+              <FrameBar
+                frame={selFrame}
+                at={{
+                  x: (selFrame.x + selFrame.w / 2) * v.k + v.x,
+                  y: below ? Math.max(top, 0) + FRAME_HEAD_PX : top,
+                  below
+                }}
+                onColor={onFrameColor}
+                onRename={startRename}
+                onDelete={onFrameDelete}
+              />
+            )
+          })()}
+        {phase !== 'loading' && (
+          <div
+            className={'cv-top' + (expanded ? ' under' : '')}
+            role="toolbar"
+            aria-label="Canvas"
+            inert={!!expanded}
           >
-            Turn on AI
-          </button>
-        </div>
-      )}
-      <Presence>
-        {finder.confirm && (
-          <div className="cv-confirm" role="alertdialog" aria-label="Confirm">
-            <span>{finder.confirm.detail}</span>
-            <button type="button" onClick={() => finder.answerConfirm(false)}>
+            {/* the board is the whole window (no top bar under it): the window's own buttons live here */}
+            {window.api.platform !== 'darwin' && <WindowControls />}
+            {/* the space's name is the board's title: a click lists the spaces, with this one's settings */}
+            <div className="cv-spaces">
+              <BoardSpaces spaces={spaces} activeSpaceId={spaceId} />
+            </div>
+            <ShareButton space={thisSpace} />
+            <PresentingElsewhere spaceId={spaceId} />
+            <LiveShare
+              spaceId={spaceId}
+              shared={!!thisSpace?.shared}
+              people={presence.people}
+              myName={presence.me?.name ?? 'Someone'}
+            />
+            <UndoHistory
+              open={history !== null}
+              onOpen={openHistory}
+              onClose={() => setHistory(null)}
+              steps={history ?? []}
+              onUndo={(i) => {
+                const said = undo(i + 1)
+                if (said) toastNow(i === 0 ? `Undid: ${said}` : `Went back ${i + 1} steps`)
+              }}
+            />
+          </div>
+        )}
+        <Presence>
+          {cmdOpen && (
+            <CommandMenu
+              commands={commands}
+              canAsk={aiAvailable}
+              onAsk={(q) => asker.ask(q)}
+              onFind={(q) => {
+                asker.close()
+                finder.run(q)
+              }}
+              onClose={() => setCmdOpen(false)}
+            />
+          )}
+        </Presence>
+        <div ref={marquee} className="cv-marquee" />
+        <div ref={drawBox} className="cv-draw" />
+        {phase !== 'loading' && (
+          <div ref={ghost} className="cv-ghost" aria-hidden="true">
+            {ghostSrc && <img src={ghostSrc} alt="" draggable={false} />}
+          </div>
+        )}
+        {s && boardIsEmpty(s) && phase === 'open' && (
+          <p className="cv-empty">Nothing here yet. Open a page, or find or ask something below.</p>
+        )}
+        {quick !== null && (
+          <div className="cv-quick" role="search">
+            <SearchGlyph />
+            <input
+              autoFocus
+              value={quick}
+              placeholder="Find a card: title, site or words on the page"
+              aria-label="Find a card on the board"
+              spellCheck={false}
+              onChange={(e) => {
+                setQuick(e.target.value)
+                setQuickAt(0)
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation() // the board's own keys (tools, delete) stay out of it
+                const n = quickHits.length
+                if (e.key === 'Escape') setQuick(null)
+                else if (e.key === 'Enter' && quickPick !== null) {
+                  const id = quickPick
+                  setQuick(null)
+                  expandRef.current(id)
+                } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') && n) {
+                  e.preventDefault()
+                  const back = e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)
+                  setQuickAt((i) => (Math.min(i, n - 1) + (back ? n - 1 : 1)) % n)
+                }
+              }}
+              onBlur={() => {
+                if (!quick) setQuick(null)
+              }}
+            />
+            <span className="cv-quick-n" aria-live="polite">
+              {quick
+                ? quickHits.length
+                  ? `${Math.min(quickAt, quickHits.length - 1) + 1} of ${quickHits.length}`
+                  : 'No card has that'
+                : 'One match opens by itself; Enter opens, arrows move'}
+            </span>
+          </div>
+        )}
+        {toast && (
+          <div className="cv-toast" role="status" key={toast.key}>
+            <span>{toast.text}</span>
+            {toast.undo && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.undo?.()
+                  setToast(null)
+                }}
+              >
+                {toast.label ?? 'Undo'}
+              </button>
+            )}
+          </div>
+        )}
+        {aiOff && !aiOffSeen && !finder.confirm && (
+          <div className="cv-aioff" role="status">
+            <span>AI is off. Tabs still group by site, and the prompt finds by words.</span>
+            <button type="button" onClick={() => seeAiOff(true)}>
               Not now
             </button>
-            <button type="button" className="primary" onClick={() => finder.answerConfirm(true)}>
-              Allow
+            <button
+              type="button"
+              className="primary"
+              onClick={() => window.api.chatAction('enable-ai')}
+            >
+              Turn on AI
             </button>
           </div>
         )}
-      </Presence>
-      {expanded && (
-        <Expanded
-          key={expanded.id}
-          swapped={expanded.swap !== undefined}
-          startLive={expanded.live}
-          onLive={onPreviewLive}
-          onAsk={aiAvailable ? askInDock : undefined}
-          m={modelFor({ id: expanded.id }) ?? EMPTY_MODEL}
-          from={expanded.from}
-          stage={asker.open ? { w: Math.max(320, stage.w - dockShown), h: stage.h } : stage}
-          tab={isVirtual(expanded.id) ? st?.items[String(expanded.id)]?.tab : expanded.id}
-          page={byId.get(
-            (isVirtual(expanded.id) ? st?.items[String(expanded.id)]?.tab : expanded.id) ?? -1
-          )}
-          url={st?.items[String(expanded.id)]?.url ?? byId.get(expanded.id)?.url}
-          file={st?.items[String(expanded.id)]?.file}
-          reduced={reduced}
-          answerLinks={(href) => finder.openLink(href)}
-          cardBox={() => {
-            const c = stRef.current?.cards.find((x) => x.id === expanded.id)
-            if (!c) return null
-            const v = vp.get()
-            const b = cardBox(c)
-            return { x: b.x * v.k + v.x, y: b.y * v.k + v.y, w: b.w * v.k, h: b.h * v.k }
-          }}
-          split={
-            splitIds.includes(expanded.id)
-              ? splitIds.map((id) => ({ tab: id, snap: thumbs[id] }))
-              : undefined
-          }
-          layout={layout}
-          allTabs={tabs}
-          thumbs={thumbs}
-          onCover={setExpandedCovers}
-          onClose={() => {
-            setExpandedCovers(false)
-            setExpanded(null)
-            // data-closing stays: taken off here (by hand, at once) while .covered went only with the next render,
-            // one frame had the board covered and not closing, hidden: a black flash as the preview closed. The next
-            // preview takes it off as it opens (Expanded), and without .covered it does nothing.
-          }}
-          onBack={() => {
-            // Ctrl+W on the preview's page: the preview stays, on the tab used just before it here (the strip's
-            // next, newest first), as going back does; the page it was opened from when there is none
-            const s0 = stRef.current
-            const before = strip.find((id) => id !== expanded.id && byId.has(id))
-            const to = before ?? (s0 ? openerOf(s0, expanded.id) : null)
-            if (to === null || to === undefined) return false
-            switchPreview(to, true)
-            return true
-          }}
-          onTab={(tabId) => {
-            const it = st?.items[String(expanded.id)]
-            if (it) edit((s0) => setItem(s0, expanded.id, { ...it, tab: tabId }))
-          }}
-          onText={(text) => {
-            const it = st?.items[String(expanded.id)]
-            if (it) edit((s0) => setItem(s0, expanded.id, { ...it, text }))
-          }}
-          onStep={(dir) => stepExpanded(dir)}
-          recent={previewRow.flatMap((id) => modelFor({ id }) ?? [])}
-          swapFrom={expanded.swap}
-          onSwitch={(id) => switchPreview(id, true)}
-          island={{ items: island, spaces: spaces ?? [], activeSpaceId: spaceId }}
-          onPlaying={goPlaying}
-          peeks={peeks}
-          waiting={waiting}
-          onOpenTab={openWaiting}
-          swipe={previewSwipe}
-          bar={previewBar}
-        />
-      )}
-      {ctx && (
-        <ContextMenu
-          x={ctx.x}
-          y={ctx.y}
-          title={ctx.title}
-          items={ctx.items}
-          avoid={
-            asker.open
-              ? [{ x: Math.max(0, stage.w - dockShown), y: 0, w: dockShown, h: stage.h }]
-              : []
-          }
-          onPick={ctx.onPick}
-          onClose={closeContext}
-        />
-      )}
-      <FileDrop spaceId={spaceId} shared={!!thisSpace?.shared} onChat={openChat} />
-      <SpaceChat
-        spaceId={spaceId}
-        shared={!!thisSpace?.shared}
-        open={chatOpen}
-        onOpen={openChat}
-        onClose={() => setChatOpen(false)}
-        onResize={resizeDock}
-      />
-      <AskDock
-        ask={asker}
-        enabled={aiAvailable}
-        busy={asker.streaming || finder.busy || busy}
-        onShow={askInDock}
-        onSubmit={onPrompt}
-        mentionable={allTabs
-          .filter((t) => !t.private && !t.tor && /^(https?|file):/i.test(t.url))
-          .map((t) => ({ tab: t.id, title: t.aiTitle ?? t.title ?? t.url }))}
-        titles={allTabs
-          .filter((t) => !t.private && !t.tor && t.url)
-          .map((t) => t.aiTitle ?? t.title)}
-        onOpen={openSource}
-        onAdd={addToCanvas}
-        onExample={(q) => asker.ask(q)}
-        onResize={resizeDock}
-        inputRef={dockInput}
-        confirm={toolConfirm}
-        canUndo={undoDepth > 0}
-        onUndo={() => {
-          const said = undo()
-          toastNow(said ? `Undid: ${said}` : 'Nothing to undo')
-        }}
-      />
-      {/* the tab strip, top centre (as in the preview's header): what plays, the tabs used last, what is new */}
-      {/* the bell beside it, on its own: always there, so the row never changes its shape when something comes in */}
-      {phase === 'open' && !expanded && quick === null && (
-        <div className="cv-strip-row" ref={stripWidth}>
-          {(island.length > 0 || boardRow.length > 0) && (
-            <div className="cv-strip board" role="toolbar" aria-label="Recent tabs">
-              <NowPlaying
-                items={island}
-                spaces={spaces ?? []}
-                activeSpaceId={spaceId}
-                onGo={goPlaying}
-              />
-              {boardRow.length > 0 && (
-                <div className="cv-recent" role="tablist" aria-label="Recent tabs">
-                  {boardRow
-                    .flatMap((id) => modelFor({ id }) ?? [])
-                    .map((r) => (
-                      <StripTab
-                        key={r.id}
-                        m={r}
-                        on={false}
-                        peek={peeks.get(r.id)}
-                        onPick={openWaiting}
-                      />
-                    ))}
-                </div>
-              )}
+        <Presence>
+          {finder.confirm && (
+            <div className="cv-confirm" role="alertdialog" aria-label="Confirm">
+              <span>{finder.confirm.detail}</span>
+              <button type="button" onClick={() => finder.answerConfirm(false)}>
+                Not now
+              </button>
+              <button type="button" className="primary" onClick={() => finder.answerConfirm(true)}>
+                Allow
+              </button>
             </div>
           )}
-          <div className="cv-strip-bellbox">
-            <StripInbox
-              waiting={waiting}
-              open={boardInbox}
-              onOpen={() => setBoardInbox(true)}
-              onClose={() => setBoardInbox(false)}
-              onPick={(id) => {
-                setBoardInbox(false)
-                openWaiting(id)
-              }}
-            />
+        </Presence>
+        {expanded && (
+          <Expanded
+            key={expanded.id}
+            swapped={expanded.swap !== undefined}
+            startLive={expanded.live}
+            onLive={onPreviewLive}
+            onAsk={aiAvailable ? askInDock : undefined}
+            m={modelFor({ id: expanded.id }) ?? EMPTY_MODEL}
+            from={expanded.from}
+            stage={asker.open ? { w: Math.max(320, stage.w - dockShown), h: stage.h } : stage}
+            tab={isVirtual(expanded.id) ? st?.items[String(expanded.id)]?.tab : expanded.id}
+            page={byId.get(
+              (isVirtual(expanded.id) ? st?.items[String(expanded.id)]?.tab : expanded.id) ?? -1
+            )}
+            url={st?.items[String(expanded.id)]?.url ?? byId.get(expanded.id)?.url}
+            file={st?.items[String(expanded.id)]?.file}
+            reduced={reduced}
+            answerLinks={(href) => finder.openLink(href)}
+            cardBox={() => {
+              const c = stRef.current?.cards.find((x) => x.id === expanded.id)
+              if (!c) return null
+              const v = vp.get()
+              const b = cardBox(c)
+              return { x: b.x * v.k + v.x, y: b.y * v.k + v.y, w: b.w * v.k, h: b.h * v.k }
+            }}
+            split={
+              splitIds.includes(expanded.id)
+                ? splitIds.map((id) => ({ tab: id, snap: thumbs[id] }))
+                : undefined
+            }
+            layout={layout}
+            allTabs={tabs}
+            thumbs={thumbs}
+            onCover={setExpandedCovers}
+            onClose={() => {
+              setExpandedCovers(false)
+              setExpanded(null)
+              // data-closing stays: taken off here (by hand, at once) while .covered went only with the next render,
+              // one frame had the board covered and not closing, hidden: a black flash as the preview closed. The next
+              // preview takes it off as it opens (Expanded), and without .covered it does nothing.
+            }}
+            onBack={() => {
+              // Ctrl+W on the preview's page: the preview stays, on the tab used just before it here (the strip's
+              // next, newest first), as going back does; the page it was opened from when there is none
+              const s0 = stRef.current
+              const before = strip.find((id) => id !== expanded.id && byId.has(id))
+              const to = before ?? (s0 ? openerOf(s0, expanded.id) : null)
+              if (to === null || to === undefined) return false
+              switchPreview(to, true)
+              return true
+            }}
+            onTab={(tabId) => {
+              const it = st?.items[String(expanded.id)]
+              if (it) edit((s0) => setItem(s0, expanded.id, { ...it, tab: tabId }))
+            }}
+            onText={(text) => {
+              const it = st?.items[String(expanded.id)]
+              if (it) edit((s0) => setItem(s0, expanded.id, { ...it, text }))
+            }}
+            onStep={(dir) => stepExpanded(dir)}
+            recent={previewRow.flatMap((id) => modelFor({ id }) ?? [])}
+            swapFrom={expanded.swap}
+            onSwitch={(id) => switchPreview(id, true)}
+            island={{ items: island, spaces: spaces ?? [], activeSpaceId: spaceId }}
+            onPlaying={goPlaying}
+            peeks={peeks}
+            waiting={waiting}
+            onOpenTab={openWaiting}
+            swipe={previewSwipe}
+            bar={previewBar}
+          />
+        )}
+        {ctx && (
+          <ContextMenu
+            x={ctx.x}
+            y={ctx.y}
+            title={ctx.title}
+            items={ctx.items}
+            avoid={
+              asker.open
+                ? [{ x: Math.max(0, stage.w - dockShown), y: 0, w: dockShown, h: stage.h }]
+                : []
+            }
+            onPick={ctx.onPick}
+            onClose={closeContext}
+          />
+        )}
+        <FileDrop spaceId={spaceId} shared={!!thisSpace?.shared} onChat={openChat} />
+        <SpaceChat
+          spaceId={spaceId}
+          shared={!!thisSpace?.shared}
+          open={chatOpen}
+          onOpen={openChat}
+          onClose={() => setChatOpen(false)}
+          onResize={resizeDock}
+        />
+        <AskDock
+          ask={asker}
+          enabled={aiAvailable}
+          busy={asker.streaming || finder.busy || busy}
+          onShow={askInDock}
+          onSubmit={onPrompt}
+          mentionable={allTabs
+            .filter((t) => !t.private && !t.tor && /^(https?|file):/i.test(t.url))
+            .map((t) => ({ tab: t.id, title: t.aiTitle ?? t.title ?? t.url }))}
+          titles={allTabs
+            .filter((t) => !t.private && !t.tor && t.url)
+            .map((t) => t.aiTitle ?? t.title)}
+          onOpen={openSource}
+          onAdd={addToCanvas}
+          onExample={(q) => asker.ask(q)}
+          onResize={resizeDock}
+          inputRef={dockInput}
+          confirm={toolConfirm}
+          canUndo={undoDepth > 0}
+          onUndo={() => {
+            const said = undo()
+            toastNow(said ? `Undid: ${said}` : 'Nothing to undo')
+          }}
+        />
+        {/* the tab strip, top centre (as in the preview's header): what plays, the tabs used last, what is new */}
+        {/* the bell beside it, on its own: always there, so the row never changes its shape when something comes in */}
+        {phase === 'open' && !expanded && quick === null && (
+          <div className="cv-strip-row" ref={stripWidth}>
+            {(island.length > 0 || boardRow.length > 0) && (
+              <div className="cv-strip board" role="toolbar" aria-label="Recent tabs">
+                <NowPlaying
+                  items={island}
+                  spaces={spaces ?? []}
+                  activeSpaceId={spaceId}
+                  onGo={goPlaying}
+                />
+                {boardRow.length > 0 && (
+                  <div className="cv-recent" role="tablist" aria-label="Recent tabs">
+                    {boardRow
+                      .flatMap((id) => modelFor({ id }) ?? [])
+                      .map((r) => (
+                        <StripTab
+                          key={r.id}
+                          m={r}
+                          on={false}
+                          peek={peeks.get(r.id)}
+                          onPick={openWaiting}
+                        />
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="cv-strip-bellbox">
+              <StripInbox
+                waiting={waiting}
+                open={boardInbox}
+                onOpen={() => setBoardInbox(true)}
+                onClose={() => setBoardInbox(false)}
+                onPick={(id) => {
+                  setBoardInbox(false)
+                  openWaiting(id)
+                }}
+              />
+            </div>
           </div>
-        </div>
-      )}
-      <AiGlow level={busy ? 2 : naming > 0 ? 1 : 0} />
-      <Toolbar
-        tool={tool}
-        zoom={zoomPct}
-        zoomRef={zoomText}
-        busy={busy}
-        finding={finder.busy || asker.streaming}
-        asking={asker.open}
-        showPrompt={!aiAvailable}
-        promptRef={promptRef}
-        shapeKind={shapeKind}
-        onShapeKind={setShapeKind}
-        onBlock={addBlockAt}
-        onWidget={(k) => {
-          const v = vp.get()
-          placeWidget(k, { x: (size().w / 2 - v.x) / v.k, y: (size().h * 0.42 - v.y) / v.k })
-        }}
-        mentionable={allTabs
-          .filter((t) => !t.private && !t.tor && /^(https?|file):/i.test(t.url))
-          .map((t) => ({ tab: t.id, title: t.aiTitle ?? t.title ?? t.url }))}
-        onMention={asker.mention}
-        onPrompt={onPrompt}
-        onTool={setToolBoth}
-        onTidy={() => void runTidy(true)}
-        ai={aiAvailable}
-        onSettings={() => window.api.openInternal('settings')}
-        onFit={fitAll}
-      />
-    </div>
+        )}
+        <AiGlow level={busy ? 2 : naming > 0 ? 1 : 0} />
+        <Toolbar
+          tool={tool}
+          zoom={zoomPct}
+          zoomRef={zoomText}
+          busy={busy}
+          finding={finder.busy || asker.streaming}
+          asking={asker.open}
+          showPrompt={!aiAvailable}
+          promptRef={promptRef}
+          shapeKind={shapeKind}
+          onShapeKind={setShapeKind}
+          onBlock={addBlockAt}
+          onWidget={(k) => {
+            const v = vp.get()
+            placeWidget(k, { x: (size().w / 2 - v.x) / v.k, y: (size().h * 0.42 - v.y) / v.k })
+          }}
+          mentionable={allTabs
+            .filter((t) => !t.private && !t.tor && /^(https?|file):/i.test(t.url))
+            .map((t) => ({ tab: t.id, title: t.aiTitle ?? t.title ?? t.url }))}
+          onMention={asker.mention}
+          onPrompt={onPrompt}
+          onTool={setToolBoth}
+          onTidy={() => void runTidy(true)}
+          ai={aiAvailable}
+          onSettings={() => window.api.openInternal('settings')}
+          onFit={fitAll}
+        />
+      </div>
+    </ShareMenuContext.Provider>
   )
 }
 
