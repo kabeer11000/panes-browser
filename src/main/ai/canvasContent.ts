@@ -10,11 +10,32 @@ import {
   type CanvasReaderBlock,
   type CanvasReaderDoc
 } from '@shared/ai/canvasItems'
+import { INERT_FILE } from '@shared/share/doc'
 import type { DownloadManager } from '../downloads'
 import type { TabManager } from '../tabs'
 
 /** The most a PDF or picture fetched for a card may weigh. */
 export const BYTES_MAX = 60 * 1024 * 1024
+/** What a file from a shared room is served as (serveShared): pages as pages, text as text; any other kind downloads. */
+const SHARED_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.htm': 'text/html; charset=utf-8',
+  '.xhtml': 'application/xhtml+xml',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/plain; charset=utf-8',
+  '.log': 'text/plain; charset=utf-8',
+  '.csv': 'text/plain; charset=utf-8',
+  '.json': 'text/plain; charset=utf-8',
+  '.xml': 'text/plain; charset=utf-8',
+  '.css': 'text/plain; charset=utf-8',
+  '.js': 'text/plain; charset=utf-8',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg'
+}
 const CACHE_MAX = 300
 const SCRIPT_MS = 2500
 const LOAD_MS = 12_000
@@ -194,6 +215,10 @@ export class CanvasContent {
   private storeDir(): string {
     return join(app.getPath('userData'), 'canvas-files')
   }
+  /** Where files that came from a shared space's room are kept: someone else's, so never opened as a file: page. */
+  private sharedDir(): string {
+    return join(this.storeDir(), 'shared')
+  }
 
   /**
    * Keep a copy of a file dropped (a path from the person's own drag) or pasted (its bytes) onto the board, so its
@@ -203,6 +228,8 @@ export class CanvasContent {
     path?: string
     name?: string
     data?: Uint8Array
+    /** From a shared space's room (main/share.ts): kept apart, see sharedDir. */
+    shared?: boolean
   }): Promise<{ file: string; name: string } | null> {
     try {
       let data: Uint8Array
@@ -219,8 +246,9 @@ export class CanvasContent {
       const ext = extname(name).toLowerCase()
       const safe = /^\.[a-z0-9]{1,8}$/.test(ext) ? ext : ''
       const hash = createHash('sha256').update(data).digest('hex').slice(0, 24)
-      const file = join(this.storeDir(), hash + safe)
-      await mkdir(this.storeDir(), { recursive: true })
+      const dir = req.shared === true ? this.sharedDir() : this.storeDir()
+      const file = join(dir, hash + safe)
+      await mkdir(dir, { recursive: true })
       await stat(file).catch(() => writeFile(file, data))
       return { file, name: name.slice(0, 200) }
     } catch {
@@ -232,6 +260,7 @@ export class CanvasContent {
   private allowedFile(path: string): string | null {
     const want = resolve(path).toLowerCase()
     if (dirname(want) === resolve(this.storeDir()).toLowerCase()) return resolve(path)
+    if (dirname(want) === resolve(this.sharedDir()).toLowerCase()) return resolve(path)
     for (const d of this.d.downloads.list()) {
       if (d.state === 'completed' && resolve(d.savePath).toLowerCase() === want) return d.savePath
     }
@@ -253,12 +282,47 @@ export class CanvasContent {
    * web PDF does): only the files a card may read at all (see allowedFile), never any path on the disk.
    */
   mayOpen(url: string): boolean {
+    if (/^panes-shared:\/\/f\//i.test(url)) return true // served sandboxed (serveShared)
     if (!/^file:/i.test(url)) return false
     try {
-      return this.allowedFile(fileURLToPath(url)) !== null
+      const path = this.allowedFile(fileURLToPath(url))
+      // someone else's file opens as a file: page only when it cannot run anything (a picture or PDF)
+      if (path && dirname(resolve(path)).toLowerCase() === resolve(this.sharedDir()).toLowerCase())
+        return INERT_FILE.test(extname(path).toLowerCase())
+      return path !== null
     } catch {
       return false
     }
+  }
+
+  /**
+   * panes-shared://f/<name>, a file that came from a shared space's room (see sharedOpenUrl), for the tabs' session. Its
+   * page is sandboxed by its own CSP: a unique origin (no cookies or storage of any site, none of this computer's
+   * files, nothing of Panes), scripts and forms still working as on the sharer's computer. A kind with no page of its
+   * own goes as a download.
+   */
+  async serveShared(url: string): Promise<Response> {
+    let name = ''
+    try {
+      name = decodeURIComponent(url.slice('panes-shared://f/'.length))
+    } catch {
+      // not well-formed: refused below
+    }
+    const m = /^[0-9a-f]{24}(\.[a-z0-9]{1,8})$/.exec(name)
+    if (!m) return new Response('Not found', { status: 404 })
+    const data = await readFile(join(this.sharedDir(), name)).catch(() => null)
+    if (!data) return new Response('Not found', { status: 404 })
+    const type = SHARED_TYPES[m[1]]
+    return new Response(new Uint8Array(data), {
+      headers: {
+        'Content-Type': type ?? 'application/octet-stream',
+        ...(type ? {} : { 'Content-Disposition': `attachment; filename="shared${m[1]}"` }),
+        'Content-Security-Policy':
+          'sandbox allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads',
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'no-store'
+      }
+    })
   }
 
   /** The bytes of a PDF or picture (a web address, or a finished download), for pdf.js and for local pictures. */

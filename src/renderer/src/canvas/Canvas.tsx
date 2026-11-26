@@ -3775,6 +3775,7 @@ export function Canvas({
   // ---- what each card shows ----
   const modelFor = (card: {
     id: number
+    url?: string
     shared?: boolean
     sharedSite?: string
   }): CardModel | null => {
@@ -3788,7 +3789,9 @@ export function Canvas({
       : byId.get(card.id)
     if (!virtual && !tab) return null
     // someone else's tab they are showing live now
-    const liveHost = isMirror(card.id) ? liveHosts.get(samePage(item?.url ?? '')) : undefined
+    const liveHost = isMirror(card.id)
+      ? liveHosts.get(samePage(card.url ?? item?.url ?? ''))
+      : undefined
     const base = {
       id: card.id,
       tor: false,
@@ -5433,6 +5436,8 @@ export function Canvas({
       const url = item?.url ?? tab?.url ?? ''
       const priv = !!(tab && (tab.private || tab.tor))
       const web = /^https?:/i.test(url)
+      // a tab or a file of this computer's can go to a shared space too: live, or as its file (shared/share/doc.ts)
+      const sharable = m.isTab && !priv && (web || /^file:/i.test(url))
       const canLive =
         (m.kind === 'page' || m.kind === 'video' || m.kind === 'pdf') && (!!tab || web)
       const media = m.isTab && (m.audible || m.muted || m.kind === 'video')
@@ -5457,14 +5462,9 @@ export function Canvas({
           sections,
           split: splitRef.current.includes(id),
           ai: aiAvailable,
-          live:
-            thisSpace?.shared && m.isTab && web && !priv
-              ? liveTab === id
-                ? 'stop'
-                : 'start'
-              : undefined,
+          live: thisSpace?.shared && sharable ? (liveTab === id ? 'stop' : 'start') : undefined,
           share:
-            thisSpace?.shared && ((m.isTab && web && !priv) || canShareFile(item))
+            thisSpace?.shared && (sharable || canShareFile(item))
               ? card?.shared
                 ? sharingPaused(card, url)
                   ? 'paused'

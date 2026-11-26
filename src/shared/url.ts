@@ -1,5 +1,5 @@
 const DEFAULT_SEARCH = 'https://duckduckgo.com/?q='
-const ALLOWED_SCHEMES = new Set(['http', 'https', 'file', 'panes'])
+const ALLOWED_SCHEMES = new Set(['http', 'https', 'file', 'panes', 'panes-shared'])
 const LOCAL = /^(localhost|\d{1,3}(\.\d{1,3}){3})(:\d+)?([/?#]|$)/i
 const DOMAIN = /^[^\s/?#:@]+\.[a-z]{2,}(:\d+)?([/?#]|$)/i
 

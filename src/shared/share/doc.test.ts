@@ -5,6 +5,9 @@ import type { CanvasItem } from '../ai/canvasItems'
 import {
   canShareFile,
   idBlock,
+  maskFileUrl,
+  pathOfFileUrl,
+  sharedOpenUrl,
   isEmptyDoc,
   parseSealed,
   readInto,
@@ -249,13 +252,13 @@ describe('files of this computer on a shared board', () => {
     expect(readInto(b, emptyState('x'), 'ben').cards).toHaveLength(0)
   })
 
-  test('parseSealed takes store ids and a picture or PDF extension only', () => {
+  test('parseSealed takes store ids and a short lower-case extension only', () => {
     expect(parseSealed(SEALED)).toEqual({ ids: ['AAAAAAAAAAAA', 'BBBBBBBBBBBB'], ext: '.png' })
     expect(parseSealed('AAAAAAAAAAAA/.pdf')?.ext).toBe('.pdf')
     for (const bad of [
-      'AAAAAAAAAAAA/.svg',
-      'AAAAAAAAAAAA/.html',
-      'AAAAAAAAAAAA/.exe',
+      'AAAAAAAAAAAA/.HTML',
+      'AAAAAAAAAAAA/.toolongext',
+      'AAAAAAAAAAAA/.ht ml',
       '../../x/.png',
       'short/.png',
       'AAAAAAAAAAAA/..png',
@@ -264,10 +267,85 @@ describe('files of this computer on a shared board', () => {
       expect(parseSealed(bad)).toBeNull()
   })
 
-  test('canShareFile: own pictures and PDFs only', () => {
+  test('canShareFile: own files of any kind with an extension, never a web address or a copy from the room', () => {
     expect(canShareFile(pic)).toBe(true)
-    expect(canShareFile({ ...pic, file: 'C:/a/b.svg' })).toBe(false)
+    expect(canShareFile({ ...pic, file: 'C:/a/b.svg' })).toBe(true)
+    expect(canShareFile({ ...pic, file: 'C:/a/page.html' })).toBe(true)
+    expect(canShareFile({ ...pic, file: 'C:/a/README' })).toBe(false)
     expect(canShareFile({ ...pic, sealed: SEALED })).toBe(false)
     expect(canShareFile(item('https://x.example/a.png'))).toBe(false)
+    // a download's card: its file: address names the file
+    expect(canShareFile(item('file:///C:/Users/ana/Downloads/report%201.html'))).toBe(true)
+  })
+
+  test('a download card shared goes sealed, never as its path', () => {
+    const [a, b] = pair()
+    const dl = { ...item('file:///C:/Users/ana/Downloads/report.html'), title: 'report.html' }
+    const s = {
+      ...emptyState('a'),
+      cards: [{ ...card(-9, dl.url), shared: true }],
+      items: { '-9': dl }
+    }
+    let asked = ''
+    writeDiff(a, null, s, undefined, {
+      ...out('AAAAAAAAAAAA/.html'),
+      files: (f: string) => ((asked = f), 'AAAAAAAAAAAA/.html')
+    })
+    expect(asked).toBe('C:/Users/ana/Downloads/report.html')
+    const room = JSON.stringify(a.getMap('cards').toJSON())
+    expect(room).not.toContain('Users')
+    expect(room).not.toContain('report') // nor its name
+    // not shared: nothing goes
+    const [c] = pair()
+    writeDiff(
+      c,
+      null,
+      { ...s, cards: [{ ...card(-9, dl.url), shared: false }] },
+      undefined,
+      out('x')
+    )
+    expect(c.getMap('cards').size).toBe(0)
+    // the other opens their own copy, sandboxed (a page), at panes-shared
+    const seen = readInto(
+      b,
+      emptyState('x'),
+      'ben',
+      undefined,
+      () => 'D:/ben/canvas-files/shared/0123456789abcdef01234567.html'
+    )
+    expect(seen.items['-9'].url).toBe('panes-shared://f/0123456789abcdef01234567.html')
+  })
+
+  test('a path never comes from the room: a file: address or a file on an unsealed card is dropped', () => {
+    const [a, b] = pair()
+    const evil: CanvasItem = {
+      kind: 'page',
+      url: 'file:///C:/Windows/win.ini',
+      title: 'x',
+      site: '',
+      file: 'C:/Windows/win.ini'
+    }
+    // written straight into the document, as a hostile peer could
+    a.getMap('cards').set('-5', { v: { card: card(-5, evil.url), item: evil }, o: 0 })
+    const seen = readInto(b, emptyState('x'), 'ben')
+    expect(seen.items['-5'].url).toBe('')
+    expect(seen.items['-5'].file).toBeUndefined()
+  })
+
+  test('file addresses: the path, the name only for the others, and where a copy from the room opens', () => {
+    expect(pathOfFileUrl('file:///C:/Users/ana/My%20Docs/a.html')).toBe(
+      'C:/Users/ana/My Docs/a.html'
+    )
+    expect(pathOfFileUrl('file:///home/ana/a.html')).toBe('/home/ana/a.html')
+    expect(pathOfFileUrl('https://x.example/a.html')).toBeNull()
+    expect(maskFileUrl('file:///C:/Users/ana/My%20Docs/a%20b.html', 'ana:7')).toBe(
+      'file:///ana%3A7.html'
+    )
+    expect(maskFileUrl('file:///C:/Users/ana/notes', 'ana:7')).toBe('file:///ana%3A7')
+    expect(maskFileUrl('https://x.example/', 'ana:7')).toBe('https://x.example/')
+    expect(sharedOpenUrl('D:/x/shared/abc.pdf')).toBe('file:///D:/x/shared/abc.pdf')
+    expect(sharedOpenUrl('D:\\x\\shared\\abc.PNG')).toMatch(/^file:/)
+    for (const f of ['D:/x/shared/abc.html', 'D:/x/shared/abc.svg', 'D:/x/shared/abc.txt'])
+      expect(sharedOpenUrl(f)).toMatch(/^panes-shared:\/\/f\/abc\./)
   })
 })

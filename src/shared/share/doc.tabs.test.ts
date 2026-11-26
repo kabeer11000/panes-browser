@@ -329,3 +329,50 @@ test('sharingPaused', () => {
     false
   )
 })
+
+describe('tabs on files of this computer', () => {
+  const FILE = 'file:///C:/Users/ana/site/secret-plan.html'
+  test('shared: it goes once its file is in the room, by name only, and opens as the copy for the other', () => {
+    const [a, b] = pair()
+    const mine = withCards([card(7, FILE)])
+    let sealed: string | null = null
+    const tabs = (): Parameters<typeof writeDiff>[4] => ({
+      by: 'ana',
+      title: titles,
+      files: () => sealed
+    })
+    writeDiff(a, null, mine, undefined, tabs())
+    expect(a.getMap('tabs').size).toBe(0) // on its way
+    sealed = 'AAAAAAAAAAAA/.html'
+    writeDiff(a, mine, mine, undefined, tabs())
+    expect(JSON.stringify(a.getMap('tabs').toJSON())).not.toMatch(/Users|secret|Tab 7/)
+    const copy = 'D:/ben/canvas-files/shared/0123456789abcdef01234567.html'
+    const seen = readInto(b, emptyState('x'), 'ben', undefined, (s) =>
+      s === sealed ? copy : undefined
+    )
+    expect(seen.cards[0].url).toBe('file:///ana%3A7.html')
+    expect(seen.items[String(seen.cards[0].id)]).toMatchObject({
+      url: 'panes-shared://f/0123456789abcdef01234567.html',
+      file: copy
+    })
+  })
+
+  test('shown live (not shared): its card goes by name only, with nothing to open', () => {
+    const [a, b] = pair()
+    const mine = withCards([card(7, FILE, 0, { shared: false })])
+    writeDiff(a, null, mine, undefined, { by: 'ana', title: titles, live: 7 })
+    expect(JSON.stringify(a.getMap('tabs').toJSON())).not.toMatch(/Users|secret|Tab 7/)
+    const seen = readInto(b, emptyState('x'), 'ben')
+    expect(seen.cards[0].url).toBe('file:///ana%3A7.html')
+    expect(seen.items[String(seen.cards[0].id)].url).toBe('')
+  })
+
+  test('neither shared nor live: it stays home', () => {
+    const [a] = pair()
+    writeDiff(a, null, withCards([card(7, FILE, 0, { shared: false })]), undefined, {
+      by: 'ana',
+      title: titles
+    })
+    expect(a.getMap('tabs').size).toBe(0)
+  })
+})

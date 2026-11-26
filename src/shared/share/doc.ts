@@ -87,36 +87,96 @@ export interface TabMirror {
   by: string
   /** Its picture in the room's store (sealed), when the owner has sent one. */
   pic?: string
+  /** A tab on a file of its owner's computer, shared: the file, sealed into the room's store (see sealedFor). */
+  sealed?: string
 }
 
 const isShared = (c: CanvasCard): boolean => c.id < 0 && !isMirror(c.id)
 
 /**
- * A card holding a file of this person's own computer (a picture or PDF dropped on the board): it stays here until
- * they share it, and then goes as its file sealed into the room's store (`sealed`), never as a path. One that came
- * from the room (`sealed` set) is a shared card like any other.
+ * A card holding a file of this person's own computer (a picture or PDF dropped on the board, a download): it stays
+ * here until they share it, and then goes as its file sealed into the room's store (`sealed`), never as a path. One
+ * that came from the room (`sealed` set) is a shared card like any other.
  */
-export const isOwnFile = (item: CanvasItem | undefined): boolean => !!item?.file && !item.sealed
-/** An own file that can be shared (a picture or PDF; the size is checked as it goes). */
+export function ownFile(item: CanvasItem | undefined): string | null {
+  if (!item || item.sealed) return null
+  return item.file ?? pathOfFileUrl(item.url)
+}
+export const isOwnFile = (item: CanvasItem | undefined): boolean => ownFile(item) !== null
+/** An own file that can be shared (any kind with an extension; the size is checked as it goes). */
 export const canShareFile = (item: CanvasItem | undefined): boolean =>
-  !!item?.file && !item.sealed && SHAREABLE_FILE.test(extOf(item.file))
+  SHAREABLE_FILE.test(extOf(ownFile(item) ?? ''))
 /** A path's extension with its dot, lower case ('' when none). */
 const extOf = (path: string): string => {
-  const name = path.split(/[\\/]/).pop() ?? ''
+  const name = nameOf(path)
   const i = name.lastIndexOf('.')
   return i > 0 ? name.slice(i).toLowerCase() : ''
 }
+const nameOf = (path: string): string => path.split(/[\\/]/).pop() ?? ''
 
-/** Kinds of file that go to the others, and the extensions they may come back with. */
-export const SHAREABLE_FILE = /^\.(png|jpe?g|gif|webp|avif|bmp|pdf)$/
+/** The path a file: address names (null for any other address). */
+export function pathOfFileUrl(url: string | undefined): string | null {
+  if (!url || !/^file:\/\//i.test(url)) return null
+  try {
+    const p = decodeURIComponent(new URL(url).pathname)
+    return /^\/[A-Za-z]:/.test(p) ? p.slice(1) : p
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A local file's address as the others are told it (a tab on a file of this computer, shown live or shared): neither
+ * its folders (a Windows path holds the person's name) nor its name, only its kind, under `key` (owner and tab, so two
+ * such tabs stay two). Any other address is returned as it is.
+ */
+export function maskFileUrl(url: string, key: string): string {
+  const path = pathOfFileUrl(url)
+  return path === null
+    ? url
+    : `file:///${encodeURIComponent(key)}${SHAREABLE_FILE.test(extOf(path)) ? extOf(path) : ''}`
+}
+/** What a file of this computer is called to the others, whatever its own name or title. */
+export const SHARED_FILE_TITLE = 'Shared file'
+
+/** Kinds of file that go to the others: any with a short extension (the extensions they may come back with). */
+export const SHAREABLE_FILE = /^\.[a-z0-9]{1,8}$/
+/** Copies from the room that open as files (the browser's own picture and PDF viewers); any other kind is sandboxed. */
+export const INERT_FILE = /^\.(png|jpe?g|gif|webp|avif|bmp|pdf)$/
+/**
+ * The address a file that came from the room opens at here: a picture or PDF as the file, anything else (a web page,
+ * an SVG, text) at panes-shared://f/, served sandboxed (main/ai/canvasContent.ts serveShared): no cookies or storage of
+ * any site, and no reading of this computer's files, whatever its scripts do.
+ */
+export function sharedOpenUrl(file: string): string {
+  return INERT_FILE.test(extOf(file))
+    ? fileUrl(file)
+    : `panes-shared://f/${encodeURIComponent(nameOf(file))}`
+}
 /** A sealed file as written: its parts' store ids (dot-separated) and its extension. Null when not well-formed. */
 export function parseSealed(sealed: string): { ids: string[]; ext: string } | null {
   const m = /^((?:[A-Za-z0-9_-]{8,64}\.){0,7}[A-Za-z0-9_-]{8,64})\/(\.[a-z0-9]{1,8})$/.exec(sealed)
   return m && SHAREABLE_FILE.test(m[2]) ? { ids: m[1].split('.'), ext: m[2] } : null
 }
+/**
+ * A card's item as it came from the room, made safe: a path on this computer is never taken from someone else (a
+ * file: address, or `file`), only a copy of a sealed file this computer fetched itself.
+ */
+function fromRoom(item: CanvasItem): CanvasItem {
+  if (item.file === undefined && !/^file:/i.test(item.url ?? '')) return item
+  const out: CanvasItem = { ...item, url: /^file:/i.test(item.url ?? '') ? '' : item.url }
+  delete out.file
+  return out
+}
 /** A card's item as it goes to the room once its file is sealed: no path and no address of this computer. */
 const sealedItem = (item: CanvasItem, sealed: string): CanvasItem => {
-  const out: CanvasItem = { ...item, url: `panes-file:${sealed}`, site: 'Shared file', sealed }
+  const out: CanvasItem = {
+    ...item,
+    url: `panes-file:${sealed}`,
+    title: SHARED_FILE_TITLE,
+    site: SHARED_FILE_TITLE,
+    sealed
+  }
   delete out.file
   delete out.image
   return out
@@ -139,7 +199,7 @@ export function sharedOf(
   for (const c of s.cards) {
     const item = s.items[String(c.id)]
     if (!isShared(c) || !item) continue
-    const sealed = item.sealed ?? (isOwnFile(item) && c.shared ? files?.(item.file!) : null)
+    const sealed = item.sealed ?? (isOwnFile(item) && c.shared ? files?.(ownFile(item)!) : null)
     if (sealed) {
       const out = sealedItem(item, sealed)
       cards.set(String(c.id), { card: { ...c, url: out.url }, item: out })
@@ -211,7 +271,8 @@ export function writeDiff(
         tabs.title,
         tabs.pic,
         tabs.url,
-        tabs.live
+        tabs.live,
+        tabs.files
       )
   }, origin)
 }
@@ -229,7 +290,8 @@ function writeTabs(
   title: (id: number) => string,
   pic?: (id: number) => string | undefined,
   urlOf?: (id: number) => string | null,
-  live?: number
+  live?: number,
+  files?: (file: string) => string | null
 ): void {
   const map = doc.getMap<TabMirror>('tabs')
   const mine = new Set<string>()
@@ -241,14 +303,22 @@ function writeTabs(
       mine.add(`${by}:${board.id}`) // on another site: the others keep the last page of it, nothing new goes
       continue
     }
-    const c = url === board.url ? board : { ...board, url }
-    if (c.id <= 0 || c.private || !/^https?:/i.test(c.url)) continue
-    const key = `${by}:${c.id}`
+    if (board.id <= 0 || board.private) continue
+    const key = `${by}:${board.id}`
+    // a tab on a file of this computer: its name only, and, shared, its file (once in the room) for the others to open
+    const path = pathOfFileUrl(url)
+    let sealed: string | null = null
+    if (path !== null) {
+      sealed = board.shared ? (files?.(path) ?? null) : null
+      if (!sealed && board.id !== live) continue // its file is on its way: it goes once it is there
+    } else if (!/^https?:/i.test(url)) continue
+    const out = path !== null ? maskFileUrl(url, key) : url
+    const c = out === board.url ? board : { ...board, url: out }
     mine.add(key)
     const p = pic?.(c.id)
-    const v: TabMirror = p
-      ? { card: c, title: title(c.id), by, pic: p }
-      : { card: c, title: title(c.id), by }
+    const v: TabMirror = { card: c, title: path !== null ? SHARED_FILE_TITLE : title(c.id), by }
+    if (p) v.pic = p
+    if (sealed) v.sealed = sealed
     if (!same(map.get(key), v)) map.set(key, v)
   }
   for (const [key, v] of map) if (v.by === by && !mine.has(key)) map.delete(key)
@@ -262,7 +332,7 @@ function writeTabs(
  */
 export function withTabs(s: CanvasState, tabs: Array<{ id: number; url: string }>): CanvasState {
   const have = new Set(s.cards.map((c) => c.id))
-  const fresh = tabs.filter((t) => t.id > 0 && !have.has(t.id) && /^https?:/i.test(t.url))
+  const fresh = tabs.filter((t) => t.id > 0 && !have.has(t.id) && /^(https?|file):/i.test(t.url))
   if (!fresh.length) return s
   const taken: Box[] = [...s.cards.map(cardBox), ...s.frames, ...s.notes]
   const b = boundsOf(taken)
@@ -330,8 +400,8 @@ export function readInto(
       items[id] = mine // the sharer's own: their file, not the room's copy
     else if (x.item.sealed) {
       const file = fileOf?.(x.item.sealed)
-      items[id] = file ? { ...x.item, file, url: fileUrl(file) } : x.item
-    } else items[id] = x.item
+      items[id] = file ? { ...fromRoom(x.item), file, url: sharedOpenUrl(file) } : fromRoom(x.item)
+    } else items[id] = fromRoom(x.item)
   }
   // the others' tabs: where their owner has them, as the page they are (opened here, it is a page of one's own).
   // A page already on this board (this person's own tab, or someone else's first) shows once: opening someone's tab
@@ -349,11 +419,13 @@ export function readInto(
     const id = mirrorId(key)
     mirrors.push({ ...v.card, id, private: false })
     const image = v.pic ? picOf?.(v.pic) : undefined
-    items[String(id)] = itemFor(
-      v.card.url,
-      v.title,
-      image ? { source: 'tab', image } : { source: 'tab' }
-    )
+    // a tab on a file of its owner's: it opens here as this computer's copy of the file, once that is here
+    const copy = v.sealed ? fileOf?.(v.sealed) : undefined
+    const item = itemFor(copy ? sharedOpenUrl(copy) : v.card.url, v.title, {
+      source: 'tab',
+      ...(image ? { image } : {})
+    })
+    items[String(id)] = copy ? { ...item, file: copy, sealed: v.sealed } : fromRoom(item)
   }
   // Someone else's tab laid out from the same spot as one of this person's (both boards place a section's cards in
   // the same slots) moves to the nearest free place here, so the two never sit on top of each other.

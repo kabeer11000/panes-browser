@@ -321,6 +321,8 @@ function createWindow(): void {
   new FindFloat(win, tabs) // Ctrl+F in the tab view: a bar over the page's top right (findFloat.ts)
 
   const ai = registerAi({ settings, tabs, history, downloads })
+  // files from a shared space's room, opened in a tab: sandboxed (CanvasContent.serveShared)
+  tabSession.protocol.handle('panes-shared', (req) => ai.content.serveShared(req.url))
   suggester.setSemantic((q, exclude) => ai.features.semantic(q, exclude))
   registerTouchpad()
   const gestures = new NavGestures(win, tabs, settings)

@@ -27,6 +27,8 @@ import { inviteLink, newRoom, parseInvite } from '@shared/share/crypto'
 import { chatOf, sayIn, watchChat, type ChatMessage } from '@shared/share/chat'
 import {
   isEmptyDoc,
+  maskFileUrl,
+  SHARED_FILE_TITLE,
   parseSealed,
   readInto,
   SHAREABLE_FILE,
@@ -136,7 +138,11 @@ export interface ShareDeps {
   /** The board's files (CanvasContent): a card's file read, and a shared one kept as the board's own copy. */
   files: {
     bytes: (req: { file: string }) => Promise<{ data: Uint8Array } | null>
-    store: (req: { data: Uint8Array; name: string }) => Promise<{ file: string } | null>
+    store: (req: {
+      data: Uint8Array
+      name: string
+      shared?: boolean
+    }) => Promise<{ file: string } | null>
   }
 }
 
@@ -328,7 +334,7 @@ export class ShareService {
           at += p.byteLength
         }
         // kept as the board's own copy (named by its content; the board reads only from there)
-        const kept = await this.d.files.store({ data, name: 'Shared' + parsed.ext })
+        const kept = await this.d.files.store({ data, name: 'Shared' + parsed.ext, shared: true })
         if (!kept) return
         this.gotFiles.set(sealed, kept.file)
         if (this.rooms.get(room.spaceId) === room) this.applySoon(room)
@@ -757,7 +763,12 @@ export class ShareService {
     if (room.liveTab === undefined) return
     const info = this.d.liveInfo(room.liveTab)
     if (!info) return void this.showLive(room.spaceId, null) // the tab went
-    room.client.awareness.setLocalStateField('live', { title: info.title, url: info.url })
+    // a file of this computer: neither its path nor its name (see maskFileUrl), the same key as its card's (writeTabs)
+    const file = /^file:/i.test(info.url)
+    room.client.awareness.setLocalStateField('live', {
+      title: file ? SHARED_FILE_TITLE : info.title,
+      url: file ? maskFileUrl(info.url, `${this.who}:${room.liveTab}`) : info.url
+    })
   }
 
   /**
