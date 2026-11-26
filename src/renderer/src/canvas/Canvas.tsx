@@ -5162,6 +5162,28 @@ export function Canvas({
       }
     })
   }
+  // The preview's tab closed under it (a link opened only for a download: main closes that tab as the file starts, a
+  // page closing itself): the preview goes back to the tab used before it, as Chrome goes back to the page the link
+  // was on; with none, it closes. Never blank on a tab that is gone. A tab seen here and gone goes at once; one never
+  // seen (opened and closed within moments, as a download's is) after a moment: a tab just opened may reach this list
+  // a little after the preview asked for it (tab ids are never used again, so one still missing then is gone).
+  const previewTabSeen = useRef<number | null>(null)
+  const previewTab = expanded && !isVirtual(expanded.id) ? expanded.id : null
+  const previewTabGone = previewTab !== null && !byId.has(previewTab)
+  useEffect(() => {
+    if (previewTab === null) return void (previewTabSeen.current = null)
+    if (!previewTabGone) return void (previewTabSeen.current = previewTab)
+    const back = (): void => {
+      if (expandedNow.current !== previewTab) return
+      const before = strip.find((id) => id !== previewTab && byIdRef.current.has(id))
+      if (before !== undefined && stRef.current?.cards.some((c) => c.id === before))
+        switchPreview(before, true)
+      else setExpanded(null)
+    }
+    const t = window.setTimeout(back, previewTabSeen.current === previewTab ? 0 : 1500)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewTab, previewTabGone])
   const stepExpanded = (dir: -1 | 1): void => {
     const cur = expandedRef.current ? expandedNow.current : null
     if (cur === null) return

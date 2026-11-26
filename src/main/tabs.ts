@@ -254,6 +254,15 @@ const TOR_IDLE_MS = 5 * 60_000
 /** How long a message about something that just happened stays in the window. */
 /** A download this soon after the driver's last input is theirs (see refuseDrivenDownload). */
 const DRIVEN_DOWNLOAD_MS = 4000
+/** A tab this young whose page is empty when a download starts in it was only a step on the way to the file. */
+const DOWNLOAD_HOP_MS = 30_000
+/** Whether a page shows nothing at all: no text, no picture, video, frame or drawing. */
+const EMPTY_PAGE_SCRIPT = `(() => {
+  const b = document.body
+  if (!b) return true
+  if ((b.innerText || '').trim()) return false
+  return !document.querySelector('img,video,iframe,canvas,embed,object,svg,input,button')
+})()`
 const NOTICE_MS = 4000
 
 /**
@@ -483,7 +492,22 @@ export class TabManager {
       // A tab opened only to download a file (a link with target=_blank, a download button that opens a window) never
       // showed a page: it goes, as in Chrome. getURL() is no guide, it already names the file's address. A tab with a
       // page in it stays; its page is still there.
-      if (!t.shownPage) this.close(id)
+      if (!t.shownPage) return void this.close(id)
+      // the address it was going to was the file: it is not on its way there any more (left set, the tab read as
+      // still loading it: never ready for the board's preview, its next page's paint not waited for)
+      if (t.navUrl) {
+        t.navUrl = null
+        this.refresh()
+      }
+      // A tab opened moments ago whose page was only a step on the way to the file (a sign-in hop, a page that sends
+      // itself on to the download): nothing to read in it, so it goes too. A page with anything in it stays.
+      if (t.openedAt > 0 && Date.now() - t.openedAt < DOWNLOAD_HOP_MS)
+        void wc
+          .executeJavaScript(EMPTY_PAGE_SCRIPT, false)
+          .then((empty) => {
+            if (empty === true && this.tabs.get(id) === t && liveContents(t) === wc) this.close(id)
+          })
+          .catch(() => {})
       return
     }
     // A pop-up opened only for the file (window.open of a download address) goes too, instead of staying blank.
