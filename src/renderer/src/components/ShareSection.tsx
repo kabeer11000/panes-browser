@@ -2,6 +2,10 @@ import { useState } from 'react'
 import type { Space, ShareState } from '@shared/types'
 import { parseInvite } from '@shared/share/crypto'
 import { useShareState } from './useShare'
+import { CloseIcon } from './icons'
+import { formatBytes } from '@shared/downloads'
+import type { SharePerson } from '@shared/types'
+import { dismissSend, sendFile, useSending, type Sending } from '@renderer/fileSend'
 
 const STATUS: Record<ShareState['status'], string> = {
   connecting: 'Connecting',
@@ -177,13 +181,18 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
       </div>
       <div className="share-people">
         {state && <Face name={`${state.me.name} (you)`} color={state.me.color} />}
-        {people.map((p) => (
-          <Face key={p.id} name={p.name} color={p.color} />
-        ))}
+        {people.map((p) =>
+          p.files && p.rtc ? (
+            <SendTo key={p.id} spaceId={space.id} person={p} />
+          ) : (
+            <Face key={p.id} name={p.name} color={p.color} />
+          )
+        )}
         <span className="share-count">
           {people.length === 0 ? 'Just you' : `${people.length + 1} here`}
         </span>
       </div>
+      <SendingList spaceId={space.id} />
       <p
         className="share-note"
         title="Right-click a tab to share it or present it live; you decide if anyone may control it."
@@ -235,5 +244,87 @@ export function ShareSection({ space }: { space: Space }): React.JSX.Element | n
         )}
       </div>
     </div>
+  )
+}
+
+/** Someone's face that takes a file: click to pick one, or drop it on them. Sent straight to them, not kept anywhere. */
+function SendTo({ spaceId, person }: { spaceId: number; person: SharePerson }): React.JSX.Element {
+  const [over, setOver] = useState(false)
+  const send = (files: FileList | null): void => {
+    for (const f of files ?? []) sendFile(spaceId, person.rtc, person.name, f)
+  }
+  return (
+    <label
+      className={'share-send' + (over ? ' over' : '')}
+      title={`Send ${person.name} a file`}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return
+        e.preventDefault()
+        setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setOver(false)
+        send(e.dataTransfer.files)
+      }}
+    >
+      <Face name={person.name} color={person.color} />
+      <input
+        type="file"
+        multiple
+        hidden
+        onChange={(e) => {
+          send(e.target.files)
+          e.target.value = ''
+        }}
+      />
+    </label>
+  )
+}
+
+const SENDING: Record<Sending['state'], string> = {
+  asking: 'Waiting for them to accept',
+  sending: '',
+  sent: 'Sent',
+  declined: 'Declined',
+  failed: 'Did not go through',
+  cancelled: 'Cancelled'
+}
+
+/** Files on their way from here, and how they ended (until put away). */
+function SendingList({ spaceId }: { spaceId: number }): React.JSX.Element | null {
+  const list = useSending(spaceId)
+  if (!list.length) return null
+  return (
+    <ul className="share-sending">
+      {list.map((s) => {
+        const busy = s.state === 'asking' || s.state === 'sending'
+        return (
+          <li key={s.id}>
+            <span className="share-sending-what">
+              {s.name} to {s.toName.split(' ')[0]}
+            </span>
+            <span className="share-sending-how">
+              {s.state === 'sending'
+                ? `${formatBytes(s.sent)} of ${formatBytes(s.size)}`
+                : SENDING[s.state]}
+            </span>
+            {s.state === 'sending' && (
+              <progress max={s.size || 1} value={s.sent} aria-label={`Sending ${s.name}`} />
+            )}
+            <button
+              type="button"
+              className="share-sending-x"
+              onClick={() => dismissSend(s.id)}
+              aria-label={busy ? 'Cancel' : 'Dismiss'}
+              title={busy ? 'Cancel' : 'Dismiss'}
+            >
+              <CloseIcon />
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

@@ -149,6 +149,13 @@ const api: PanesApi = {
     say: (id, text) => ipcRenderer.send('share:say', id, text),
     signal: (id, to, data) => ipcRenderer.send('share:signal', id, to, data),
     onSignal: (cb) => subscribe<[number, number, string]>('share:signal', cb),
+    recvAsk: (key, id, from, name, size) =>
+      ipcRenderer.invoke('share:recv-ask', key, id, from, name, size),
+    recvUnask: (key) => ipcRenderer.send('share:recv-unask', key),
+    recvChunk: (t, data) => ipcRenderer.send('share:recv-chunk', t, data),
+    recvEnd: (t) => ipcRenderer.invoke('share:recv-end', t),
+    recvAbort: (t) => ipcRenderer.send('share:recv-abort', t),
+    onRecvCancel: (cb) => subscribe<[number]>('share:recv-cancel', cb),
     input: (id, event) => ipcRenderer.send('share:input', id, event),
     setName: (name) => ipcRenderer.send('share:name', name)
   },

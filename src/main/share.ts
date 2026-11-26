@@ -466,6 +466,8 @@ export class ShareService {
       }
     })
     room.client.awareness.setLocalStateField('user', this.me)
+    // files can be sent straight here (renderer/fileSend.ts); a browser in the room cannot take them
+    room.client.awareness.setLocalStateField('files', true)
     room.client.awareness.on('change', () => this.onPresence(room))
     doc.on('update', (_u: Uint8Array, origin: unknown) => {
       this.persistSoon(room)
@@ -596,6 +598,7 @@ export class ShareService {
         user?: { name?: string; color?: string }
         cursor?: { x: number; y: number } | null
         rtc?: unknown
+        files?: unknown
         live?: { title?: unknown; url?: unknown } | null
       }
       if (!s.user) return
@@ -608,6 +611,7 @@ export class ShareService {
             ? { x: s.cursor.x, y: s.cursor.y }
             : null,
         rtc: typeof s.rtc === 'number' && Number.isSafeInteger(s.rtc) ? s.rtc : 0,
+        files: s.files === true,
         live:
           s.live && typeof s.live.url === 'string' && s.live.url.length > 0 // only shown, never opened
             ? { url: s.live.url.slice(0, 2000), title: String(s.live.title ?? '').slice(0, 200) }

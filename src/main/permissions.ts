@@ -386,6 +386,23 @@ export class PermissionManager {
     return this.confirmWith(confirm, wc).then((r) => r?.index ?? null)
   }
 
+  /** As confirm, and the one asking can take the question back (what it was about went away). */
+  confirmOrCancel(confirm: NonNullable<PermissionPromptState['confirm']>): {
+    answer: Promise<number | null>
+    cancel: () => void
+  } {
+    const n = confirm.choices.length
+    const { pending, outcome } = this.enqueue({ origin: '', kinds: [], confirm }, null)
+    return {
+      answer: outcome.then((o) =>
+        o.action === 'choose' && Number.isInteger(o.index) && o.index >= 0 && o.index < n
+          ? o.index
+          : null
+      ),
+      cancel: () => pending.settle({ action: 'cancel' })
+    }
+  }
+
   /** As confirm, with what was typed in the card's field (a page's prompt()). */
   confirmWith(
     confirm: NonNullable<PermissionPromptState['confirm']>,

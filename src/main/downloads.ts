@@ -106,6 +106,8 @@ export class DownloadManager {
     alwaysOpen: []
   })
   private live = new Map<number, DownloadItem>()
+  /** Files arriving another way (sent by someone in a shared space): where each goes, and how to stop it. */
+  private outside = new Map<number, { path: string; cancel: () => void }>()
   /** Bytes a second of each running download, as Chromium last measured it. */
   private speeds = new Map<number, number>()
   /** A passing word shown in place of a row's status, and when it goes. */
@@ -285,7 +287,12 @@ export class DownloadManager {
 
   /** The paths of downloads still running (lowercase: Windows paths ignore case). */
   private claimed(): Set<string> {
-    return new Set([...this.live.values()].map((item) => item.getSavePath().toLowerCase()))
+    return new Set(
+      [
+        ...[...this.live.values()].map((item) => item.getSavePath()),
+        ...[...this.outside.values()].map((o) => o.path)
+      ].map((p) => p.toLowerCase())
+    )
   }
 
   /**
@@ -321,6 +328,51 @@ export class DownloadManager {
     })
   }
 
+  /**
+   * A file arriving another way (someone in a shared space sending it straight here), listed like a running download:
+   * told how far it got, and how it ended. `cancel` is the row's Cancel.
+   */
+  incoming(
+    savePath: string,
+    total: number,
+    cancel: () => void
+  ): { progress: (received: number) => void; end: (ok: boolean) => void } {
+    const d = this.store.value
+    const info: DownloadInfo = {
+      id: d.nextId++,
+      filename: basename(savePath),
+      url: '',
+      savePath,
+      total,
+      received: 0,
+      state: 'progressing',
+      time: Date.now()
+    }
+    d.items.unshift(info)
+    this.outside.set(info.id, { path: savePath, cancel })
+    for (const l of this.startListeners) l(info)
+    this.store.save()
+    this.changed(true)
+    let at = Date.now()
+    let from = 0
+    return {
+      progress: (received) => {
+        info.received = received
+        const now = Date.now()
+        if (now - at >= 1000) {
+          this.speeds.set(info.id, ((received - from) * 1000) / (now - at))
+          at = now
+          from = received
+        }
+        this.changed()
+      },
+      end: (ok) => {
+        if (!this.outside.delete(info.id)) return
+        this.finish(info, ok ? 'completed' : 'cancelled', ok ? total : info.received)
+      }
+    }
+  }
+
   private track(item: DownloadItem, page: DownloadPage): void {
     const { downloadAsk } = this.settings.get()
     const suggested = this.pathFor(item.getFilename())
@@ -343,7 +395,7 @@ export class DownloadManager {
     item.on('updated', onProgress)
     item.once('done', (_e, state) => {
       if (began || !item.getSavePath()) return
-      this.finish(this.begin(item, page), item, state) // finished before any progress was seen (a tiny file)
+      this.finish(this.begin(item, page), state, item.getReceivedBytes()) // finished before any progress was seen (a tiny file)
     })
   }
 
@@ -374,13 +426,13 @@ export class DownloadManager {
         state === 'interrupted' ? 'interrupted' : item.isPaused() ? 'paused' : 'progressing'
       this.changed()
     })
-    item.once('done', (_e, state) => this.finish(info, item, state))
+    item.once('done', (_e, state) => this.finish(info, state, item.getReceivedBytes()))
     this.store.save()
     return info
   }
 
-  private finish(info: DownloadInfo, item: DownloadItem, state: string): void {
-    info.received = item.getReceivedBytes()
+  private finish(info: DownloadInfo, state: string, received: number): void {
+    info.received = received
     info.state =
       state === 'completed' ? 'completed' : state === 'cancelled' ? 'cancelled' : 'interrupted'
     this.live.delete(info.id)
@@ -437,17 +489,20 @@ export class DownloadManager {
       if (info.url) clipboard.writeText(info.url)
     } else if (action === 'menu') this.menu(info)
     else if (action === 'show') shell.showItemInFolder(info.savePath)
-    else if (action === 'cancel') item?.cancel()
-    else if (action === 'pause') item?.pause()
+    else if (action === 'cancel') {
+      item?.cancel()
+      this.outside.get(id)?.cancel()
+    } else if (action === 'pause') item?.pause()
     else if (action === 'resume' && item?.canResume()) item.resume()
     else if (action === 'retry') {
       if (item?.canResume()) item.resume()
-      else {
+      else if (info.url) {
         this.act(id, 'remove')
         this.session.downloadURL(info.url)
       }
     } else if (action === 'remove') {
       item?.cancel()
+      this.outside.get(id)?.cancel()
       this.store.value.items = this.store.value.items.filter((d) => d.id !== id)
       this.previews.delete(id)
       this.notes.delete(id)

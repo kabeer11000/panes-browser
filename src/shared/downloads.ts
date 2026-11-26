@@ -76,10 +76,11 @@ const RUNS_CODE = new Set([
 ])
 
 /** Whether files of this kind may be set to open by themselves when they finish. */
-export const canAlwaysOpen = (filename: string): boolean => {
-  const ext = extensionOf(filename)
-  return ext !== '' && !RUNS_CODE.has(ext)
-}
+/** Whether opening a file of this kind can run code (a program, a script, a page). */
+export const runsCode = (filename: string): boolean => RUNS_CODE.has(extensionOf(filename))
+
+export const canAlwaysOpen = (filename: string): boolean =>
+  extensionOf(filename) !== '' && !runsCode(filename)
 
 /** The second line of a download's row: what it is doing, in words. */
 export function downloadStatus(d: DownloadInfo): string {

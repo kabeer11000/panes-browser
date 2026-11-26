@@ -93,6 +93,7 @@ import { installCertBypass } from './certs'
 import { registerScreenTimeIpc, ScreenTimeService } from './screenTime'
 import { parseShareData, type ShareData } from '@shared/webShare'
 import { registerShare, SHARE_RELAY } from './share'
+import { registerReceived } from './received'
 import { freemem, totalmem } from 'os'
 import { memoryRoomy } from '@shared/memory'
 import { registerOffscreenInput } from './offscreenPage'
@@ -473,6 +474,13 @@ function createWindow(): void {
     hidden: (wc) => tabs.isHidden(wc)
   })
   permissionManager.install(tabSession, permissions)
+  // files sent straight here by someone in a shared space (main/received.ts)
+  registerReceived({
+    win,
+    downloads,
+    confirm: (c) => permissionManager.confirmOrCancel(c),
+    personOf: (spaceId, rtc) => share.state(spaceId)?.people.find((p) => p.rtc === rtc) ?? null
+  })
   // addresses and cards: offered in forms, and saved on the card above (formData.ts)
   registerFormData(new FormDataStore(), {
     permissions: permissionManager,

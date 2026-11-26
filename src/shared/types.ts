@@ -118,6 +118,8 @@ export interface SharePerson {
   cursor: { x: number; y: number } | null
   /** Their address at the relay, for a live tab's signals (see shared/share/live.ts); 0 until known. */
   rtc: number
+  /** They take files sent straight to them (renderer/fileSend.ts): Panes, not a browser. */
+  files: boolean
   /** The tab they show live, if they do. */
   live: { title: string; url: string } | null
 }
@@ -426,6 +428,24 @@ export interface PanesApi {
     /** A WebRTC signal to someone in the room (by their relay address), and the ones that come. */
     signal(spaceId: number, to: number, data: string): void
     onSignal(cb: (spaceId: number, from: number, data: string) => void): () => void
+    /**
+     * A file someone offers to send straight here (shared/share/transfer.ts): asked on a card; the transfer's number
+     * when it is taken, else null. `key` names the offer, to take the question back (`recvUnask`).
+     */
+    recvAsk(
+      key: string,
+      spaceId: number,
+      from: number,
+      name: string,
+      size: number
+    ): Promise<number | null>
+    recvUnask(key: string): void
+    /** A piece of it, in order; then the end (true: all there and kept) or giving up. */
+    recvChunk(t: number, data: Uint8Array): void
+    recvEnd(t: number): Promise<boolean>
+    recvAbort(t: number): void
+    /** The person cancelled a file coming here (its downloads row). */
+    onRecvCancel(cb: (t: number) => void): () => void
     /** Input from the person driving the tab shown live (checked again in main). */
     input(spaceId: number, event: unknown): void
     /** An invite link on the clipboard for a space not joined yet, or null. */

@@ -50,6 +50,7 @@ import { chromeVars } from '@shared/color'
 import { DragLayer, DropIndicator } from './components/DragLayer'
 import { Recover } from './Recover'
 import { LiveHosts } from './LiveHosts'
+import { startFileTransfers } from './fileSend'
 import { LiveWatchPanel } from './canvas/LiveShare'
 import { NowPlaying } from './canvas/TabStrip'
 import { narrowStep } from '@shared/narrow'
@@ -464,6 +465,8 @@ function App(): React.JSX.Element {
 
   // keys typed into a page just after Ctrl+T, before the window had the keyboard: the search's
   useEffect(() => window.api.onTypeAheadKey(pageKey), [])
+  // files sent straight to and from people in shared spaces (fileSend.ts)
+  useEffect(() => startFileTransfers(), [])
   useEffect(() => {
     const offCmd = window.api.onCommand((cmd, at) => {
       if (cmd === 'type-ahead') return startTypeAhead(at)
