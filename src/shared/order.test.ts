@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { dropIndex, moveId } from './order'
+import { dropIndex, moveId, sameOrder } from './order'
 
 describe('moveId', () => {
   test('moves forward and back', () => {
@@ -21,5 +21,14 @@ describe('dropIndex', () => {
     expect(dropIndex([10, 30, 50], 20)).toBe(1)
     expect(dropIndex([10, 30, 50], 60)).toBe(3)
     expect(dropIndex([], 60)).toBe(0)
+  })
+})
+
+describe('sameOrder', () => {
+  test('same ids in the same order only', () => {
+    expect(sameOrder([1, 2, 3], [1, 2, 3])).toBe(true)
+    expect(sameOrder([1, 2, 3], [2, 1, 3])).toBe(false)
+    expect(sameOrder([1, 2], [1, 2, 3])).toBe(false)
+    expect(sameOrder([], [])).toBe(true)
   })
 })

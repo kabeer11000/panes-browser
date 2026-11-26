@@ -92,7 +92,7 @@ export const SpaceSwitcher = memo(function SpaceSwitcher({
                   (on ? ' active' : '') +
                   (dragging === s.id ? ' dragging' : '')
                 }
-                layout
+                layout={dragging !== s.id} // the dragged one follows the pointer, not its slot
                 {...reorder(s.id)}
                 data-space={s.id}
                 title={`${s.name} (Ctrl+Alt+${i + 1}). ${said ? said + '. ' : ''}${on ? 'Click to edit' : 'Right-click to edit'}.`}

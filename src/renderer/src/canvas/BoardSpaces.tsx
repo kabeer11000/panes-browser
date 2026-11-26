@@ -1,4 +1,5 @@
 import { useReorder } from '@renderer/hooks/useReorder'
+import { motion } from 'motion/react'
 import { useCallback, useRef, useState } from 'react'
 import type { Space } from '@shared/types'
 import { attentionLabel, badgeText } from '@shared/attention'
@@ -6,7 +7,8 @@ import { useSpaceMarks } from '@renderer/hooks/useSpaceAudio'
 import { SpaceAvatar } from '@renderer/components/SpaceAvatar'
 import { SpacePopover } from '@renderer/components/SpacePopover'
 import { Presence } from '@renderer/components/Presence'
-import { PlusIcon } from '@renderer/components/icons'
+import { GripIcon, PlusIcon } from '@renderer/components/icons'
+import { useGlider } from '@renderer/hooks/useGlider'
 import { useOverlayHold } from '@renderer/overlay'
 import { useDismiss } from './useDismiss'
 
@@ -42,6 +44,24 @@ export function BoardSpaces({
     dragging,
     handlers: reorder
   } = useReorder(spaces, window.api.moveSpace)
+
+  // the highlight is one pill gliding to the row under the pointer (or the keys), as in every other Panes menu;
+  // it stands aside while a space is dragged (the dragged row is lifted instead)
+  const menu = useRef<HTMLDivElement>(null)
+  const pill = useRef<HTMLSpanElement>(null)
+  const [lit, setLit] = useState<string | null>(null)
+  useGlider(
+    menu,
+    pill,
+    `[data-hl="${lit ?? ''}"]`,
+    `${lit}|${orderedSpaces.map((s) => s.id).join()}`,
+    lit === null || dragging !== null
+  )
+  const light = (
+    key: string
+  ): Pick<React.HTMLAttributes<HTMLElement>, 'onPointerEnter' | 'onFocus'> & {
+    'data-hl': string
+  } => ({ 'data-hl': key, onPointerEnter: () => setLit(key), onFocus: () => setLit(key) })
 
   return (
     <div className="cv-space-title-wrap space-switcher down" ref={host}>
@@ -85,13 +105,20 @@ export function BoardSpaces({
       </button>
       <Presence>
         {open && (
-          <div className="cv-space-menu" role="menu" aria-label="Spaces">
+          <div
+            className={'cv-space-menu' + (dragging !== null ? ' reordering' : '')}
+            role="menu"
+            aria-label="Spaces"
+            ref={menu}
+            onPointerLeave={() => setLit(null)}
+          >
+            <span className="cv-space-pill" ref={pill} aria-hidden="true" />
             {orderedSpaces.map((s, i) => {
               const on = s.id === activeSpaceId
               const waiting = on ? undefined : spaceAttention[s.id]
               const sound = spaceAudio[s.id]
               return (
-                <button
+                <motion.button
                   key={s.id}
                   type="button"
                   role="menuitemradio"
@@ -99,7 +126,11 @@ export function BoardSpaces({
                   className={
                     'cv-space-item' + (on ? ' on' : '') + (dragging === s.id ? ' dragging' : '')
                   }
+                  // the others slide aside as the order changes; the dragged one follows the pointer instead
+                  layout={dragging !== s.id}
+                  transition={{ type: 'spring', stiffness: 520, damping: 40 }}
                   {...reorder(s.id)}
+                  {...light(String(s.id))}
                   title={waiting ? attentionLabel(waiting) : undefined}
                   onClick={() => {
                     setOpen(false)
@@ -113,6 +144,10 @@ export function BoardSpaces({
                     setEditing(s.id)
                   }}
                 >
+                  {/* drag to put it elsewhere: the grip shows on hover, the whole row can be dragged */}
+                  <span className="cv-space-grip" aria-hidden="true">
+                    <GripIcon />
+                  </span>
                   <SpaceAvatar color={s.color} color2={s.color2} icon={s.icon} size={20} />
                   <span className="cv-space-item-name">{s.name}</span>
                   {s.shared && <span className="cv-space-item-meta">Shared</span>}
@@ -138,7 +173,7 @@ export function BoardSpaces({
                   ) : (
                     i < 9 && <kbd>Ctrl+Alt+{i + 1}</kbd>
                   )}
-                </button>
+                </motion.button>
               )
             })}
             <div className="cv-space-sep" role="separator" />
@@ -146,6 +181,7 @@ export function BoardSpaces({
               type="button"
               role="menuitem"
               className="cv-space-item plain"
+              {...light('new')}
               onClick={() => {
                 setOpen(false)
                 window.api.createSpace()
@@ -160,6 +196,7 @@ export function BoardSpaces({
               type="button"
               role="menuitem"
               className="cv-space-item plain"
+              {...light('settings')}
               onClick={() => {
                 setOpen(false)
                 setEditing(activeSpaceId)

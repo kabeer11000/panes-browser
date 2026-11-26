@@ -20,3 +20,8 @@ export function dropIndex(middles: readonly number[], pointer: number): number {
   const i = middles.findIndex((m) => pointer < m)
   return i < 0 ? middles.length : i
 }
+
+/** Whether two id lists hold the same ids in the same order. */
+export function sameOrder<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a.length === b.length && a.every((x, i) => x === b[i])
+}
