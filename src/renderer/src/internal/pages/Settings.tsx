@@ -11,6 +11,7 @@ import { ImportSection } from './ImportSection'
 import { MemorySection } from './MemorySection'
 import { SitePermissions } from './SitePermissions'
 import { SpacesSection } from './SpacesSection'
+import { ShareServersSection } from './ShareServersSection'
 import { YouTubeSection } from './YouTubeSection'
 
 /** The page's categories, in order: one shows at a time, and search looks through them all. */
@@ -568,6 +569,7 @@ export function Settings(): React.JSX.Element {
             </Row>
           </Group>
           <SpacesSection />
+          <ShareServersSection s={s} update={update} />
           {platform === 'win32' && (
             <Group
               title="Touchpad on the board"

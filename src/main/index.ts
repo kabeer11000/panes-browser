@@ -362,6 +362,18 @@ function createWindow(): void {
     videoIn: (id) => tabs.liveVideo(id),
     setLiveAspect: (id, aspect) => tabs.setLiveAspect(id, aspect),
     askDrive: (name, color) => permissionManager.askDrive(name, color),
+    servers: () => {
+      const s = settings.get()
+      return {
+        newServer: s.shareServer,
+        known: s.shareServersKnown,
+        policy: s.shareServerPolicy,
+        turn: s.shareTurn
+      }
+    },
+    rememberServer: (origin) =>
+      settings.update({ shareServersKnown: [...settings.get().shareServersKnown, origin] }),
+    confirm: (c) => permissionManager.confirm(c),
     openBoard: (id) => {
       if (win.isDestroyed()) return
       if (win.isMinimized()) win.restore()
@@ -375,8 +387,7 @@ function createWindow(): void {
   // an invite link, however it is opened (typed, clicked, from another app): the space is joined and shown
   tabs.inviteHandler = (url) => {
     if (!share.isInvite(url)) return false
-    const id = share.join(url)
-    if (id !== null) tabs.switchSpace(id)
+    void share.join(url).then((id) => id !== null && tabs.switchSpace(id))
     return true
   }
   share.init()

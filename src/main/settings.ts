@@ -21,6 +21,7 @@ import { sanitizeAi } from '@shared/ai/settings'
 import { DEFAULT_AI_SETTINGS } from '@shared/ai/types'
 import { JsonStore } from './store'
 import { SMOOTHING_DELAY_MS } from '@shared/freeScroll'
+import { serverOrigin, turnServer } from '@shared/share/servers'
 
 type Listener = (settings: Settings) => void
 
@@ -63,6 +64,34 @@ function sanitize(patch: Partial<Settings>): Partial<Settings> {
   if (typeof patch.tooltips === 'boolean') out.tooltips = patch.tooltips
   if (typeof patch.menuShortcuts === 'boolean') out.menuShortcuts = patch.menuShortcuts
   if (typeof patch.usageStats === 'boolean') out.usageStats = patch.usageStats
+  if (patch.shareServer === null) out.shareServer = null
+  else if (typeof patch.shareServer === 'string') {
+    const o = serverOrigin(patch.shareServer)
+    if (o) out.shareServer = o
+  }
+  if (Array.isArray(patch.shareServersKnown))
+    out.shareServersKnown = [
+      ...new Set(
+        patch.shareServersKnown
+          .map((s) => (typeof s === 'string' ? serverOrigin(s) : null))
+          .filter((s): s is string => !!s)
+      )
+    ].slice(0, 50)
+  if (
+    patch.shareServerPolicy === 'ask' ||
+    patch.shareServerPolicy === 'any' ||
+    patch.shareServerPolicy === 'listed'
+  )
+    out.shareServerPolicy = patch.shareServerPolicy
+  if (patch.shareTurn === null) out.shareTurn = null
+  else if (patch.shareTurn && turnServer(patch.shareTurn)) {
+    const t = turnServer(patch.shareTurn)!
+    out.shareTurn = {
+      url: t.urls as string,
+      username: t.username ?? '',
+      credential: String(t.credential ?? '')
+    }
+  }
   if (typeof patch.formFill === 'boolean') out.formFill = patch.formFill
   if (typeof patch.sidebarHover === 'boolean') out.sidebarHover = patch.sidebarHover
   if (typeof patch.fullWidthAddress === 'boolean') out.fullWidthAddress = patch.fullWidthAddress

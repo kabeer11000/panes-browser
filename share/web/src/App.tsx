@@ -4,6 +4,7 @@ import { Chat } from './Chat'
 import { loadMe, useRoom } from './room'
 import { Watch } from './Watch'
 import { GET_PANES, room, secret } from './link'
+import { joinLink } from '@shared/share/servers'
 
 /**
  * A shared space from the web (tasks/shared-spaces.md, phase 6): the invite link's page. People with Panes open it
@@ -58,7 +59,8 @@ export function App(): React.JSX.Element {
   const r = useRoom(room, secret, me)
   const [watching, setWatching] = useState<number | null>(null)
   const [hint, setHint] = useState(true)
-  const join = `panes://join/${room}#${secret}`
+  // Open in Panes names this server, so a space on a community or self-hosted one opens there
+  const join = joinLink(location.origin, room, secret)
 
   // once, as the page opens: the browser offers to open Panes (nothing happens without it)
   useEffect(() => {

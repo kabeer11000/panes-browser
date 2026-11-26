@@ -24,6 +24,13 @@ import * as Y from 'yjs'
 import { emptyState, type CanvasState } from '@shared/ai/canvas'
 import { ShareClient, type ShareStatus } from '@shared/share/client'
 import { inviteLink, newRoom, parseInvite } from '@shared/share/crypto'
+import {
+  fromJoin as joinToInvite,
+  joinVerdict,
+  turnServer,
+  type OwnTurn,
+  type ServerPolicy
+} from '@shared/share/servers'
 import { chatOf, sayIn, watchChat, type ChatFile, type ChatMessage } from '@shared/share/chat'
 import {
   isEmptyDoc,
@@ -38,8 +45,8 @@ import {
   writeDiff
 } from '@shared/share/doc'
 import { sharingPaused } from '@shared/ai/canvasItems'
-import type { SharePerson, ShareState } from '@shared/types'
-import { parseRemoteInput, type RemoteInput } from '@shared/share/live'
+import type { PermissionPromptState, SharePerson, ShareState } from '@shared/types'
+import { ICE_SERVERS, parseRemoteInput, type RemoteInput } from '@shared/share/live'
 import { JsonStore } from './store'
 import type { SpaceStore } from './spaces'
 import type { CanvasService } from './ai/canvas'
@@ -72,6 +79,8 @@ const COLORS = [
   '#eab308',
   '#ef4444'
 ]
+/** Panes' own server as an origin (as invite links and the settings name servers). */
+const OWN_RELAY = new URL(SHARE_RELAY).origin
 
 interface Saved {
   relay: string
@@ -136,6 +145,17 @@ export interface ShareDeps {
   setLiveAspect: (tabId: number, aspect: number) => void
   /** Bring the window up on a space's board (a chat notification was clicked). */
   openBoard: (spaceId: number) => void
+  /** The shared-spaces settings: the server for new spaces, known servers, the policy for others, an own TURN. */
+  servers: () => {
+    newServer: string | null
+    known: string[]
+    policy: ServerPolicy
+    turn: OwnTurn | null
+  }
+  /** A server said yes to: its spaces join without asking from now on. */
+  rememberServer: (origin: string) => void
+  /** Panes' own question on the card above every page; the choice's index, or null when put away. */
+  confirm: (c: NonNullable<PermissionPromptState['confirm']>) => Promise<number | null>
   /** Ask whether someone may drive the live tab, above every page (PermissionManager.askDrive). */
   askDrive: (name: string, color: string) => { answer: Promise<boolean>; cancel: () => void }
   /** The board's files (CanvasContent): a card's file read, and a shared one kept as the board's own copy. */
@@ -651,7 +671,9 @@ export class ShareService {
     const existing = this.rooms.get(spaceId)
     if (existing) return this.link(spaceId)
     const { room, secret } = newRoom()
-    const saved: Saved = { relay: SHARE_RELAY, room, ...this.seal(secret), have: 0 }
+    // Panes' own server, or the one set for new shared spaces (Settings: a community or self-hosted one)
+    const relay = this.d.servers().newServer ?? SHARE_RELAY
+    const saved: Saved = { relay, room, ...this.seal(secret), have: 0 }
     this.store.value.rooms[String(spaceId)] = saved
     this.store.save()
     const r = this.open(spaceId, saved)
@@ -688,10 +710,18 @@ export class ShareService {
     return s ? inviteLink(s.relay, s.room, this.secretOf(s)) : null
   }
 
-  /** Whether a link is an invite this Panes can join (its own relay, or panes://join from the invite page). */
+  /**
+   * Whether a link is an invite to a shared space: on Panes' own server, a known one, or (as the settings say) any
+   * other; panes://join from a web board's Open in Panes too. Whether it is joined is `join`'s to say.
+   */
   isInvite(link: string): boolean {
     const p = parseInvite(fromJoin(link))
-    return !!p && p.relay === new URL(SHARE_RELAY).origin
+    return (
+      !!p &&
+      (p.relay === OWN_RELAY ||
+        this.d.servers().policy !== 'listed' ||
+        this.d.servers().known.includes(p.relay))
+    )
   }
 
   /** An invite link on the clipboard for a room this Panes is not in yet (the search popover offers to join it). */
@@ -703,13 +733,38 @@ export class ShareService {
     return text
   }
 
-  /** Join from an invite link: a new space, its board coming in from the room. The space's id, or null. */
-  join(link: string): number | null {
+  /**
+   * Join from an invite link: a new space, its board coming in from the room. The space's id, or null. A space on a
+   * server not run by Panes and not known here is asked about first (once per server), or refused, as set.
+   */
+  async join(link: string): Promise<number | null> {
     const p = parseInvite(fromJoin(link))
     if (!p) return null
     // already in it: go there
     for (const [id, s] of Object.entries(this.store.value.rooms))
-      if (s.room === p.room) return Number(id)
+      if (s.room === p.room && s.relay.replace(/\/+$/, '') === p.relay) return Number(id)
+    const sv = this.d.servers()
+    const verdict = joinVerdict(p.relay, { own: OWN_RELAY, known: sv.known, policy: sv.policy })
+    if (verdict === 'refuse') {
+      await this.d.confirm({
+        title: 'This space is on a server you have not added',
+        detail: `${new URL(p.relay).host} is not run by Panes. To join spaces there, add it in Settings, Shared space servers.`,
+        choices: [{ label: 'OK', tone: 'primary' }]
+      })
+      return null
+    }
+    if (verdict === 'ask') {
+      const host = new URL(p.relay).host
+      const pick = await this.d.confirm({
+        title: `Join a space on ${host}?`,
+        detail:
+          `${host} is a server not run by Panes. It cannot read the space (everything is encrypted), but it sees who ` +
+          'connects and when. People who open the link in a web browser rely on that server for the page itself.',
+        choices: [{ label: 'Join', tone: 'primary' }, { label: 'Cancel' }]
+      })
+      if (pick !== 0) return null
+      this.d.rememberServer(p.relay)
+    }
     const space = this.d.createSpace()
     this.d.spaces.update(space.id, { name: 'Shared space', browseWith: 'canvas' })
     const saved: Saved = { relay: p.relay, room: p.room, ...this.seal(p.secret), have: 0 }
@@ -771,7 +826,10 @@ export class ShareService {
   }
 
   /** ICE servers for a live tab's calls in this space, from its relay (STUN, and TURN when the relay has a key). */
+  /** The ICE servers for a live tab's calls: the person's own TURN server when set, else what the room's server hands out. */
   async iceServers(spaceId: number): Promise<RTCIceServer[] | null> {
+    const own = turnServer(this.d.servers().turn)
+    if (own) return [...ICE_SERVERS, own]
     return (await this.rooms.get(spaceId)?.client.iceServers()) ?? null
   }
 
@@ -884,10 +942,8 @@ export class ShareService {
   }
 }
 
-/** panes://join/<room>#<secret> (the invite page's Open in Panes) as the invite link it stands for. */
-export function fromJoin(link: string): string {
-  return link.trim().replace(/^panes:\/\/join\//i, `${SHARE_RELAY}/s/`)
-}
+/** panes://join/... (a web board's Open in Panes) as the invite link it stands for (shared/share/servers.ts). */
+export const fromJoin = (link: string): string => joinToInvite(link, OWN_RELAY)
 
 export function registerShare(d: ShareDeps): ShareService {
   const svc = new ShareService(d)

@@ -707,6 +707,14 @@ export interface Settings {
   menuShortcuts: boolean
   /** Send usage statistics (counts and times, never contents) to Panes' relay; asked on the welcome tour. */
   usageStats: boolean
+  /** The server new shared spaces go to (an origin); null: Panes' own (shared/share/servers.ts). */
+  shareServer: string | null
+  /** Servers whose spaces join without asking: added here, or said yes to once. */
+  shareServersKnown: string[]
+  /** A link to a space on a server not among those: ask once, join, or refuse. */
+  shareServerPolicy: import('./share/servers').ServerPolicy
+  /** A TURN server of the person's own, used for live tabs instead of the server's; null: the server's. */
+  shareTurn: import('./share/servers').OwnTurn | null
   /** Offer saved addresses and cards in forms, and offer to save new ones (main/formData.ts). */
   formFill: boolean
   /** With the sidebar collapsed, open it when the pointer touches the left edge; it tucks away again when the pointer leaves. */
@@ -1115,6 +1123,8 @@ export interface InternalApi {
   memoryStats(): Promise<MemoryStats>
   memoryFree(): Promise<number>
   restart(): Promise<void>
+  /** A shared-spaces server address: its origin when it answers as one, else null. */
+  checkShareServer(url: string): Promise<string | null>
   /** The welcome page is finished: remember that, and close it. */
   onboardingDone(): Promise<void>
   /** Whether Panes is what the system opens web links with. */

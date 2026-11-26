@@ -27,7 +27,12 @@ export function linksFromArgv(
     if (!arg || arg.startsWith('-')) continue
     // a shared space's invite, handed over by the system (the invite page's Open in Panes): only that one address
     // of panes://, never an internal page
-    if (/^panes:\/\/join\/[A-Za-z0-9_-]{16,64}#[A-Za-z0-9_-]{43}$/.test(arg)) out.push(arg)
+    if (
+      /^panes:\/\/join\/[A-Za-z0-9_-]{16,64}(\?s=[A-Za-z0-9%._~-]{1,300})?#[A-Za-z0-9_-]{43}$/.test(
+        arg
+      )
+    )
+      out.push(arg)
     else if (/^https?:\/\//i.test(arg)) {
       try {
         out.push(new URL(arg).toString())

@@ -42,6 +42,7 @@ import type { PermissionStore } from './permissions'
 import { flushAllStores } from './store'
 import type { SettingsStore } from './settings'
 import type { UpdateManager } from './updater'
+import { serverOrigin } from '@shared/share/servers'
 
 /** Must run before app is ready. */
 export function registerInternalScheme(): void {
@@ -186,6 +187,17 @@ export function registerInternalIpc(d: Deps): void {
   handle('int:dump-remove', (id: number) => d.dumps.remove(Number(id)))
   handle('int:downloads-list', () => d.downloads.view(false))
   handle('int:download-action', (id: number, action: DownloadAction) => d.downloads.act(id, action))
+  // a shared-spaces server typed in Settings: whether it answers as one (share/server's /health)
+  handle('int:check-share-server', async (raw: unknown) => {
+    const origin = typeof raw === 'string' ? serverOrigin(raw) : null
+    if (!origin) return null
+    try {
+      const res = await fetch(`${origin}/health`, { signal: AbortSignal.timeout(6000) })
+      return res.ok && (await res.text()).trim() === 'ok' ? origin : null
+    } catch {
+      return null
+    }
+  })
   handle('int:pick-download-dir', async () => {
     const win = BrowserWindow.getFocusedWindow()
     const opts: OpenDialogOptions = {

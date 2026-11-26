@@ -59,3 +59,17 @@ describe('linksFromArgv', () => {
     expect(linksFromArgv(['page.HTML'], toUrl, exists)).toEqual(['file:///page.HTML'])
   })
 })
+
+describe('a join link from a web board on another server', () => {
+  test('is kept with its server', () => {
+    const join =
+      'panes://join/' + 'a'.repeat(22) + '?s=https%3A%2F%2Fshare.example.com#' + 'b'.repeat(43)
+    expect(
+      linksFromArgv(
+        [join],
+        (p) => p,
+        () => false
+      )
+    ).toEqual([join])
+  })
+})

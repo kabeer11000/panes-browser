@@ -6,10 +6,12 @@
  * A room is made by the first person to come with its token; after that the token must match (only its hash is
  * kept). Rooms nobody has opened for ROOM_DAYS are deleted.
  *
- * Run: bun share/server/relay.ts   (PORT, DATA_DIR, WEB_DIR, and TURN_KEY_ID + TURN_KEY_API_TOKEN for Cloudflare TURN,
+ * Run: bun share/server/relay.ts   (PORT, DATA_DIR, WEB_DIR; TURN_URLS + TURN_SECRET for a TURN server of your own,
+ * or TURN_KEY_ID + TURN_KEY_API_TOKEN for Cloudflare TURN,
  * from the environment)
  */
 import { Database } from 'bun:sqlite'
+import { createHmac } from 'crypto'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
 import type { ServerWebSocket } from 'bun'
@@ -46,6 +48,11 @@ export interface RelayOptions {
    * shared browsing where no direct path between two people is found. Without it, STUN only.
    */
   turn?: { keyId: string; token: string }
+  /**
+   * A TURN server of this relay's own (coturn and others with `use-auth-secret`): GET /ice/<room> hands out
+   * short-lived logins made from the shared secret (the TURN REST scheme). Used instead of `turn` when set.
+   */
+  ownTurn?: { urls: string[]; secret: string }
   /** For tests: what the TURN credentials are fetched with. */
   fetchTurn?: typeof fetch
   /** The key GET /usage/stats wants (x-key); without one, nobody can read the usage statistics. */
@@ -97,6 +104,20 @@ export const STUN_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: 'stun:stun.l.google.com:19302' }
 ]
+/**
+ * A login for a TURN server set up with a shared secret (coturn's use-auth-secret, the TURN REST scheme): the user
+ * name is when it stops working (unix seconds), the password that name signed with the secret (HMAC-SHA1, base64).
+ */
+export function turnLogin(
+  secret: string,
+  now = Date.now(),
+  ttl = TURN_TTL
+): { username: string; credential: string } {
+  const username = `${Math.floor(now / 1000) + ttl}:panes`
+  const credential = createHmac('sha1', secret).update(username).digest('base64')
+  return { username, credential }
+}
+
 /** How long TURN credentials last, and how long one set is handed out before fresh ones are asked for. */
 const TURN_TTL = 86400
 const TURN_REUSE = 6 * 3600_000
@@ -268,6 +289,7 @@ export function startRelay(o: RelayOptions): { stop: () => void; port: number } 
   let turnSet: { servers: RTCIceServer[]; at: number } | null = null
   let turnAsk: Promise<RTCIceServer[] | null> | null = null
   async function iceServers(): Promise<RTCIceServer[]> {
+    if (o.ownTurn) return [...STUN_SERVERS, { urls: o.ownTurn.urls, ...turnLogin(o.ownTurn.secret) }]
     if (!o.turn) return STUN_SERVERS
     if (turnSet && Date.now() - turnSet.at < TURN_REUSE) return turnSet.servers
     turnAsk ??= (async () => {
@@ -500,6 +522,16 @@ if (import.meta.main) {
     turn:
       process.env.TURN_KEY_ID && process.env.TURN_KEY_API_TOKEN
         ? { keyId: process.env.TURN_KEY_ID, token: process.env.TURN_KEY_API_TOKEN }
+        : undefined,
+    // TURN_URLS="turn:turn.example.com:3478,turns:turn.example.com:5349" TURN_SECRET=<coturn static-auth-secret>
+    ownTurn:
+      process.env.TURN_URLS && process.env.TURN_SECRET
+        ? {
+            urls: process.env.TURN_URLS.split(',')
+              .map((u) => u.trim())
+              .filter(Boolean),
+            secret: process.env.TURN_SECRET
+          }
         : undefined
   })
   console.log(`relay: listening on ${r.port}`)

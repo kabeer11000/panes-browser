@@ -301,3 +301,54 @@
 .toggle.on span {
   background: var(--accent-fg, #fff);
 }
+
+/* ---- shared space servers (ShareServersSection.tsx) ---- */
+.int-input {
+  min-width: 0;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  outline: 0;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--fg);
+  font: inherit;
+}
+.int-input:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.u-hint.warn {
+  color: #dc2626;
+}
+.share-srv-add,
+.share-srv-turn {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+.share-srv-add .int-input {
+  flex: 1;
+}
+.share-srv-turn .int-input {
+  flex: 1 1 140px;
+}
+.share-srv-turn .int-input:first-child {
+  flex-basis: 100%;
+}
+.share-srv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.share-srv-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

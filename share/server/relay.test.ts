@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { Database } from 'bun:sqlite'
+import { createHmac } from 'crypto'
 import { mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import * as Y from 'yjs'
 import { FLUSH_MS, ShareClient, type ShareStatus } from '../../src/shared/share/client'
 import { newRoom, roomKeys } from '../../src/shared/share/crypto'
-import { startRelay, STUN_SERVERS } from './relay'
+import { startRelay, STUN_SERVERS, turnLogin } from './relay'
 
 let relay: { stop: () => void; port: number }
 let dir: string
@@ -441,5 +442,15 @@ describe('usage statistics', () => {
     expect(codes.filter((c) => c === 429).length).toBe(5)
     r.stop()
     rmSync(udir, { recursive: true, force: true })
+  })
+})
+
+describe('a TURN server of the relay its own', () => {
+  test('logins in the TURN REST scheme: expiry as the name, the name signed with the secret', () => {
+    const { username, credential } = turnLogin('s3cret', 1_000_000, 86400)
+    expect(username).toBe('87400:panes')
+    // coturn checks: base64(HMAC-SHA1(secret, username))
+    const want = createHmac('sha1', 's3cret').update('87400:panes').digest('base64')
+    expect(credential).toBe(want)
   })
 })
