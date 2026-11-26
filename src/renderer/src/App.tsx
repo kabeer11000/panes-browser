@@ -470,7 +470,12 @@ function App(): React.JSX.Element {
       if (cmd === 'focus-address') {
         // on the canvas board a new tab asks what to open there, instead of swapping the board for search
         if (modeRef.current === 'canvas') window.dispatchEvent(new Event('panes:canvas-new'))
-        else void openOverlay('search')
+        else if (modeRef.current === 'search') {
+          // already open, but a click took the keyboard away: give it back to the search's input
+          const input = document.querySelector<HTMLInputElement>('.pal-input input')
+          input?.focus()
+          input?.select()
+        } else void openOverlay('search')
       } else if (cmd === 'toggle-sidebar') {
         toggleSidebar()
       } else if (cmd === 'toggle-chat') {
