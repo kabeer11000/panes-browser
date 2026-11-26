@@ -387,8 +387,17 @@ export class ShareService {
     this.picTimer ??= setInterval(() => void this.sendPics(), PIC_TICK_MS)
     for (const [id, saved] of Object.entries(this.store.value.rooms)) {
       const spaceId = Number(id)
-      if (this.d.spaces.get(spaceId)) this.open(spaceId, saved)
-      else delete this.store.value.rooms[id]
+      if (!this.d.spaces.get(spaceId)) {
+        delete this.store.value.rooms[id]
+        continue
+      }
+      // one room that cannot open (its secret no longer decrypts: another Windows account's keys, a restored copy)
+      // stays off this run, kept as it is; it must never stop Panes starting
+      try {
+        this.open(spaceId, saved)
+      } catch (err) {
+        console.warn(`share: space ${spaceId} could not open its room:`, err)
+      }
     }
   }
 
