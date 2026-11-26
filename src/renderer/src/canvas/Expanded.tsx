@@ -1,6 +1,7 @@
 import { Img } from './Img'
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { TabStream } from '@renderer/components/TabStream'
+import { tabFrameSize } from '@shared/capture'
 import { flushSync } from 'react-dom'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseMarkdown, type Block, type Inline } from '@shared/ai/markdown'
@@ -18,7 +19,7 @@ import {
   ForwardIcon,
   MoreIcon,
   ReloadIcon,
-  SpeakerIcon,
+  StarIcon,
   StopIcon
 } from '@renderer/components/icons'
 import { FindBar } from '@renderer/components/FindBar'
@@ -810,8 +811,6 @@ export function Expanded({
   const [inboxOpen, setInboxOpen] = useState(false)
   /** The now-playing island's list is open over the page. */
   const [islandOpen, setIslandOpen] = useState(false)
-  // the island in the header lists what plays elsewhere: the page here has the header's mute button
-  const playingElsewhere = (island?.items ?? []).filter((t) => t.id !== tab)
   // a tab in the strip pointed at: its name stands in the header's title meanwhile (no tooltip over the strip)
   const [pointed, setPointed] = useState<Pick<
     CardModel,
@@ -853,7 +852,23 @@ export function Expanded({
   // The live page as it was last seen: always under the native view, so whenever the view is away (a popover over
   // it, closing) the page is still there in picture, never an empty slot. Kept fresh while the page is live (see
   // below), so closing never waits for a capture: it moves on the frame of the key, with the last picture.
-  const [shot, setShot] = useState<string | null>(null)
+  // `box`: a full-size picture is drawn at its own size, a px to a screen px, so it is the page to the pixel and
+  // nothing shifts as it stands in for it (stretched to the slot it was a hair smaller); a smaller one fills the slot
+  const [shot, setShot] = useState<{ src: string; box?: { width: number; height: number } } | null>(
+    null
+  )
+  const shotOf = (
+    src: string,
+    img: HTMLImageElement
+  ): { src: string; box?: { width: number; height: number } } => {
+    const r = slot.current?.getBoundingClientRect()
+    const k = window.devicePixelRatio || 1
+    const page = r && tabFrameSize(r.width, r.height, k).page
+    const full = page && img.naturalWidth === page.width && img.naturalHeight === page.height
+    return full
+      ? { src, box: { width: img.naturalWidth / k, height: img.naturalHeight / k } }
+      : { src }
+  }
   const shotReq = useRef(0)
   const lastGrab = useRef(0)
   const grabShot = useCallback((thumb = false): void => {
@@ -871,7 +886,7 @@ export function Expanded({
         img.src = pic
         await img.decode().catch(() => undefined)
         // a later picture (or another page) won: this one is out of date
-        if (want === shotReq.current && tabRef.current === id) setShot(pic)
+        if (want === shotReq.current && tabRef.current === id) setShot(shotOf(pic, img))
       })
       .catch(() => undefined)
   }, [])
@@ -1416,7 +1431,7 @@ export function Expanded({
         .decode()
         .catch(() => undefined)
         .then(() => {
-          if (id === tabRef.current && !closing.current) setShot(pic)
+          if (id === tabRef.current && !closing.current) setShot(shotOf(pic, img))
         })
     })
     return () => {
@@ -1587,7 +1602,7 @@ export function Expanded({
         style={{ left, top, width: w, height: h }}
       >
         {/* three zones: the page (nav, address) on the left, how to see it in the middle, what to do on the right.
-            The rest (bookmark, copy link, find, zoom) is in More and on a right-click of the bar. */}
+            The rest (copy link, find, zoom) is in More and on a right-click of the bar. */}
         <header
           className="cv-panel-head"
           ref={head}
@@ -1691,8 +1706,20 @@ export function Expanded({
                 m.site && <span>{m.site}</span>
               )}
             </div>
+            {live !== 'off' && caps.bookmark && page && (
+              <button
+                type="button"
+                className={'cv-hbtn' + (page.bookmarked ? ' on' : '')}
+                aria-label={page.bookmarked ? 'Remove bookmark' : 'Bookmark this page'}
+                aria-pressed={page.bookmarked}
+                title={page.bookmarked ? 'Remove bookmark (Ctrl+D)' : 'Bookmark this page (Ctrl+D)'}
+                onClick={() => window.api.toggleBookmark()}
+              >
+                <StarIcon filled={page.bookmarked} />
+              </button>
+            )}
           </div>
-          {/* what comes and goes (open live, unsplit, mute, zoom): left of the tabs, so it never moves them */}
+          {/* what comes and goes (open live, unsplit, zoom): left of the tabs, so it never moves them */}
           <div className="cv-hzone cv-hvar">
             {/* no reader: a page that did not open live gets a way to try again, nothing else */}
             {canLive && live === 'off' && (
@@ -1712,17 +1739,6 @@ export function Expanded({
                 <UnsplitIcon />
               </button>
             )}
-            {m.isTab && (m.audible || m.muted) ? (
-              <button
-                type="button"
-                className={'cv-hbtn' + (m.muted ? ' on' : '')}
-                aria-label={m.muted ? 'Unmute' : 'Mute'}
-                title={m.muted ? 'Unmute' : 'Mute'}
-                onClick={() => window.api.toggleMute(m.id)}
-              >
-                <SpeakerIcon muted={m.muted} />
-              </button>
-            ) : null}
             {zoomLabel && (
               <button
                 type="button"
@@ -1749,10 +1765,10 @@ export function Expanded({
             )}
           </div>
           <div className="cv-hzone cv-hzone-c">
-            {/* what plays elsewhere: this page's own sound is the header's mute button, not a second control here */}
-            {island && playingElsewhere.length > 0 && (
+            {/* everything playing, this page included: its pill pauses and mutes it (the header has no mute of its own) */}
+            {island && island.items.length > 0 && (
               <NowPlaying
-                items={playingElsewhere}
+                items={island.items}
                 spaces={island.spaces}
                 activeSpaceId={island.activeSpaceId}
                 here={tab}
@@ -1881,7 +1897,8 @@ export function Expanded({
                       picture that came a frame late would be a blank frame */}
                     {((live === 'on' && shot) || m.snap) && (
                       <img
-                        src={(live === 'on' && shot) || m.snap}
+                        src={(live === 'on' && shot?.src) || m.snap}
+                        style={(live === 'on' && shot?.box) || undefined}
                         alt=""
                         decoding="sync"
                         draggable={false}

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  tabFrameSize,
   CAPTURE_HOLD_MS,
   CAPTURE_PREFIX,
   captureKindsOf,
@@ -378,5 +379,28 @@ describe('a call only listened to (no camera, mic or screen)', () => {
     expect(reports.at(-1)?.rtc).toBe(true)
     pc.set('closed')
     expect(reports.at(-1)?.rtc).toBeUndefined()
+  })
+})
+
+describe('tabFrameSize', () => {
+  const frame = (w: number, h: number, k: number): { width: number; height: number } =>
+    tabFrameSize(w, h, k).frame
+  test('the page view at 125%, as measured clean (no black bars)', () => {
+    // the slots behind the black bar: 1385.59 x 701.19 and 1387.19 x 767.59
+    expect(frame(1385.5875, 701.1875, 1.25)).toEqual({ width: 1734, height: 878 })
+    expect(frame(1387.1875, 767.5875, 1.25)).toEqual({ width: 1734, height: 960 })
+  })
+  test('whole sizes stay whole, odd ones go up to even', () => {
+    expect(frame(800, 600, 1)).toEqual({ width: 800, height: 600 })
+    expect(frame(801, 601, 1)).toEqual({ width: 802, height: 602 })
+    expect(frame(1000, 500, 1.5)).toEqual({ width: 1500, height: 750 })
+    expect(frame(1001, 501, 1.5)).toEqual({ width: 1502, height: 752 })
+  })
+  test('drawn 1:1, a frame px to a screen px, not stretched to the slot', () => {
+    // the page is 1733 x 877 px in a 1734 x 878 frame, unscaled: the frame is drawn at its own size
+    expect(tabFrameSize(1385.5875, 701.1875, 1.25).box).toEqual({ width: 1387.2, height: 702.4 })
+    // and the page itself is 1733 x 877 px, the size of a full picture of it (capturePage)
+    expect(tabFrameSize(1385.5875, 701.1875, 1.25).page).toEqual({ width: 1733, height: 877 })
+    expect(tabFrameSize(800, 600, 1).box).toEqual({ width: 800, height: 600 })
   })
 })

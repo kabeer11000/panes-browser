@@ -309,3 +309,29 @@ export function captureShim(
     report()
   })
 }
+
+/**
+ * How to stream a page shown at `width` x `height` CSS px so the stream lines up with the page to the pixel.
+ * `frame` is the size to ask the tab capture for: Chromium sends frames of exactly the size asked (even numbers,
+ * rounded down) with the page fitted in and the rest black, so any other size than the page's own leaves black bars
+ * (2px at 125%). The page's view is the slot rounded to whole px (as main sets it), drawn at that times the scale,
+ * rounded up (measured at 125% for 1386x701 and 1387x768). The page sits in the frame unscaled, at its top left, with
+ * the odd px over: `box` is the CSS size that draws the frame 1:1, so the stream is the page to the pixel (a box the
+ * slot's size scales it a hair and the page shifts as it swaps in and out). The odd px is past the slot, clipped.
+ * `page` is the page's own size in px: a picture of it that size is drawn 1:1 too.
+ */
+export function tabFrameSize(
+  width: number,
+  height: number,
+  scale: number
+): {
+  frame: { width: number; height: number }
+  box: { width: number; height: number }
+  page: { width: number; height: number }
+} {
+  const drawn = (css: number): number => Math.ceil(Math.round(css) * scale - 1e-6)
+  const even = (n: number): number => n + (n % 2)
+  const page = { width: drawn(width), height: drawn(height) }
+  const frame = { width: even(page.width), height: even(page.height) }
+  return { frame, box: { width: frame.width / scale, height: frame.height / scale }, page }
+}
