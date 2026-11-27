@@ -22,6 +22,7 @@ import {
 } from 'electron'
 import { stopCaptureIn } from './permissions'
 import { writeFileSync } from 'fs'
+import { writeFile } from 'fs/promises'
 import { popupMenu } from './menuFloat'
 import { pathToFileURL } from 'url'
 import {
@@ -1115,6 +1116,11 @@ export class TabManager {
     const t = this.tabs.get(id)
     const wc = t ? liveContents(t) : null
     return wc && rect ? { wc, rect, preview: true } : null
+  }
+
+  /** Where the page on screen sits, for cards that hang off its corner: on the board, the one live in the preview. */
+  pageRect(): Rect | null {
+    return this.canvasMode ? (this.previewOpen ? this.liveRect : null) : this.activeRect()
   }
 
   /** Where the active tab's page sits in the window, for things that hang off its corner. */
@@ -2395,6 +2401,7 @@ export class TabManager {
           detail?: string
           choices: Array<{ label: string; tone?: 'primary' | 'danger' }>
           image?: string
+          align?: 'end'
         },
         wc: WebContents | null
       ) => Promise<number | null>)
@@ -2609,6 +2616,9 @@ export class TabManager {
     if (!canceled && filePath) await wc.savePage(filePath, 'HTMLComplete').catch(() => {})
   }
 
+  /** A free path for a file in the download folder (DownloadManager.pathFor), set by index.ts. */
+  savePath: ((filename: string) => string) | null = null
+
   /** A QR code of a page's address on Panes' card (Chrome's "Create QR code"): copied or saved from there. */
   async showQr(id = this.activeId): Promise<void> {
     const tab = id === null ? undefined : this.tabs.get(id)
@@ -2617,14 +2627,22 @@ export class TabManager {
     if (!wc || !this.confirm || !/^https?:/i.test(url) || url.length > 2000) return
     const { width, height, bgra } = qrBitmap(url)
     const img = nativeImage.createFromBitmap(Buffer.from(bgra), { width, height })
+    const host = new URL(url).hostname
+    // the window's, not the page's: asked from the board for a card's tab (a page not on screen), a page's card would
+    // wait unseen until that page showed, then come up over its preview
     const pick = await this.confirm(
       {
         title: 'Scan to open this page',
         detail: new URL(url).host,
         image: img.toDataURL(),
-        choices: [{ label: 'Copy image' }, { label: 'Save...' }, { label: 'Done', tone: 'primary' }]
+        align: 'end',
+        choices: [
+          { label: 'Copy image' },
+          { label: 'Save to Downloads' },
+          { label: 'Done', tone: 'primary' }
+        ]
       },
-      wc
+      null
     )
     if (pick === 0)
       await clipboard.write([
@@ -2632,12 +2650,9 @@ export class TabManager {
           'image/png': new Blob([new Uint8Array(img.toPNG())], { type: 'image/png' })
         })
       ])
-    else if (pick === 1) {
-      const { canceled, filePath } = await dialog.showSaveDialog(this.win, {
-        defaultPath: `${new URL(url).hostname} QR code.png`,
-        filters: [{ name: 'PNG image', extensions: ['png'] }]
-      })
-      if (!canceled && filePath) writeFileSync(filePath, img.toPNG())
+    else if (pick === 1 && this.savePath) {
+      const file = this.savePath(`${host} QR code.png`)
+      await writeFile(file, img.toPNG()).catch(() => undefined)
     }
   }
 

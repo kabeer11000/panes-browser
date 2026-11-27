@@ -1426,6 +1426,8 @@ export interface PermissionPromptState {
     input?: string
     /** A picture shown under the words (a page's QR code), as a data: address. */
     image?: string
+    /** Hung from the page's top right, under the top bar, as the site panel is (else the top left, as a site's). */
+    align?: 'end'
   }
 }
 

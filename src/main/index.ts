@@ -477,7 +477,8 @@ function createWindow(): void {
   })
   const permissionManager = new PermissionManager({
     win,
-    anchor: () => tabs.activeRect(),
+    // the page on screen: on the board, the one live in the preview (the tab view's place is not on screen there)
+    anchor: () => tabs.pageRect(),
     onKeyboardLock: (wc) => tabs.markKeyboardLock(wc),
     hidden: (wc) => tabs.isHidden(wc)
   })
@@ -507,6 +508,7 @@ function createWindow(): void {
   // USB, HID, serial and Bluetooth devices: Chrome's chooser, in every session tabs use
   askDevicesWith((c, wc) => permissionManager.confirm(c, wc))
   tabs.confirm = (c, wc) => permissionManager.confirm(c, wc)
+  tabs.savePath = (name) => downloads.pathFor(name)
   // A page's alert(), confirm() and prompt() (preload/frame.ts, shared/jsDialogs.ts): asked on Panes' card, for the
   // page that asked (it shows when that page is on screen), instead of a Windows dialog. The page waits, as it does
   // for the real ones. A page that keeps throwing them up gets Cancel at once past a few (dialogAllowed).

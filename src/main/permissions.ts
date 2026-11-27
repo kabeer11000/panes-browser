@@ -133,6 +133,7 @@ const kindsOf = (pass: SharePass): ScreenSource['kind'][] =>
 const CARD_WIDTH = 340
 const PAD = 36 // room around the card for its shadow (blur 24 + offset 8 + slack), so the view never clips it
 const INSET = 12 // from the top-left corner of the page
+const GAP = 8 // under the top bar, as the site panel (sitePanel.ts, styles.css --pop-gap)
 
 /** Which answers changed: one site's, or (origin null) every site's. */
 export interface PermChange {
@@ -580,8 +581,14 @@ export class PermissionManager {
     const modal = !!next.state.sources
     const width = modal ? winW : CARD_WIDTH + PAD * 2
     const height = modal ? winH : Math.min(this.height + PAD * 2, winH)
-    const x = modal ? 0 : Math.max(0, Math.min((page?.x ?? 80) + INSET - PAD, winW - width))
-    const y = modal ? 0 : Math.max(0, (page?.y ?? 60) + INSET - PAD)
+    // a card of Panes' own about the page (its QR code) hangs from its top right, GAP under the top bar, as the site
+    // panel hangs under its button there; a site's question sits at its top left
+    const end = next.state.confirm?.align === 'end'
+    const left = end
+      ? (page ? page.x + page.width : winW) - GAP - CARD_WIDTH - PAD
+      : (page?.x ?? 80) + INSET - PAD
+    const x = modal ? 0 : Math.max(0, Math.min(left, winW - width))
+    const y = modal ? 0 : Math.max(0, (page?.y ?? 60) + (end ? GAP : INSET) - PAD)
     view.setBounds({ x, y, width, height })
     // Re-adding moves it to the top, above any tab views created since it was last shown.
     this.d.win.contentView.addChildView(view)

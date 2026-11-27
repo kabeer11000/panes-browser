@@ -8,6 +8,10 @@ body {
   animation: perm-in 0.22s var(--ease) both;
   transform-origin: top left;
 }
+/* hung from the page's top right (its QR code): grows from that corner, as the site panel does */
+.perm-root.end {
+  transform-origin: top right;
+}
 @keyframes perm-in {
   from {
     opacity: 0;

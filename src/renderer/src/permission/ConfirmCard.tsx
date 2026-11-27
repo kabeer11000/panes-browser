@@ -13,13 +13,13 @@ export const ConfirmCard = forwardRef<
     onAnswer: (a: PermissionAnswer) => void
   }
 >(function ConfirmCard({ confirm, onAnswer }, ref) {
-  const { title, detail, choices, list, input, image } = confirm
+  const { title, detail, choices, list, input, image, align } = confirm
   // a page's prompt(): the text typed goes back with the choice, Enter being the last (OK)
   const [text, setText] = useState(input ?? '')
   const pick = (index: number): void =>
     onAnswer({ action: 'choose', index, ...(input !== undefined ? { text } : {}) })
   return (
-    <div className="perm-root" ref={ref}>
+    <div className={'perm-root' + (align === 'end' ? ' end' : '')} ref={ref}>
       <div className="perm-card" role="alertdialog" aria-label={title}>
         <Backdrop />
         <div className="perm-title">
