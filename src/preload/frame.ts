@@ -202,6 +202,16 @@ if (/^https?:$/.test(location.protocol)) {
     },
     true
   )
+  // Media playing, pausing or muted by the page itself: main asks the page again (the now-playing island follows).
+  // Chromium's own media events skip a page out of sight, and say nothing of a page's mute button. Media events do
+  // not bubble: heard on the way down. One report for a burst (a playlist moving on fires several).
+  let mediaTimer: ReturnType<typeof setTimeout> | undefined
+  const mediaChanged = (): void => {
+    clearTimeout(mediaTimer)
+    mediaTimer = setTimeout(() => ipcRenderer.send('media:changed'), 150)
+  }
+  for (const type of ['playing', 'pause', 'ended', 'volumechange'])
+    document.addEventListener(type, mediaChanged, true)
   // navigator.share (Electron has none): Panes' own share menu, from the top frame only
   if (window === window.top)
     try {

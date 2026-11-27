@@ -916,6 +916,8 @@ function createWindow(): void {
     tabs.moveTabToSpace(tabId, spaceId)
   )
   ipcMain.on('pip:toggle', () => tabs.togglePip())
+  // a page's media played, paused or was muted by the page (preload/frame.ts): what plays is asked again
+  ipcMain.on('media:changed', (e) => tabs.mediaChanged(e.sender))
   ipcMain.on('pip:native', (e, on: unknown, playing: unknown) =>
     tabs.nativePip(e.sender, on === true, playing === true)
   )
@@ -1066,7 +1068,10 @@ function createWindow(): void {
     if (asleep && action === 'pause') return null
     const wc = asleep ? await tabs.wake(id) : tabs.contentsOf(id)
     if (!wc) return null
+    // a frozen page is woken first (what freezing paused plays on), never played into while frozen
+    await tabs.rouse(id)
     const m = await media(wc, action, 0)
+    tabs.recheckPlaying(id)
     return m ? { paused: m.paused } : null
   })
   ipcMain.on('tabs:ratios', (_e, path: number[], ratios: number[]) =>

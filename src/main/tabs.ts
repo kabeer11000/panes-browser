@@ -373,6 +373,10 @@ interface Tab {
   groupId: number | null
   /** A media element on the page is playing (it may be between sounds), and when sound last started or stopped. */
   media: boolean
+  /** All that plays is silenced by the page itself (see PLAYING_SCRIPT). */
+  quiet: boolean
+  /** Freezing paused media in the page, played again when it wakes (see FREEZE_PAUSE_SCRIPT). */
+  frozePaused: boolean
   lastSoundAt: number
   /** Whether the page currently has Chromium's automatic dark mode forced on. */
   darkened: boolean
@@ -447,7 +451,72 @@ function liveContents(tab: Tab): WebContents | null {
 }
 
 /** True when some audio or video element in the page plays (not paused, not ended, with data to play). */
-const PLAYING_SCRIPT = `[...document.querySelectorAll('video, audio')].some((m) => !m.paused && !m.ended && m.readyState > 2)`
+/**
+ * What a frame's media is doing: `p` something plays, `q` all that plays is silenced by the page itself (Instagram's
+ * muted videos, its own mute button), which the tab's own mute does not show.
+ */
+const PLAYING_SCRIPT = `(() => {
+  const on = [...document.querySelectorAll('video, audio')].filter((m) => !m.paused && !m.ended && m.readyState > 2)
+  return { p: on.length > 0, q: on.length > 0 && on.every((m) => m.muted || m.volume === 0) }
+})()`
+/** The page's own mute taken off what plays (the island's speaker, on a page that silenced its video itself). */
+const UNMUTE_SCRIPT = `(() => {
+  for (const m of document.querySelectorAll('video, audio')) {
+    if (m.paused || m.ended) continue
+    m.muted = false
+    if (m.volume === 0) m.volume = 1
+  }
+})()`
+/**
+ * Before a page is frozen, what plays in it is paused (and remembered): media left playing in a frozen page broke its
+ * sound when it ran again (Instagram's "audio renderer error"). How many it paused.
+ */
+const FREEZE_PAUSE_SCRIPT = `(() => {
+  const on = [...document.querySelectorAll('video, audio')].filter((m) => !m.paused && !m.ended)
+  globalThis.__panesFrozen = on
+  for (const m of on) m.pause()
+  return on.length
+})()`
+/** Woken again: what freezing paused plays on (unless it went, or was played meanwhile). */
+const THAW_PLAY_SCRIPT = `(() => {
+  const back = (globalThis.__panesFrozen || []).filter((m) => m.isConnected && m.paused)
+  globalThis.__panesFrozen = []
+  for (const m of back) m.play().catch(() => undefined)
+})()`
+
+/**
+ * Whether anything plays in a page and whether the page silenced all of it (PLAYING_SCRIPT, every frame); null when it
+ * could not say in time (frozen, going away).
+ */
+function askPlaying(wc: WebContents): Promise<{ p: boolean; q: boolean } | null> {
+  const ask = inFrames(wc, PLAYING_SCRIPT).then((all) => {
+    const on = all.filter(
+      (r): r is { p: boolean; q: boolean } => !!r && (r as { p?: unknown }).p === true
+    )
+    return { p: on.length > 0, q: on.length > 0 && on.every((r) => r.q) }
+  })
+  return Promise.race([ask, new Promise<null>((r) => setTimeout(() => r(null), 800))]).catch(
+    () => null
+  )
+}
+
+/** Run a script in every frame of a page (a video is often in a frame of its own); a frame that fails gives null. */
+function inFrames(wc: WebContents, script: string): Promise<unknown[]> {
+  let frames: WebFrameMain[]
+  try {
+    frames = wc.mainFrame.framesInSubtree.filter((f) => !f.isDestroyed())
+  } catch {
+    return Promise.resolve([])
+  }
+  return Promise.all(
+    frames.map((f) =>
+      f.executeJavaScript(script, false).then(
+        (v: unknown) => v,
+        () => null
+      )
+    )
+  )
+}
 
 /** A live page's back/forward list, as worth keeping (see keepHistory). */
 function historyOf(wc: WebContents): NavHistory | null {
@@ -874,7 +943,7 @@ export class TabManager {
       facts.push({
         id,
         sounding: this.sounding(t, wc),
-        muted: wc.audioMuted,
+        muted: this.silenced(t, wc),
         media: !t.unloaded && t.media,
         call: isCapturing(t.capture)
       })
@@ -897,7 +966,7 @@ export class TabManager {
         private: t.private,
         tor: t.tor,
         audible: this.sounding(t, wc),
-        muted: wc.audioMuted,
+        muted: this.silenced(t, wc),
         playing: !t.unloaded && t.media,
         capture: t.capture
       })
@@ -1285,7 +1354,7 @@ export class TabManager {
       const call = calls[name].bind(wc)
       calls[name] = (...args: unknown[]) => {
         const tab = [...this.tabs.values()].find((t) => !t.unloaded && t.view.webContents === wc)
-        if (tab?.rest === 'frozen') this.thaw(tab)
+        if (tab?.rest === 'frozen') void this.thaw(tab)
         return call(...args)
       }
     }
@@ -1310,7 +1379,7 @@ export class TabManager {
       wc.isLoadingMainFrame()
     )
       return
-    if (t.rest === 'frozen') this.thaw(t)
+    if (t.rest === 'frozen') void this.thaw(t)
     t.warming = true
     t.warmSize = size ?? null
     this.applyVisibility()
@@ -1340,7 +1409,7 @@ export class TabManager {
   prewarm(id: number): void {
     const t = this.tabs.get(id)
     if (!t || this.onScreenIds().includes(id)) return
-    if (t.rest === 'frozen') this.thaw(t)
+    if (t.rest === 'frozen') void this.thaw(t)
     if (t.pending && !t.private && !t.tor) {
       t.lastShownAt = Date.now() // not unloaded again by the next sweep
       this.ensureLoaded(id, t)
@@ -1348,13 +1417,44 @@ export class TabManager {
   }
 
   /** Let a frozen page run again (without being shown): its caches stay given back. */
-  private thaw(tab: Tab): void {
+  private thaw(tab: Tab): Promise<void> {
     tab.rest = 'purged'
     const wc = liveContents(tab)
-    if (wc?.debugger.isAttached())
-      void wc.debugger
-        .sendCommand('Page.setWebLifecycleState', { state: 'active' })
-        .catch(() => undefined)
+    if (!wc?.debugger.isAttached()) return Promise.resolve()
+    const replay = tab.frozePaused
+    tab.frozePaused = false
+    return wc.debugger
+      .sendCommand('Page.setWebLifecycleState', { state: 'active' })
+      .catch(() => undefined)
+      .then(() => (replay && !wc.isDestroyed() ? inFrames(wc, THAW_PLAY_SCRIPT) : undefined))
+      .then(() => {
+        // Chromium often says nothing of media starting in a page out of sight: asked, so the island shows it playing
+        if (replay && !wc.isDestroyed()) this.checkPlaying(tab, wc)
+      })
+  }
+
+  /** A page reported its media changing (preload/frame.ts): asked again what plays. */
+  mediaChanged(wc: WebContents): void {
+    for (const t of this.tabs.values())
+      if (liveContents(t) === wc) return t.unloaded ? undefined : this.checkPlaying(t, wc)
+  }
+
+  /** Ask a tab's page again what plays (after the island acted on it: a page out of sight may send no event). */
+  recheckPlaying(id: number): void {
+    const t = this.tabs.get(id)
+    const wc = t && liveContents(t)
+    if (t && wc && !t.unloaded) this.checkPlaying(t, wc)
+  }
+
+  /**
+   * Something is about to be done in a tab's page from outside it (the now-playing island): it is running, and counts
+   * as just used, so it is not frozen again under the action. Resolves once it runs (what freezing paused playing again).
+   */
+  async rouse(id: number): Promise<void> {
+    const t = this.tabs.get(id)
+    if (!t) return
+    t.lastShownAt = Date.now()
+    if (t.rest === 'frozen') await this.thaw(t)
   }
 
   private inertView(): WebContentsView {
@@ -1425,6 +1525,8 @@ export class TabManager {
       boostKey: null,
       boosting: false,
       media: false,
+      quiet: false,
+      frozePaused: false,
       lastSoundAt: 0,
       boostAgain: false,
       failed: null,
@@ -2884,26 +2986,29 @@ export class TabManager {
   /** Whether anything in the page really plays now (any frame's audio or video), set on `tab.media`. */
   /** Ask the page whether anything plays; `fallback` is taken when it cannot say (no answer, or a private page). */
   private checkPlaying(tab: Tab, wc: WebContents, fallback?: boolean): void {
-    const take = (v: unknown): void => {
-      const now = typeof v === 'boolean' ? v : fallback
-      if (now === undefined || wc.isDestroyed() || tab.media === now) return
-      tab.media = now
-      this.refresh()
-    }
-    if (tab.private || tab.tor) return take(null) // no script into those pages for this
-    // every frame: a video is often in one of its own (an embedded player); a frame that cannot answer counts as no
-    const frames = wc.mainFrame.framesInSubtree.filter((f) => !f.isDestroyed())
-    const ask = Promise.all(
-      frames.map((f) =>
-        f.executeJavaScript(PLAYING_SCRIPT, false).then(
-          (v) => v === true,
-          () => false
-        )
-      )
-    ).then((all) => all.some(Boolean))
-    void Promise.race([ask, new Promise((r) => setTimeout(() => r(null), 800))])
-      .then(take)
-      .catch(() => take(null))
+    if (tab.private || tab.tor) return this.takePlaying(tab, wc, null, fallback) // no script into those pages for this
+    void askPlaying(wc).then((v) => this.takePlaying(tab, wc, v, fallback))
+  }
+
+  /** What the page said plays (null: it could not say, so `fallback` is taken), kept on the tab. */
+  private takePlaying(
+    tab: Tab,
+    wc: WebContents,
+    v: { p: boolean; q: boolean } | null,
+    fallback?: boolean
+  ): void {
+    const now = v ? v.p : fallback
+    if (now === undefined || wc.isDestroyed()) return
+    const quiet = v ? v.q : now && tab.quiet
+    if (tab.media === now && tab.quiet === quiet) return
+    tab.media = now
+    tab.quiet = quiet
+    this.refresh()
+  }
+
+  /** Muted as the island shows it: the tab, or the page silencing all it plays. */
+  private silenced(tab: Tab, wc: WebContents): boolean {
+    return wc.audioMuted || (!tab.unloaded && tab.media && tab.quiet)
   }
 
   private sounding(tab: Tab, wc: WebContents): boolean {
@@ -2951,9 +3056,23 @@ export class TabManager {
     const tab = this.tabs.get(id)
     const wc = tab && liveContents(tab)
     if (!wc) return
-    tab.mute = toggledTabMute(tab.mute, this.siteMuted(wc.getURL()))
-    this.applyMute(tab)
-    this.refresh()
+    const flip = (): void => {
+      tab.mute = toggledTabMute(tab.mute, this.siteMuted(wc.getURL()))
+      this.applyMute(tab)
+      this.refresh()
+    }
+    if (wc.audioMuted || !tab.media || tab.unloaded || tab.private || tab.tor) return flip()
+    // Something plays and the tab is not muted: the page is asked first whether it silenced it itself (Instagram's
+    // mute button; the sound stopping is only reported a moment later). Then the speaker unmutes it in the page.
+    void this.rouse(id)
+      .then(() => askPlaying(wc))
+      .then(async (v) => {
+        if (wc.isDestroyed()) return
+        this.takePlaying(tab, wc, v)
+        if (!v?.q) return flip()
+        await inFrames(wc, UNMUTE_SCRIPT)
+        this.checkPlaying(tab, wc)
+      })
   }
 
   /** Take one pane out of the group (the tab stays open). */
@@ -3454,7 +3573,7 @@ export class TabManager {
     const t = this.tabs.get(id)
     if (!t) return
     this.ensureLoaded(id, t)
-    if (t.rest === 'frozen') this.thaw(t) // running again before it is shown, so its first frame is ready
+    if (t.rest === 'frozen') void this.thaw(t) // running again before it is shown, so its first frame is ready
     const wc = liveContents(t)
     if (wc) wc.setBackgroundThrottling(false)
     // painting out of sight, at the slot's size, while the preview grows and the page loads: shown complete
@@ -4070,6 +4189,9 @@ export class TabManager {
     wc.on('audio-state-changed', () => {
       tab.dirty = true
       tab.lastSoundAt = Date.now()
+      // what plays, and the page's own mute button (the island's speaker follows): asked on every change of sound, as
+      // Chromium's media events do not always come for a page out of sight
+      this.checkPlaying(tab, wc)
       refresh()
       // the speaker stays while the media plays on through a quiet stretch; when that grace runs out it goes
       setTimeout(refresh, SOUND_HOLD_MS + 250)
@@ -4085,7 +4207,7 @@ export class TabManager {
     // ad or a hover preview pauses beside the main video. A page that cannot be asked takes the event's word.
     wc.on('media-paused', () => this.checkPlaying(tab, wc, false))
     wc.on('did-start-navigation', (_e, _url, _inPlace, isMainFrame) => {
-      if (isMainFrame) tab.media = false
+      if (isMainFrame) tab.media = tab.quiet = false
     })
     wc.on('did-fail-load', (_e, code, desc, url, isMainFrame) => {
       // -3 is a navigation cut short (a redirect, a download, you clicking elsewhere): not a failure
@@ -4800,7 +4922,7 @@ export class TabManager {
     if (on && (!t || t.private || t.tor)) return false
     if (on) {
       this.liveShared.add(id)
-      if (t!.rest === 'frozen') this.thaw(t!) // a frozen page sends no frames: the watchers would see it stopped
+      if (t!.rest === 'frozen') void this.thaw(t!) // a frozen page sends no frames: the watchers would see it stopped
       this.ensureLoaded(id, t!)
     } else {
       this.liveShared.delete(id)
@@ -5686,8 +5808,23 @@ export class TabManager {
     const frozen: Promise<unknown>[] = []
     for (const id of freeze) {
       const t = this.tabs.get(id)!
+      const wc = liveContents(t)
       t.rest = 'frozen'
-      frozen.push(send(t, 'Page.setWebLifecycleState', { state: 'frozen' }))
+      // what plays (a silent video: a sounding page is never frozen) is paused first, and plays on when it wakes
+      const pause =
+        t.media && wc && !t.private && !t.tor
+          ? inFrames(wc, FREEZE_PAUSE_SCRIPT).then((n) => {
+              if (n.some((x) => typeof x === 'number' && x > 0)) t.frozePaused = true
+            })
+          : Promise.resolve()
+      frozen.push(
+        // woken meanwhile (shown, the island): it stays running
+        pause.then(() =>
+          t.rest === 'frozen'
+            ? send(t, 'Page.setWebLifecycleState', { state: 'frozen' })
+            : undefined
+        )
+      )
     }
     // a process all of whose pages are now frozen gives its memory back to Windows (main/trim.ts): shown again, the
     // tab carries on as it was, no reload
@@ -5856,7 +5993,7 @@ export class TabManager {
     this.shownBefore = new Set(visible)
     for (const id of visible) {
       const t = this.tabs.get(id)
-      if (t?.rest === 'frozen') this.thaw(t) // Chromium wakes it as it is shown; this says so to the page too
+      if (t?.rest === 'frozen') void this.thaw(t) // Chromium wakes it as it is shown; this says so to the page too
       if (t) t.rest = 'awake'
       if (t) t.usedAt = now
       if (t) this.ensureLoaded(id, t)
