@@ -2633,6 +2633,15 @@ export class TabManager {
   /** A search field is open in the window (SearchPalette): pages may not take the keyboard from it (see wire). */
   searchField = false
 
+  /**
+   * The search field opened or closed. Opening, the window takes the keyboard then and there: after Ctrl+T in a page
+   * (the board's preview) the page had it back once it was done with the key, and the field showed with no caret.
+   */
+  setSearchField(open: boolean): void {
+    this.searchField = open
+    if (open && !this.win.isDestroyed()) this.win.webContents.focus()
+  }
+
   navigate(input: string): void {
     const url = resolveInput(input, this.deps.settings.searchUrl())
     if (!url || this.inviteHandler?.(url)) return

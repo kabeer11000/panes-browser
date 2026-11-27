@@ -1150,7 +1150,7 @@ function createWindow(): void {
     )
   )
   ipcMain.on('ui:search-field', (e, open: unknown) => {
-    if (e.sender === win.webContents) tabs.searchField = open === true
+    if (e.sender === win.webContents) tabs.setSearchField(open === true)
   })
   // the window's page reloading takes any open search field with it
   win.webContents.on('did-start-loading', () => (tabs.searchField = false))
