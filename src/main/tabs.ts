@@ -1972,7 +1972,8 @@ export class TabManager {
       this.dropCopy(tab)
     }
     wc.on('dom-ready', onReady)
-    wc.on('did-fail-load', release)
+    wc.on('did-stop-loading', onReady)
+    wc.on('did-fail-load', onFail)
     this.go(tab, url, history)
   }
 
